@@ -1,39 +1,46 @@
 package ordo::Controller::Websocket;
 use Mojo::Base 'Mojolicious::Controller';
-use Mojo::JSON 'j';
+use JSON;
 
 sub default {
-  my $self = shift;
+   my $self = shift;
 
-  $self->inactivity_timeout(0);
-  $self->tx->with_compression;
+   $self->inactivity_timeout(0);
+   $self->tx->with_compression;
 
-  my $connection_id = $self->tx->connection;
-  $self->app->logins->{ $connection_id } = $self->tx;
+   my $connection_id = $self->tx->connection;
+   $self->app->users->add( $self->tx );
 
-  $self->on(
-    message => sub {
-      my ( $self, $msg ) = @_;
-      my $aref = eval { j($msg) };
-      if ($@) {
-        $self->tx->req_error;
-        $self->tx->send( "failed" );
+   $self->on(
+      message => sub {
+         my ( $self, $msg ) = @_;
+         my $decoded = eval { decode_json($msg) };
+         if ($@) {
+            $self->tx->send(encode_json( { response => 'invalid json' }));
+         }
+         else {
+            if ( ref $decoded eq 'HASH' && defined $decoded->{command} ) {
+               #$self->tx->send( { response => 'invalid command format' } );
+               $self->app->request( $connection_id, $decoded );
+            }
+            else {
+               $self->tx->send( encode_json( { response => 'command not found' } ) );
+            }
+         }
       }
-      else {
-        $self->tx->send( "hello $connection_id received: $msg" );
-      }
-    }
-  );
+   );
 
-  # Disconnected
-  $self->on(
-    finish => sub {
-      my $self = shift;
-      #cleanup logins
-      delete $self->app->logins->{$connection_id};
-      $self->app->log->debug("Logout: $connection_id" );
-    }
-  );
+   # Disconnected
+   $self->on(
+      finish => sub {
+         my $self = shift;
+
+         # cleanup
+         $self->app->users->remove($connection_id);
+         $self->app->log->info("Logout: $connection_id");
+      }
+   );
+   $self->app->log->info("Login: $connection_id");
 }
 
 1;
