@@ -3,6 +3,7 @@ use Mojo::Base 'Mojolicious';
 use Mojo::SQLite;
 use ordo::Model::Users;
 use JSON;
+use Digest::SHA qw(hmac_sha1_hex);
 
 # This method will run once at server start
 sub startup {
@@ -78,7 +79,40 @@ sub login {
 sub register {
    my ( $self, $connection_id, $decoded ) = @_;
    my $user = $self->app->users->user->{$connection_id};
-   $user->tx->send( "you want to register" );
+   my $db = $self->app->sqlite->db;
+
+   if (defined $decoded->{username}) {
+      my $name_length = length( $decoded->{username} );
+      my $results = $db->select('user', ['*'], { username => $decoded->{username} })->hash;
+      if ( $name_length < 3 || $name_length > 20 ) { 
+         $user->tx->send( encode_json ( { response => 'invalid username length' } ) );
+      }
+      elsif ( defined $results->{id} ) { # username taken
+         $user->tx->send( encode_json ( { response => 'username already taken' } ) );
+      }
+      else { # username available
+         if ( $decoded->{password} ) {
+
+            # generate password hash
+            my $hash = hmac_sha1_hex( $decoded->{password}, $self->secrets );
+            $decoded->{password} = $hash;
+         }
+
+         # generate bookmark
+         my $bookmark = hmac_sha1_hex( $decoded->{username}, $self->secrets );
+
+         # insert new user
+         # my $id = $db->insert('user', {username => 'Daniel'})->last_insert_id;
+
+         $user->tx->send( encode_json ( { response => 'registration not implemented' } ) );
+      }
+   }
+   else {
+      $user->tx->send( encode_json ( { response => 'username is required' } ) );
+   }
+   # generate bookmark
+   # generate password hash
+  
    return;
 }
 
