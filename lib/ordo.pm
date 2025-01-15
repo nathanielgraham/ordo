@@ -36,6 +36,7 @@ sub request {
    my %command = (
       'login'       => \&login,
       'register'    => \&register,
+      'whoami'    => \&whoami,
    );
 
    die                unless ref $decoded eq 'HASH';
@@ -64,11 +65,21 @@ sub login {
          $user->tx->send( encode_json ( { response => 'logged in as ' . $user->username } ) );
       }
       else {
-         $user->tx->send( encode_json ( { response => 'user not found' } ) );
+         $user->tx->send( encode_json ( { response => 'login failed' } ) );
       }
    }
    elsif (defined $decoded->{username} && defined $decoded->{password}) {
-      $user->tx->send( encode_json ( { response => 'password login not implemented' } ) );
+      my $results = $db->select('user', ['*'], { username => $decoded->{username} })->hash;
+      if ($results->{password} ne hmac_sha1_hex( $decoded->{password}, $self->secrets->[0] ) ) {
+         $user->tx->send( encode_json ( { response => 'incorrect password' } ) );
+      }
+      else {
+         # update user
+         while (my ($p, $v) = each %$results) {
+            $user->$p($v);
+         }
+         $user->tx->send( encode_json ( { response => 'logged in as ' . $user->username } ) );
+      }
    }
    else {
       $user->tx->send( encode_json ( { response => 'login failed' } ) );
@@ -79,8 +90,12 @@ sub login {
 sub register {
    my ( $self, $connection_id, $decoded ) = @_;
    my $user = $self->app->users->user->{$connection_id};
-   my $db = $self->app->sqlite->db;
 
+   if ($user->bookmark) {
+      $user->tx->send( encode_json ( { response => 'already registered' } ) );
+      return;
+   }
+   my $db = $self->app->sqlite->db;
    if (defined $decoded->{username}) {
       my $name_length = length( $decoded->{username} );
       my $results = $db->select('user', ['*'], { username => $decoded->{username} })->hash;
@@ -91,29 +106,54 @@ sub register {
          $user->tx->send( encode_json ( { response => 'username already taken' } ) );
       }
       else { # username available
+
+         my $insert_hash = {
+            username => $decoded->{username},
+            email => $decoded->{email},
+            remote_address => $user->tx->remote_address,
+            level => 0, # no privileges until verified
+         };
+
          if ( $decoded->{password} ) {
 
             # generate password hash
-            my $hash = hmac_sha1_hex( $decoded->{password}, $self->secrets );
-            $decoded->{password} = $hash;
+            my $password_hash = hmac_sha1_hex( $decoded->{password}, $self->secrets->[0] );
+            $insert_hash->{ password } = $password_hash;
          }
 
          # generate bookmark
-         my $bookmark = hmac_sha1_hex( $decoded->{username}, $self->secrets );
+         my $bookmark = hmac_sha1_hex( $decoded->{username}, $self->secrets->[0] );
+         $insert_hash->{ bookmark } = $bookmark;
 
          # insert new user
-         # my $id = $db->insert('user', {username => 'Daniel'})->last_insert_id;
+         my $id = $db->insert('user', $insert_hash)->last_insert_id;
+         my $user_info = $db->select('user', ['username', 'bookmark', 'remote_address', 'level', 'email', 'id'], { bookmark => $bookmark })->hash;
+         $user_info->{ response } = 'registered';
+         $user->tx->send( encode_json ( $user_info ) );
 
-         $user->tx->send( encode_json ( { response => 'registration not implemented' } ) );
+         # log in new user
+         &login($self, $connection_id, $user_info);
       }
    }
    else {
       $user->tx->send( encode_json ( { response => 'username is required' } ) );
    }
-   # generate bookmark
-   # generate password hash
-  
    return;
+}
+
+sub whoami {
+   my ( $self, $connection_id, $decoded ) = @_;
+   my $user = $self->app->users->user->{$connection_id};
+   my $response_hash = {
+      response => 'logged in',
+      id => $user->id,
+      username => $user->username,
+      bookmark => $user->bookmark,
+      level => $user->level,
+      email => $user->email,
+      remote_address => $user->remote_address,
+   };
+   $user->tx->send( encode_json ( $response_hash ) );
 }
 
 1;
