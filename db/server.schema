@@ -1,0 +1,17 @@
+PRAGMA foreign_keys=OFF;
+BEGIN TRANSACTION;
+DROP TABLE IF EXISTS server;
+CREATE TABLE server (
+        id INTEGER PRIMARY KEY NOT NULL,
+        user_id INTEGER,
+        alias varchar,
+        username varchar,
+        password varchar,
+        hostname varchar,
+        creation_time DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX server_idx1 ON server (alias);
+CREATE UNIQUE INDEX server_idx2 ON server (user_id, username, hostname);
+
+COMMIT;

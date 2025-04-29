@@ -4,15 +4,16 @@ DROP TABLE IF EXISTS user;
 CREATE TABLE user (
         id INTEGER PRIMARY KEY NOT NULL,
         level tinyint NOT NULL DEFAULT 1,
-        remote_address varchar(15),
-        bookmark varchar(40),
-        username varchar(255),
-        password varchar(40),
-        email varchar(80),
+        server_user varchar,
+        server_name varchar,
+        bookmark varchar,
+        username varchar,
+        password varchar,
+        email varchar,
         creation_time DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO user (level, username, bookmark) VALUES(1,'admin','1d53c9a4e58a0b76f4ab7ad900d8db7814f4d27e');
+INSERT INTO user (level, username, bookmark) VALUES(99,'admin','1d53c9a4e58a0b76f4ab7ad900d8db7814f4d27e');
 
 CREATE UNIQUE INDEX user_idx1 ON user (bookmark);
 COMMIT;

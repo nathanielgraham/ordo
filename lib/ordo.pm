@@ -1,25 +1,34 @@
 package ordo;
 use Mojo::Base 'Mojolicious';
 use Mojo::SQLite;
-use ordo::Model::Users;
+use ordo::Model::User;
+use ordo::Model::UserHelper;
+use ordo::Model::JobHelper;
+use ordo::Model::BoxHelper;
 use JSON;
 use Digest::SHA qw(hmac_sha1_hex);
+use FindBin     qw($Bin);
+use Net::SSH::Perl;
+
+has 'user' => sub {
+   state $user = {};
+};
 
 # This method will run once at server start
 sub startup {
 
    my $self = shift;
 
-   # Load configuration from config file
-   my $config = $self->plugin('NotYAMLConfig');
-
    # Configure the application
-   $self->secrets( $config->{secrets} );
+   $self->secrets( ['gu$!$#UessM%#eI36#$fYo43@#$uC^%5an'] );
 
    # Helpers
-   $self->helper( users => sub { state $users = ordo::Model::Users->new } );
-   $self->helper( request => \&request );
-   $self->helper( sqlite => sub { state $sql = Mojo::SQLite->new('db/ordo.db') } );
+   $self->helper( request     => \&request );
+   $self->helper( sqlite      => sub { state $sql    = Mojo::SQLite->new("$Bin/../db/ordo.db") } );
+   $self->helper( user_helper => sub { state $user   = ordo::Model::UserHelper->new( app => $self->app ) } );
+   $self->helper( job_helper  => sub { state $job    = ordo::Model::JobHelper->new( app => $self->app ) } );
+   $self->helper( box_helper  => sub { state $box    = ordo::Model::BoxHelper->new( app => $self->app ) } );
+   $self->helper( timers      => sub { state $timers = {} } );
 
    # Router
    my $r = $self->routes;
@@ -31,129 +40,337 @@ sub startup {
 
 sub request {
    my ( $self, $connection_id, $decoded ) = @_;
-   my $user = $self->app->users->user->{$connection_id};
 
-   my %command = (
-      'login'       => \&login,
-      'register'    => \&register,
-      'whoami'    => \&whoami,
+   my $response = {};
+   my $user     = $self->app->user->{$connection_id};
+
+   state $i = qr/^\d{1,20}$/;    # is integer
+   state $w = qr/^\w{1,60}$/;    # is word
+
+   # command routing table
+   # command => [ subroutine_ref, min_level, [ required params}, { optional_params } ] ]
+
+   my %routing = (
+
+      # CRUD operations
+
+      #create
+      'create_user'      => [ \&create_user,      3, [ { username => $w }, { password => $w, email => $w, level => $i } ] ],
+      'create_workspace' => [ \&create_workspace, 1, [ {}, {} ] ],
+      'create_server'    => [ \&create_server,    1, [ { username => $w, hostname => $w }, { password => $w } ] ],
+      'create_job'       => [ \&create_job,       1, [ { cluster_id => $i, name => $w, command => $i }, { description => $i, out_log_path => $w, err_log_path => $w } ] ],
+      'create_cluster'   => [ \&create_cluster,   1, [ {}, {} ] ],
+
+      #read
+      'read_user'      => [ \&read_user,      1, [ {}, {} ] ],    #whoami
+      'read_workspace' => [ \&read_workspace, 1 ],
+      'read_server'    => [ \&read_server,    1 ],
+      'read_job'       => [ \&read_job,       1 ],
+      'read_cluster'   => [ \&read_cluster,   1 ],
+
+      #update
+      'update_user'      => [ \&update_user,      1 ],
+      'update_workspace' => [ \&update_workspace, 1 ],
+      'update_server'    => [ \&update_server,    1 ],
+      'update_job'       => [ \&update_job,       1, [ { job_id => $i }, { cluster_id => $i, server_id => $i, pid => $i, state_id => $i, remote_command => $w } ] ],
+      'update_cluster'   => [ \&update_cluster,   1 ],
+
+      #delete
+      'delete_user'      => [ \&delete_user ],
+      'delete_workspace' => [ \&delete_workspace, 1 ],
+      'delete_server'    => [ \&delete_server,    1 ],
+      'delete_job'       => [ \&delete_job,       1 ],
+      'delete_cluster'   => [ \&delete_cluster,   1 ],
+
+      #copy
+      'copy_job'     => [ \&copy_job, 1 ],
+      'copy_cluster' => [ \&copy_cluster, 1 ],
+
+      #login
+      'login' => [ \&login, 0, [ {}, { username => $w, password => $w, bookmark => $w } ] ],
+
+      #start
+      'start_job'     => [ \&start_job,     1, [ { job_id => $i }, {} ] ],
+      'start_cluster' => [ \&start_cluster, 1 ],
+
+      #kill
+      'kill_job' => [ \&kill_job, 1 ],
+
+      #hold
+      'hold_job'     => [ \&kill_job,      1 ],
+      'hold_cluster' => [ \&start_cluster, 1 ],
+
+      #skip
+      'skip_job'     => [ \&skip_job,     1 ],
+      'skip_cluster' => [ \&skip_cluster, 1 ],
+
+      #finish
+      'finish_job'     => [ \&finish_job,     1 ],
+      'finish_cluster' => [ \&finish_cluster, 1 ],
+
+      #misc
+      'test_server' => [ \&test_server, 1 ],
    );
 
-   die                unless ref $decoded eq 'HASH';
+   die                unless ref $decoded eq 'ARRAY';
    die "no such user" unless ref $user eq 'ordo::Model::User';
 
-   if ( exists $command{ $decoded->{command} } ) {
-      $command{ $decoded->{command} }($self, $connection_id, $decoded);
+   my ($command, $params) = @{ $decoded };
+   if ( exists $routing{ $command } ) {
+
+      my $level = $self->app->user_helper->info( $user )->{level} || 0;
+      my ($sub, $min_level, $legal_options) = @{ $routing{ $command } };
+      my ($required, $optional) =  @{ $legal_options };
+      $optional->{request_id} = $i; # request_id added by client to every request
+      my @unknown = grep { !exists $required->{$_} && !exists $optional->{$_} } keys %$params;
+      my @missing = grep { !exists $params->{$_} } keys %$required;
+
+      if ($level < $min_level) {
+         $response->{error} = 'level too low';
+      }
+      elsif (scalar @unknown ) {
+         $response->{error} = "unknown parameters: @unknown";
+      }
+      elsif (scalar @missing ) {
+         $response->{error} = "missing parameters: @missing";
+      }
+      else {
+         my $error = 0;
+         my $bad_option;
+         for my $param ( keys %$params ) {
+            my $regex = $required->{$param} || $optional->{$param};
+
+            # check that param matches regex
+            unless ($params->{$param} =~ $regex) {
+               $error = 1;
+               $bad_option = $param;
+               last;
+            }
+         }
+         $response = $error ? { error => "invalid option: $bad_option" }
+                   : &$sub( $self, $user, { %$params } );
+      }
    }
    else {
-      $user->tx->send( encode_json( { response => 'no such command' } ) );
+      $response = { error => 'no such command' };
    }
+
+   $response->{command_reply} = $command;
+   $response->{request_id}    = $params->{request_id} if $params->{request_id};
+   return $response;
 }
 
-# request helpers
+#users
+
 sub login {
-   my ( $self, $connection_id, $decoded ) = @_;
-   my $user = $self->app->users->user->{$connection_id};
-   my $db = $self->app->sqlite->db;
-   if (defined $decoded->{bookmark}) {
-      my $results = $db->select('user', ['*'], { bookmark => $decoded->{bookmark} })->hash;
-      if ($results->{id}) { # user found
-         # update user
-         while (my ($p, $v) = each %$results) {
-            $user->$p($v);
-         }
-         $user->tx->send( encode_json ( { response => 'logged in as ' . $user->username } ) );
-      }
-      else {
-         $user->tx->send( encode_json ( { response => 'login failed' } ) );
-      }
-   }
-   elsif (defined $decoded->{username} && defined $decoded->{password}) {
-      my $results = $db->select('user', ['*'], { username => $decoded->{username} })->hash;
-      if ($results->{password} ne hmac_sha1_hex( $decoded->{password}, $self->secrets->[0] ) ) {
-         $user->tx->send( encode_json ( { response => 'incorrect password' } ) );
-      }
-      else {
-         # update user
-         while (my ($p, $v) = each %$results) {
-            $user->$p($v);
-         }
-         $user->tx->send( encode_json ( { response => 'logged in as ' . $user->username } ) );
-      }
-   }
-   else {
-      $user->tx->send( encode_json ( { response => 'login failed' } ) );
-   }
-   return;
+   my ( $self, $user, $decoded ) = @_;
+   return $self->app->user_helper->login( $user, $decoded );
 }
 
-sub register {
-   my ( $self, $connection_id, $decoded ) = @_;
-   my $user = $self->app->users->user->{$connection_id};
+sub create_user {
+   my ( $self, $user, $decoded ) = @_;
+   return $self->app->user_helper->add( $user, $decoded );
+}
 
-   if ($user->bookmark) {
-      $user->tx->send( encode_json ( { response => 'already registered' } ) );
+sub read_user {
+   my ( $self, $user, $decoded ) = @_;
+   return $self->app->user_helper->info( $user, $decoded );
+}
+
+#jobs
+
+sub add_job {
+   my ( $self, $user, $decoded ) = @_;
+   return $self->app->job_helper->add( $user, $decoded );
+}
+
+sub start_job {
+   my ( $self, $user, $decoded ) = @_;
+   return $self->app->job_helper->start( $user, $decoded );
+}
+
+sub finish_job {
+   my ( $self, $user, $decoded ) = @_;
+   return $self->app->job_helper->finish( $user, $decoded );
+}
+
+#boxes
+
+sub add_box {
+   my ( $self, $user, $decoded ) = @_;
+   return $self->app->box_helper->add( $user, $decoded );
+}
+
+sub start_box {
+   my ( $self, $user, $decoded ) = @_;
+   return $self->app->box_helper->start( $user, $decoded );
+}
+
+#servers
+
+sub create_server {
+   my ( $self, $user, $decoded ) = @_;
+   my @missing = grep { !$decoded->{$_} } qw(username hostname);
+   return { success => 0, message => "missing parameters: @missing" } unless $decoded->{username} && $decoded->{hostname};
+   my $response = $self->test_server( $user, $decoded );
+   if ( $response->{success} ) {
+      my $insert_hash = { map { $_ => $decoded->{$_} } grep { $decoded->{$_} } qw(username hostname password) };
+      my $id          = $self->app->sqlite->db->insert( 'server', $insert_hash )->last_insert_id;
+      $response->{id} = $id;
+   }
+   return $response;
+}
+
+sub test_server {
+   my ( $self, $user, $decoded ) = @_;
+   my @missing = grep { !$decoded->{$_} } qw(username hostname);
+   return { success => 0, message => "missing parameters: @missing" } unless $decoded->{username} && $decoded->{hostname};
+   eval {
+      my @login_details = ( $decoded->{username} );
+      push( @login_details, $decoded->{password} ) if $decoded->{password};
+      my $ssh = Net::SSH::Perl->new( $decoded->{hostname} );
+      $ssh->login(@login_details);
+      $ssh->sock;
+   };
+   my $message = $@ ? 'refused' : 'established';
+   my $success = $@ ? 0         : 1;
+   return { success => $success, message => "connection $message" };
+}
+
+sub delete_server {
+   my ( $self, $user, $decoded ) = @_;
+   my $success;
+   if ( $decoded->{id} ) {
+      $self->app->sqlite->db->delete( 'server', { id => $decoded->{id} } );
+      $success = 1;
+   }
+   else {
+      $success = 0;
+   }
+   return { success => $success };
+}
+
+sub addcontainer {
+   my ( $self, $connection_id, $decoded ) = @_;
+   my $user = $self->app->user->{$connection_id};
+   my $db   = $self->app->sqlite->db;
+   unless ( $user->level ) {
+      $user->tx->send( encode_json( { response => 'insufficient access' } ) );
       return;
    }
-   my $db = $self->app->sqlite->db;
-   if (defined $decoded->{username}) {
-      my $name_length = length( $decoded->{username} );
-      my $results = $db->select('user', ['*'], { username => $decoded->{username} })->hash;
-      if ( $name_length < 3 || $name_length > 20 ) { 
-         $user->tx->send( encode_json ( { response => 'invalid username length' } ) );
-      }
-      elsif ( defined $results->{id} ) { # username taken
-         $user->tx->send( encode_json ( { response => 'username already taken' } ) );
-      }
-      else { # username available
 
-         my $insert_hash = {
-            username => $decoded->{username},
-            email => $decoded->{email},
-            remote_address => $user->tx->remote_address,
-            level => 0, # no privileges until verified
-         };
+   # container name required
+   my $insert_hash = { map { $_ => $decoded->{$_} } grep { exists $decoded->{$_} } qw(crontab name description start) };
+   $insert_hash->{user_id} = $user->id;
+   my $id = $db->insert( 'container', $insert_hash )->last_insert_id;
 
-         if ( $decoded->{password} ) {
-
-            # generate password hash
-            my $password_hash = hmac_sha1_hex( $decoded->{password}, $self->secrets->[0] );
-            $insert_hash->{ password } = $password_hash;
-         }
-
-         # generate bookmark
-         my $bookmark = hmac_sha1_hex( $decoded->{username}, $self->secrets->[0] );
-         $insert_hash->{ bookmark } = $bookmark;
-
-         # insert new user
-         my $id = $db->insert('user', $insert_hash)->last_insert_id;
-         my $user_info = $db->select('user', ['username', 'bookmark', 'remote_address', 'level', 'email', 'id'], { bookmark => $bookmark })->hash;
-         $user_info->{ response } = 'registered';
-         $user->tx->send( encode_json ( $user_info ) );
-
-         # log in new user
-         &login($self, $connection_id, $user_info);
-      }
+   $user->tx->send( encode_json( { response => 'container added' } ) ) if $id;
+   if ( $insert_hash->{crontab} ) {
+      $self->addcron( $connection_id, { crontab => $insert_hash->{crontab}, container_id => $id } );
    }
-   else {
-      $user->tx->send( encode_json ( { response => 'username is required' } ) );
-   }
-   return;
+
+   #$self->app->container->add( $params );
+   #$user->tx->send( encode_json( { response => 'container added' }));
+
+   #my $results     = $db->select( 'user', ['*'], { username => $decoded->{username} } )->hash;
+   #$deconded->{crontab}
+   #$crontab = '*/3 15 1-10 3,4,5 */2';
+   #$set = DateTime::Event::Cron->from_cron($crontab);
 }
 
-sub whoami {
+sub addcron {
    my ( $self, $connection_id, $decoded ) = @_;
-   my $user = $self->app->users->user->{$connection_id};
-   my $response_hash = {
-      response => 'logged in',
-      id => $user->id,
-      username => $user->username,
-      bookmark => $user->bookmark,
-      level => $user->level,
-      email => $user->email,
-      remote_address => $user->remote_address,
-   };
-   $user->tx->send( encode_json ( $response_hash ) );
+   my $user = $self->app->user->{$connection_id};
+   my $set  = DateTime::Event::Cron->from_cron( cron => $decoded->{crontab}, after => DateTime->now );
+   my $db   = $self->app->sqlite->db;
+   $db->update( 'container', { crontab => $decoded->{crontab} }, { id => $decoded->{crontainer_id} } );
+
+   my $w = EV::periodic_ns(
+      0, 0,
+      sub {
+         my ( $w, $now ) = @_;
+         my $set  = DateTime::Event::Cron->new( $decoded->{crontab} );
+         my $iter = $set->iterator( after => DateTime->from_epoch( epoch => $now ) );
+         return $iter->next( DateTime->from_epoch( epoch => $now ) )->epoch;
+
+         #return $iter->next(DateTime->from_epoch(epoch => $now, time_zone => $local_TZ))->epoch;
+      },
+      sub {
+         # start container if status = A
+         my ( $w, $now ) = @_;
+         my $status = $db->select( 'container', ['status'], { id => $decoded->{crontainer_id} } )->hash->{id};
+         if ( $status eq 'A' ) {
+
+            #$w->start;
+            $self->start_container( container_id => $decoded->{crontainer_id} );
+         }
+
+         # start timer if container status = A
+         # $w->start;
+      }
+   );
+   $self->app->timers->{ $decoded->{container_id} } = $w;
+   $user->tx->send( encode_json( { response => 'crontab installed', crontab => $decoded->{crontab} } ) );
+}
+
+sub start_continer {
+   my ( $self, $connection_id, $decoded ) = @_;
+   my $db = $self->app->sqlite->db;
+   $db->update( 'container', { status => 'R' }, { id => $decoded->{crontainer_id} } );
+
+   # start all jobs in container
+}
+
+sub deltimer {
+   my ( $self, $connection_id, $decoded ) = @_;
+   my $user = $self->app->user->{$connection_id};
+}
+
+sub addjob {
+   my ( $self, $connection_id, $decoded ) = @_;
+   my $user = $self->app->user->{$connection_id};
+}
+
+sub deljob {
+   my ( $self, $connection_id, $decoded ) = @_;
+   my $user = $self->app->user->{$connection_id};
+}
+
+#sub addcontainer {
+#   my ( $self, $connection_id, $decoded ) = @_;
+#   my $user = $self->app->user->{$connection_id};
+#}
+
+sub delcontainer {
+   my ( $self, $connection_id, $decoded ) = @_;
+   my $user = $self->app->user->{$connection_id};
+}
+
+sub startjob {
+   my ( $self, $connection_id, $decoded ) = @_;
+   my $user = $self->app->user->{$connection_id};
+}
+
+sub killjob {
+   my ( $self, $connection_id, $decoded ) = @_;
+   my $user = $self->app->user->{$connection_id};
+}
+
+sub holdjob {
+   my ( $self, $connection_id, $decoded ) = @_;
+   my $user = $self->app->user->{$connection_id};
+}
+
+sub icejob {
+   my ( $self, $connection_id, $decoded ) = @_;
+   my $user = $self->app->user->{$connection_id};
+}
+
+sub foop {
+   my ( $self, $connection_id, $decoded ) = @_;
+   my $user = $self->app->user->{$connection_id};
+   my $r    = $self->app->foo->baz;
+   $user->tx->send( encode_json($r) );
 }
 
 1;

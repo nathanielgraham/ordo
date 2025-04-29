@@ -1,0 +1,23 @@
+PRAGMA foreign_keys=OFF;
+BEGIN TRANSACTION;
+DROP TABLE IF EXISTS job_states;
+CREATE TABLE job_states (
+        id INTEGER PRIMARY KEY NOT NULL,
+        state varchar NOT NULL,
+        creation_time NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX job_states_idx1 ON job_states (state);
+
+INSERT INTO job_states (id, state) VALUES(1,'active');
+INSERT INTO job_states (id, state) VALUES(2,'inactive');
+INSERT INTO job_states (id, state) VALUES(3,'starting');
+INSERT INTO job_states (id, state) VALUES(4,'running');
+INSERT INTO job_states (id, state) VALUES(5,'complete');
+INSERT INTO job_states (id, state) VALUES(6,'failed');
+INSERT INTO job_states (id, state) VALUES(7,'hold');
+INSERT INTO job_states (id, state) VALUES(8,'ice');
+INSERT INTO job_states (id, state) VALUES(9,'killed');
+INSERT INTO job_states (id, state) VALUES(10,'unforked');
+
+COMMIT;

@@ -1,0 +1,15 @@
+PRAGMA foreign_keys=on;
+BEGIN TRANSACTION;
+DROP TABLE IF EXISTS cluster_definition;
+CREATE TABLE cluster_definition (
+        id INTEGER PRIMARY KEY NOT NULL,
+        workspace_id INTEGER,
+        name varchar,
+        description varchar,
+        creation_time DEFAULT CURRENT_TIMESTAMP,
+  	FOREIGN KEY(workspace_id) REFERENCES workspace(id)
+);
+
+CREATE UNIQUE INDEX cluster_definition_idx1 ON cluster_definition (workspace_id, name);
+
+COMMIT;

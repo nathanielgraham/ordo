@@ -1,0 +1,12 @@
+PRAGMA foreign_keys=OFF;
+BEGIN TRANSACTION;
+DROP TABLE IF EXISTS job_log;
+CREATE TABLE job_log (
+        id INTEGER PRIMARY KEY NOT NULL,
+        job_id INTEGER NOT NULL,
+        state_id INTEGER,
+        creation_time DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX box_log_idx1 ON job_log (job_id);
+COMMIT;

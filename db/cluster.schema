@@ -1,0 +1,15 @@
+PRAGMA foreign_keys=on;
+BEGIN TRANSACTION;
+DROP TABLE IF EXISTS cluster;
+CREATE TABLE cluster (
+        id INTEGER PRIMARY KEY NOT NULL,
+  	cluster_definition_id INTEGER,
+	state_id INTEGER,
+	server_id INTEGER,
+        creation_time DEFAULT CURRENT_TIMESTAMP,
+  	FOREIGN KEY(cluster_definition_id) REFERENCES cluster_definition(id)
+);
+
+CREATE UNIQUE INDEX cluster_idx1 ON cluster (cluster_definition_id, server_id);
+
+COMMIT;

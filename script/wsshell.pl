@@ -5,9 +5,15 @@ use warnings;
 use Mojo::UserAgent;
 use AnyEvent::ReadLine::Gnu;
 use EV;
+use JSON;
+#use Term::ANSIColor;
+use Sys::Hostname;
+use Data::Dumper;
 
 my $ua = Mojo::UserAgent->new(inactivity_timeout => 0);
 my $ws = 'ws://0.0.0.0:3000/websocket';
+my $user = $ENV{LOGNAME} || $ENV{USER} || getpwuid($<);
+my $host = hostname;
 
 $ua->websocket(
   $ws => sub {
@@ -18,14 +24,33 @@ $ua->websocket(
       exit 0;
     }
 
+    $tx->send('[ "login", { "bookmark":"1d53c9a4e58a0b76f4ab7ad900d8db7814f4d27e"} ]');
+    #$tx->send('{"command":"login","bookmark":"1d53c9a4e58a0b76f4ab7ad900d8db7814f4d27e"}');
+    my $request_number = 1;
+
+     # black  red  green  yellow  blue  magenta  cyan  white
+    #my $prompt = colored('ordo', 'green') . ':' . colored('box1', 'cyan') . '>';
+    my $prompt = 'ordo> ';
+    #color('reset');
+
     my $rl = new AnyEvent::ReadLine::Gnu
-     prompt  => "$ws> ",
+     prompt  => $prompt,
      on_line => sub {
       my $i = shift;
-      exit 0 unless defined $i;
       exit 0 if $i && $i =~ /quit/i;
-      if ( $i && !$tx->is_finished ) {
-        $tx->send($i);
+      my $json;
+      eval {
+         my $request = decode_json($i);
+         $request->[1]->{request_id} = ++$request_number;
+         $json = encode_json($request);
+      };
+      if ($@) {
+         AnyEvent::ReadLine::Gnu->print("unable to parse json.\n");
+         return;
+      }
+      if ( $json && !$tx->is_finished ) {
+        $tx->send($json);
+        AnyEvent::ReadLine::Gnu->print("Sent request_id: $request_number\n");
       }
     };
 
@@ -40,13 +65,10 @@ $ua->websocket(
     $tx->on(
       message => sub {
         my ( $tx, $msg ) = @_;
-        AnyEvent::ReadLine::Gnu->print("server: $msg\n");
+        my $json = to_json( decode_json($msg), { pretty => 1} );
+        AnyEvent::ReadLine::Gnu->print($json);
       }
     );
-
-    #$tx->send('["guest_login"]');
-    # IMPORTANT: Admin login bookmark should be changed.   
-    #$tx->send('["login_book", {"bookmark":"1d53c9a4e58a0b76f4ab7ad900d8db7814f4d27e"}]');
   }
 );
 
