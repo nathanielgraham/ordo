@@ -1,3 +1,0 @@
-REQUIRED 
-sudo apt-get install libreadline-dev 
-cpanm Mojo::SQLite
