@@ -16,7 +16,7 @@ sub start {
    my $encoded = encode_json({
       remote_command => $job_info->{remote_command},
       job_id => $job_info->{id},
-      bookmark => $self->app->user_helper->info($user)->{bookmark},
+      token => $self->app->user_helper->info($user)->{token},
    });
 
    my $basedir = $server_info->{basedir} ? "$server_info->{basedir}/" : ''; 

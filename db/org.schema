@@ -1,0 +1,12 @@
+PRAGMA foreign_keys=OFF;
+BEGIN TRANSACTION;
+DROP TABLE IF EXISTS org;
+CREATE TABLE org (
+        id INTEGER PRIMARY KEY NOT NULL,
+        bookmark varchar NOT NULL,
+        name varchar NOT NULL,
+        description varchar,
+        creation_time DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMIT;

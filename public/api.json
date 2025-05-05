@@ -1,0 +1,73 @@
+{
+  "openapi": "3.0.2",
+  "info": {
+    "version": "1.0",
+    "title": "ordo API"
+  },
+  "paths": {
+    "/pets": {
+      "post": {
+        "operationId": "getPets",
+        "x-mojo-name": "get_pets",
+        "x-mojo-to": "pet#list",
+        "summary": "Finds pets in the system",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "age",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "description": "Updated name of the pet",
+                    "type": "string"
+                  },
+                  "status": {
+                    "description": "Updated status of the pet",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pet response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ]
+}

@@ -3,12 +3,13 @@ BEGIN TRANSACTION;
 DROP TABLE IF EXISTS workspace;
 CREATE TABLE workspace (
         id INTEGER PRIMARY KEY NOT NULL,
-        user_id INTEGER NOT NULL,
+        org_id INTEGER NOT NULL,
         name varchar,
         description varchar,
-        creation_time DEFAULT CURRENT_TIMESTAMP
+        creation_time DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY(org_id) REFERENCES org(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
 
-CREATE UNIQUE INDEX workspace_idx1 ON workspace (user_id, name);
+CREATE UNIQUE INDEX workspace_idx1 ON workspace (org_id, name);
 
 COMMIT;

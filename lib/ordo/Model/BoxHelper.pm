@@ -31,7 +31,7 @@ sub info {
    return {
       id             => $info->{id},
       username       => $info->{username},
-      bookmark       => $info->{bookmark},
+      token       => $info->{token},
       level          => $info->{level},
       email          => $info->{email},
       remote_address => $user->remote_address,
@@ -44,8 +44,8 @@ sub login {
    my $results = {};
    my ($message, $success);
 
-   if (defined $d->{bookmark}) {
-      $results = $self->app->sqlite->db->select( 'user', ['*'], { bookmark => $d->{bookmark} } )->hash;
+   if (defined $d->{token}) {
+      $results = $self->app->sqlite->db->select( 'user', ['*'], { token => $d->{token} } )->hash;
    } 
    elsif ( defined $d->{username} && defined $d->{password} ) {
       $results = $self->app->sqlite->db->select( 'user', ['*'], { username => $d->{username} } )->hash;
@@ -99,10 +99,10 @@ sub xadd {
             $insert_hash->{password} = $password_hash;
          }
 
-         # generate bookmark
-         my $bookmark =
+         # generate token
+         my $token =
            hmac_sha1_hex( $d->{username}, $self->app->secrets->[0] );
-         $insert_hash->{bookmark} = $bookmark;
+         $insert_hash->{token} = $token;
 
          # insert new user
          my $id        = $db->insert( 'user', $insert_hash )->last_insert_id;

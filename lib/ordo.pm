@@ -9,6 +9,7 @@ use JSON;
 use Digest::SHA qw(hmac_sha1_hex);
 use FindBin     qw($Bin);
 use Net::SSH::Perl;
+use Data::Dumper;
 
 has 'user' => sub {
    state $user = {};
@@ -20,15 +21,26 @@ sub startup {
    my $self = shift;
 
    # Configure the application
-   $self->secrets( ['gu$!$#UessM%#eI36#$fYo43@#$uC^%5an'] );
+   $self->secrets( ['gu$!$#UessM%#eI36#$fYo43@#$uC^%5an', '%!#GDA$#!gfds%#@sdf'] );
+
+   # Plugins
+   $self->plugin( "OpenAPI" => { url => $self->home->rel_file("public/api.json") } );
+
+   $self->plugin(
+      SwaggerUI => {
+         route => $self->routes()->any('api'),
+         url   => "/api/v1",
+         title => "Ordo API"
+      }
+   );
 
    # Helpers
    $self->helper( request     => \&request );
    $self->helper( sqlite      => sub { state $sql    = Mojo::SQLite->new("$Bin/../db/ordo.db") } );
-   $self->helper( user_helper => sub { state $user   = ordo::Model::UserHelper->new( app => $self->app ) } );
-   $self->helper( job_helper  => sub { state $job    = ordo::Model::JobHelper->new( app => $self->app ) } );
-   $self->helper( box_helper  => sub { state $box    = ordo::Model::BoxHelper->new( app => $self->app ) } );
-   $self->helper( timers      => sub { state $timers = {} } );
+   $self->helper( user_helper => sub { state $user   = ordo::Model::UserHelper->new( sqlite => shift->sqlite ) } );
+   $self->helper( job_helper  => sub { state $job    = ordo::Model::JobHelper->new( app => shift->app ) } );
+   $self->helper( box_helper  => sub { state $box    = ordo::Model::BoxHelper->new( app => shift->app ) } );
+   $self->helper( val => sub { state $v = JSON::Validator::Schema::OpenAPIv3->new('public/api.json') } );
 
    # Router
    my $r = $self->routes;
@@ -36,6 +48,10 @@ sub startup {
    # Normal route to controller
    $r->get('/')->to( controller => 'landing', action => 'welcome' );
    $r->websocket('/websocket')->to( controller => 'websocket', action => 'default' );
+
+   #my @request_errors = $self->val->validate_request( [ post => "/pets" ], { body => sub { return { exists => 1, value => { tatus => 'jj' } } } } );
+
+   #print Dumper(@request_errors);
 }
 
 sub request {
@@ -50,15 +66,15 @@ sub request {
    # command routing table
    # command => [ subroutine_ref, min_level, [ required params}, { optional_params } ] ]
 
-   my %routing = (
+   state %routing = (
 
       # CRUD operations
 
       #create
-      'create_user'      => [ \&create_user,      3, [ { username => $w }, { password => $w, email => $w, level => $i } ] ],
+      'create_user'      => [ \&create_user,      3, [ { username => $w }, { org_id => $i, password => $w, email => $w, level => $i } ] ],
       'create_workspace' => [ \&create_workspace, 1, [ {}, {} ] ],
       'create_server'    => [ \&create_server,    1, [ { username => $w, hostname => $w }, { password => $w } ] ],
-      'create_job'       => [ \&create_job,       1, [ { cluster_id => $i, name => $w, command => $i }, { description => $i, out_log_path => $w, err_log_path => $w } ] ],
+      'create_job'       => [ \&create_job,       1, [ { cluster_id => $i, name => $w, shell_command => $i }, { description => $i, out_log_path => $w, err_log_path => $w } ] ],
       'create_cluster'   => [ \&create_cluster,   1, [ {}, {} ] ],
 
       #read
@@ -87,7 +103,7 @@ sub request {
       'copy_cluster' => [ \&copy_cluster, 1 ],
 
       #login
-      'login' => [ \&login, 0, [ {}, { username => $w, password => $w, bookmark => $w } ] ],
+      'login' => [ \&login, 0, [ {}, { username => $w, password => $w, token => $w } ] ],
 
       #start
       'start_job'     => [ \&start_job,     1, [ { job_id => $i }, {} ] ],
@@ -117,16 +133,27 @@ sub request {
 
    my ($command, $params) = @{ $decoded };
    if ( exists $routing{ $command } ) {
+   #print Dumper($self->validator);
 
-      my $level = $self->app->user_helper->info( $user )->{level} || 0;
+#my @request_errors = $self->validator->validate_request(
+#  [post => "/pets"],
+#  {body => sub { return {exists => 1, value => { stats => 'jj' }} }},
+#);
+
+#      print Dumper(\@request_errors);
+
+      #my $level = $user->level || 0;
       my ($sub, $min_level, $legal_options) = @{ $routing{ $command } };
       my ($required, $optional) =  @{ $legal_options };
       $optional->{request_id} = $i; # request_id added by client to every request
       my @unknown = grep { !exists $required->{$_} && !exists $optional->{$_} } keys %$params;
       my @missing = grep { !exists $params->{$_} } keys %$required;
 
-      if ($level < $min_level) {
-         $response->{error} = 'level too low';
+      if ($user->level < $min_level) {
+         $response->{error} = 'level too low -- ';
+         #use Data::Dumper;
+         #print Dumper($user->level);
+         #print Dumper($min_level);
       }
       elsif (scalar @unknown ) {
          $response->{error} = "unknown parameters: @unknown";

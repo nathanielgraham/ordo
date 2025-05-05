@@ -9,11 +9,10 @@ use JSON;
 #use Term::ANSIColor;
 use Sys::Hostname;
 use Data::Dumper;
+use feature qw(say);
 
 my $ua = Mojo::UserAgent->new(inactivity_timeout => 0);
 my $ws = 'ws://0.0.0.0:3000/websocket';
-my $user = $ENV{LOGNAME} || $ENV{USER} || getpwuid($<);
-my $host = hostname;
 
 $ua->websocket(
   $ws => sub {
@@ -24,19 +23,14 @@ $ua->websocket(
       exit 0;
     }
 
-    $tx->send('[ "login", { "bookmark":"1d53c9a4e58a0b76f4ab7ad900d8db7814f4d27e"} ]');
-    #$tx->send('{"command":"login","bookmark":"1d53c9a4e58a0b76f4ab7ad900d8db7814f4d27e"}');
-    my $request_number = 1;
-
-     # black  red  green  yellow  blue  magenta  cyan  white
-    #my $prompt = colored('ordo', 'green') . ':' . colored('box1', 'cyan') . '>';
-    my $prompt = 'ordo> ';
-    #color('reset');
+    my $request_number = 0;
+    $tx->send('[ "login", { "token":"1bb6eda29b864133bf8fc776d11dc8c0b228f9dc" } ]');
 
     my $rl = new AnyEvent::ReadLine::Gnu
-     prompt  => $prompt,
+     prompt  => "ordo> ",
      on_line => sub {
       my $i = shift;
+      return unless $i;
       exit 0 if $i && $i =~ /quit/i;
       my $json;
       eval {
@@ -45,12 +39,13 @@ $ua->websocket(
          $json = encode_json($request);
       };
       if ($@) {
-         AnyEvent::ReadLine::Gnu->print("unable to parse json.\n");
+         AnyEvent::ReadLine::Gnu->print("wrong json format.\n");
          return;
       }
       if ( $json && !$tx->is_finished ) {
         $tx->send($json);
-        AnyEvent::ReadLine::Gnu->print("Sent request_id: $request_number\n");
+        $request_number++;
+        AnyEvent::ReadLine::Gnu->print("Sent with request_id: $request_number\n");
       }
     };
 
@@ -66,9 +61,10 @@ $ua->websocket(
       message => sub {
         my ( $tx, $msg ) = @_;
         my $json = to_json( decode_json($msg), { pretty => 1} );
-        AnyEvent::ReadLine::Gnu->print($json);
+        AnyEvent::ReadLine::Gnu->print("\n$json\n");
       }
     );
+
   }
 );
 

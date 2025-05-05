@@ -43,7 +43,7 @@ sub default {
                }
             }
             else {
-               $self->tx->send( encode_json( { error => 'command not found -- ws' } ) );
+               $self->tx->send( encode_json( { error => 'command not found' } ) );
                $self->tx->finish;
             }
          }

@@ -2,19 +2,20 @@ package ordo::Model::UserHelper;
 use Moo;
 use Digest::SHA qw(hmac_sha1_hex);
 
-has app => (
-   is  => 'rw',
+has sqlite => (
+   is       => 'rw',
    weak_ref => 1,
 );
 
 sub info {
-   my ($self, $user, $d) = @_;
-   my $info = $self->app->sqlite->db->select( 'user', ['*'], { id => $user->id } )->hash;
+   my ( $self, $user, $d ) = @_;
+   my $info = $self->sqlite->db->select( 'user', ['*'], { id => $user->id } )->hash;
 
    return {
       id             => $info->{id},
+      org_id         => $info->{org_id},
       username       => $info->{username},
-      bookmark       => $info->{bookmark},
+      token          => $info->{token},
       level          => $info->{level},
       email          => $info->{email},
       remote_address => $user->remote_address,
@@ -22,23 +23,25 @@ sub info {
 }
 
 sub login {
-   my ($self, $user, $d) = @_;
+   my ( $self, $user, $d ) = @_;
 
    my $results = {};
-   my ($message, $success);
+   my ( $message, $success );
 
-   if (defined $d->{bookmark}) {
-      $results = $self->app->sqlite->db->select( 'user', ['*'], { bookmark => $d->{bookmark} } )->hash;
-   } 
+   if ( defined $d->{token} ) {
+      $results = $self->sqlite->db->select( 'user', ['*'], { token => $d->{token} } )->hash;
+   }
    elsif ( defined $d->{username} && defined $d->{password} ) {
-      $results = $self->app->sqlite->db->select( 'user', ['*'], { username => $d->{username} } )->hash;
+      $results = $self->sqlite->db->select( 'user', ['*'], { username => $d->{username} } )->hash;
       if ( $results->{password} ne hmac_sha1_hex( $d->{password}, $self->app->secrets->[0] ) ) {
          $results = {};
       }
    }
 
-   if ($results->{id}) {
-      $user->id($results->{id});
+   if ( $results->{id} ) {
+      $user->id( $results->{id} );
+      $user->level( $results->{level} );
+      $user->org_id( $results->{org_id} );
       $message = 'logged in as ' . $results->{username};
       $success = 1;
    }
@@ -51,54 +54,36 @@ sub login {
 }
 
 sub add {
-   my ($self, $user, $d) = @_;
+   my ( $self, $user, $d ) = @_;
 
-   return { message => 'insufficient privileges' } unless $self->info($user)->{level} >= 3;
+   my $db = $self->sqlite->db;
+   my ($org_id, $user_id);
 
-   my $db = $self->app->sqlite->db;
-   if ( defined $d->{username} ) {
-      my $name_length = length( $d->{username} );
-      my $results     = $db->select( 'user', ['*'], { username => $d->{username} } )->hash;
-      if ( $name_length < 3 || $name_length > 20 ) {
-         return { message => 'invalid username length' };
-      }
-      elsif ( defined $results->{id} ) {    # username taken
-         return { message => 'username already taken' };
-      }
-      else {                                # username available
+   my $user_insert = {
+      username       => $d->{username},
+      email          => $d->{email},
+      remote_address => $user->tx->remote_address,
+      level          => defined $d->{level} || 1,
+   };
 
-         my $insert_hash = {
-            username       => $d->{username},
-            email          => $d->{email},
-            #remote_address => $self->tx->remote_address,
-            level          => defined $d->{level} || 1,
-         };
+   eval {
+      my $tx = $db->begin;
 
-         if ( $d->{password} ) {
+      # generate org bookmark
+      my $bookmark = hmac_sha1_hex( $d->{username}, $self->app->secrets->[1] );
 
-            # generate password hash
-            my $password_hash =
-              hmac_sha1_hex( $d->{password}, $self->app->secrets->[0] );
-            $insert_hash->{password} = $password_hash;
-         }
+      $org_id = $d->{org_id} || $db->insert( 'org', { name => $d->{username}, bookmark => $bookmark } )->last_insert_id;
 
-         # generate bookmark
-         my $bookmark =
-           hmac_sha1_hex( $d->{username}, $self->app->secrets->[0] );
-         $insert_hash->{bookmark} = $bookmark;
+      # generate login token
+      my $token = hmac_sha1_hex( $d->{username}, $self->app->secrets->[0] );
+      $user_insert->{org_id} = $org_id;
+      $user_insert->{token} = $token;
+      $user_id = $db->insert( 'user', $user_insert )->last_insert_id;
+      $tx->commit;
+   };
 
-         # insert new user
-         my $id        = $db->insert( 'user', $insert_hash )->last_insert_id;
-         if ($id) {
-            $insert_hash->{id} = $id;
-            $insert_hash->{success} = 1;
-         }
-         return $insert_hash; 
-      }
-   }
-   else {
-      return { message => 'username required' };
-   }
+   return $@ ? { error => $@, success => 0 } 
+             : { success => 1 };
 }
 
 1;

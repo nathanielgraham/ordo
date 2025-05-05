@@ -3,18 +3,24 @@ BEGIN TRANSACTION;
 DROP TABLE IF EXISTS job;
 CREATE TABLE job (
         id INTEGER PRIMARY KEY NOT NULL,
-        job_definition_id INTEGER,
+        workspace_id INTEGER,
         cluster_id INTEGER,
         server_id INTEGER,
+        command varchar,
         state_id INTEGER NOT NULL DEFAULT 1,
         pid INTEGER,
         name varchar,
         description varchar,
+        out_log_path varchar,
+        err_log_path varchar,
+        restart_max INTEGER NOT NULL DEFAULT 0,
+        restart_delay INTEGER NOT NULL DEFAULT 0,
         creation_time DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(job_definition_id) REFERENCES job_definition(id),
+        FOREIGN KEY(server_id) REFERENCES server(id),
+        FOREIGN KEY(workspace_id) REFERENCES workspace(id),
         FOREIGN KEY(cluster_id) REFERENCES cluster(id)
 );
 
-CREATE UNIQUE INDEX job_idx1 ON job (job_definition_id, cluster_id);
+CREATE UNIQUE INDEX job_idx1 ON job (workspace_id, cluster_id, name);
 
 COMMIT;
