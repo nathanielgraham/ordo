@@ -28,14 +28,13 @@ sub default {
             $self->tx->send(encode_json( { response => 'invalid json' }));
          }
          else {
-            #if ( ref $decoded eq 'HASH' && defined $decoded->{command} ) {
-            #if ( ref $decoded eq 'ARRAY' && $decoded->[0] && $decoded->[1] eq 'HASH' && !$decoded->[2] ) {
-            if ( ref $decoded eq 'ARRAY' && $decoded->[0] ) {
-               if ($self->app->user->{$connection_id}->id || $decoded->[0] eq 'login') {
-                  my $response = $self->app->request( $connection_id, $decoded );
+            if ( ref $decoded eq 'HASH' && defined $decoded->{command} ) {
+               my $cmd = $decoded->{command};
+               if ($self->app->user->{$connection_id}->id || $cmd eq 'login') {
+                  my $response = $self->app->request( $user, $decoded );
 
                   # never timeout if logged in
-                  $self->inactivity_timeout(0) if $decoded->[0] eq 'login' && $response->{success};
+                  $self->inactivity_timeout(0) if $cmd eq 'login' && $response->{success};
                   $self->tx->send( encode_json( $response ) );
                }
                else {

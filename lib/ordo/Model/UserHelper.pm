@@ -50,7 +50,7 @@ sub login {
       $success = 0;
    }
 
-   return { message => $message, success => $success };
+   return { message => $message, success => $success, user_id => $user->id };
 }
 
 sub add {

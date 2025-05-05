@@ -23,24 +23,13 @@ sub startup {
    # Configure the application
    $self->secrets( ['gu$!$#UessM%#eI36#$fYo43@#$uC^%5an', '%!#GDA$#!gfds%#@sdf'] );
 
-   # Plugins
-   $self->plugin( "OpenAPI" => { url => $self->home->rel_file("public/api.json") } );
-
-   $self->plugin(
-      SwaggerUI => {
-         route => $self->routes()->any('api'),
-         url   => "/api/v1",
-         title => "Ordo API"
-      }
-   );
-
    # Helpers
    $self->helper( request     => \&request );
+   $self->helper( routing     => \&routing );
    $self->helper( sqlite      => sub { state $sql    = Mojo::SQLite->new("$Bin/../db/ordo.db") } );
    $self->helper( user_helper => sub { state $user   = ordo::Model::UserHelper->new( sqlite => shift->sqlite ) } );
    $self->helper( job_helper  => sub { state $job    = ordo::Model::JobHelper->new( app => shift->app ) } );
    $self->helper( box_helper  => sub { state $box    = ordo::Model::BoxHelper->new( app => shift->app ) } );
-   $self->helper( val => sub { state $v = JSON::Validator::Schema::OpenAPIv3->new('public/api.json') } );
 
    # Router
    my $r = $self->routes;
@@ -49,111 +38,61 @@ sub startup {
    $r->get('/')->to( controller => 'landing', action => 'welcome' );
    $r->websocket('/websocket')->to( controller => 'websocket', action => 'default' );
 
-   #my @request_errors = $self->val->validate_request( [ post => "/pets" ], { body => sub { return { exists => 1, value => { tatus => 'jj' } } } } );
+   # HTTP status codes
+   # 200 OK: The request was successful.
+   # 201 Created: A new resource has been created.
+   # 400 Bad Request: The request was invalid or cannot be fulfilled.
+   # 401 Unauthorized: Authentication is required and has failed or has not yet been provided.
+   # 404 Not Found: The requested resource could not be found.
+   # 500 Internal Server Error: The server encountered an unexpected condition.
 
-   #print Dumper(@request_errors);
+   for my $k (keys %{ $self->routing }) {
+      $r->get("/$k" => sub {
+         my $c = shift;
+         my $body = $c->req->json;
+         if (ref $body ne 'HASH' || !$body->{token}) {
+            $c->render(json => { error => 'missing login token' }, status => 400);
+         }
+         else {
+            my $user = ordo::Model::User->new();
+            my $auth = $self->request($user, { token => $body->{token}, command => 'login' });
+            if ($auth->{success}) {
+               my $result = $self->request($user, $body);
+               $c->render(json => $result);
+            }
+            else {
+               $c->render(json => { error => 'invalid login token' }, status => 401);
+            }
+         }
+      });
+   }
 }
 
 sub request {
-   my ( $self, $connection_id, $decoded ) = @_;
+   my ( $self, $user, $decoded ) = @_;
+   #my ( $self, $connection_id, $decoded ) = @_;
 
    my $response = {};
-   my $user     = $self->app->user->{$connection_id};
+   #my $user     = $self->app->user->{$connection_id};
 
    state $i = qr/^\d{1,20}$/;    # is integer
    state $w = qr/^\w{1,60}$/;    # is word
 
-   # command routing table
-   # command => [ subroutine_ref, min_level, [ required params}, { optional_params } ] ]
+   die                unless ref $decoded eq 'HASH';
 
-   state %routing = (
-
-      # CRUD operations
-
-      #create
-      'create_user'      => [ \&create_user,      3, [ { username => $w }, { org_id => $i, password => $w, email => $w, level => $i } ] ],
-      'create_workspace' => [ \&create_workspace, 1, [ {}, {} ] ],
-      'create_server'    => [ \&create_server,    1, [ { username => $w, hostname => $w }, { password => $w } ] ],
-      'create_job'       => [ \&create_job,       1, [ { cluster_id => $i, name => $w, shell_command => $i }, { description => $i, out_log_path => $w, err_log_path => $w } ] ],
-      'create_cluster'   => [ \&create_cluster,   1, [ {}, {} ] ],
-
-      #read
-      'read_user'      => [ \&read_user,      1, [ {}, {} ] ],    #whoami
-      'read_workspace' => [ \&read_workspace, 1 ],
-      'read_server'    => [ \&read_server,    1 ],
-      'read_job'       => [ \&read_job,       1 ],
-      'read_cluster'   => [ \&read_cluster,   1 ],
-
-      #update
-      'update_user'      => [ \&update_user,      1 ],
-      'update_workspace' => [ \&update_workspace, 1 ],
-      'update_server'    => [ \&update_server,    1 ],
-      'update_job'       => [ \&update_job,       1, [ { job_id => $i }, { cluster_id => $i, server_id => $i, pid => $i, state_id => $i, remote_command => $w } ] ],
-      'update_cluster'   => [ \&update_cluster,   1 ],
-
-      #delete
-      'delete_user'      => [ \&delete_user ],
-      'delete_workspace' => [ \&delete_workspace, 1 ],
-      'delete_server'    => [ \&delete_server,    1 ],
-      'delete_job'       => [ \&delete_job,       1 ],
-      'delete_cluster'   => [ \&delete_cluster,   1 ],
-
-      #copy
-      'copy_job'     => [ \&copy_job, 1 ],
-      'copy_cluster' => [ \&copy_cluster, 1 ],
-
-      #login
-      'login' => [ \&login, 0, [ {}, { username => $w, password => $w, token => $w } ] ],
-
-      #start
-      'start_job'     => [ \&start_job,     1, [ { job_id => $i }, {} ] ],
-      'start_cluster' => [ \&start_cluster, 1 ],
-
-      #kill
-      'kill_job' => [ \&kill_job, 1 ],
-
-      #hold
-      'hold_job'     => [ \&kill_job,      1 ],
-      'hold_cluster' => [ \&start_cluster, 1 ],
-
-      #skip
-      'skip_job'     => [ \&skip_job,     1 ],
-      'skip_cluster' => [ \&skip_cluster, 1 ],
-
-      #finish
-      'finish_job'     => [ \&finish_job,     1 ],
-      'finish_cluster' => [ \&finish_cluster, 1 ],
-
-      #misc
-      'test_server' => [ \&test_server, 1 ],
-   );
-
-   die                unless ref $decoded eq 'ARRAY';
-   die "no such user" unless ref $user eq 'ordo::Model::User';
-
-   my ($command, $params) = @{ $decoded };
-   if ( exists $routing{ $command } ) {
-   #print Dumper($self->validator);
-
-#my @request_errors = $self->validator->validate_request(
-#  [post => "/pets"],
-#  {body => sub { return {exists => 1, value => { stats => 'jj' }} }},
-#);
-
-#      print Dumper(\@request_errors);
-
-      #my $level = $user->level || 0;
-      my ($sub, $min_level, $legal_options) = @{ $routing{ $command } };
+   my ($command, $params) = (delete $decoded->{command}, $decoded);
+   if ( exists $self->routing->{ $command } ) {
+      my $level = $user->level || 0;
+      my ($sub, $min_level, $legal_options) = @{ $self->routing->{ $command } };
+      #my ($sub, $min_level, $legal_options) = @{ $routing{ $command } };
       my ($required, $optional) =  @{ $legal_options };
       $optional->{request_id} = $i; # request_id added by client to every request
+      $optional->{token} = $w; # token added for rest api
       my @unknown = grep { !exists $required->{$_} && !exists $optional->{$_} } keys %$params;
       my @missing = grep { !exists $params->{$_} } keys %$required;
 
       if ($user->level < $min_level) {
-         $response->{error} = 'level too low -- ';
-         #use Data::Dumper;
-         #print Dumper($user->level);
-         #print Dumper($min_level);
+         $response->{error} = 'level too low';
       }
       elsif (scalar @unknown ) {
          $response->{error} = "unknown parameters: @unknown";
@@ -398,6 +337,74 @@ sub foop {
    my $user = $self->app->user->{$connection_id};
    my $r    = $self->app->foo->baz;
    $user->tx->send( encode_json($r) );
+}
+
+sub routing {
+   state $i = qr/^\d{1,20}$/;    # integer
+   state $w = qr/^\w{1,60}$/;    # word
+
+   state %routing = (
+
+      # CRUD operations
+
+      #create
+      'create_user'      => [ \&create_user,      3, [ { username => $w }, { org_id => $i, password => $w, email => $w, level => $i } ] ],
+      'create_workspace' => [ \&create_workspace, 1, [ {}, {} ] ],
+      'create_server'    => [ \&create_server,    1, [ { username => $w, hostname => $w }, { password => $w } ] ],
+      'create_job'       => [ \&create_job,       1, [ { cluster_id => $i, name => $w, shell_command => $i }, { description => $i, out_log_path => $w, err_log_path => $w } ] ],
+      'create_cluster'   => [ \&create_cluster,   1, [ {}, {} ] ],
+
+      #read
+      'read_user'      => [ \&read_user,      1, [ {}, {} ] ],    #whoami
+      'read_workspace' => [ \&read_workspace, 1 ],
+      'read_server'    => [ \&read_server,    1 ],
+      'read_job'       => [ \&read_job,       1 ],
+      'read_cluster'   => [ \&read_cluster,   1 ],
+
+      #update
+      'update_user'      => [ \&update_user,      1 ],
+      'update_workspace' => [ \&update_workspace, 1 ],
+      'update_server'    => [ \&update_server,    1 ],
+      'update_job'       => [ \&update_job,       1, [ { job_id => $i }, { cluster_id => $i, server_id => $i, pid => $i, state_id => $i, remote_command => $w } ] ],
+      'update_cluster'   => [ \&update_cluster,   1 ],
+
+      #delete
+      'delete_user'      => [ \&delete_user ],
+      'delete_workspace' => [ \&delete_workspace, 1 ],
+      'delete_server'    => [ \&delete_server,    1 ],
+      'delete_job'       => [ \&delete_job,       1 ],
+      'delete_cluster'   => [ \&delete_cluster,   1 ],
+
+      #copy
+      'copy_job'     => [ \&copy_job, 1 ],
+      'copy_cluster' => [ \&copy_cluster, 1 ],
+
+      #login
+      'login' => [ \&login, 0, [ {}, { username => $w, password => $w, token => $w } ] ],
+
+      #start
+      'start_job'     => [ \&start_job,     1, [ { job_id => $i }, {} ] ],
+      'start_cluster' => [ \&start_cluster, 1 ],
+
+      #kill
+      'kill_job' => [ \&kill_job, 1 ],
+
+      #hold
+      'hold_job'     => [ \&kill_job,      1 ],
+      'hold_cluster' => [ \&start_cluster, 1 ],
+
+      #skip
+      'skip_job'     => [ \&skip_job,     1 ],
+      'skip_cluster' => [ \&skip_cluster, 1 ],
+
+      #finish
+      'finish_job'     => [ \&finish_job,     1 ],
+      'finish_cluster' => [ \&finish_cluster, 1 ],
+
+      #misc
+      'test_server' => [ \&test_server, 1 ],
+   );
+   return \%routing;
 }
 
 1;
