@@ -1,19 +1,21 @@
-PRAGMA foreign_keys=OFF;
+PRAGMA foreign_keys=on;
 BEGIN TRANSACTION;
 DROP TABLE IF EXISTS user;
 CREATE TABLE user (
         id INTEGER PRIMARY KEY NOT NULL,
-	org_id INTEGER,
+	org_id integer NOT NULL,
+	base_cluster_id integer,
         level tinyint NOT NULL DEFAULT 1,
         token varchar,
         remote_address varchar,
         username varchar,
         email varchar,
         creation_time DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY(base_cluster_id) REFERENCES cluster(id) ON UPDATE CASCADE ON DELETE SET NULL,
 	FOREIGN KEY(org_id) REFERENCES org(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
 
-INSERT INTO user (level, username, token) VALUES(99,'admin','1d53c9a4e58a0b76f4ab7ad900d8db7814f4d27e');
+INSERT INTO user (level, org_id, base_cluster_id, username, token) VALUES(99,1,1,'admin','1d53c9a4e58a0b76f4ab7ad900d8db7814f4d27e');
 
 CREATE UNIQUE INDEX user_idx1 ON user (token);
 COMMIT;

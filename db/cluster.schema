@@ -3,13 +3,18 @@ BEGIN TRANSACTION;
 DROP TABLE IF EXISTS cluster;
 CREATE TABLE cluster (
         id INTEGER PRIMARY KEY NOT NULL,
-  	cluster_definition_id INTEGER,
+  	org_id INTEGER,
+  	parent_id INTEGER,
 	state_id INTEGER,
 	server_id INTEGER,
+	name varchar,
+	description varchar,
         creation_time DEFAULT CURRENT_TIMESTAMP,
-  	FOREIGN KEY(cluster_definition_id) REFERENCES cluster_definition(id)
+  	FOREIGN KEY(org_id) REFERENCES org(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  	FOREIGN KEY(server_id) REFERENCES server(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  	FOREIGN KEY(parent_id) REFERENCES cluster(id) ON UPDATE CASCADE ON DELETE SET NULL
 );
 
-CREATE UNIQUE INDEX cluster_idx1 ON cluster (cluster_definition_id, server_id);
+CREATE UNIQUE INDEX cluster_idx1 ON cluster (org_id, name, parent_id);
 
 COMMIT;

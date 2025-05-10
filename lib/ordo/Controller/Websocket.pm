@@ -30,11 +30,11 @@ sub default {
          else {
             if ( ref $decoded eq 'HASH' && defined $decoded->{command} ) {
                my $cmd = $decoded->{command};
-               if ($self->app->user->{$connection_id}->id || $cmd eq 'login') {
+               if ($self->app->user->{$connection_id}->id || $cmd eq 'login_user') {
                   my $response = $self->app->request( $user, $decoded );
 
                   # never timeout if logged in
-                  $self->inactivity_timeout(0) if $cmd eq 'login' && $response->{success};
+                  $self->inactivity_timeout(0) if $cmd eq 'login_user' && $response->{success};
                   $self->tx->send( encode_json( $response ) );
                }
                else {

@@ -24,7 +24,7 @@ $ua->websocket(
     }
 
     my $request_number = 0;
-    $tx->send('{ "command":"login", "token":"1bb6eda29b864133bf8fc776d11dc8c0b228f9dc" }');
+    $tx->send('{ "command":"login_user", "token":"1bb6eda29b864133bf8fc776d11dc8c0b228f9dc" }');
 
     my $rl = new AnyEvent::ReadLine::Gnu
      prompt  => "ordo> ",
@@ -35,7 +35,7 @@ $ua->websocket(
       my $json;
       eval {
          my $request = decode_json($i);
-         $request->[1]->{request_id} = ++$request_number;
+         $request->{request_id} = ++$request_number;
          $json = encode_json($request);
       };
       if ($@) {

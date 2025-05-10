@@ -18,7 +18,9 @@ sub info {
       token          => $info->{token},
       level          => $info->{level},
       email          => $info->{email},
+      base_cluster_id => $info->{base_cluster_id},
       remote_address => $user->remote_address,
+      success        => 1,
    };
 }
 
