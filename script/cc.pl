@@ -27,18 +27,18 @@ my $cluster = '';
 
 my $ua = Mojo::UserAgent->new;
 
-my $use_cluster = sub {
+my $change_cluster = sub {
    my $json = shift;
    $cluster = $json->{path};
 };
 
 my $read_user = sub {
    my $json = shift;
-   $user = $json->{remote_address} || $json->{username} || 'offline';
+   $user = $json->{hostname} || 'offline';
    $cluster = $json->{path} || '';
 };
 
-my $use_token = sub {
+my $update_token = sub {
    $token = shift;
    return { success => 0, message => 'missing token' } unless $token;
    $config->{token} = $token;
@@ -69,13 +69,13 @@ my $help = sub {
 };
 
 my $remote_dispatch = {
-   use_cluster => $use_cluster,
+   change_cluster => $change_cluster,
    read_user => $read_user,
 };
 
 my $local_dispatch = {
-   token => $use_token,
-   use_jag => $use_token,
+   token => $update_token,
+   update_token => $update_token,
    help => $help,
 };
 
@@ -116,8 +116,9 @@ sub string2hash {
       "token=s",
       "username:s",
       "hostname:s",
+      "newname:s",
       "password:s",
-      "remote_command:s",
+      "shell_command:s",
       "email:s",
       "level:s",
       "name:s",

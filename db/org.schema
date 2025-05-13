@@ -1,12 +1,16 @@
-PRAGMA foreign_keys=OFF;
+PRAGMA foreign_keys=on;
 BEGIN TRANSACTION;
 DROP TABLE IF EXISTS org;
 CREATE TABLE org (
         id INTEGER PRIMARY KEY NOT NULL,
-        bookmark varchar NOT NULL,
-        name varchar NOT NULL,
+	user_id integer,
+        bookmark varchar,
+        name varchar,
         description varchar,
-        creation_time DEFAULT CURRENT_TIMESTAMP
+        creation_time DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(user_id) REFERENCES user(id)
 );
+
+--INSERT INTO org (user_id, name) VALUES(1,'org_1');
 
 COMMIT;

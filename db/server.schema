@@ -1,17 +1,17 @@
-PRAGMA foreign_keys=OFF;
+PRAGMA foreign_keys=on;
 BEGIN TRANSACTION;
 DROP TABLE IF EXISTS server;
 CREATE TABLE server (
         id INTEGER PRIMARY KEY NOT NULL,
-        user_id INTEGER,
-        alias varchar,
+        org_id INTEGER,
+        name varchar,
         username varchar,
         password varchar,
         hostname varchar,
+        port integer,
         creation_time DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE UNIQUE INDEX server_idx1 ON server (alias);
-CREATE UNIQUE INDEX server_idx2 ON server (user_id, username, hostname);
+CREATE UNIQUE INDEX server_idx1 ON server (org_id, name);
 
 COMMIT;

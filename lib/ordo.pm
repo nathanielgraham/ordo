@@ -10,6 +10,7 @@ use Digest::SHA qw(hmac_sha1_hex);
 use FindBin     qw($Bin);
 use Net::SSH::Perl;
 use Net::OpenSSH;
+use Sys::Hostname;
 use Data::Dumper;
 
 has 'user' => sub {
@@ -36,7 +37,7 @@ sub startup {
    my $r = $self->routes;
 
    # Normal route to controller
-   $r->get('/')->to( controller => 'landing', action => 'welcome' );
+   # $r->get('/')->to( controller => 'landing', action => 'welcome' );
    $r->websocket('/websocket')->to( controller => 'websocket', action => 'default' );
 
    # HTTP status codes
@@ -91,7 +92,7 @@ sub request {
 
       if ( $user->level < $min_level ) {
          $response->{success} = 0;
-         $response->{nessage} = 'Level too low.';
+         $response->{message} = 'Level too low.';
       }
       elsif ( scalar @unknown ) {
          $response->{success} = 0;
@@ -134,14 +135,15 @@ sub request {
 sub read_cluster {
    my ( $self, $user, $decoded ) = @_;
    my $cluster_id    = $self->path2id( $user, $decoded->{name} );
+   my $cref;
    my $find_clusters = sub {
       my $id       = shift;
       my $clusters = $self->sqlite->db->select( 'cluster', ['*'], { parent_id => $id } );
       while ( my $c = $clusters->hash ) {
-         say "CLUSTER: $c->{id} $c->{name} PARENT: $id";
+         $cref->{ $c->{id} } = $c;
          my $jobs = $self->sqlite->db->select( 'job', ['*'], { cluster_id => $c->{id} } );
          while ( my $j = $jobs->hash ) {
-            say "   JOB: $j->{id} $j->{name}";
+            push @{ $cref->{ $c->{id} }->{jobs} }, $j;
          }
          __SUB__->( $c->{id} );
       }
@@ -149,7 +151,7 @@ sub read_cluster {
    };
 
    $find_clusters->($cluster_id);
-   return { success => 1 };
+   return { success => 1, cref => $cref};
 }
 
 sub update_cluster {
@@ -164,8 +166,6 @@ sub update_cluster {
 sub delete_cluster {
    my ( $self, $user, $decoded ) = @_;
    my $cluster_id = $self->path2id( $user, $decoded->{name} );
-
-   #my $cluster_id = $decoded->{name} =~ /^\d+$/ ? $decoded->{name} : $self->path2id($user, $decoded->{name});
    eval { $self->sqlite->db->delete( 'cluster', { id => $cluster_id } ); };
    my $fullpath = $self->id2path($cluster_id);
    my $success  = $@ ? 0 : 1;
@@ -175,12 +175,13 @@ sub delete_cluster {
 sub create_cluster {
    my ( $self, $user, $decoded ) = @_;
 
-   my ($name)     = $decoded->{name} =~ /\/(\w+)$/;
+   my ($name)     = $decoded->{name} =~ /\/?(\w+)$/;
    my $cluster_id = $self->path2id( $user, $decoded->{name} );
    my $user_info  = $self->user_helper->info($user);
 
    my $insert_hash = {
       org_id    => $user_info->{org_id},
+      user_id   => $user_info->{id},
       parent_id => $cluster_id,
       server_id => $decoded->{server_id},
       name      => $name,
@@ -195,10 +196,11 @@ sub create_cluster {
 sub change_cluster {
    my ( $self, $user, $decoded ) = @_;
    my $cluster_id = $self->path2id( $user, $decoded->{name} );
+   
+   # 0 = not found, undef = root cluster
+   return { success => 0, message => 'unable to locate cluster' } if defined $cluster_id && $cluster_id == 0;
    my $fullpath   = $self->id2path($cluster_id);
-   my $user_info  = $self->user_helper->info($user);
-   print "CLID: $cluster_id\n";
-   print Dumper($user_info);
+   my $user_info  = $self->read_user($user);
    eval { $self->sqlite->db->update( 'user', { base_cluster_id => $cluster_id }, { id => $user_info->{id} } ); };
    my $success = $@ ? 0 : 1;
    return { path => $fullpath, cluster_id => $cluster_id, success => $success };
@@ -206,7 +208,7 @@ sub change_cluster {
 
 sub path2id {
    my ( $self, $user, $path ) = @_;
-   my $user_info       = $self->app->user_helper->info($user);
+   my $user_info       = $self->read_user($user);
    my $base_cluster_id = $user_info->{base_cluster_id};
    my $base_path       = $self->id2path($base_cluster_id);
    my $fullpath =
@@ -217,11 +219,17 @@ sub path2id {
      :                                             '/';
 
    my @parts     = split( '/', $fullpath );
+   my $ups = scalar grep { $parts[$_] eq '..' } (0 .. $#parts);
+   for (1 .. $ups * 2) {
+      pop @parts if scalar @parts;
+   }
+
    my $parent_id = undef;
 
    foreach my $part (@parts) {
       my $result = $self->sqlite->db->select( 'cluster', ['*'], { parent_id => $parent_id, name => $part } )->hash;
       $parent_id = $result->{id};
+      return 0 if $part && !$parent_id; # invalid path name
    }
    return $parent_id;
 }
@@ -244,126 +252,252 @@ sub id2path {
 # user related subroutines
 
 sub login_user {
-   my ( $self, $user, $decoded ) = @_;
-   return $self->app->user_helper->login( $user, $decoded );
+   my ( $self, $user, $d ) = @_;
+   my $results = $self->sqlite->db->select( 'user', ['*'], { token => $d->{token} } )->hash;
+
+   my ($message, $success);
+
+   if ( $results->{id} ) {
+      $user->id( $results->{id} );
+      $user->level( $results->{level} );
+      $user->org_id( $results->{org_id} );
+      $message = 'logged in as ' . $results->{name};
+      $success = 1;
+   }
+   else {
+      $message = 'login failed';
+      $success = 0;
+   }
+   return { message => $message, success => $success, user_id => $user->id };
 }
 
 sub create_user {
-   my ( $self, $user, $decoded ) = @_;
-   return $self->app->user_helper->add( $user, $decoded );
+   my ( $self, $user, $d ) = @_;
+   my $db = $self->sqlite->db;
+
+   my $user_insert = {
+      name       => $d->{name},
+      email          => $d->{email},
+      remote_address => $user->remote_address,
+      level          => defined $d->{level} ? $d->{level} : 1,
+   };
+
+   eval {
+      my $tx = $db->begin;
+
+      # generate org bookmark
+      my $bookmark = hmac_sha1_hex( $d->{name}, $self->app->secrets->[1] );
+
+      my $org_id = $d->{org_id} || $db->insert( 'org', { bookmark => $bookmark } )->last_insert_id;
+      my $cluster_id = $db->insert( 'cluster', { org_id => $org_id } )->last_insert_id;
+
+      # generate login token
+      my $token = hmac_sha1_hex( $d->{name}, $self->app->secrets->[0] );
+      $user_insert->{org_id} = $org_id;
+      $user_insert->{base_cluster_id} = $cluster_id;
+      $user_insert->{token} = $token;
+      my $user_id = $db->insert( 'user', $user_insert )->last_insert_id;
+      $db->update( 'org', { user_id => $user_id, name => "org_$user_id" }, { id => $org_id } );
+      $db->update( 'cluster', { user_id => $user_id, name => "cluster_$user_id" }, { id => $cluster_id } );
+      $tx->commit;
+   };
+
+   return $@ ? { message => $@, success => 0 }
+             : { success => 1 };
 }
 
 sub read_user {
    my ( $self, $user, $decoded ) = @_;
-   my $r    = $self->app->user_helper->info( $user, $decoded );
-   my $path = $self->id2path( $r->{base_cluster_id} );
-   $r->{path}    = $path;
-   $r->{success} = 1;
-   return $r;
+
+   my $info = $self->sqlite->db->select( 'user', ['*'], { id => $user->id } )->hash;
+   my $path = $self->id2path( $info->{base_cluster_id} );
+
+   return {
+      id             => $info->{id},
+      org_id         => $info->{org_id},
+      name           => $info->{name},
+      token          => $info->{token},
+      level          => $info->{level},
+      email          => $info->{email},
+      base_cluster_id => $info->{base_cluster_id},
+      remote_address => $user->remote_address,
+      hostname       => hostname,
+      path           => $path,
+      success        => 1,
+   };
 }
 
 sub update_user {
    my ( $self, $user, $decoded ) = @_;
+   eval {
+      $self->sqlite->db->update( 'user', $decoded, { id => $user->id } )->hash;
+   };
+   my $success = $@ ? 0 : 1;
+   return { success => $success };
 }
 
 sub delete_user {
    my ( $self, $user, $decoded ) = @_;
+   eval {
+      $self->sqlite->db->delete( 'user', { id => $decoded->{id} } )->hash;
+   };
+   my $success = $@ ? 0 : 1;
+   return { success => $success, id => $decoded->{id} };
 }
 
 # job related subroutines
 
 sub create_job {
-   my ( $self, $user, $decoded ) = @_;
-   return $self->app->job_helper->add( $user, $decoded );
+   my ( $self, $user, $d ) = @_;
+   my $cluster_id = $self->path2id($user, $d->{name});
+   my ($name) = $d->{name} =~ /\/{0,1}(\w+)$/;
+   my $insert_hash = { map { $_, $d->{$_} } (qw(shell_command)) };
+   $insert_hash = { cluster_id => $cluster_id, name => $name, shell_command => $d->{shell_command} };
+   my $id;
+   eval {
+      $id = $self->sqlite->db->insert('job', $insert_hash)->last_insert_id;
+   };
+   return $@ ? { success => 0, message => $@ } : { success => 1, id => $id, name => $name, cluster_id => $cluster_id };
 }
 
 sub read_job {
    my ( $self, $user, $decoded ) = @_;
-   return $self->app->job_helper->add( $user, $decoded );
 }
 
 sub update_job {
    my ( $self, $user, $decoded ) = @_;
-   return $self->app->job_helper->add( $user, $decoded );
 }
 
 sub delete_job {
    my ( $self, $user, $decoded ) = @_;
-   return $self->app->job_helper->add( $user, $decoded );
 }
 
 sub start_job {
    my ( $self, $user, $decoded ) = @_;
-   return $self->app->job_helper->start( $user, $decoded );
 }
 
 sub finish_job {
    my ( $self, $user, $decoded ) = @_;
-   return $self->app->job_helper->finish( $user, $decoded );
 }
 
 sub kill_job {
    my ( $self, $connection_id, $decoded ) = @_;
-   my $user = $self->app->user->{$connection_id};
 }
 
 sub hold_job {
    my ( $self, $connection_id, $decoded ) = @_;
-   my $user = $self->app->user->{$connection_id};
 }
 
 sub ice_job {
    my ( $self, $connection_id, $decoded ) = @_;
-   my $user = $self->app->user->{$connection_id};
 }
 
 sub nice_job {
    my ( $self, $connection_id, $decoded ) = @_;
-   my $user = $self->app->user->{$connection_id};
 }
 
 # server related subroutines
 
 sub create_server {
-   my ( $self, $user, $decoded ) = @_;
-   my @missing = grep { !$decoded->{$_} } qw(username hostname);
-   return { success => 0, message => "missing parameters: @missing" } unless $decoded->{username} && $decoded->{hostname};
-   my $response = $self->test_server( $user, $decoded );
-   if ( $response->{success} ) {
-      my $insert_hash = { map { $_ => $decoded->{$_} } grep { $decoded->{$_} } qw(username hostname password) };
-      my $id          = $self->app->sqlite->db->insert( 'server', $insert_hash )->last_insert_id;
-      $response->{id} = $id;
-   }
-   return $response;
-}
+   my ( $self, $user, $d ) = @_;
 
-sub test_server {
-   my ( $self, $user, $decoded ) = @_;
-   my @missing = grep { !$decoded->{$_} } qw(username hostname);
-   return { success => 0, message => "missing parameters: @missing" } unless $decoded->{username} && $decoded->{hostname};
+   my $port = $d->{port} || 22;
+
+   # test connection
+   my $ssh = Net::OpenSSH->new($d->{hostname}, port => $port);
+   return { success => 0, message => $ssh->error } if $ssh->error;
+   
+   # copy public ssh key to remote host
+   my $copy_key = 'sshpass -p ' . $d->{password} . ' ssh-copy-id ' . $d->{username} . '@' . $d->{hostname};
+   my $exit_code = system($copy_key);
+   return { success => 0, exit_code => $exit_code, message => 'ssh-copy-id error' } if $exit_code;
+
+   my $insert_hash = { map { $_ => $d->{$_} } grep { exists $d->{$_} } (qw(name username hostname password port)) };
+   $insert_hash->{port} = $port;
+   $insert_hash->{org_id} = $user->org_id;
+
+   my $id;
    eval {
-      my @login_details = ( $decoded->{username} );
-      push( @login_details, $decoded->{password} ) if $decoded->{password};
-      my $ssh = Net::SSH::Perl->new( $decoded->{hostname} );
-      $ssh->login(@login_details);
-      $ssh->sock;
+      $id = $self->app->sqlite->db->insert( 'server', $insert_hash )->last_insert_id;
    };
-   my $message = $@ ? 'refused' : 'established';
-   my $success = $@ ? 0         : 1;
-   return { success => $success, message => "connection $message" };
+   return $@ ? { success => 0, message => $@ } : { id => $id, success => 1, %$insert_hash };
 }
 
-sub delete_server {
-   my ( $self, $user, $decoded ) = @_;
-   my $success;
-   if ( $decoded->{id} ) {
-      $self->app->sqlite->db->delete( 'server', { id => $decoded->{id} } );
-      $success = 1;
+sub read_server {
+   my ( $self, $user, $d ) = @_;
+   my $id = $d->{id} ? $d->{id}
+          : $d->{name} && $d->{name} =~ /^\d+$/ ? $d->{name}
+          : undef;
+
+   my @rows;
+   if ($id) {
+      my $r = $self->sqlite->db->select( 'server', [qw(id username hostname name port)], { id => $id } )->hash;
+      push @rows, $r if $r;
+   }
+   elsif ($d->{name}) {
+      my $r = $self->sqlite->db->select( 'server', [qw(id username hostname name port)], { name => $d->{name} })->hash;
+      push @rows, $r if $r;
    }
    else {
-      $success = 0;
+      my $results = $self->sqlite->db->query('select id, username, hostname, name, port from server');
+      while (my $next = $results->hash) {
+        push @rows, { map { $_, $next->{$_} } (qw(id username hostname name port)) };
+      }
    }
-   return { success => $success };
+   return scalar @rows ? { success => 1, servers => \@rows } : { success => 0 } ;
+}
+
+sub update_server {
+   my ( $self, $user, $d ) = @_;
+   my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(username hostname)) };
+   $update_hash->{name} = $d->{newname} if $d->{newname};
+
+   return { success => 0, message => 'nothing to update' } unless scalar keys (%$update_hash);
+
+   my $id = $d->{id} ? $d->{id}
+          : $d->{name} && $d->{name} =~ /^\d+$/ ? $d->{name}
+          : undef;
+   if ($id) { 
+      eval {
+         $self->sqlite->db->update( 'server', $update_hash, { id => $id } );
+      };
+   }
+   elsif ($d->{name}) {
+      eval {
+         $self->sqlite->db->update( 'server', $update_hash, { name => $d->{name} } );
+      };
+   }
+   else {
+      return { success => 0, message => 'server id or name required' };
+   }
+
+   return { success => 0, message => $@ } if $@;
+   return { success => 1, %$update_hash };
+};
+
+sub delete_server {
+   my ( $self, $user, $d ) = @_;
+   my $id = $d->{id} ? $d->{id} 
+          : ($d->{name} && $d->{name} =~ /^\d+$/) ? $d->{name}
+          : undef;
+
+   if ($id) {
+      eval {
+         $self->sqlite->db->delete( 'server', { id => $id } );
+      };
+   }
+   elsif ($d->{name}) {
+      eval {
+         $self->sqlite->db->delete( 'server', { name => $d->{name} } );
+      };
+   }
+   else {
+      return { success => 0, message => 'server id or name required' };
+   }
+
+   my $return_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(id name)) };
+   return { success => 0, message => $@ } if $@;
+   return { success => 1, %$return_hash };
 }
 
 sub addcron {
@@ -414,47 +548,44 @@ sub start_continer {
 sub routing {
    state $i = qr/^\d{1,20}$/;        # integer
    state $w = qr/^\w{1,50}$/;        # word
-   state $p = qr/^[\w\/]{1,50}$/;    # path
+   state $p = qr/^[\w\/\@\:\.]{1,50}$/;    # path
    state $e = qr/^[\w\.\@]{1,50}$/;  # email
 
    state %routing = (
 
-      # CRUD operations
-
       # user related
-      'create_user' => [ \&create_user, 3, [ { username => $w }, { org_id => $i, password => $w, email => $w, level => $i } ] ],
+      'create_user' => [ \&create_user, 3, [ { name => $w }, { org_id => $i, email => $w, level => $i } ] ],
       'read_user'   => [ \&read_user,   1, [ {},                 {} ] ],
-      'update_user' => [ \&update_user, 1, [ {},                 { email => $e, username => $w } ] ],
-      'delete_user' => [ \&delete_user, 3, [ { id => $i }, {} ],
+      'update_user' => [ \&update_user, 1, [ {},                 { email => $e, name => $w } ] ],
+      'delete_user' => [ \&delete_user, 3, [ { id => $i }, {} ] ],
       'login_user'  => [ \&login_user, 0, [ { token => $w }, { } ] ],
 
       # job related
-      'create_job' => [ \&create_job, 1, [ { cluster_id => $i, name => $w, shell_command => $i }, { description => $w, out_log_path => $w, err_log_path => $w } ] ],
-      'read_job'   => [ \&read_job,   1 ],
-      'update_job' => [ \&update_job, 1, [ { job_id => $i }, { cluster_id => $i, server_id => $i, pid => $i, state_id => $i, remote_command => $w } ] ],
-      'delete_job' => [ \&delete_job, 1 ],
-      'copy_job'   => [ \&copy_job,   1 ],
-      'kill_job'   => [ \&kill_job,   1 ],
-      'hold_job'   => [ \&kill_job,   1 ],
-      'ice_job'    => [ \&ice_job,    1 ],
-      'finish_job' => [ \&finish_job, 1 ],
-      'copy_job'   => [ \&copy_job,   1 ],
+      'create_job' => [ \&create_job, 1, [ { name => $p, shell_command => $p }, { description => $w, out_log_path => $w, err_log_path => $w } ] ],
+      'read_job'   => [ \&read_job,   1, [ {}, {} ] ],
+      'update_job' => [ \&update_job, 1, [ { job_id => $i }, { cluster_id => $i, server_id => $i, pid => $i, state_id => $i, shell_command => $w } ] ],
+      'delete_job' => [ \&delete_job, 1, [ {}, {} ] ],
+      'copy_job'   => [ \&copy_job,   1, [ {}, {} ] ],
+      'kill_job'   => [ \&kill_job,   1, [ {}, {} ] ],
+      'hold_job'   => [ \&kill_job,   1, [ {}, {} ] ],
+      'ice_job'    => [ \&ice_job,    1, [ {}, {} ] ],
+      'finish_job' => [ \&finish_job, 1, [ {}, {} ] ],
+      'copy_job'   => [ \&copy_job,   1, [ {}, {} ] ],
 
       # cluster related
-      'create_cluster' => [ \&create_cluster, 1, [ { name => $w }, { description => $w, cluster_id => $i } ] ],
+      'create_cluster' => [ \&create_cluster, 1, [ { name => $p }, { description => $w, cluster_id => $i } ] ],
       'read_cluster'   => [ \&read_cluster,   1, [ {},             { name        => $p } ] ],
-      'update_cluster' => [ \&update_cluster, 1 ],
-      'delete_cluster' => [ \&delete_cluster, 1 ],
-      'use_cluster'    => [ \&change_cluster, 1, [ {}, { name => $p } ] ],
-      'start_cluster'  => [ \&start_cluster,  1 ],
-      'copy_cluster'   => [ \&copy_cluster,   1 ],
+      'update_cluster' => [ \&update_cluster, 1, [ {}, {} ] ],
+      'delete_cluster' => [ \&delete_cluster, 1, [ {}, {} ] ],
+      'change_cluster' => [ \&change_cluster, 1, [ {}, { name => $p } ] ],
+      'start_cluster'  => [ \&start_cluster,  1, [ {}, {} ] ],
+      'copy_cluster'   => [ \&copy_cluster,   1, [ {}, {} ] ],
 
       # server related
-      'create_server' => [ \&create_server, 1, [ { username => $w, hostname => $w }, { password => $w } ] ],
-      'read_server'   => [ \&read_server,   1 ],
-      'update_server' => [ \&update_server, 1 ],
-      'delete_server' => [ \&delete_server, 1 ],
-      'test_server'   => [ \&test_server,   1 ],
+      'create_server' => [ \&create_server, 1, [ { name => $w, username => $w, hostname => $w, password => $w }, { } ] ],
+      'read_server'   => [ \&read_server,   1, [ {}, { id => $i, name => $w } ] ],
+      'update_server' => [ \&update_server, 1, [ {}, { id => $i, name => $w, newname => $w, username => $w, hostname => $w } ] ],
+      'delete_server' => [ \&delete_server, 1, [ {}, { id => $i, name => $w } ] ],
    );
    return \%routing;
 }
