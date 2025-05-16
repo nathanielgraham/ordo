@@ -3,6 +3,7 @@ BEGIN TRANSACTION;
 DROP TABLE IF EXISTS cluster;
 CREATE TABLE cluster (
         id INTEGER PRIMARY KEY NOT NULL,
+  	mode varchar NOT NULL DEFAULT 770,
   	org_id INTEGER,
   	user_id INTEGER,
   	parent_id INTEGER,

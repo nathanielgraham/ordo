@@ -3,6 +3,7 @@ BEGIN TRANSACTION;
 DROP TABLE IF EXISTS user;
 CREATE TABLE user (
         id INTEGER PRIMARY KEY NOT NULL,
+        mode int,
 	org_id integer,
 	base_cluster_id integer,
         level tinyint NOT NULL DEFAULT 1,
@@ -13,7 +14,7 @@ CREATE TABLE user (
         creation_time DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO user (level, org_id, base_cluster_id, name, token) VALUES(99,1,1,'admin','1d53c9a4e58a0b76f4ab7ad900d8db7814f4d27e');
+INSERT INTO user (level, mode, org_id, base_cluster_id, name, token) VALUES(99,770,1,1,'admin','1bb6eda29b864133bf8fc776d11dc8c0b228f9dc');
 
 CREATE UNIQUE INDEX user_idx1 ON user (token);
 COMMIT;

@@ -5,6 +5,7 @@ use warnings;
 
 use Term::ReadLine::Perl5;
 use Mojo::UserAgent;
+use Term::ANSIColor;
 use Data::Dumper;
 use Getopt::Long qw(GetOptionsFromString);
 use JSON;
@@ -21,6 +22,7 @@ eval {
 die "Unable to open config file: $@\n" if $@;
 
 my $token = $config->{token};
+my $aliases = $config->{aliases};
 my $url = 'http://127.0.0.1:3000/api';
 my $user = 'offline';
 my $cluster = '';
@@ -29,7 +31,7 @@ my $ua = Mojo::UserAgent->new;
 
 my $change_cluster = sub {
    my $json = shift;
-   $cluster = $json->{path};
+   $cluster = $json->{path} || '';
 };
 
 my $read_user = sub {
@@ -67,10 +69,43 @@ my $help = sub {
    HELP
    return { success => 1 };
 };
+ 
+my $read_cluster = sub {
+   my $json = shift;
+   my @clusters = @{ $json->{clusters} };
+   my %lookup = map { $_->{id}, $_ } @{ $json->{clusters} };
+   #print Dumper(\@clusters);
+   my @paths;
+   for my $cluster (@clusters) {
+      my @parts;
+      my $next = $cluster->{id};
+      while ($next) {
+         unshift @parts, $next;
+         $next = $lookup{ $next }->{parent_id};
+         $next = $next && exists $lookup{ $next } ? $next : undef;
+      }
+      push @paths, \@parts;
+   }
+   
+   my $FORMAT = "%-6s %-6s %s\n";
+   printf($FORMAT, "ID", "TYPE", "PATH");
+   foreach my $part (@paths) {
+      my $p = join('/', (map { $lookup{$_}->{name} } @{ $part }));
+      my $j = colored($p, 'bold blue');
+      my $cluster_id = pop @{ $part } || 0;
+      printf($FORMAT, $cluster_id, "c", $j);
+      next unless $lookup{ $cluster_id }->{jobs};
+      foreach my $job (@{ $lookup{ $cluster_id }->{jobs} }) {
+         printf($FORMAT, $job->{id}, "j", "$p/$job->{name}");
+      }
+   }
+   #say for sort @paths;
+};
 
 my $remote_dispatch = {
    change_cluster => $change_cluster,
    read_user => $read_user,
+   read_cluster => $read_cluster,
 };
 
 my $local_dispatch = {
@@ -88,7 +123,7 @@ sub request {
       say to_json( $r, { pretty => 1 } );
       return;
    }
-   print Dumper($r);
+   #print Dumper($r);
    my $json;
    eval {
       $json = $ua->get( $url => { Accept => 'application/json' } => json => $r )->result->json;
@@ -134,11 +169,20 @@ sub string2hash {
 
    return { success => 0, message => 'missing verb' } unless defined $verb;
 
-   unless ( $noun || exists $local_dispatch->{$verb} ) {
+   unless ( $noun || exists $local_dispatch->{$verb} || exists $aliases->{$verb}) {
       return { success => 0, message => 'missing noun' };
    }
 
-   my $cmd = $noun ? join('_', ($verb, $noun)) : $verb;
+   my $cmd;
+
+   if (exists $aliases->{$verb}) {
+      $cmd = $aliases->{$verb};
+      $name = $noun;
+   }
+   else {
+      $cmd = $noun ? join('_', ($verb, $noun)) 
+           : $verb;
+   }
 
    # execute local command
    if ( exists $local_dispatch->{$verb} ) {
@@ -150,6 +194,8 @@ sub string2hash {
       return $v;
    }
    
+   #print "COM: $cmd, $verb, $noun, $name\n";
+
    # execute remote command
    my $r = { token => $token, command => $cmd, %options };
    $r->{name} = $name if defined $name;

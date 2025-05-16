@@ -1,1 +1,11 @@
-{"token":"1bb6eda29b864133bf8fc776d11dc8c0b228f9dc"}
+{
+  "token": "1bb6eda29b864133bf8fc776d11dc8c0b228f9dc",
+  "aliases": {
+    "mkdir": "create_cluster",
+    "ls": "read_cluster",
+    "mv": "update_cluster",
+    "rm": "delete_cluster",
+    "cd": "change_cluster",
+    "touch": "create_job"
+  }
+}
