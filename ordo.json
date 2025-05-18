@@ -1,5 +1,6 @@
 {
   "token": "1bb6eda29b864133bf8fc776d11dc8c0b228f9dc",
+  "url": "http://127.0.0.1:3000/api",
   "aliases": {
     "mkdir": "create_cluster",
     "ls": "read_cluster",

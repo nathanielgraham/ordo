@@ -6,9 +6,13 @@ use warnings;
 use Term::ReadLine::Perl5;
 use Mojo::UserAgent;
 use Term::ANSIColor;
+use DateTime;
+use POSIX qw(strftime);
 use Data::Dumper;
 use Getopt::Long qw(GetOptionsFromString);
 use JSON;
+use Text::Table::Tiny 1.02 qw/ generate_table /;
+
 use feature qw(say);
 
 my $config;
@@ -23,7 +27,8 @@ die "Unable to open config file: $@\n" if $@;
 
 my $token = $config->{token};
 my $aliases = $config->{aliases};
-my $url = 'http://127.0.0.1:3000/api';
+my $url = $config->{url};
+#my $url = 'http://127.0.0.1:3000/api';
 my $user = 'offline';
 my $cluster = '';
 
@@ -87,20 +92,47 @@ my $read_cluster = sub {
       push @paths, \@parts;
    }
    
-   my $FORMAT = "%-6s %-6s %s\n";
-   printf($FORMAT, "ID", "TYPE", "PATH");
+   my $rows = [ [qw(ID CLUSTER/JOB STATE SERVER PID %MEM %CPU DURATION)] ];
    foreach my $part (@paths) {
-      my $p = join('/', (map { $lookup{$_}->{name} } @{ $part }));
-      my $j = colored($p, 'bold blue');
+      my $path = join('/', (map { $lookup{$_}->{name} } @{ $part }));
+      my $colored = colored($path, 'bold blue');
       my $cluster_id = pop @{ $part } || 0;
-      printf($FORMAT, $cluster_id, "c", $j);
+      my $c = $lookup{ $cluster_id };
+      my ($start, $end, $dur) = &format_epoch($c->{start}, $c->{end});
+      push @{ $rows }, [ $c->{id}, $colored, $c->{state}, '--', '--', '--', '--', $dur ];
+
       next unless $lookup{ $cluster_id }->{jobs};
+
       foreach my $job (@{ $lookup{ $cluster_id }->{jobs} }) {
-         printf($FORMAT, $job->{id}, "j", "$p/$job->{name}");
+         #my %i;
+         #for my $k (keys %{ $job }) {
+         #   my $v = defined $job->{$k} ? $job->{$k} : '';
+         #   $i{$k} = $v;
+         #}
+         my ($s, $e, $d) = &format_epoch($job->{start}, $job->{end});
+         push @{ $rows }, [ $job->{id}, "$path/$job->{name}", $job->{state}, $job->{server_name}, $job->{pid}, $job->{mem}, $job->{cpu}, $d ];
+         print Dumper($job);
       }
    }
-   #say for sort @paths;
+   say generate_table(rows => $rows, header_row => 1);
 };
+
+sub format_epoch {
+   my ($start, $end) = @_;
+   return ('','','') unless $start;
+   my $sdt = DateTime->from_epoch( epoch => $start );
+   my $s = $sdt->ymd . ' ' . $sdt->hms;
+
+   my $epoch = $end || time ;
+
+   my $edt = DateTime->from_epoch( epoch => $epoch );
+
+   my $dur = $edt - $sdt;
+   my $elapsed = sprintf '%02s:%02s:%02s', $dur->hours, $dur->minutes, $dur->seconds;
+
+   my $e = $end ? $edt->ymd . ' ' . $edt->hms : '';
+   return ($s, $e, $elapsed);
+}
 
 my $remote_dispatch = {
    change_cluster => $change_cluster,
@@ -163,6 +195,8 @@ sub string2hash {
       "state_id:i",
       "org_id:i",
       "pid:i",
+      "to:s",
+      "id:s",
    );
 
    my ($verb, $noun, $name) = @{ $args };
@@ -194,8 +228,6 @@ sub string2hash {
       return $v;
    }
    
-   #print "COM: $cmd, $verb, $noun, $name\n";
-
    # execute remote command
    my $r = { token => $token, command => $cmd, %options };
    $r->{name} = $name if defined $name;

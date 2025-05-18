@@ -11,6 +11,8 @@ CREATE TABLE job (
         pid INTEGER,
         name varchar,
         description varchar,
+        start INTEGER,
+        end INTEGER,
         out_log_path varchar,
         err_log_path varchar,
         restart_max INTEGER NOT NULL DEFAULT 0,
@@ -21,5 +23,7 @@ CREATE TABLE job (
 );
 
 CREATE UNIQUE INDEX job_idx1 ON job (cluster_id, name);
+INSERT INTO job(id,mode,cluster_id,server_id,shell_command,state_id,pid,name,description,start,end,out_log_path,err_log_path,restart_max,restart_delay,creation_time) VALUES(1,770,4,1,'jager',1,NULL,'jag',NULL,NULL,NULL,NULL,NULL,0,0,'2025-05-16 02:59:30');
+
 
 COMMIT;
