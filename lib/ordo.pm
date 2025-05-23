@@ -2,9 +2,6 @@ package ordo;
 use Mojo::Base 'Mojolicious';
 use Mojo::SQLite;
 use ordo::Model::User;
-use ordo::Model::UserHelper;
-use ordo::Model::JobHelper;
-use ordo::Model::BoxHelper;
 use JSON;
 use Digest::SHA qw(hmac_sha1_hex);
 use FindBin     qw($Bin);
@@ -17,6 +14,10 @@ has 'user' => sub {
    state $user = {};
 };
 
+has 'ssh_connection' => sub {
+   state $user = {};
+};
+
 # This method will run once at server start
 sub startup {
 
@@ -26,12 +27,18 @@ sub startup {
    $self->secrets( [ 'gu$!$#UessM%#eI36#$fYo43@#$uC^%5an', '%!#GDA$#!gfds%#@sdf' ] );
 
    # Helpers
-   $self->helper( request     => \&request );
-   $self->helper( routing     => \&routing );
-   $self->helper( sqlite      => sub { state $sql  = Mojo::SQLite->new("$Bin/../db/ordo.db") } );
-   $self->helper( user_helper => sub { state $user = ordo::Model::UserHelper->new( sqlite => shift->sqlite ) } );
-   $self->helper( job_helper  => sub { state $job  = ordo::Model::JobHelper->new( app => shift->app ) } );
-   $self->helper( box_helper  => sub { state $box  = ordo::Model::BoxHelper->new( app => shift->app ) } );
+   $self->helper( request    => \&request );
+   $self->helper( routing    => \&routing );
+   $self->helper( sqlite     => sub { state $sql = Mojo::SQLite->new("$Bin/../db/ordo.db") } );
+   $self->helper( job_helper => sub { state $job = ordo::Model::JobHelper->new( app => shift->app ) } );
+   $self->helper( box_helper => sub { state $box = ordo::Model::BoxHelper->new( app => shift->app ) } );
+
+   my $states = $self->sqlite->db->select( 'job_states', ['*'] )->hashes->to_array;
+   $self->helper(
+      job_states => sub {
+         state $states = { map { $_->{state}, $_->{id} } @{$states} };
+      }
+   );
 
    # Router
    my $r = $self->routes;
@@ -48,7 +55,7 @@ sub startup {
    # 404 Not Found: The requested resource could not be found.
    # 500 Internal Server Error: The server encountered an unexpected condition.
 
-   $r->get(
+   $r->any(
       '/api' => sub {
          my $c    = shift;
          my $body = $c->req->json;
@@ -109,7 +116,7 @@ sub request {
             my $regex = $required->{$param} || $optional->{$param};
 
             # check that param matches regex
-            unless ( $params->{$param} =~ $regex ) {
+            unless ( $params->{$param} =~ $regex || $regex eq 's' ) {
                $error      = 1;
                $bad_option = $param;
                last;
@@ -134,6 +141,7 @@ sub request {
 
 sub _has_permission {
    my ( $self, $bits, $user, $cluster ) = @_;
+   return 0 unless $cluster;
    my $owner = substr( $cluster->{mode}, 0, 1 );
    my $group = substr( $cluster->{mode}, 1, 1 );
    my $other = substr( $cluster->{mode}, 2, 1 );
@@ -159,6 +167,24 @@ sub is_executable {
 }
 
 sub read_cluster {
+   my ( $self, $user, $d ) = @_;
+   my $cluster_id = $d->{id} || $self->path2id( $user, $d->{name} );
+
+   #my $ssh = Net::OpenSSH->new('localhost', user => 'remote4');
+   #print Dumper($ssh->error);
+
+   # undef = root cluster, 0 = cluster not found
+   return { success => 0, message => 'cluster not found' } if defined $cluster_id && $cluster_id == 0;
+
+   my $c           = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id } )->hash;
+   my $is_readable = $self->is_readable( $user, $c );
+   return { success => 0, message => 'you do not have permission to read this cluster' } unless $is_readable;
+   my @fields = qw(id mode org_id user_id parent_id server_id state_id name description start end);
+   my %rv     = map { $_, $c->{$_} } @fields;
+   return { success => 1, %rv };
+}
+
+sub find_cluster {
    my ( $self, $user, $d ) = @_;
    my $cluster_id = $d->{id} || $self->path2id( $user, $d->{name} );
 
@@ -225,7 +251,7 @@ sub delete_cluster {
    }
 
    # delete cluster and all descendants
-   my $clusters = $self->read_cluster( $user, { id => $cluster_id } )->{clusters};
+   my $clusters = $self->find_cluster( $user, { id => $cluster_id } )->{clusters};
    foreach my $c ( @{$clusters} ) {
 
       # delete jobs
@@ -547,8 +573,6 @@ sub job_info {
    my @jobs;
    my $results = $self->sqlite->db->query($sql);
    while ( my $next = $results->hash ) {
-
-      # say $next->{name};
       my %info = map { $_, $next->{$_} } (qw(id start end state name mode cluster_id server_id server_name shell_command description out_log_path err_log_path));
       push @jobs, \%info;
    }
@@ -558,19 +582,8 @@ sub job_info {
 sub read_job {
    my ( $self, $user, $d ) = @_;
    my $job_info = $self->_job_info( $user, $d );
+   return { success => 0, message => 'bad path name' } if ( $job_info->{name} && !$job_info->{id} );
    return { success => 1, %{$job_info} };
-}
-
-sub update_job {
-   my ( $self, $user, $d ) = @_;
-   my $job_info = $self->_job_info( $user, $d );
-   return { success => 0, message => 'job not found' } unless $job_info->{id};
-
-   my $update_hash = { map { $_, $d->{$_} } grep { defined $d->{$_} } (qw( pid server_id state_id shell_command )) };
-   $update_hash->{name} = $d->{newname} if $d->{newname};
-   eval { $self->sqlite->db->update( 'job', $update_hash, { id => $job_info->{id} } ); };
-   my $success = $@ ? 0 : 1;
-   return { success => $success, id => $job_info->{id}, %{$update_hash} };
 }
 
 sub delete_job {
@@ -578,135 +591,216 @@ sub delete_job {
    my $job_info = $self->_job_info( $user, $d );
    return { success => 0, message => 'job not found' } unless $job_info->{id};
    eval { $self->sqlite->db->delete( 'job', { id => $job_info->{id} } ); };
-   return $@ ? { success => 0, message => $@ } : { success => 1, id => $job_info->{id} }
+   return $@ ? { success => 0, message => $@ } : { success => 1, id => $job_info->{id} };
+}
+
+sub update_job {
+   my ( $self, $user, $d ) = @_;
+
+   my $job_info = $self->_job_info( $user, $d );    #job info
+   my $job      = shift @{ $job_info->{jobs} };
+   return { success => 0, message => 'job not found' } unless $job->{id};
+
+   my $update_hash = { map { $_, $d->{$_} } grep { $d->{$_} } (qw( pid shell_command)) };
+   if ( $d->{state} ) {
+      $update_hash->{state_id} = $self->job_states->{ $d->{state} };
+   }
+   $update_hash->{name} = $d->{newname} if $d->{newname};
+   eval { $self->sqlite->db->update( 'job', $update_hash, { id => $job->{id} } ); };
+   my $success = $@ ? 0 : 1;
+   return { success => $success, %{$update_hash} };
+}
+
+sub update_sysinfo {
+   my ( $self, $user, $d ) = @_;
+   my $uh = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(total_memory used_memory cpu total_disk used_disk uptime)) };
+   eval { $self->sqlite->db->update( 'server', $uh, { id => $d->{id} } ) };
+   return $@ ? { success => 0, message => $@ } : { success => 1, %$uh };
+   #return { pids => [253852], exit => 1 };
 }
 
 sub start_job {
    my ( $self, $user, $d ) = @_;
-   return {};
+
+   # execute remote shell_command
+   # set state to starting
+
+   # put triggers in update job state
+   return { echo => $d };
 }
 
 sub finish_job {
    my ( $self, $user, $d ) = @_;
+   my $job_info = $self->_job_info( $user, $d );
+   return { success => 0, message => 'job not found' } unless $job_info->{id};
+
    return {};
 }
 
 sub kill_job {
    my ( $self, $user, $d ) = @_;
+   my $job_info = $self->_job_info( $user, $d );
+   return { success => 0, message => 'job not found' } unless $job_info->{id};
+
    return {};
 }
 
 sub hold_job {
    my ( $self, $user, $d ) = @_;
+   my $job_info = $self->_job_info( $user, $d );
+   return { success => 0, message => 'job not found' } unless $job_info->{id};
+
    return {};
 }
 
 sub ice_job {
    my ( $self, $user, $d ) = @_;
+   my $job_info = $self->_job_info( $user, $d );
+   return { success => 0, message => 'job not found' } unless $job_info->{id};
    return {};
 }
 
 sub nice_job {
    my ( $self, $user, $d ) = @_;
+   my $job_info = $self->_job_info( $user, $d );
+   return { success => 0, message => 'job not found' } unless $job_info->{id};
+
    return {};
 }
 
 # server related subroutines
 
+sub _ssh_copy {
+   my ( $self, $user, $d ) = @_;
+   my $port = $d->{port} || 22;
+
+   # copy public ssh key to remote host
+   my $copy_key  = "sshpass -p $d->{password} ssh-copy-id -p $port $d->{username}\@$d->{hostname}";
+   my $exit_code = system($copy_key);
+   my $success = $exit_code ? 0 : 1;
+   return { success => $success, exit_code => $exit_code };
+}
+
 sub create_server {
    my ( $self, $user, $d ) = @_;
 
-   my $port = $d->{port} || 22;
+   $self->_ssh_copy($user, $d) if $d->{password};
 
-   # test connection
-   my $ssh = Net::OpenSSH->new( $d->{hostname}, port => $port );
-   return { success => 0, message => $ssh->error } if $ssh->error;
-
-   # copy public ssh key to remote host
-   my $copy_key  = 'sshpass -p ' . $d->{password} . ' ssh-copy-id ' . $d->{username} . '@' . $d->{hostname};
-   my $exit_code = system($copy_key);
-   return { success => 0, exit_code => $exit_code, message => 'ssh-copy-id error' } if $exit_code;
-
-   my $insert_hash = { map { $_ => $d->{$_} } grep { exists $d->{$_} } (qw(name username hostname password port)) };
-   $insert_hash->{port}   = $port;
+   my $insert_hash = { map { $_ => $d->{$_} } grep { exists $d->{$_} } (qw(name username hostname password)) };
+   $insert_hash->{port} = $d->{port} || 22;
    $insert_hash->{org_id} = $user->org_id;
 
    my $id;
-   eval { $id = $self->app->sqlite->db->insert( 'server', $insert_hash )->last_insert_id; };
-   return $@ ? { success => 0, message => $@ } : { id => $id, success => 1, %$insert_hash };
+   eval {
+      my $tx = $self->sqlite->db->begin;
+      $id = $self->sqlite->db->insert( 'server', $insert_hash )->last_insert_id;
+      my $c = $self->connect_server($user, { id => $id });
+      if ($c->{success}) {
+         $tx->commit;
+      }
+      else {
+         undef $id;
+      }
+   };
+
+   if ($@) {
+      return { success => 0, message => $@ };
+   }
+   elsif ($id) {
+      return { id => $id, success => 1, message => 'connected' };
+   }
+   else {
+      return { id => $id, success => 0, message => 'unable to connect' };
+   }
 }
 
 sub read_server {
    my ( $self, $user, $d ) = @_;
-   my $id =
-       $d->{id}                            ? $d->{id}
-     : $d->{name} && $d->{name} =~ /^\d+$/ ? $d->{name}
-     :                                       undef;
+   my $servers = $self->_server_info( $user, $d );
+   return scalar @$servers ? { success => 1, servers => $servers } : { success => 0 };
+}
+
+sub _server_info {
+   my ( $self, $user, $d ) = @_;
+   my $select =
+       $d->{id}   ? { id => $d->{id}, org_id => $user->org_id }
+     : $d->{name} ? { org_id => $user->org_id, name => $d->{name} }
+     :              { org_id => $user->org_id };
 
    my @rows;
-   if ($id) {
-      my $r = $self->sqlite->db->select( 'server', [qw(id username hostname name port)], { id => $id } )->hash;
-      push @rows, $r if $r;
+   my $results = $self->sqlite->db->select( 'server', ['*'], $select );
+   while ( my $next = $results->hash ) {
+      my $ssh = $self->ssh_connection->{ $next->{id} };
+      my $connected = $ssh && $ssh->check_master ? 1 : 0;
+      my $row = { map { $_, $next->{$_} } (qw(id username hostname name port total_memory used_memory cpu total_disk used_disk uptime)) };
+      $row->{connected} = $connected;
+      push @rows, $row;
    }
-   elsif ( $d->{name} ) {
-      my $r = $self->sqlite->db->select( 'server', [qw(id username hostname name port)], { name => $d->{name} } )->hash;
-      push @rows, $r if $r;
+   return \@rows;
+}
+
+sub disconnect_server {
+   my ( $self, $user, $d ) = @_;
+   my $servers = $self->_server_info( $user, $d );
+
+   foreach my $s (@$servers) {
+      my $ssh = $self->ssh_connection->{ $s->{id} };
+      $ssh->disconnect(0) if $ssh;
    }
-   else {
-      my $results = $self->sqlite->db->query('select id, username, hostname, name, port from server');
-      while ( my $next = $results->hash ) {
-         push @rows, { map { $_, $next->{$_} } (qw(id username hostname name port)) };
+   return { success => 1 };
+}
+
+sub connect_server {
+   my ( $self, $user, $d ) = @_;
+   my $servers = $self->_server_info( $user, $d );
+
+   foreach my $s (@$servers) {
+      return { success => 0, message => 'server misconfigured' } unless $s->{id} && $s->{username} && $s->{hostname};
+      my $port = $s->{port} || 22;
+      my $old_ssh = $self->ssh_connection->{ $s->{id} };
+      if ($old_ssh && ref $old_ssh) {
+         $old_ssh->disconnect(0);
+         undef $old_ssh;
       }
+
+      my %option = (
+         user       => $s->{username},
+         port       => $port,
+         batch_mode => 1,
+      );
+
+      if ( $s->{password} ) {
+         $option{password} = $d->{password};
+         $self->_ssh_copy($user, $s);
+      }
+
+      my $ssh = Net::OpenSSH->new(
+         $s->{hostname},
+         %option
+      );
+
+      return { success => 0, message => $ssh->error } if $ssh->error || !$ssh->check_master;
+      $self->ssh_connection->{ $s->{id} } = $ssh;
    }
-   return scalar @rows ? { success => 1, servers => \@rows } : { success => 0 };
+   return { success => 1 }; 
 }
 
 sub update_server {
    my ( $self, $user, $d ) = @_;
-   my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(username hostname)) };
-   $update_hash->{name} = $d->{newname} if $d->{newname};
-
-   return { success => 0, message => 'nothing to update' } unless scalar keys(%$update_hash);
-
-   my $id =
-       $d->{id}                            ? $d->{id}
-     : $d->{name} && $d->{name} =~ /^\d+$/ ? $d->{name}
-     :                                       undef;
-
-   if ($id) {
-      eval { $self->sqlite->db->update( 'server', $update_hash, { id => $id } ); };
-   }
-   elsif ( $d->{name} ) {
-      eval { $self->sqlite->db->update( 'server', $update_hash, { name => $d->{name} } ); };
-   }
-   else {
-      return { success => 0, message => 'server id or name required' };
-   }
-
-   return { success => 0, message => $@ } if $@;
-   return { success => 1, %$update_hash };
+   return { success => 1, echo => $d };
 }
 
 sub delete_server {
    my ( $self, $user, $d ) = @_;
-   my $id =
-       $d->{id}                                ? $d->{id}
-     : ( $d->{name} && $d->{name} =~ /^\d+$/ ) ? $d->{name}
-     :                                           undef;
+   return { success => 0, message => 'missing name or id' } unless $d->{name} || $d->{id};
+   my $servers = $self->_server_info( $user, $d );
+   return { success => 0, message => 'multiple servers found' } if scalar @$servers > 1;
 
-   if ($id) {
-      eval { $self->sqlite->db->delete( 'server', { id => $id } ); };
-   }
-   elsif ( $d->{name} ) {
-      eval { $self->sqlite->db->delete( 'server', { name => $d->{name} } ); };
-   }
-   else {
-      return { success => 0, message => 'server id or name required' };
-   }
+   my $id = $servers->[0]->{id};
 
-   my $return_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(id name)) };
-   return { success => 0, message => $@ } if $@;
-   return { success => 1, %$return_hash };
+   my $rows = $self->sqlite->db->delete( 'server', { id => $id } )->rows;
+   my $success = $rows ? 1 : 0;
+   return { success => $success };
 }
 
 sub addcron {
@@ -744,19 +838,12 @@ sub addcron {
    $user->tx->send( encode_json( { response => 'crontab installed', crontab => $decoded->{crontab} } ) );
 }
 
-sub start_continer {
-   my ( $self, $connection_id, $decoded ) = @_;
-   my $db = $self->app->sqlite->db;
-   $db->update( 'container', { status => 'R' }, { id => $decoded->{crontainer_id} } );
-
-   # start all jobs in container
-}
-
 # command routing
 
 sub routing {
    state $i = qr/^\d{1,20}$/;                # integer
    state $w = qr/^\w{1,50}$/;                # word
+   state $f = qr/^[\d\.]{1,20}$/;            # float
    state $p = qr/^[\w\/\@\:\.]{1,50}$/;      # path
    state $e = qr/^[\w\.\@]{1,50}$/;          # email
    state $c = qr/^[\w\/\@\:\.\s]{1,50}$/;    # shell command
@@ -773,9 +860,9 @@ sub routing {
       # job related
       'create_job' => [ \&create_job, 1, [ { name => $p, shell_command => $c }, { server => $w, description => $w, out_log_path => $w, err_log_path => $w } ] ],
       'read_job'   => [ \&read_job,   1, [ {}, { name => $p, id => $i, cluster_id => $i } ] ],
-      'update_job' => [ \&update_job, 1, [ {}, { name => $p, id => $i, newname    => $w, server_id => $i, pid => $i, state_id => $i, shell_command => $p } ] ],
+      'update_job' => [ \&update_job, 1, [ {}, { name => $p, id => $i, mem        => $f, cpu => $f, newname => $w, state => $w, server => $w, pid => $i, shell_command => $c } ] ],
       'delete_job' => [ \&delete_job, 1, [ {}, { name => $p, id => $i } ] ],
-      'start_job'   => [ \&start_job, 1, [ {}, { name => $p, id => $i } ] ],
+      'start_job'  => [ \&start_job,  1, [ {}, { name => $p, id => $i } ] ],
       'kill_job'   => [ \&kill_job,   1, [ {}, { name => $p, id => $i } ] ],
       'hold_job'   => [ \&hold_job,   1, [ {}, { name => $p, id => $i } ] ],
       'ice_job'    => [ \&ice_job,    1, [ {}, { name => $p, id => $i } ] ],
@@ -788,16 +875,38 @@ sub routing {
       'update_cluster' => [ \&update_cluster, 1, [ {}, { id   => $i, name => $p, newname => $w, description => $w } ] ],
       'delete_cluster' => [ \&delete_cluster, 1, [ {}, { name => $p, id   => $i } ] ],
       'change_cluster' => [ \&change_cluster, 1, [ {}, { name => $p, id   => $i } ] ],
+      'find_cluster'   => [ \&find_cluster,   1, [ {}, { name => $p, id   => $i } ] ],
+
       #'start_cluster'  => [ \&start_cluster,  1, [ {}, {} ] ],
       #'copy_cluster'   => [ \&copy_cluster,   1, [ {}, { name => $p, id => $i, to => $p } ] ],
 
       # server related
-      'create_server' => [ \&create_server, 1, [ { name => $w, username => $w, hostname => $w, password => $w }, {} ] ],
-      'read_server'   => [ \&read_server,   1, [ {}, { id => $i, name => $w } ] ],
-      'update_server' => [ \&update_server, 1, [ {}, { id => $i, name => $w, newname => $w, username => $w, hostname => $w } ] ],
-      'delete_server' => [ \&delete_server, 1, [ {}, { id => $i, name => $w } ] ],
+      'create_server'  => [ \&create_server, 1, [ { name => $w, username => $w, hostname => $w }, { password => $w } ] ],
+      'read_server'    => [ \&read_server,   1, [ {}, { id => $i, name => $w } ] ],
+      'update_server'  => [ \&update_server, 1, [ {}, { id => $i, name => $w, newname => $w, username => $w, hostname => $w } ] ],
+      'delete_server'  => [ \&delete_server, 1, [ {}, { id => $i, name => $w } ] ],
+      'connect_server'  => [ \&connect_server, 1, [ {}, { id => $i, name => $w } ] ],
+      'ssh_copy'  => [ \&_ssh_copy, 1, [ { name => $w, username => $w, hostname => $w, password => $w }, {} ] ],
+      'disconnect_server'  => [ \&disconnect_server, 1, [ {}, { id => $i, name => $w } ] ],
+      'update_sysinfo' => [
+         \&update_sysinfo,
+         1,
+         [
+            {
+               free_memory  => $i,
+               used_memory  => $i,
+               total_memory => $i,
+               free_disk    => $i,
+               used_disk    => $i,
+               total_disk   => $i,
+               cpu          => $f,
+               pids         => 's',
+               id           => $i,
+            },
+            {}
+         ]
+      ],
    );
    return \%routing;
 }
-
 1;

@@ -1,0 +1,24 @@
+{
+  "token": "1bb6eda29b864133bf8fc776d11dc8c0b228f9dc",
+  "api": "http://127.0.0.1:3000/api",
+  "aliases": {
+    "mkdir": "create_cluster",
+    "cc": "create_cluster",
+    "cj": "create_job",
+    "cs": "create_server",
+    "dir": "find_cluster",
+    "ls": "find_cluster",
+    "fc": "find_cluster",
+    "rc": "read_cluster",
+    "rj": "read_job",
+    "rs": "read_server",
+    "uc": "update_cluster",
+    "uj": "update_job",
+    "us": "update_server",
+    "dc": "delete_cluster",
+    "dj": "delete_job",
+    "ds": "delete_server",
+    "cd": "change_cluster",
+    "sc": "change_cluster"
+  }
+}

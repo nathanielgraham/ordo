@@ -1,0 +1,95 @@
+2025/05/22 14:31:41 Process ID is 273940
+2025/05/22 14:31:41 Written to ./sysinfo.pid
+2025/05/22 14:40:14 According to my pidfile, there's no instance of me running.
+2025/05/22 14:40:19 Process ID is 274419
+2025/05/22 14:40:19 Written to /home/broom/ordo/worker/script/../logs/sysinfo.pid
+2025/05/22 14:40:43 Process ID is 274468
+2025/05/22 14:40:43 Written to /home/broom/ordo/worker/script/../logs/sysinfo.pid
+2025/05/22 14:48:29 According to my pidfile, there's no instance of me running.
+2025/05/22 14:57:06 Running in foreground
+2025/05/22 14:57:06 Process 275281 still running, waiting ...
+2025/05/22 14:57:07 Process 275281 stopped successfully.
+2025/05/22 14:57:10 Process ID is 275365
+2025/05/22 14:57:10 Written to /home/broom/ordo/worker/script/../logs/sysinfo.pid
+2025/05/22 14:57:10 Defining die handler
+2025/05/22 15:40:47 App::Daemon die handler triggered.
+2025/05/22 15:40:47 Die handler called by eval. Ignored.
+2025/05/22 15:56:07 App::Daemon die handler triggered.
+2025/05/22 15:56:07 Die handler called by eval. Ignored.
+2025/05/22 15:56:11 App::Daemon die handler triggered.
+2025/05/22 15:56:11 Die handler called by eval. Ignored.
+2025/05/22 15:56:15 App::Daemon die handler triggered.
+2025/05/22 15:56:15 Die handler called by eval. Ignored.
+2025/05/22 15:56:19 App::Daemon die handler triggered.
+2025/05/22 15:56:19 Die handler called by eval. Ignored.
+2025/05/22 16:01:07 App::Daemon die handler triggered.
+2025/05/22 16:01:07 Die handler called by eval. Ignored.
+2025/05/22 16:01:11 App::Daemon die handler triggered.
+2025/05/22 16:01:11 Die handler called by eval. Ignored.
+2025/05/22 16:01:15 App::Daemon die handler triggered.
+2025/05/22 16:01:15 Die handler called by eval. Ignored.
+2025/05/22 16:01:19 App::Daemon die handler triggered.
+2025/05/22 16:01:19 Die handler called by eval. Ignored.
+2025/05/22 16:06:07 App::Daemon die handler triggered.
+2025/05/22 16:06:07 Die handler called by eval. Ignored.
+2025/05/22 16:06:11 App::Daemon die handler triggered.
+2025/05/22 16:06:11 Die handler called by eval. Ignored.
+2025/05/22 16:06:15 App::Daemon die handler triggered.
+2025/05/22 16:06:15 Die handler called by eval. Ignored.
+2025/05/22 16:06:19 App::Daemon die handler triggered.
+2025/05/22 16:06:19 Die handler called by eval. Ignored.
+2025/05/22 16:40:51 App::Daemon die handler triggered.
+2025/05/22 16:40:51 Die handler called by eval. Ignored.
+2025/05/22 17:38:27 App::Daemon die handler triggered.
+2025/05/22 17:38:27 Die handler called by eval. Ignored.
+2025/05/22 17:43:31 App::Daemon die handler triggered.
+2025/05/22 17:43:31 Die handler called by eval. Ignored.
+2025/05/22 17:43:35 App::Daemon die handler triggered.
+2025/05/22 17:43:35 Die handler called by eval. Ignored.
+2025/05/22 17:43:39 App::Daemon die handler triggered.
+2025/05/22 17:43:39 Die handler called by eval. Ignored.
+2025/05/22 17:43:43 App::Daemon die handler triggered.
+2025/05/22 17:43:43 Die handler called by eval. Ignored.
+2025/05/22 17:48:31 App::Daemon die handler triggered.
+2025/05/22 17:48:31 Die handler called by eval. Ignored.
+2025/05/22 17:48:35 App::Daemon die handler triggered.
+2025/05/22 17:48:35 Die handler called by eval. Ignored.
+2025/05/22 17:48:39 App::Daemon die handler triggered.
+2025/05/22 17:48:39 Die handler called by eval. Ignored.
+2025/05/22 17:48:43 App::Daemon die handler triggered.
+2025/05/22 17:48:43 Die handler called by eval. Ignored.
+2025/05/22 17:53:31 App::Daemon die handler triggered.
+2025/05/22 17:53:31 Die handler called by eval. Ignored.
+2025/05/22 17:53:35 App::Daemon die handler triggered.
+2025/05/22 17:53:35 Die handler called by eval. Ignored.
+2025/05/22 17:53:39 App::Daemon die handler triggered.
+2025/05/22 17:53:39 Die handler called by eval. Ignored.
+2025/05/22 17:53:43 App::Daemon die handler triggered.
+2025/05/22 17:53:43 Die handler called by eval. Ignored.
+2025/05/22 17:58:31 App::Daemon die handler triggered.
+2025/05/22 17:58:31 Die handler called by eval. Ignored.
+2025/05/22 17:58:35 App::Daemon die handler triggered.
+2025/05/22 17:58:35 Die handler called by eval. Ignored.
+2025/05/22 17:58:39 App::Daemon die handler triggered.
+2025/05/22 17:58:39 Die handler called by eval. Ignored.
+2025/05/22 17:58:43 App::Daemon die handler triggered.
+2025/05/22 17:58:43 Die handler called by eval. Ignored.
+2025/05/22 18:03:31 App::Daemon die handler triggered.
+2025/05/22 18:03:31 Die handler called by eval. Ignored.
+2025/05/22 18:03:35 App::Daemon die handler triggered.
+2025/05/22 18:03:35 Die handler called by eval. Ignored.
+2025/05/22 18:03:39 App::Daemon die handler triggered.
+2025/05/22 18:03:39 Die handler called by eval. Ignored.
+2025/05/22 18:03:43 App::Daemon die handler triggered.
+2025/05/22 18:03:43 Die handler called by eval. Ignored.
+2025/05/22 18:08:31 App::Daemon die handler triggered.
+2025/05/22 18:08:31 Die handler called by eval. Ignored.
+2025/05/22 18:08:35 App::Daemon die handler triggered.
+2025/05/22 18:08:35 Die handler called by eval. Ignored.
+2025/05/22 19:28:58 App::Daemon die handler triggered.
+2025/05/22 19:28:58 Die handler called by eval. Ignored.
+2025/05/22 19:31:54 App::Daemon die handler triggered.
+2025/05/22 19:31:54 Die handler called by eval. Ignored.
+2025/05/22 19:33:58 Running in foreground
+2025/05/22 19:33:58 Process 275365 still running, waiting ...
+2025/05/22 19:33:59 Process 275365 stopped successfully.

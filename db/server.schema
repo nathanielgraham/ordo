@@ -8,7 +8,14 @@ CREATE TABLE server (
         username varchar,
         password varchar,
         hostname varchar,
-        port integer,
+        port integer not null default 22,
+        total_memory integer,
+        used_memory integer,
+        total_disk integer,
+        used_disk integer,
+        uptime integer,
+        cpu varchar,
+        update_time int,
         creation_time DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -10,13 +10,12 @@ CREATE TABLE job_states (
 CREATE UNIQUE INDEX job_states_idx1 ON job_states (state);
 
 INSERT INTO job_states (id, state) VALUES(1,'ready');
-INSERT INTO job_states (id, state) VALUES(2,'inactive');
-INSERT INTO job_states (id, state) VALUES(3,'starting');
-INSERT INTO job_states (id, state) VALUES(4,'running');
-INSERT INTO job_states (id, state) VALUES(5,'complete');
-INSERT INTO job_states (id, state) VALUES(6,'failed');
-INSERT INTO job_states (id, state) VALUES(7,'hold');
-INSERT INTO job_states (id, state) VALUES(8,'ice');
-INSERT INTO job_states (id, state) VALUES(9,'killed');
+INSERT INTO job_states (id, state) VALUES(2,'starting');
+INSERT INTO job_states (id, state) VALUES(3,'running');
+INSERT INTO job_states (id, state) VALUES(4,'complete');
+INSERT INTO job_states (id, state) VALUES(5,'failed');
+INSERT INTO job_states (id, state) VALUES(6,'hold');
+INSERT INTO job_states (id, state) VALUES(7,'ice');
+INSERT INTO job_states (id, state) VALUES(8,'killed');
 
 COMMIT;

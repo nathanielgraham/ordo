@@ -11,6 +11,7 @@ use POSIX qw(strftime);
 use Data::Dumper;
 use Getopt::Long qw(GetOptionsFromString);
 use JSON;
+use FindBin     qw($Bin);
 use Text::Table::Tiny 1.02 qw/ generate_table /;
 
 use feature qw(say);
@@ -18,18 +19,18 @@ use feature qw(say);
 my $config;
 
 eval {
-   open( my $fh, "<", "ordo.json" ) or die $!;
+   open( my $fh, "<", "$Bin/../ordo.json" ) or die $!;
    $config = decode_json( do { local $/; <$fh> } );
    close($fh);
 };
 
 die "Unable to open config file: $@\n" if $@;
 
-my $token = $config->{token};
+my $token   = $config->{token};
 my $aliases = $config->{aliases};
-my $url = $config->{url};
-#my $url = 'http://127.0.0.1:3000/api';
-my $user = 'offline';
+my $api     = $config->{api};
+
+my $user    = 'offline';
 my $cluster = '';
 
 my $ua = Mojo::UserAgent->new;
@@ -41,8 +42,8 @@ my $change_cluster = sub {
 
 my $read_user = sub {
    my $json = shift;
-   $user = $json->{hostname} || 'offline';
-   $cluster = $json->{path} || '';
+   $user    = $json->{hostname} || 'offline';
+   $cluster = $json->{path}     || '';
 };
 
 my $update_token = sub {
@@ -51,7 +52,7 @@ my $update_token = sub {
    $config->{token} = $token;
    eval {
       open( my $fh, ">", "ordo.json" ) or die $!;
-      my $json = encode_json( $config );
+      my $json = encode_json($config);
       print $fh $json;
       close($fh);
    };
@@ -67,18 +68,20 @@ my $update_token = sub {
 };
 
 my $help = sub {
-   say <<~'HELP'; 
+   say <<~'HELP';
+      TODO
       cmd1
       cmd2
       cmd3
    HELP
    return { success => 1 };
 };
- 
-my $read_cluster = sub {
-   my $json = shift;
+
+my $find_cluster = sub {
+   my $json     = shift;
    my @clusters = @{ $json->{clusters} };
-   my %lookup = map { $_->{id}, $_ } @{ $json->{clusters} };
+   my %lookup   = map { $_->{id}, $_ } @{ $json->{clusters} };
+
    #print Dumper(\@clusters);
    my @paths;
    for my $cluster (@clusters) {
@@ -86,80 +89,79 @@ my $read_cluster = sub {
       my $next = $cluster->{id};
       while ($next) {
          unshift @parts, $next;
-         $next = $lookup{ $next }->{parent_id};
-         $next = $next && exists $lookup{ $next } ? $next : undef;
+         $next = $lookup{$next}->{parent_id};
+         $next = $next && exists $lookup{$next} ? $next : undef;
       }
       push @paths, \@parts;
    }
-   
+
    my $rows = [ [qw(ID CLUSTER/JOB STATE SERVER PID %MEM %CPU DURATION)] ];
    foreach my $part (@paths) {
-      my $path = join('/', (map { $lookup{$_}->{name} } @{ $part }));
-      my $colored = colored($path, 'bold blue');
-      my $cluster_id = pop @{ $part } || 0;
-      my $c = $lookup{ $cluster_id };
-      my ($start, $end, $dur) = &format_epoch($c->{start}, $c->{end});
-      push @{ $rows }, [ $c->{id}, $colored, $c->{state}, '--', '--', '--', '--', $dur ];
+      my $path       = join( '/', ( map { $lookup{$_}->{name} } @{$part} ) );
+      my $colored    = colored( $path, 'bold blue' );
+      my $cluster_id = pop @{$part} || 0;
+      my $c          = $lookup{$cluster_id};
+      my ( $start, $end, $dur ) = &format_epoch( $c->{start}, $c->{end} );
+      push @{$rows}, [ $c->{id}, $colored, $c->{state}, '--', '--', '--', '--', $dur ];
 
-      next unless $lookup{ $cluster_id }->{jobs};
+      next unless $lookup{$cluster_id}->{jobs};
 
-      foreach my $job (@{ $lookup{ $cluster_id }->{jobs} }) {
+      foreach my $job ( @{ $lookup{$cluster_id}->{jobs} } ) {
+
          #my %i;
          #for my $k (keys %{ $job }) {
          #   my $v = defined $job->{$k} ? $job->{$k} : '';
          #   $i{$k} = $v;
          #}
-         my ($s, $e, $d) = &format_epoch($job->{start}, $job->{end});
-         push @{ $rows }, [ $job->{id}, "$path/$job->{name}", $job->{state}, $job->{server_name}, $job->{pid}, $job->{mem}, $job->{cpu}, $d ];
+         my ( $s, $e, $d ) = &format_epoch( $job->{start}, $job->{end} );
+         push @{$rows}, [ $job->{id}, "$path/$job->{name}", $job->{state}, $job->{server_name}, $job->{pid}, $job->{mem}, $job->{cpu}, $d ];
          print Dumper($job);
       }
    }
-   say generate_table(rows => $rows, header_row => 1);
+   say generate_table( rows => $rows, header_row => 1 );
 };
 
 sub format_epoch {
-   my ($start, $end) = @_;
-   return ('','','') unless $start;
+   my ( $start, $end ) = @_;
+   return ( '', '', '' ) unless $start;
    my $sdt = DateTime->from_epoch( epoch => $start );
-   my $s = $sdt->ymd . ' ' . $sdt->hms;
+   my $s   = $sdt->ymd . ' ' . $sdt->hms;
 
-   my $epoch = $end || time ;
+   my $epoch = $end || time;
 
    my $edt = DateTime->from_epoch( epoch => $epoch );
 
-   my $dur = $edt - $sdt;
+   my $dur     = $edt - $sdt;
    my $elapsed = sprintf '%02s:%02s:%02s', $dur->hours, $dur->minutes, $dur->seconds;
 
    my $e = $end ? $edt->ymd . ' ' . $edt->hms : '';
-   return ($s, $e, $elapsed);
+   return ( $s, $e, $elapsed );
 }
 
 my $remote_dispatch = {
    change_cluster => $change_cluster,
-   read_user => $read_user,
-   read_cluster => $read_cluster,
+   read_user      => $read_user,
+   find_cluster   => $find_cluster,
 };
 
 my $local_dispatch = {
-   token => $update_token,
+   token        => $update_token,
    update_token => $update_token,
-   help => $help,
+   help         => $help,
 };
 
 &request("read user");
 
 sub request {
    my $line = shift;
-   my $r = &string2hash($line);    
-   unless ($r->{token}) {
+   my $r    = &string2hash($line);
+   unless ( $r->{token} ) {
       say to_json( $r, { pretty => 1 } );
       return;
    }
-   #print Dumper($r);
+
    my $json;
-   eval {
-      $json = $ua->get( $url => { Accept => 'application/json' } => json => $r )->result->json;
-   };
+   eval { $json = $ua->get( $api => { Accept => 'application/json' } => json => $r )->result->json; };
    $json = { success => 0, message => $@ } if $@;
    print to_json( $json, { pretty => 1 } );
    return unless $json->{success};
@@ -177,59 +179,43 @@ sub string2hash {
 
    my %options;
    my ( $ret, $args ) = GetOptionsFromString(
-      $string,
-      \%options,
-      "command=s",
-      "token=s",
-      "username:s",
-      "hostname:s",
-      "newname:s",
-      "password:s",
-      "shell_command:s",
-      "email:s",
-      "level:s",
-      "name:s",
-      "job_id:i",
-      "cluster_id:i",
-      "server_id:i",
-      "state_id:i",
-      "org_id:i",
-      "pid:i",
-      "to:s",
-      "id:s",
+      $string,   \%options, "command=s", "token=s", "state:s", "username:s",  "hostname:s", "newname:s", "password:s", "shell_command:s", "email:s",
+      "level:s", "name:s",  "job_id:i",  "cluster_id:i", "server:s", "org_id:i",  "pid:i",      "to:s",            "id:s",
    );
 
-   my ($verb, $noun, $name) = @{ $args };
+   my ( $verb, $noun, $name ) = @{$args};
 
    return { success => 0, message => 'missing verb' } unless defined $verb;
 
-   unless ( $noun || exists $local_dispatch->{$verb} || exists $aliases->{$verb}) {
+   unless ( $noun || exists $local_dispatch->{$verb} || exists $aliases->{$verb} ) {
       return { success => 0, message => 'missing noun' };
    }
 
    my $cmd;
 
-   if (exists $aliases->{$verb}) {
-      $cmd = $aliases->{$verb};
+   if ( exists $aliases->{$verb} ) {
+      $cmd  = $aliases->{$verb};
       $name = $noun;
    }
    else {
-      $cmd = $noun ? join('_', ($verb, $noun)) 
-           : $verb;
+      $cmd =
+        $noun
+        ? join( '_', ( $verb, $noun ) )
+        : $verb;
    }
 
    # execute local command
    if ( exists $local_dispatch->{$verb} ) {
-      my $v = &{ $local_dispatch->{ $verb } }($noun);
+      my $v = &{ $local_dispatch->{$verb} }($noun);
       return $v;
    }
    elsif ( exists $local_dispatch->{$cmd} ) {
-      my $v = &{ $local_dispatch->{ $cmd } }($name);
+      my $v = &{ $local_dispatch->{$cmd} }($name);
       return $v;
    }
-   
+
    # execute remote command
    my $r = { token => $token, command => $cmd, %options };
    $r->{name} = $name if defined $name;
-   return $r
+   return $r;
 }
