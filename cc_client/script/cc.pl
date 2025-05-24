@@ -77,6 +77,39 @@ my $help = sub {
    return { success => 1 };
 };
 
+my $read_server = sub {
+   my $json     = shift;
+   my $rows = [ [qw(ID ALIAS %MEMORY %DISK LOADAVG PING UPTIME OS ACTIVE UPDATED HOST)] ];
+   my @servers = @{ $json->{servers} };
+   for my $s (@servers) {
+      my ($cpu, $pmem, $pdisk, $uptime, $ping, $conn, $update);
+      if ($s->{total_memory}) {
+         $pmem = sprintf ("%.2f", ($s->{used_memory} / $s->{total_memory}) * 100 );
+      }
+      if ($s->{total_disk}) {
+         $pdisk = sprintf ("%.2f", ($s->{used_disk} / $s->{total_disk}) * 100 );
+      }
+      if ($s->{uptime}) {
+         $uptime = sprintf ("%.2f days", ($s->{uptime} / 86000));
+      }
+      if ($s->{uptime}) {
+         $ping = sprintf ("%.2f ms", $s->{ping});
+      }
+      if ($s->{update_time}) {
+         my $seconds = time - $s->{update_time};
+         $update = sprintf ("%is ago", $seconds);
+      }
+      if ($s->{cpu}) {
+         my $cores = $s->{cores} || 1;
+         $cpu = sprintf("%.2f (%i)", $s->{cpu}, $cores);
+      }
+
+      $conn = $s->{connected} ? 'yes' : 'no';
+      push @$rows, [ $s->{id}, $s->{name}, $pmem, $pdisk, $cpu, $ping, $uptime, $s->{os}, $conn, $update, $s->{hostname} ];
+   }
+   say generate_table( rows => $rows, header_row => 1 );
+};
+
 my $find_cluster = sub {
    my $json     = shift;
    my @clusters = @{ $json->{clusters} };
@@ -142,6 +175,7 @@ my $remote_dispatch = {
    change_cluster => $change_cluster,
    read_user      => $read_user,
    find_cluster   => $find_cluster,
+   read_server    => $read_server,
 };
 
 my $local_dispatch = {

@@ -5,9 +5,9 @@ use ordo::Model::User;
 use JSON;
 use Digest::SHA qw(hmac_sha1_hex);
 use FindBin     qw($Bin);
-use Net::SSH::Perl;
 use Net::OpenSSH;
 use Sys::Hostname;
+use POSIX ":sys_wait_h";
 use Data::Dumper;
 
 has 'user' => sub {
@@ -27,11 +27,9 @@ sub startup {
    $self->secrets( [ 'gu$!$#UessM%#eI36#$fYo43@#$uC^%5an', '%!#GDA$#!gfds%#@sdf' ] );
 
    # Helpers
-   $self->helper( request    => \&request );
-   $self->helper( routing    => \&routing );
-   $self->helper( sqlite     => sub { state $sql = Mojo::SQLite->new("$Bin/../db/ordo.db") } );
-   $self->helper( job_helper => sub { state $job = ordo::Model::JobHelper->new( app => shift->app ) } );
-   $self->helper( box_helper => sub { state $box = ordo::Model::BoxHelper->new( app => shift->app ) } );
+   $self->helper( request => \&request );
+   $self->helper( routing => \&routing );
+   $self->helper( sqlite  => sub { state $sql = Mojo::SQLite->new("$Bin/../db/ordo.db") } );
 
    my $states = $self->sqlite->db->select( 'job_states', ['*'] )->hashes->to_array;
    $self->helper(
@@ -169,9 +167,6 @@ sub is_executable {
 sub read_cluster {
    my ( $self, $user, $d ) = @_;
    my $cluster_id = $d->{id} || $self->path2id( $user, $d->{name} );
-
-   #my $ssh = Net::OpenSSH->new('localhost', user => 'remote4');
-   #print Dumper($ssh->error);
 
    # undef = root cluster, 0 = cluster not found
    return { success => 0, message => 'cluster not found' } if defined $cluster_id && $cluster_id == 0;
@@ -446,7 +441,7 @@ sub read_user {
       email           => $info->{email},
       base_cluster_id => $info->{base_cluster_id},
       remote_address  => $user->remote_address,
-      hostname        => hostname,
+      hostname        => hostname(),
       path            => $path,
       success         => 1,
    };
@@ -611,21 +606,35 @@ sub update_job {
    return { success => $success, %{$update_hash} };
 }
 
+sub _ping {
+   my ( $self, $host ) = @_;
+   return unless $host;
+   my $output = `ping -c 1 $host 2>&1`;
+   if ( $output =~ /min\/avg\/max\/(mdev|stddev) = ([\d.]+)\/([\d.]+)\/([\d.]+)/ ) {
+      return $3;
+   }
+}
+
 sub update_sysinfo {
    my ( $self, $user, $d ) = @_;
-   my $uh = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(total_memory used_memory cpu total_disk used_disk uptime)) };
+   return { success => 0, exit => 1, message => 'missing server id' } unless $d->{id};
+   my $uh     = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(total_memory used_memory cpu total_disk used_disk uptime)) };
+   my $result = $self->sqlite->db->select( 'server', ['*'], { id => $d->{id} } )->hash;
+   my $ssh    = $self->ssh_connection->{ $result->{id} };
+   return { success => 0, exit => 1 } unless $result->{id} && $ssh && $ssh->check_master;
+   $uh->{ping}        = $self->_ping( $result->{hostname} ) if $result->{hostname};
+   $uh->{update_time} = time;
    eval { $self->sqlite->db->update( 'server', $uh, { id => $d->{id} } ) };
    return $@ ? { success => 0, message => $@ } : { success => 1, %$uh };
-   #return { pids => [253852], exit => 1 };
 }
 
 sub start_job {
    my ( $self, $user, $d ) = @_;
+   my $job_info = $self->_job_info( $user, $d );    #job info
 
    # execute remote shell_command
    # set state to starting
 
-   # put triggers in update job state
    return { echo => $d };
 }
 
@@ -677,40 +686,79 @@ sub _ssh_copy {
    # copy public ssh key to remote host
    my $copy_key  = "sshpass -p $d->{password} ssh-copy-id -p $port $d->{username}\@$d->{hostname}";
    my $exit_code = system($copy_key);
-   my $success = $exit_code ? 0 : 1;
+   my $success   = $exit_code ? 0 : 1;
    return { success => $success, exit_code => $exit_code };
+}
+
+# install and start sysinfo
+sub _install_server {
+   my ( $self, $user, $d ) = @_;
+   my $servers = $self->_server_info( $user, $d );
+   foreach my $s (@$servers) {
+
+      # check connection
+      my $ssh = $self->ssh_connection->{ $s->{id} };
+      $self->_connect_ssh( $user, { id => $s->{id} } ) unless $ssh && $ssh->check_master;
+
+      # install
+      eval {
+
+         # copy cc_worker directory to remote server
+         $ssh->scp_put( { recursive => 1 }, "$Bin/../cc_worker" )
+           or die "scp failed: " . $ssh->error;
+
+         # encode token and server id
+         my $token = $self->read_user($user)->{token};
+         my $json  = encode_json( { token => $token, id => $s->{id} } );
+
+         # install perl modules in background
+         my $spawn       = "perl cc_worker/script/install.pl '$json'";
+         my $install_pid = $ssh->spawn($spawn);
+         1 while waitpid( -1, WNOHANG ) > 0;
+
+         # gather basic info about remote system
+         my ( $out, $err ) = $ssh->capture2("perl cc_worker/script/basicinfo.pl");
+         my $error = $ssh->error || $err;
+         return { success => 0, message => $error } if $error;
+         my $basicinfo = decode_json($out);
+         my $update    = { map { $_, $basicinfo->{$_} } grep { exists $basicinfo->{$_} } (qw(os cores cwd)) };
+         $self->sqlite->db->update( 'server', $update, { id => $s->{id} } );
+      };
+      return { success => 0, message => $@ } if $@;
+   }
+   return { success => 1 };
 }
 
 sub create_server {
    my ( $self, $user, $d ) = @_;
 
-   $self->_ssh_copy($user, $d) if $d->{password};
+   $self->_ssh_copy( $user, $d ) if $d->{password};
 
+   my $port = $d->{port} || 22;
    my $insert_hash = { map { $_ => $d->{$_} } grep { exists $d->{$_} } (qw(name username hostname password)) };
-   $insert_hash->{port} = $d->{port} || 22;
+   $insert_hash->{port}   = $port;
    $insert_hash->{org_id} = $user->org_id;
 
+   # check connection
+   my %option = (
+      port       => $port,
+      user       => $d->{username},
+      batch_mode => 1,
+   );
+
+   my $ssh = Net::OpenSSH->new( $d->{hostname}, %option );
+   return { success => 0, message => $ssh->error } if $ssh->error;
+
    my $id;
-   eval {
-      my $tx = $self->sqlite->db->begin;
-      $id = $self->sqlite->db->insert( 'server', $insert_hash )->last_insert_id;
-      my $c = $self->connect_server($user, { id => $id });
-      if ($c->{success}) {
-         $tx->commit;
-      }
-      else {
-         undef $id;
-      }
-   };
+   eval { $id = $self->sqlite->db->insert( 'server', $insert_hash )->last_insert_id; };
 
    if ($@) {
       return { success => 0, message => $@ };
    }
-   elsif ($id) {
-      return { id => $id, success => 1, message => 'connected' };
-   }
    else {
-      return { id => $id, success => 0, message => 'unable to connect' };
+      $self->_connect_ssh( $user, { id => $id } );
+      $self->_install_server( $user, { id => $id } );
+      return { id => $id, success => 1, message => 'connected' };
    }
 }
 
@@ -730,37 +778,45 @@ sub _server_info {
    my @rows;
    my $results = $self->sqlite->db->select( 'server', ['*'], $select );
    while ( my $next = $results->hash ) {
-      my $ssh = $self->ssh_connection->{ $next->{id} };
+      my $ssh       = $self->ssh_connection->{ $next->{id} };
       my $connected = $ssh && $ssh->check_master ? 1 : 0;
-      my $row = { map { $_, $next->{$_} } (qw(id username hostname name port total_memory used_memory cpu total_disk used_disk uptime)) };
+      my $row       = { map { $_, $next->{$_} } (qw(id os cwd cores update_time ping username hostname name port total_memory used_memory cpu total_disk used_disk uptime)) };
       $row->{connected} = $connected;
       push @rows, $row;
    }
    return \@rows;
 }
 
-sub disconnect_server {
+sub _disconnect_ssh {
    my ( $self, $user, $d ) = @_;
    my $servers = $self->_server_info( $user, $d );
+   return { success => 0, message => 'no servers found' } unless scalar @{ $servers } > 0;
 
    foreach my $s (@$servers) {
+      eval { $self->sqlite->db->update( 'server', { active => 0 }, { id => $s->{id} } ) };
+      return { success => 0, message => "unable to update server id $s->{id}: $@" } if $@;
       my $ssh = $self->ssh_connection->{ $s->{id} };
-      $ssh->disconnect(0) if $ssh;
+      if ($ssh) {
+         $ssh->system( { stdout_discard => 1 }, "perl cc_worker/script/sysinfo.pl stop" );
+         $ssh->disconnect(0);
+      }
    }
    return { success => 1 };
 }
 
-sub connect_server {
+# refresh ssh connection
+sub _connect_ssh {
    my ( $self, $user, $d ) = @_;
    my $servers = $self->_server_info( $user, $d );
 
    foreach my $s (@$servers) {
       return { success => 0, message => 'server misconfigured' } unless $s->{id} && $s->{username} && $s->{hostname};
-      my $port = $s->{port} || 22;
+      my $port    = $s->{port} || 22;
       my $old_ssh = $self->ssh_connection->{ $s->{id} };
-      if ($old_ssh && ref $old_ssh) {
+      if ( $old_ssh && ref $old_ssh ) {
          $old_ssh->disconnect(0);
          undef $old_ssh;
+         undef $self->ssh_connection->{ $s->{id} };
       }
 
       my %option = (
@@ -771,18 +827,44 @@ sub connect_server {
 
       if ( $s->{password} ) {
          $option{password} = $d->{password};
-         $self->_ssh_copy($user, $s);
+         $self->_ssh_copy( $user, $s );
       }
 
-      my $ssh = Net::OpenSSH->new(
-         $s->{hostname},
-         %option
-      );
+      my $ssh = Net::OpenSSH->new( $s->{hostname}, %option );
 
       return { success => 0, message => $ssh->error } if $ssh->error || !$ssh->check_master;
+
+      # add connection
       $self->ssh_connection->{ $s->{id} } = $ssh;
    }
-   return { success => 1 }; 
+   return { success => 1 };
+}
+
+# refresh ssh session and start sysinfo
+sub start_server {
+   my ( $self, $user, $d ) = @_;
+   my $token   = $self->read_user($user)->{token};
+   my $servers = $self->_server_info( $user, $d );
+   return { success => 0, message => 'no servers found' } unless scalar @{ $servers };
+   foreach my $s (@$servers) {
+      eval { $self->sqlite->db->update( 'server', { active => 1 }, { id => $s->{id} } ) };
+      return { success => 0, message => "unable to update server id $s->{id}" } if $@;
+      $self->_connect_ssh( $user, { id => $s->{id} } );
+      my $ssh = $self->ssh_connection->{ $s->{id} };
+      my $json = encode_json( { token => $token, id => $s->{id} } );
+      $ssh->system( { stdout_discard => 1 }, "perl cc_worker/script/sysinfo.pl stop" );
+      $ssh->system( { stdout_discard => 1 }, "perl cc_worker/script/sysinfo.pl start '$json'" );
+      #$ssh->system("perl cc_worker/script/sysinfo.pl stop" );
+      #$ssh->system("perl cc_worker/script/sysinfo.pl start '$json'" );
+   }
+   return { success => 1 };
+}
+
+# disconnect ssh session
+sub stop_server {
+   my ( $self, $user, $d ) = @_;
+   my $rv = $self->_disconnect_ssh( $user, $d );
+   return $rv;
 }
 
 sub update_server {
@@ -798,8 +880,10 @@ sub delete_server {
 
    my $id = $servers->[0]->{id};
 
-   my $rows = $self->sqlite->db->delete( 'server', { id => $id } )->rows;
+   my $rows    = $self->sqlite->db->delete( 'server', { id => $id } )->rows;
    my $success = $rows ? 1 : 0;
+   $self->_disconnect_ssh( $user, { id => $id } );
+   delete $self->ssh_connection->{$id};
    return { success => $success };
 }
 
@@ -841,12 +925,12 @@ sub addcron {
 # command routing
 
 sub routing {
-   state $i = qr/^\d{1,20}$/;                # integer
-   state $w = qr/^\w{1,50}$/;                # word
-   state $f = qr/^[\d\.]{1,20}$/;            # float
-   state $p = qr/^[\w\/\@\:\.]{1,50}$/;      # path
-   state $e = qr/^[\w\.\@]{1,50}$/;          # email
-   state $c = qr/^[\w\/\@\:\.\s]{1,50}$/;    # shell command
+   state $i = qr/^\d{1,20}$/;                 # integer
+   state $w = qr/^\w{1,50}$/;                 # word
+   state $f = qr/^[\d\.]{1,20}$/;             # float
+   state $p = qr/^[\w\/\@\:\.]{1,50}$/;       # path
+   state $e = qr/^[\w\.\@]{1,50}$/;           # email
+   state $c = qr/^[\w\/\@\:\.\s-]{1,50}$/;    # shell command
 
    state %routing = (
 
@@ -885,9 +969,9 @@ sub routing {
       'read_server'    => [ \&read_server,   1, [ {}, { id => $i, name => $w } ] ],
       'update_server'  => [ \&update_server, 1, [ {}, { id => $i, name => $w, newname => $w, username => $w, hostname => $w } ] ],
       'delete_server'  => [ \&delete_server, 1, [ {}, { id => $i, name => $w } ] ],
-      'connect_server'  => [ \&connect_server, 1, [ {}, { id => $i, name => $w } ] ],
-      'ssh_copy'  => [ \&_ssh_copy, 1, [ { name => $w, username => $w, hostname => $w, password => $w }, {} ] ],
-      'disconnect_server'  => [ \&disconnect_server, 1, [ {}, { id => $i, name => $w } ] ],
+      'start_server'   => [ \&start_server,  1, [ {}, { id => $i, name => $w } ] ],
+      'ssh_copy'       => [ \&_ssh_copy,     1, [ { name => $w, username => $w, hostname => $w, password => $w }, {} ] ],
+      'stop_server'    => [ \&stop_server,   1, [ {},                                                             { id => $i, name => $w } ] ],
       'update_sysinfo' => [
          \&update_sysinfo,
          1,
@@ -899,6 +983,7 @@ sub routing {
                free_disk    => $i,
                used_disk    => $i,
                total_disk   => $i,
+               uptime       => $f,
                cpu          => $f,
                pids         => 's',
                id           => $i,

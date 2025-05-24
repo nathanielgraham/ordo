@@ -14,7 +14,7 @@ $App::Daemon::logfile  = "$Bin/../logs/sysinfo.log";
 $App::Daemon::pidfile  = "$Bin/../logs/sysinfo.pid";
 $App::Daemon::loglevel = $DEBUG;
 
-#daemonize();
+daemonize();
 
 my $config;
 
@@ -64,24 +64,22 @@ $timer = AnyEvent->timer(
       print "Making request to $api at ", scalar(localtime), "\n";
 
       my $encoded = &$update_payload;
-      print "$encoded\n";
 
       # Make non-blocking HTTP request
       http_post $api, $encoded, sub {
          my ( $body, $hdr ) = @_;
-         print "$body\n";
-         my $args = decode_json($body) or die "unable to parse json: $!";
-         if ( $args->{exit} ) {
-            undef $timer;
-            exit;
-         }
-         $pids = $args->{pids};
 
          if ( $hdr->{Status} =~ /^2/ ) {
-            print "Success: $hdr->{Status} $hdr->{Reason}\n";
+            my $args = decode_json($body) or die "unable to parse json: $!";
+            if ( $args->{exit} || $args->{success} == 0 ) {
+               undef $timer;
+               exit;
+            }
+            $pids = $args->{pids};
          }
          else {
-            print "Failed: $hdr->{Status} $hdr->{Reason}\n";
+            undef $timer;
+            exit;
          }
       };
    }
@@ -218,7 +216,7 @@ sub linux_info {    # Linux probably
    my ($uptime_seconds) = split ' ', $line;
    $sysinfo{uptime} = $uptime_seconds;
 
-   return \%sysinfo;
+   return { %sysinfo, %$disk_info };
 }
 
 sub linux_disk {
