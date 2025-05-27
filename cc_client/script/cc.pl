@@ -130,7 +130,8 @@ my $find_cluster = sub {
       push @paths, \@parts;
    }
 
-   my $rows = [ [qw(ID CLUSTER/JOB STATE SERVER PID %MEM %CPU DURATION)] ];
+
+   my $rows = [ [qw(ID CLUSTER/JOB STATE SERVER %MEM %CPU PRIORITY DURATION PID STATUS)] ];
    foreach my $part (@paths) {
       my $path       = join( '/', ( map { $lookup{$_}->{name} } @{$part} ) );
       my $colored    = colored( $path, 'bold blue' );
@@ -141,10 +142,11 @@ my $find_cluster = sub {
 
       next unless $lookup{$cluster_id}->{jobs};
 
-      foreach my $job ( @{ $lookup{$cluster_id}->{jobs} } ) {
-         my ( $s, $e, $d ) = &format_epoch( $job->{started}, $job->{ended} );
-         push @{$rows}, [ $job->{id}, "$path/$job->{name}", $job->{state}, $job->{server_name}, $job->{pid}, $job->{mem}, $job->{cpu}, $d ];
-         print Dumper($job);
+      foreach my $j ( @{ $lookup{$cluster_id}->{jobs} } ) {
+         my ( $s, $e, $d ) = &format_epoch( $j->{started}, $j->{ended} );
+         #push @{$rows}, [ $j->{id}, "$path/$j->{name}", $j->{state}, $j->{server_name}, $j->{pid}, $j->{pctmem}, $j->{pctcpu}, $d ];
+         push @{$rows}, [ $j->{id}, "$path/$j->{name}", $j->{jobstate}, $j->{server_name}, $j->{pctmem}, $j->{pctcpu}, $j->{priority}, $d, $j->{pid}, $j->{state} ];
+         print Dumper($j);
       }
    }
    say generate_table( rows => $rows, header_row => 1 );

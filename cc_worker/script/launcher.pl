@@ -5,6 +5,7 @@ use strict;
 use LWP::UserAgent;
 use JSON::PP;
 use IPC::Open3;
+use POSIX qw(setsid);
 
 $SIG{HUP}  = sub { exec( $^X, $0, @ARGV ) && exit 0 };
 
@@ -27,13 +28,16 @@ my $pid = fork();
 
 if ( $pid == 0 ) {    # child
 
-   # Become session leader
-   setsid() or die "Can't start a new session: $!";
+#   # Become session leader
+#   setsid() or die "Can't start a new session: $!";
 
    # Fork again to avoid reacquiring a terminal
    $pid = fork();
    die "Cannot fork: $!" unless defined $pid;
    exit 0 if $pid;
+
+   # Become session leader
+   setsid() or die "Can't start a new session: $!";
 
    # Change working directory
    chdir '/' or die "Can't chdir to /: $!";
@@ -44,10 +48,7 @@ if ( $pid == 0 ) {    # child
    close STDOUT;
    close STDERR;
 
-   #my $outlog = '/tmp/out';
-   #my $errlog = '/tmp/err';
-   #open OUT, '>', $outlog or die "open failed: $!";
-   #open ERR, '>', $errlog or die "open failed: $!";
+   &post( { command => 'update_job', token => $token, id => $id, state => 'starting', ppid => $$ } );
 
    my $command_pid = open3( undef, undef, undef, $command );
    waitpid( $command_pid, 0 );

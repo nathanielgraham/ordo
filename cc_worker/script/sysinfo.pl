@@ -243,7 +243,7 @@ sub pid_info {
    my $t = Proc::ProcessTable->new;
 
    foreach my $p ( @{ $t->table } ) {
-      $pid{ $p->pid } = {
+      $pid{ $p->ppid } = {
          pid      => $p->pid,
          tty_dev  => $p->ttydev,
          state    => $p->state,
@@ -259,6 +259,8 @@ sub pid_info {
          start    => $p->start,
          pctcpu   => $p->pctcpu,
          pctmem   => $p->pctmem,
+         cmndline => $p->cmndline,
+         fname    => $p->fname,
       };
    }
 

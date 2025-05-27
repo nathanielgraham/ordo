@@ -505,7 +505,7 @@ sub _job_info {
    unless ( defined $cluster_id && $cluster_id == 0 ) {
       my $sql = <<~"SQL";
       select j.*,  
-      s.name as server_name, js.state
+      s.name as server_name, js.state as jobstate
       from job j
       left join server s on j.server_id = s.id
       left join job_states js on j.state_id = js.id
@@ -520,7 +520,7 @@ sub _job_info {
       my @jobs;
       my $results = $self->sqlite->db->query($sql);
       while ( my $next = $results->hash ) {
-         my %info = map { $_, $next->{$_} } (qw(id started ended pid state name mode cluster_id server_id server_name shell_command description out_log_path err_log_path));
+         my %info = map { $_, $next->{$_} } (qw(exit_code last_update pid ppid priority pctmem pctcpu rss size id start started ended jobstate state state_id name mode cluster_id server_id server_name shell_command description out_log_path err_log_path));
          push @jobs, \%info;
       }
       $rval->{jobs} = \@jobs;
@@ -579,16 +579,14 @@ sub update_job {
    my ( $self, $user, $d ) = @_;
    my $job_info = $self->_job_info( $user, $d );    #job info
    my $job      = shift @{ $job_info->{jobs} };
-   print Dumper($d);
    return { success => 0, message => 'job not found' } unless $job->{id};
 
-   my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw( started ended exit_code server_id shell_command)) };
+   my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw( ppid pid started ended exit_code server_id shell_command)) };
    if ( $d->{state} ) {
       $update_hash->{state_id} = $self->job_states->{ $d->{state} };
    }
    $update_hash->{name} = $d->{newname} if $d->{newname};
    $update_hash->{last_update} = time;
-   print Dumper($update_hash);
    eval { $self->sqlite->db->update( 'job', $update_hash, { id => $job->{id} } ); };
    my $success = $@ ? 0 : 1;
    return { success => $success, %{$update_hash} };
@@ -613,14 +611,11 @@ sub update_sysinfo {
    $uh->{ping} = $self->_ping( $result->{hostname} ) if $result->{hostname};
    $uh->{update_time} = time;
 
-   #print Dumper($d);
-
    # receive pid info
    if ($d->{pids} && ref $d->{pids} eq 'ARRAY') {
       foreach my $pid (@{ $d->{pids} }) {
-         print "GOTPIDS";
+         print Dumper($pid);
          my $update = { map { $_, $pid->{$_} } grep { exists $pid->{$_} } (qw(pctcpu pid time start size priority rss pctmem ppid state)) };
-         #print Dumper($update);
          print "UPDATE: ppid $update->{ppid} WHERE ppid is $pid->{ppid} \n"; 
          eval { $self->sqlite->db->update( 'job', $update, { ppid => $pid->{ppid} } ) };
          die $@ if $@;
@@ -644,16 +639,14 @@ sub start_job {
    my ( $self, $user, $d ) = @_;
 
    # arrayref of jobs in $job_info->{jobs}
-   my $job_info = $self->_job_info( $user, $d );    #job info
+   my $job_info = $self->_job_info( $user, $d ); #job info
+   my $job = shift @{ $job_info->{jobs} };
+   return { success => 0, message => 'command not found' } unless ref $job && $job->{id} && $job->{shell_command};
    return { success => 0, message => 'job not found' } unless $job_info->{success} && $job_info->{id};
 
    # returns arrayref of servers
-   my $server_info = $self->_server_info( $user, $job_info->{server_id} );
+   my $server_info = $self->_server_info( $user, { id => $job->{server_id} } );
    return { success => 0, message => 'server not found' } unless scalar @{ $server_info } == 1;
-
-   my $job = shift @{ $job_info->{jobs} };
-
-   return { success => 0, message => 'command not found' } unless $job->{id} && $job->{shell_command};
 
    # check connection
    my $ssh = $self->ssh_connection->{ $job->{server_id} };
@@ -669,7 +662,6 @@ sub start_job {
    my $json  = encode_json( { token => $token, id => $job->{id}, shell => $job->{shell_command} } );
    my $cmd = "perl cc_worker/script/launcher.pl '$json'";
          
-   #my ($pid, $err) = $ssh->capture2($cmd);
    $ssh->system($cmd);
    if ($ssh->error) {
       return { success => 0, message => $ssh->error };
@@ -695,6 +687,9 @@ sub start_job {
 
 sub kill_job {
    my ( $self, $user, $d ) = @_;
+   my $job_info = $self->_job_info( $user, $d ); #job info
+   my $job = shift @{ $job_info->{jobs} };
+   return { success => 0, message => 'job not found' } unless ref $job && $job->{id};
 }
 
 sub hold_job {
@@ -777,15 +772,13 @@ sub create_server {
       user       => $d->{username},
       batch_mode => 1,
       timeout    => 3,
-      kill_ssh_on_timeout => 1,
-      #master_opts => [-o => "ControlMaster=auto"],
+      #kill_ssh_on_timeout => 1,
+      #master_opts => [-o => "ControlPersist=10m" ], 
+      master_opts => [-o => "ControlMaster=auto" ], 
    );
 
-# ControlPersist=yes indefinite
-#        -o => "ControlMaster=auto",
 #        -o => "ControlPersist=10m",  # keep control connection open
 #        -o => "ControlPath=/tmp/ssh_mux_%r@%h:%p"
-#my $ssh = Net::OpenSSH->new("$user\@$host", master_opts => [-o => "ControlMaster=auto"]);
 
    my $ssh = Net::OpenSSH->new( $d->{hostname}, %option );
    return { success => 0, message => $ssh->error } if $ssh->error;
@@ -850,7 +843,6 @@ sub _connect_ssh {
    my ( $self, $user, $d ) = @_;
    my $servers = $self->_server_info( $user, $d );
 
-   #print Dumper($servers);
    foreach my $s (@$servers) {
       return { success => 0, message => 'server misconfigured' } unless $s->{id} && $s->{username} && $s->{hostname};
       my $port    = $s->{port} || 22;
@@ -894,8 +886,7 @@ sub start_server {
       $self->_connect_ssh( $user, { id => $s->{id} } );
       my $ssh = $self->ssh_connection->{ $s->{id} };
       my $json = encode_json( { token => $token, id => $s->{id} } );
-      #$ssh->system( { stdout_discard => 1 }, "perl cc_worker/script/sysinfo.pl stop" );
-      $ssh->system( "perl cc_worker/script/sysinfo.pl stop" );
+      $ssh->system( { stdout_discard => 1 }, "perl cc_worker/script/sysinfo.pl stop" );
       $ssh->system( { stdout_discard => 1 }, "perl cc_worker/script/sysinfo.pl start '$json'" );
       #$ssh->system("perl cc_worker/script/sysinfo.pl stop" );
       #$ssh->system("perl cc_worker/script/sysinfo.pl start '$json'" );
@@ -974,7 +965,7 @@ sub routing {
    state $p = qr/^[\w\/\@\:\.]{1,50}$/;       # path
    state $e = qr/^[\w\.\@]{1,50}$/;           # email
    state $c = qr/^[\w\/\@\:\.\s\-\(\)\"]{1,50}$/;    # shell command
-   state $pw = qr/^[.]{8,20}$/;               # password
+   state $pw = qr/^.{8,20}$/;               # password
 
    state %routing = (
 
@@ -988,7 +979,7 @@ sub routing {
       # job related
       'create_job' => [ \&create_job, 1, [ { name => $p, shell_command => $c }, { server => $w, description => $w, out_log_path => $w, err_log_path => $w } ] ],
       'read_job'   => [ \&read_job,   1, [ {}, { name => $p, id => $i, cluster_id => $i } ] ],
-      'update_job' => [ \&update_job, 1, [ {}, { name => $p, id => $i, exit_code => $i, server_id => $i, mem => $f, cpu => $f, newname => $w, state => $w, server => $w, pid => $i, shell_command => $c, started => $i, ended => $i } ] ],
+      'update_job' => [ \&update_job, 1, [ {}, { name => $p, id => $i, exit_code => $i, server_id => $i, mem => $f, cpu => $f, newname => $w, state => $w, server => $w, ppid => $i, pid => $i, shell_command => $c, started => $i, ended => $i } ] ],
       'delete_job' => [ \&delete_job, 1, [ {}, { name => $p, id => $i } ] ],
       'start_job'  => [ \&start_job,  1, [ {}, { name => $p, id => $i } ] ],
       'kill_job'   => [ \&kill_job,   1, [ {}, { name => $p, id => $i } ] ],
