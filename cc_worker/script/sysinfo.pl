@@ -54,6 +54,7 @@ my $update_payload = sub {
 
 # Create event loop
 my $cv = AnyEvent->condvar;
+use Data::Dumper;
 
 # Set up timer for periodic requests
 my $timer;
@@ -64,10 +65,13 @@ $timer = AnyEvent->timer(
       print "Making request to $api at ", scalar(localtime), "\n";
 
       my $encoded = &$update_payload;
+      print Dumper( $encoded);
 
       # Make non-blocking HTTP request
       http_post $api, $encoded, sub {
          my ( $body, $hdr ) = @_;
+         print Dumper( $body);
+
 
          if ( $hdr->{Status} =~ /^2/ ) {
             my $args = decode_json($body) or die "unable to parse json: $!";
@@ -86,7 +90,6 @@ $timer = AnyEvent->timer(
 );
 
 # Start the event loop
-print "Starting event loop...\n";
 $cv->recv;
 
 sub windows_info {

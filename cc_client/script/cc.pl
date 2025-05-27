@@ -34,6 +34,8 @@ my $user    = 'offline';
 my $cluster = '';
 
 my $ua = Mojo::UserAgent->new;
+$ua->inactivity_timeout(10);
+$ua->max_redirects(0)->connect_timeout(3)->request_timeout(5);
 
 my $change_cluster = sub {
    my $json = shift;
@@ -134,19 +136,13 @@ my $find_cluster = sub {
       my $colored    = colored( $path, 'bold blue' );
       my $cluster_id = pop @{$part} || 0;
       my $c          = $lookup{$cluster_id};
-      my ( $start, $end, $dur ) = &format_epoch( $c->{start}, $c->{end} );
+      my ( $start, $end, $dur ) = &format_epoch( $c->{started}, $c->{ended} );
       push @{$rows}, [ $c->{id}, $colored, $c->{state}, '--', '--', '--', '--', $dur ];
 
       next unless $lookup{$cluster_id}->{jobs};
 
       foreach my $job ( @{ $lookup{$cluster_id}->{jobs} } ) {
-
-         #my %i;
-         #for my $k (keys %{ $job }) {
-         #   my $v = defined $job->{$k} ? $job->{$k} : '';
-         #   $i{$k} = $v;
-         #}
-         my ( $s, $e, $d ) = &format_epoch( $job->{start}, $job->{end} );
+         my ( $s, $e, $d ) = &format_epoch( $job->{started}, $job->{ended} );
          push @{$rows}, [ $job->{id}, "$path/$job->{name}", $job->{state}, $job->{server_name}, $job->{pid}, $job->{mem}, $job->{cpu}, $d ];
          print Dumper($job);
       }
@@ -214,7 +210,7 @@ sub string2hash {
    my %options;
    my ( $ret, $args ) = GetOptionsFromString(
       $string,   \%options, "command=s", "token=s", "state:s", "username:s",  "hostname:s", "newname:s", "password:s", "shell_command:s", "email:s",
-      "level:s", "name:s",  "job_id:i",  "cluster_id:i", "server:s", "org_id:i",  "pid:i",      "to:s",            "id:s",
+      "level:s", "server_id:i", "name:s",  "job_id:i",  "cluster_id:i", "server:s", "org_id:i",  "pid:i",      "to:s",            "id:s",
    );
 
    my ( $verb, $noun, $name ) = @{$args};
