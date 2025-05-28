@@ -8,25 +8,13 @@ use Proc::ProcessTable;
 use AnyEvent;
 use AnyEvent::HTTP;
 use FindBin       qw($Bin);
-use Log::Log4perl qw(:levels);
 use App::Daemon   qw( daemonize );
 $App::Daemon::logfile  = "$Bin/../logs/sysinfo.log";
 $App::Daemon::pidfile  = "$Bin/../logs/sysinfo.pid";
-$App::Daemon::loglevel = $DEBUG;
 
 daemonize();
 
-my $config;
-
-eval {
-   open( my $fh, "<", "$Bin/../cc.json" ) or die $!;
-   $config = decode_json( do { local $/; <$fh> } );
-   close($fh);
-};
-
-die "Unable to open config file: $@\n" if $@;
-
-my $api   = $config->{api} || "http://127.0.0.1:3000/api";
+my $api   = 'http://127.0.0.1:3000/api';
 my $json  = JSON::PP->new->ascii->pretty->allow_nonref;
 my $jarg  = pop @ARGV;
 my $args  = $json->decode($jarg) or die "unable to parse json: $!";
@@ -48,13 +36,12 @@ my $update_payload = sub {
      : $os eq 'darwin'  ? &darwin_info
      :                    &linux_info;
 
-   my $pid_info = &pid_info($pids);
-   return $json->encode( { token => $token, id => $id, command => 'update_sysinfo', %$sysinfo, pids => $pid_info } );
+   my ($found, $zombies) = &pid_info($pids);
+   return $json->encode( { token => $token, id => $id, command => 'update_sysinfo', %$sysinfo, pids => $found, zombies => $zombies } );
 };
 
 # Create event loop
 my $cv = AnyEvent->condvar;
-use Data::Dumper;
 
 # Set up timer for periodic requests
 my $timer;
@@ -62,16 +49,12 @@ $timer = AnyEvent->timer(
    after    => 0,      # Start immediately
    interval => 4,
    cb       => sub {
-      print "Making request to $api at ", scalar(localtime), "\n";
 
       my $encoded = &$update_payload;
-      print Dumper( $encoded);
 
       # Make non-blocking HTTP request
       http_post $api, $encoded, sub {
          my ( $body, $hdr ) = @_;
-         print Dumper( $body);
-
 
          if ( $hdr->{Status} =~ /^2/ ) {
             my $args = decode_json($body) or die "unable to parse json: $!";
@@ -238,12 +221,12 @@ sub linux_disk {
 
 sub pid_info {
 
-   my $pids = shift || [];
-   my %pid;
+   my $ppids = shift;
+   my %ppid;
    my $t = Proc::ProcessTable->new;
 
    foreach my $p ( @{ $t->table } ) {
-      $pid{ $p->ppid } = {
+      $ppid{ $p->ppid } = {
          pid      => $p->pid,
          tty_dev  => $p->ttydev,
          state    => $p->state,
@@ -264,7 +247,8 @@ sub pid_info {
       };
    }
 
-   my @p = map { $pid{$_} } grep { exists $pid{$_} } @$pids;
-   return \@p;
+   my @found = map { $ppid{$_} } grep { exists $ppid{$_} } @$ppids;
+   my @zombies = grep { !exists $ppid{$_} } @$ppids;
+   return (\@found, \@zombies);
 }
 

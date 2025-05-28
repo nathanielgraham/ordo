@@ -131,7 +131,7 @@ my $find_cluster = sub {
    }
 
 
-   my $rows = [ [qw(ID CLUSTER/JOB STATE SERVER %MEM %CPU PRIORITY DURATION PID STATUS)] ];
+   my $rows = [ [qw(ID CLUSTER/JOB STATE SERVER %MEM %CPU PRI DURATION PID STATUS)] ];
    foreach my $part (@paths) {
       my $path       = join( '/', ( map { $lookup{$_}->{name} } @{$part} ) );
       my $colored    = colored( $path, 'bold blue' );

@@ -8,7 +8,6 @@ use FindBin     qw($Bin);
 use Net::OpenSSH;
 use Sys::Hostname;
 use POSIX ":sys_wait_h";
-use Data::Dumper;
 
 has 'user' => sub {
    state $user = {};
@@ -520,7 +519,7 @@ sub _job_info {
       my @jobs;
       my $results = $self->sqlite->db->query($sql);
       while ( my $next = $results->hash ) {
-         my %info = map { $_, $next->{$_} } (qw(exit_code last_update pid ppid priority pctmem pctcpu rss size id start started ended jobstate state state_id name mode cluster_id server_id server_name shell_command description out_log_path err_log_path));
+         my %info = map { $_, $next->{$_} } (qw(signal cmndline fname exit_code last_update pid ppid priority pctmem pctcpu rss size id start started ended jobstate state state_id name mode cluster_id server_id server_name shell_command description out_log_path err_log_path));
          push @jobs, \%info;
       }
       $rval->{jobs} = \@jobs;
@@ -581,13 +580,19 @@ sub update_job {
    my $job      = shift @{ $job_info->{jobs} };
    return { success => 0, message => 'job not found' } unless $job->{id};
 
-   my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw( ppid pid started ended exit_code server_id shell_command)) };
+   my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw( signal ppid pid started ended exit_code server_id shell_command)) };
    if ( $d->{state} ) {
-      $update_hash->{state_id} = $self->job_states->{ $d->{state} };
+      $update_hash->{state_id} = $self-> job_states->{ $d->{state} };
+      $self->_reset_job($user, { id => $job->{id} });
+   }
+   if ( $d->{server} ) {
+      my $res = $self->sqlite->db->select( 'server', ['id'], { name => $d->{server}, org_id => $user->org_id } )->hash; 
+      return { success => 0, message => 'server not found' } unless $res->{id};
+      $update_hash->{server_id} = $res->{id}; 
    }
    $update_hash->{name} = $d->{newname} if $d->{newname};
    $update_hash->{last_update} = time;
-   eval { $self->sqlite->db->update( 'job', $update_hash, { id => $job->{id} } ); };
+   eval { $self->sqlite->db->update( 'job', $update_hash, { id => $job->{id} } ) };
    my $success = $@ ? 0 : 1;
    return { success => $success, %{$update_hash} };
 }
@@ -614,11 +619,17 @@ sub update_sysinfo {
    # receive pid info
    if ($d->{pids} && ref $d->{pids} eq 'ARRAY') {
       foreach my $pid (@{ $d->{pids} }) {
-         print Dumper($pid);
-         my $update = { map { $_, $pid->{$_} } grep { exists $pid->{$_} } (qw(pctcpu pid time start size priority rss pctmem ppid state)) };
-         print "UPDATE: ppid $update->{ppid} WHERE ppid is $pid->{ppid} \n"; 
+         my $update = { map { $_, $pid->{$_} } grep { exists $pid->{$_} } (qw(pctcpu pid time start size priority rss pctmem ppid state cmndline fname)) };
          eval { $self->sqlite->db->update( 'job', $update, { ppid => $pid->{ppid} } ) };
          die $@ if $@;
+      }
+   }
+
+   # identify zombies 
+   if ($d->{zombies} && ref $d->{zombies} eq 'ARRAY') {
+      my $ids = $self->sqlite->db->select( 'job', ['id', 'state_id' ], { ppid => $d->{zombies} } );
+      while ( my $next = $ids->hash ) {
+         $self->update_job( $user, { state => 'zombie' }, { id => $next->{id} } );
       }
    }
 
@@ -628,8 +639,6 @@ sub update_sysinfo {
    while ( my $next = $pids->hash ) {
       push @pids, $next->{ppid};
    }
-
-   #print Dumper(\@pids);
 
    eval { $self->sqlite->db->update( 'server', $uh, { id => $d->{id} } ) };
    return $@ ? { success => 0, message => $@ } : { success => 1, pids => \@pids };
@@ -643,6 +652,7 @@ sub start_job {
    my $job = shift @{ $job_info->{jobs} };
    return { success => 0, message => 'command not found' } unless ref $job && $job->{id} && $job->{shell_command};
    return { success => 0, message => 'job not found' } unless $job_info->{success} && $job_info->{id};
+   return { success => 0, message => 'job is already running' } if $self->job_states->{running} == $job->{state_id};
 
    # returns arrayref of servers
    my $server_info = $self->_server_info( $user, { id => $job->{server_id} } );
@@ -655,21 +665,16 @@ sub start_job {
       $ssh = $self->ssh_connection->{ $job->{server_id} };
    }
 
-   #my $pid = $ssh->spawn($job->{shell_command});
-   #my $pid = $ssh->system({async => 1}, $job->{shell_command});
-
    my $token = $self->read_user($user)->{token};
    my $json  = encode_json( { token => $token, id => $job->{id}, shell => $job->{shell_command} } );
    my $cmd = "perl cc_worker/script/launcher.pl '$json'";
          
    $ssh->system($cmd);
-   if ($ssh->error) {
+   if ($ssh->error ) {
       return { success => 0, message => $ssh->error };
    }
    else {
-      # update job state to running
-      $self->update_job( $user, { state => 'running', started => time, ended => undef }, { id => $job->{id} } );
-      #$self->sqlite->db->update( 'job', { state_id => $state_id, started => time, ended => undef }, { id => $job->{id} } );
+      $self->update_job( $user, { state => 'starting', started => time, ended => undef }, { id => $job->{id} } );
       return { success => 1 };
    }
 }
@@ -690,6 +695,15 @@ sub kill_job {
    my $job_info = $self->_job_info( $user, $d ); #job info
    my $job = shift @{ $job_info->{jobs} };
    return { success => 0, message => 'job not found' } unless ref $job && $job->{id};
+
+   my $pid = $job->{pid};
+
+   # check connection
+   my $ssh = $self->ssh_connection->{ $job->{server_id} };
+   $self->_connect_ssh( $user, { id => $job->{server_id} } ) unless $ssh && $ssh->check_master;
+
+   $ssh->system("perl -e 'kill TERM, $job->{pid}'");
+   return $ssh->error ? { success => 0, message => $ssh->error } : { success => 1 };     
 }
 
 sub hold_job {
@@ -702,6 +716,29 @@ sub ice_job {
 
 sub nice_job {
    my ( $self, $user, $d ) = @_;
+   my $job_info = $self->_job_info( $user, $d ); #job info
+   my $job = shift @{ $job_info->{jobs} };
+   my $pid = $job->{pid};
+   return { success => 0, message => 'job not found' } unless ref $job && $job->{id};
+
+   # check connection
+   my $ssh = $self->ssh_connection->{ $job->{server_id} };
+   $self->_connect_ssh( $user, { id => $job->{server_id} } ) unless $ssh && $ssh->check_master;
+
+   $ssh->system("perl -e 'setpriority(0, $job->{pid}, $d->{level}) or die'"); 
+   #$ssh->system("renice -n $d->{level} -p $job->{pid}");
+   return $ssh->error ? { success => 0, message => $ssh->error } : { success => 1 }; 
+}
+
+sub _reset_job {
+   my ( $self, $user, $d ) = @_;
+   my $job_info = $self->_job_info( $user, $d ); #job info
+   my $job = shift @{ $job_info->{jobs} };
+   return { success => 0, message => 'job not found' } unless ref $job && $job->{id};
+   my %update = map { $_ => undef } (qw(signal ppid pid started ended exit_code pctcpu time start size priority rss pctmem state cmndline fname));
+   eval { $self->sqlite->db->update( 'job', \%update, { id => $job->{id} } ); };
+   my $success = $@ ? 0 : 1;
+   return { success => $success };
 }
 
 # server related subroutines
@@ -979,10 +1016,11 @@ sub routing {
       # job related
       'create_job' => [ \&create_job, 1, [ { name => $p, shell_command => $c }, { server => $w, description => $w, out_log_path => $w, err_log_path => $w } ] ],
       'read_job'   => [ \&read_job,   1, [ {}, { name => $p, id => $i, cluster_id => $i } ] ],
-      'update_job' => [ \&update_job, 1, [ {}, { name => $p, id => $i, exit_code => $i, server_id => $i, mem => $f, cpu => $f, newname => $w, state => $w, server => $w, ppid => $i, pid => $i, shell_command => $c, started => $i, ended => $i } ] ],
+      'update_job' => [ \&update_job, 1, [ {}, { name => $p, id => $i, signal => $i, exit_code => $i, server_id => $i, mem => $f, cpu => $f, newname => $w, state => $w, server => $w, ppid => $i, pid => $i, shell_command => $c, started => $i, ended => $i } ] ],
       'delete_job' => [ \&delete_job, 1, [ {}, { name => $p, id => $i } ] ],
       'start_job'  => [ \&start_job,  1, [ {}, { name => $p, id => $i } ] ],
       'kill_job'   => [ \&kill_job,   1, [ {}, { name => $p, id => $i } ] ],
+      'nice_job'   => [ \&nice_job,   1, [ { level => $i }, { name => $p, id => $i } ] ],
       'hold_job'   => [ \&hold_job,   1, [ {}, { name => $p, id => $i } ] ],
       'ice_job'    => [ \&ice_job,    1, [ {}, { name => $p, id => $i } ] ],
       'finish_job' => [ \&finish_job, 1, [ {}, { name => $p, id => $i } ] ],
@@ -1021,6 +1059,7 @@ sub routing {
                uptime       => $f,
                cpu          => $f,
                pids         => 's',
+               zombies      => 's',
                id           => $i,
             },
             {}

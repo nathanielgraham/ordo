@@ -18,5 +18,6 @@ INSERT INTO job_states (id, state) VALUES(6,'failed');
 INSERT INTO job_states (id, state) VALUES(7,'hold');
 INSERT INTO job_states (id, state) VALUES(8,'ice');
 INSERT INTO job_states (id, state) VALUES(9,'killed');
+INSERT INTO job_states (id, state) VALUES(10,'zombie');
 
 COMMIT;

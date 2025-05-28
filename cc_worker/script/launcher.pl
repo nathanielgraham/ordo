@@ -19,25 +19,17 @@ my $api     = 'http://127.0.0.1:3000/api';
 
 die "params missing" unless ( $id && $command && $token );
 
-$SIG{TERM} = sub {
-   &post({ command => 'update_job', token => $token, id => $id, ended => time, state => 'killed', exit_code => 1 });
-   exit 1;
-};
-
 my $pid = fork();
 
 if ( $pid == 0 ) {    # child
 
-#   # Become session leader
-#   setsid() or die "Can't start a new session: $!";
+   # Become session leader
+   setsid() or die "Can't start a new session: $!";
 
    # Fork again to avoid reacquiring a terminal
    $pid = fork();
    die "Cannot fork: $!" unless defined $pid;
    exit 0 if $pid;
-
-   # Become session leader
-   setsid() or die "Can't start a new session: $!";
 
    # Change working directory
    chdir '/' or die "Can't chdir to /: $!";
@@ -48,14 +40,41 @@ if ( $pid == 0 ) {    # child
    close STDOUT;
    close STDERR;
 
-   &post( { command => 'update_job', token => $token, id => $id, state => 'starting', ppid => $$ } );
+   my ( $stdin, $stdout, $stderr );
+   my $command_pid = eval { open3( $stdin, $stdout, $stderr, $command ) };
 
-   my $command_pid = open3( undef, undef, undef, $command );
+   if ($@) {
+      &post( { command => 'update_job', token => $token, id => $id, state => 'failed', ppid => $$ } );
+      exit 1;
+   }
+
+   # Close stdin
+   close($stdin);
+
+   # Capture output and errors
+   my $output = do { local $/; <$stdout> };
+   my $errors = do { local $/; <$stderr> };
+
+   &post( { command => 'update_job', token => $token, id => $id, state => 'running', started => time, ppid => $$ } );
+
    waitpid( $command_pid, 0 );
 
    my $exit_code = $? >> 8;
-   &post( { command => 'update_job', token => $token, id => $id, ended => time, state => 'complete', exit_code => $exit_code } );
+   my $signal    = $? & 127;
+
+   my $state = $signal ? 'killed' : $exit_code ? 'failed' : 'complete';
+   &post( { command => 'update_job', token => $token, id => $id, ended => time, state => $state, exit_code => $exit_code } );
 }
+
+#Common Exit Codes:
+#0: Success.
+#1: General error (common in many programs, e.g., grep when no matches are found).
+#2: Common for misuse of shell built-ins or incorrect command-line arguments (e.g., in bash or grep).
+#126: Command found but not executable (permission issue or not a binary).
+#127: Command not found.
+#128 + n: Process terminated by signal n (e.g., 128 + 9 = 137 for SIGKILL).
+#255: Exit code out of range (some systems use this for invalid exit codes).
+# SIGNALS: 15 = TERM, 9 = KILLED
 
 elsif ($pid) {    # parent
    exit 0;
