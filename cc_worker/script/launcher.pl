@@ -5,19 +5,29 @@ use strict;
 use LWP::UserAgent;
 use JSON::PP;
 use IPC::Open3;
+use FindBin qw($Bin);
 use POSIX qw(setsid);
 
 $SIG{HUP}  = sub { exec( $^X, $0, @ARGV ) && exit 0 };
 
+my $api     = 'http://127.0.0.1:3000/api';
 my $json = pop @ARGV;
 
 my $job     = decode_json($json) or die $!;
 my $id      = $job->{id};
 my $command = $job->{shell};
 my $token   = $job->{token};
-my $api     = 'http://127.0.0.1:3000/api';
 
 die "params missing" unless ( $id && $command && $token );
+
+# logging
+my $time = time;
+my $out_log = $job->{err} || "$Bin/../logs/out.$id.$time.log";
+my $err_log = $job->{out} || "$Bin/../logs/err.$id.$time.log";
+
+open STDOUT, '>', $out_log;
+open STDERR, '>', $err_log;
+close STDIN;
 
 my $pid = fork();
 
@@ -35,27 +45,14 @@ if ( $pid == 0 ) {    # child
    chdir '/' or die "Can't chdir to /: $!";
    umask 0;
 
-   # Close file descriptors
-   close STDIN;
-   close STDOUT;
-   close STDERR;
-
-   my ( $stdin, $stdout, $stderr );
-   my $command_pid = eval { open3( $stdin, $stdout, $stderr, $command ) };
+   my $command_pid = eval { open3( undef, '>&STDOUT', '>&STDERR', $command ) };
 
    if ($@) {
       &post( { command => 'update_job', token => $token, id => $id, state => 'failed', ppid => $$ } );
       exit 1;
    }
 
-   # Close stdin
-   close($stdin);
-
-   # Capture output and errors
-   my $output = do { local $/; <$stdout> };
-   my $errors = do { local $/; <$stderr> };
-
-   &post( { command => 'update_job', token => $token, id => $id, state => 'running', started => time, ppid => $$ } );
+   &post( { command => 'update_job', token => $token, id => $id, state => 'running', ppid => $$ } );
 
    waitpid( $command_pid, 0 );
 
@@ -63,7 +60,7 @@ if ( $pid == 0 ) {    # child
    my $signal    = $? & 127;
 
    my $state = $signal ? 'killed' : $exit_code ? 'failed' : 'complete';
-   &post( { command => 'update_job', token => $token, id => $id, ended => time, state => $state, exit_code => $exit_code } );
+   &post( { command => 'update_job', token => $token, id => $id, state => $state, exit_code => $exit_code } );
 }
 
 #Common Exit Codes:

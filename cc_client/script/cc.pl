@@ -115,37 +115,67 @@ my $read_server = sub {
 my $find_cluster = sub {
    my $json     = shift;
    my @clusters = @{ $json->{clusters} };
-   my %lookup   = map { $_->{id}, $_ } @{ $json->{clusters} };
+   my %cluster   = map { $_->{id}, $_ } @{ $json->{clusters} };
 
-   #print Dumper(\@clusters);
    my @paths;
    for my $cluster (@clusters) {
       my @parts;
       my $next = $cluster->{id};
       while ($next) {
          unshift @parts, $next;
-         $next = $lookup{$next}->{parent_id};
-         $next = $next && exists $lookup{$next} ? $next : undef;
+         $next = $cluster{$next}->{parent_id};
+         $next = $next && exists $cluster{$next} ? $next : undef;
       }
       push @paths, \@parts;
    }
 
-
-   my $rows = [ [qw(ID CLUSTER/JOB STATE SERVER %MEM %CPU PRI DURATION PID STATUS)] ];
+   my $rows = [ [qw(ID CLUSTER/JOB STATE SERVER %MEM %CPU PRI PID PSTATE PNAME STARTED ENDED DURATION)] ];
    foreach my $part (@paths) {
-      my $path       = join( '/', ( map { $lookup{$_}->{name} } @{$part} ) );
+      my $path       = join( '/', ( map { $cluster{$_}->{name} } @{$part} ) );
       my $colored    = colored( $path, 'bold blue' );
       my $cluster_id = pop @{$part} || 0;
-      my $c          = $lookup{$cluster_id};
+      my $c          = $cluster{$cluster_id};
       my ( $start, $end, $dur ) = &format_epoch( $c->{started}, $c->{ended} );
-      push @{$rows}, [ $c->{id}, $colored, $c->{state}, '--', '--', '--', '--', $dur ];
+      push @{$rows}, [ $c->{id}, $colored, $c->{state},,,,,,,,,$dur ];
 
-      next unless $lookup{$cluster_id}->{jobs};
+      next unless $cluster{$cluster_id}->{jobs};
 
-      foreach my $j ( @{ $lookup{$cluster_id}->{jobs} } ) {
+      foreach my $j ( @{ $cluster{$cluster_id}->{jobs} } ) {
          my ( $s, $e, $d ) = &format_epoch( $j->{started}, $j->{ended} );
-         #push @{$rows}, [ $j->{id}, "$path/$j->{name}", $j->{state}, $j->{server_name}, $j->{pid}, $j->{pctmem}, $j->{pctcpu}, $d ];
-         push @{$rows}, [ $j->{id}, "$path/$j->{name}", $j->{jobstate}, $j->{server_name}, $j->{pctmem}, $j->{pctcpu}, $j->{priority}, $d, $j->{pid}, $j->{state} ];
+
+         my $started = strftime("%H:%M:%S", localtime($j->{started})),
+
+         my ($ended, $end_seconds);
+         if ( $j->{jobstate} eq 'running' ) {
+            $ended = '';
+            $end_seconds = time;
+         }
+         else {
+            $end_seconds = $j->{ended};
+            $ended = strftime("%H:%M:%S", localtime($j->{ended})),
+            $j->{$_} = '' for (qw(fname pname pctmem pctcpu priority pid state));
+         }
+
+         my $duration = sprintf ("%.3f hrs", ($end_seconds - $j->{started}) / 3600);
+
+         my $row = [ 
+            $j->{id},
+            "$path/$j->{name}",
+            $j->{jobstate},
+            $j->{server_name},
+            $j->{pctmem},
+            $j->{pctcpu},
+            $j->{priority},
+            $j->{pid},
+            $j->{state},
+            $j->{fname},
+            $started,
+            $ended,
+            $duration,
+         ];
+         
+         push @{$rows}, $row; 
+
          print Dumper($j);
       }
    }
