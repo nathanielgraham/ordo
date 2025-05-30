@@ -4,14 +4,13 @@ use warnings;
 use strict;
 use LWP::UserAgent;
 use JSON::PP;
-use IPC::Open3;
 use FindBin qw($Bin);
-use POSIX qw(setsid);
+use POSIX   qw(:sys_wait_h setsid);
+use feature qw(say);
 
-$SIG{HUP}  = sub { exec( $^X, $0, @ARGV ) && exit 0 };
+my $json = pop @ARGV or die "missing json arg";
 
-my $api     = 'http://127.0.0.1:3000/api';
-my $json = pop @ARGV;
+my $api  = 'http://127.0.0.1:3000/api';
 
 my $job     = decode_json($json) or die $!;
 my $id      = $job->{id};
@@ -21,46 +20,75 @@ my $token   = $job->{token};
 die "params missing" unless ( $id && $command && $token );
 
 # logging
-my $time = time;
-my $out_log = $job->{err} || "$Bin/../logs/out.$id.$time.log";
-my $err_log = $job->{out} || "$Bin/../logs/err.$id.$time.log";
+my $time    = time;
+my $out_log = "$Bin/../logs/out.$id.$time.log";
+my $err_log = "$Bin/../logs/err.$id.$time.log";
 
-open STDOUT, '>', $out_log;
-open STDERR, '>', $err_log;
+open STDOUT, '>', $out_log or die $!;
+open STDERR, '>', $err_log or die $!;
 close STDIN;
 
-my $pid = fork();
+sub daemonize {
 
-if ( $pid == 0 ) {    # child
-
-   # Become session leader
-   setsid() or die "Can't start a new session: $!";
-
-   # Fork again to avoid reacquiring a terminal
-   $pid = fork();
-   die "Cannot fork: $!" unless defined $pid;
-   exit 0 if $pid;
-
-   # Change working directory
-   chdir '/' or die "Can't chdir to /: $!";
-   umask 0;
-
-   my $command_pid = eval { open3( undef, '>&STDOUT', '>&STDERR', $command ) };
-
-   if ($@) {
-      &post( { command => 'update_job', token => $token, id => $id, state => 'failed', ppid => $$ } );
-      exit 1;
+   my $pid = fork();
+   if ( !defined $pid ) {
+      die "Fork failed: $!";
+   }
+   elsif ( $pid != 0 ) {
+      exit(0);
    }
 
-   &post( { command => 'update_job', token => $token, id => $id, state => 'running', ppid => $$ } );
+   # Create a new session
+   if ( setsid() < 0 ) {
+      die "Can't create a new session: $!";
+   }
 
-   waitpid( $command_pid, 0 );
+   # Fork again to ensure the daemon is not a session leader
+   $pid = fork();
+   if ( !defined $pid ) {
+      die "Fork failed: $!";
+   }
+   elsif ( $pid != 0 ) {
+      exit(0);
+   }
 
-   my $exit_code = $? >> 8;
-   my $signal    = $? & 127;
+   # Change the working directory to root
+   chdir("/") or die "Can't change directory to /: $!";
+}
 
-   my $state = $signal ? 'killed' : $exit_code ? 'failed' : 'complete';
-   &post( { command => 'update_job', token => $token, id => $id, state => $state, exit_code => $exit_code } );
+daemonize();
+
+my $ppid = $$;
+my $pid = fork();
+
+if (!defined $pid) {
+    &post( { command => 'update_job', token => $token, id => $id, state => 'failed', ppid => $ppid } );
+    die "First fork failed: $!";
+} 
+elsif ($pid == 0) {
+   # child
+    eval { exec($command) or die "Exec failed: $!" };
+    if ($@) {
+       &post( { command => 'update_job', token => $token, id => $id, state => 'failed', pid => $$, ppid => $ppid } );
+       die "Second fork failed: $@";
+    }
+}
+else {
+    # parent
+    say "Started child process with PID $pid";
+    &post( { command => 'update_job', token => $token, id => $id, state => 'running', pid => $pid, ppid => $$ } );
+
+    while (1) { # stain' alive
+        sleep(1);
+        my $child_pid = waitpid( -1, WNOHANG );
+        if ($child_pid == $pid) {
+           my $exit_code = $? >> 8;
+           my $signal    = $? & 127;
+           my $state = $signal ? 'killed' : $exit_code ? 'failed' : 'complete';
+           &post( { command => 'update_job', token => $token, id => $id, state => $state, exit_code => $exit_code } );
+           exit 0;
+        }
+    }
 }
 
 #Common Exit Codes:
@@ -73,25 +101,23 @@ if ( $pid == 0 ) {    # child
 #255: Exit code out of range (some systems use this for invalid exit codes).
 # SIGNALS: 15 = TERM, 9 = KILLED
 
-elsif ($pid) {    # parent
-   exit 0;
-}
-
 sub post {
    my $data = shift;
    my $ua   = LWP::UserAgent->new;
    $ua->timeout(10);
    $ua->agent('cc');
    my $json     = encode_json($data);
+   say $json;
    my $response = $ua->post(
       $api,
       Content_Type => 'application/json',
       Content      => $json
    );
-#   if ( $response->is_success ) {
-#      print $response->decoded_content;
-#   }
-#   else {
-#      die $response->status_line;
-#   }
+
+   if ( $response->is_success ) {
+      say STDOUT $response->decoded_content;
+   }
+   else {
+      say STDERR $response->status_line;
+   }
 }

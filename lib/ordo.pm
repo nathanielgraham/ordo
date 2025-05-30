@@ -10,6 +10,11 @@ use Sys::Hostname;
 use POSIX ":sys_wait_h";
 use Data::Dumper;
 
+# handler for child process termination
+$SIG{CHLD} = sub {
+   1 while ( ( waitpid( -1, WNOHANG ) ) > 0 );
+};
+
 has 'user' => sub {
    state $user = {};
 };
@@ -73,6 +78,20 @@ sub startup {
          }
       }
    );
+
+   # start server monitors
+   my $monitor_sql = <<~"SQL";
+      select s.id as id, s.org_id, u.id as user_id, max(u.id) as mid, u.token as token
+      from server s
+      join user u on u.org_id = s.org_id
+      where s.active = 1
+      group by s.id;
+   SQL
+   my $results = $self->sqlite->db->query($monitor_sql);
+   while ( my $s = $results->hash ) {
+      my $user = ordo::Model::User->new( id => $s->{mid}, token => $s->{token} );
+      $self->_connect_ssh($user, { id => $s->{id} });
+   }
 }
 
 sub request {
@@ -518,7 +537,11 @@ sub _job_info {
       my @jobs;
       my $results = $self->sqlite->db->query($sql);
       while ( my $next = $results->hash ) {
-         my %info = map { $_, $next->{$_} } (qw(signal cmndline fname exit_code last_update pid ppid priority pctmem pctcpu rss size id start started ended jobstate state state_id name mode cluster_id server_id server_name shell_command description out_log_path err_log_path));
+         my %info =
+           map { $_, $next->{$_} }
+           (
+            qw(signal cmndline fname exit_code last_update pid ppid priority pctmem pctcpu rss size id start started ended jobstate state state_id name mode cluster_id server_id server_name shell_command description out_log_path err_log_path)
+           );
          push @jobs, \%info;
       }
       $rval->{jobs} = \@jobs;
@@ -589,19 +612,19 @@ sub update_job {
       $update_hash->{state_id} = $self->job_states->{ $d->{state} };
       if ( $d->{state} eq 'running' ) {
          $update_hash->{started} = time;
-         $update_hash->{ended} = undef;
-      }       
-      elsif ( grep { $d->{state} eq $_ } (qw(failed killed complete))) {
+         $update_hash->{ended}   = undef;
+      }
+      elsif ( grep { $d->{state} eq $_ } (qw(failed killed complete)) ) {
          $update_hash->{ended} = time;
-         $self->_reset_job($user, { id => $job->{id} });
+         $self->_reset_job( $user, { id => $job->{id} } );
       }
    }
    if ( $d->{server} ) {
-      my $res = $self->sqlite->db->select( 'server', ['id'], { name => $d->{server}, org_id => $user->org_id } )->hash; 
+      my $res = $self->sqlite->db->select( 'server', ['id'], { name => $d->{server}, org_id => $user->org_id } )->hash;
       return { success => 0, message => 'server not found' } unless $res->{id};
-      $update_hash->{server_id} = $res->{id}; 
+      $update_hash->{server_id} = $res->{id};
    }
-   $update_hash->{name} = $d->{newname} if $d->{newname};
+   $update_hash->{name}        = $d->{newname} if $d->{newname};
    $update_hash->{last_update} = time;
    eval { $self->sqlite->db->update( 'job', $update_hash, { id => $job->{id} } ) };
    my $success = $@ ? 0 : 1;
@@ -624,22 +647,22 @@ sub update_sysinfo {
    my $result = $self->sqlite->db->select( 'server', ['*'], { id => $d->{id} } )->hash;
    my $ssh    = $self->ssh_connection->{ $result->{id} };
    return { success => 0, exit => 1 } unless $result->{id} && $ssh && $ssh->check_master;
-   $uh->{ping} = $self->_ping( $result->{hostname} ) if $result->{hostname};
+   $uh->{ping}        = $self->_ping( $result->{hostname} ) if $result->{hostname};
    $uh->{update_time} = time;
    my $running = $self->job_states->{running};
 
    # receive pid info
-   if ($d->{pids} && ref $d->{pids} eq 'ARRAY') {
-      foreach my $pid (@{ $d->{pids} }) {
+   if ( $d->{pids} && ref $d->{pids} eq 'ARRAY' ) {
+      foreach my $pid ( @{ $d->{pids} } ) {
          my $update = { map { $_, $pid->{$_} } grep { exists $pid->{$_} } (qw(pctcpu pid time start size priority rss pctmem ppid state cmndline fname)) };
          eval { $self->sqlite->db->update( 'job', $update, { ppid => $pid->{ppid} } ) };
          die $@ if $@;
       }
    }
 
-   # identify zombies 
-   if ($d->{zombies} && ref $d->{zombies} eq 'ARRAY') {
-      my $ids = $self->sqlite->db->select( 'job', ['id', 'state_id' ], { ppid => $d->{zombies}, state_id => $running  } );
+   # identify zombies
+   if ( $d->{zombies} && ref $d->{zombies} eq 'ARRAY' ) {
+      my $ids = $self->sqlite->db->select( 'job', [ 'id', 'state_id' ], { pid => $d->{zombies}, state_id => $running } );
       while ( my $next = $ids->hash ) {
          $self->update_job( $user, { state => 'zombie' }, { id => $next->{id} } );
       }
@@ -647,9 +670,9 @@ sub update_sysinfo {
 
    # send pid request
    my @pids;
-   my $pids = $self->sqlite->db->select( 'job', ['ppid'], { server_id => $d->{id}, ppid => { '!=', undef }, state_id => $running } );
+   my $pids = $self->sqlite->db->select( 'job', ['pid'], { server_id => $d->{id}, pid => { '!=', undef }, state_id => $running } );
    while ( my $next = $pids->hash ) {
-      push @pids, $next->{ppid};
+      push @pids, $next->{pid};
    }
 
    eval { $self->sqlite->db->update( 'server', $uh, { id => $d->{id} } ) };
@@ -660,15 +683,15 @@ sub start_job {
    my ( $self, $user, $d ) = @_;
 
    # arrayref of jobs in $job_info->{jobs}
-   my $job_info = $self->_job_info( $user, $d ); #job info
-   my $job = shift @{ $job_info->{jobs} };
+   my $job_info = $self->_job_info( $user, $d );    #job info
+   my $job      = shift @{ $job_info->{jobs} };
    return { success => 0, message => 'command not found' } unless ref $job && $job->{id} && $job->{shell_command};
-   return { success => 0, message => 'job not found' } unless $job_info->{success} && $job_info->{id};
+   return { success => 0, message => 'job not found' }     unless $job_info->{success} && $job_info->{id};
    return { success => 0, message => 'job is already running' } if $self->job_states->{running} == $job->{state_id};
 
    # returns arrayref of servers
    my $server_info = $self->_server_info( $user, { id => $job->{server_id} } );
-   return { success => 0, message => 'server not found' } unless scalar @{ $server_info } == 1;
+   return { success => 0, message => 'server not found' } unless scalar @{$server_info} == 1;
 
    # check connection
    my $ssh = $self->ssh_connection->{ $job->{server_id} };
@@ -679,11 +702,12 @@ sub start_job {
 
    my $token = $self->read_user($user)->{token};
    my $json  = encode_json( { token => $token, id => $job->{id}, shell => $job->{shell_command} } );
-   my $cmd = "perl cc_worker/script/launcher.pl '$json'";
-         
+   my $cmd   = "perl cc_worker/script/launcher.pl '$json'";
+
    $ssh->system($cmd);
+
    #$ssh->system({ async => 1 }, $cmd);
-   if ($ssh->error ) {
+   if ( $ssh->error ) {
       return { success => 0, message => $ssh->error };
    }
    else {
@@ -705,9 +729,9 @@ sub start_job {
 
 sub kill_job {
    my ( $self, $user, $d ) = @_;
-   my $job_info = $self->_job_info( $user, $d ); #job info
-   my $job = shift @{ $job_info->{jobs} };
-   return { success => 0, message => 'job not found' } unless ref $job && $job->{id};
+   my $job_info = $self->_job_info( $user, $d );    #job info
+   my $job      = shift @{ $job_info->{jobs} };
+   return { success => 0, message => 'job not found' }      unless ref $job && $job->{id};
    return { success => 0, message => 'job is not running' } unless $job->{state_id} == $self->job_states->{running};
 
    my $pid = $job->{pid};
@@ -717,7 +741,7 @@ sub kill_job {
    $self->_connect_ssh( $user, { id => $job->{server_id} } ) unless $ssh && $ssh->check_master;
 
    $ssh->system("perl -e 'kill TERM, $job->{pid}'");
-   return $ssh->error ? { success => 0, message => $ssh->error } : { success => 1 };     
+   return $ssh->error ? { success => 0, message => $ssh->error } : { success => 1 };
 }
 
 sub hold_job {
@@ -730,24 +754,25 @@ sub ice_job {
 
 sub nice_job {
    my ( $self, $user, $d ) = @_;
-   my $job_info = $self->_job_info( $user, $d ); #job info
-   my $job = shift @{ $job_info->{jobs} };
-   my $pid = $job->{pid};
+   my $job_info = $self->_job_info( $user, $d );    #job info
+   my $job      = shift @{ $job_info->{jobs} };
+   my $pid      = $job->{pid};
    return { success => 0, message => 'job not found' } unless ref $job && $job->{id};
 
    # check connection
    my $ssh = $self->ssh_connection->{ $job->{server_id} };
    $self->_connect_ssh( $user, { id => $job->{server_id} } ) unless $ssh && $ssh->check_master;
 
-   $ssh->system("perl -e 'setpriority(0, $job->{pid}, $d->{level}) or die'"); 
+   $ssh->system("perl -e 'setpriority(0, $job->{pid}, $d->{level}) or die'");
+
    #$ssh->system("renice -n $d->{level} -p $job->{pid}");
-   return $ssh->error ? { success => 0, message => $ssh->error } : { success => 1 }; 
+   return $ssh->error ? { success => 0, message => $ssh->error } : { success => 1 };
 }
 
 sub _reset_job {
    my ( $self, $user, $d ) = @_;
-   my $job_info = $self->_job_info( $user, $d ); #job info
-   my $job = shift @{ $job_info->{jobs} };
+   my $job_info = $self->_job_info( $user, $d );    #job info
+   my $job      = shift @{ $job_info->{jobs} };
    return { success => 0, message => 'job not found' } unless ref $job && $job->{id};
    my %update = map { $_ => undef } (qw(signal ppid pid exit_code pctcpu time start size priority rss pctmem state cmndline fname));
    eval { $self->sqlite->db->update( 'job', \%update, { id => $job->{id} } ); };
@@ -768,31 +793,30 @@ sub _ssh_copy {
    return { success => $success, exit_code => $exit_code };
 }
 
-# install and start sysinfo
+# install
 sub _install_server {
    my ( $self, $user, $d ) = @_;
    my $servers = $self->_server_info( $user, $d );
+   return { success => 0, message => 'no servers found' } unless scalar @{$servers};
    foreach my $s (@$servers) {
 
       # check connection
       my $ssh = $self->ssh_connection->{ $s->{id} };
-      $self->_connect_ssh( $user, { id => $s->{id} } ) unless $ssh && $ssh->check_master;
+      $self->_connect_ssh( $user, { id => $s->{id} } ) unless ( $ssh && $ssh->check_master );
+      $ssh = $self->ssh_connection->{ $s->{id} };
 
       # install
       eval {
-
          # copy cc_worker directory to remote server
-         $ssh->scp_put( { recursive => 1 }, "$Bin/../cc_worker" )
-           or die "scp failed: " . $ssh->error;
+         $ssh->scp_put( { recursive => 1 }, "$Bin/../cc_worker" );
+           #or die "scp failed: " . $ssh->error;
 
-         # encode token and server id
          my $token = $self->read_user($user)->{token};
          my $json  = encode_json( { token => $token, id => $s->{id} } );
 
          # install perl modules in background
-         my $spawn       = "perl cc_worker/script/install.pl '$json'";
+         my $spawn = "perl cc_worker/script/install.pl";
          $ssh->spawn($spawn);
-         1 while waitpid( -1, WNOHANG ) > 0;
 
          # gather basic info about remote system
          my ( $out, $err ) = $ssh->capture2("perl cc_worker/script/basicinfo.pl");
@@ -810,29 +834,12 @@ sub _install_server {
 sub create_server {
    my ( $self, $user, $d ) = @_;
 
-   $self->_ssh_copy( $user, $d ) if $d->{password};
+   $self->_ssh_copy($user, $d) if $d->{password};
 
-   my $port = $d->{port} || 22;
+   my $port        = $d->{port} || 22;
    my $insert_hash = { map { $_ => $d->{$_} } grep { exists $d->{$_} } (qw(name username hostname password)) };
    $insert_hash->{port}   = $port;
    $insert_hash->{org_id} = $user->org_id;
-
-   # check connection
-   my %option = (
-      port       => $port,
-      user       => $d->{username},
-      batch_mode => 1,
-      timeout    => 3,
-      #kill_ssh_on_timeout => 1,
-      #master_opts => [-o => "ControlPersist=10m" ], 
-      master_opts => [-o => "ControlMaster=auto" ], 
-   );
-
-#        -o => "ControlPersist=10m",  # keep control connection open
-#        -o => "ControlPath=/tmp/ssh_mux_%r@%h:%p"
-
-   my $ssh = Net::OpenSSH->new( $d->{hostname}, %option );
-   return { success => 0, message => $ssh->error } if $ssh->error;
 
    my $id;
    eval { $id = $self->sqlite->db->insert( 'server', $insert_hash )->last_insert_id; };
@@ -843,6 +850,7 @@ sub create_server {
    else {
       $self->_connect_ssh( $user, { id => $id } );
       $self->_install_server( $user, { id => $id } );
+      $self->start_monitor( $user, { id => $id } );
       return { id => $id, success => 1, message => 'connected' };
    }
 }
@@ -874,12 +882,14 @@ sub _server_info {
 
 sub _disconnect_ssh {
    my ( $self, $user, $d ) = @_;
-   my $servers = $self->_server_info( $user, $d );
-   return { success => 0, message => 'no servers found' } unless scalar @{ $servers } > 0;
 
+   my $servers = $self->_server_info( $user, $d );
+   return { success => 0, message => 'no servers found' } unless scalar @{$servers};
    foreach my $s (@$servers) {
+
       eval { $self->sqlite->db->update( 'server', { active => 0 }, { id => $s->{id} } ) };
       return { success => 0, message => "unable to update server id $s->{id}: $@" } if $@;
+
       my $ssh = $self->ssh_connection->{ $s->{id} };
       if ($ssh) {
          $ssh->system( { async => 1, stdout_discard => 1, stderr_discard => 1 }, "perl cc_worker/script/sysinfo.pl stop" );
@@ -892,9 +902,9 @@ sub _disconnect_ssh {
 # refresh ssh connection
 sub _connect_ssh {
    my ( $self, $user, $d ) = @_;
+   my $token   = $self->read_user( $user )->{token};
    my $servers = $self->_server_info( $user, $d );
-   my $token = $self->read_user( $user, $d )->{token};
-
+   return { success => 0, message => 'no servers found' } unless scalar @{$servers};
    foreach my $s (@$servers) {
       return { success => 0, message => 'server misconfigured' } unless $s->{id} && $s->{username} && $s->{hostname};
       my $port    = $s->{port} || 22;
@@ -909,12 +919,11 @@ sub _connect_ssh {
          user       => $s->{username},
          port       => $port,
          batch_mode => 1,
+         timeout    => 3,
+         #kill_ssh_on_timeout => 1,
+         #master_opts => [-o => "ControlPersist=10m" ],
+         master_opts => [ -o => "ControlMaster=auto" ],
       );
-
-      if ( $s->{password} ) {
-         $option{password} = $d->{password};
-         $self->_ssh_copy( $user, $s );
-      }
 
       my $ssh = Net::OpenSSH->new( $s->{hostname}, %option );
 
@@ -922,12 +931,23 @@ sub _connect_ssh {
 
       # add connection
       $self->ssh_connection->{ $s->{id} } = $ssh;
+   }
 
-      if ($s->{active}) {
-         my $json = encode_json( { token => $token, id => $s->{id} } );
-         $ssh->system( { stdout_discard => 1, stderr_discard => 1 }, "perl cc_worker/script/sysinfo.pl stop" );
-         $ssh->system( { stdout_discard => 1, stderr_discard => 1 }, "perl cc_worker/script/sysinfo.pl start '$json'" );
-      }
+   return { success => 1 };
+}
+
+sub _start_monitor {
+   my ( $self, $user, $d ) = @_;
+   my $token   = $self->read_user( $user, $d )->{token};
+   my $servers = $self->_server_info( $user, $d );
+   return { success => 0, message => 'no servers found' } unless scalar @{$servers};
+   foreach my $s (@$servers) {
+      my $ssh = $self->ssh_connection->{ $s->{id} };
+      $self->_connect_ssh( $user, { id => $d->{id} } ) unless ( $ssh && $ssh->check_master );
+      $ssh = $self->ssh_connection->{ $s->{id} };
+      my $json = encode_json( { token => $token, id => $s->{id} } );
+      $ssh->system( { stdout_discard => 1, stderr_discard => 1 }, "perl cc_worker/script/sysinfo.pl stop" );
+      $ssh->system( { stdout_discard => 1, stderr_discard => 1 }, "perl cc_worker/script/sysinfo.pl start '$json'" );
    }
    return { success => 1 };
 }
@@ -935,17 +955,12 @@ sub _connect_ssh {
 # refresh ssh session and start sysinfo
 sub start_monitor {
    my ( $self, $user, $d ) = @_;
-   my $token   = $self->read_user($user)->{token};
    my $servers = $self->_server_info( $user, $d );
-   return { success => 0, message => 'no servers found' } unless scalar @{ $servers };
+   return { success => 0, message => 'no servers found' } unless scalar @{$servers};
    foreach my $s (@$servers) {
       eval { $self->sqlite->db->update( 'server', { active => 1 }, { id => $s->{id} } ) };
       return { success => 0, message => "unable to update server id $s->{id}" } if $@;
-      $self->_connect_ssh( $user, { id => $s->{id} } );
-      #my $ssh = $self->ssh_connection->{ $s->{id} };
-      #my $json = encode_json( { token => $token, id => $s->{id} } );
-      #$ssh->system( { stdout_discard => 1 }, "perl cc_worker/script/sysinfo.pl stop" );
-      #$ssh->system( { stdout_discard => 1 }, "perl cc_worker/script/sysinfo.pl start '$json'" );
+      $self->_start_monitor( $user, { id => $s->{id} } );
    }
    return { success => 1 };
 }
@@ -959,7 +974,11 @@ sub stop_monitor {
 
 sub update_server {
    my ( $self, $user, $d ) = @_;
-   return { success => 1, echo => $d };
+}
+
+sub upgrade_monitor {
+   my ( $self, $user, $d ) = @_;
+   return $self->_install_server( $user, $d );
 }
 
 sub delete_server {
@@ -1015,13 +1034,13 @@ sub addcron {
 # command routing
 
 sub routing {
-   state $i = qr/^\d{1,20}$/;                 # integer
-   state $w = qr/^\w{1,50}$/;                 # word
-   state $f = qr/^[\d\.]{1,20}$/;             # float
-   state $p = qr/^[\w\/\@\:\.]{1,50}$/;       # path
-   state $e = qr/^[\w\.\@]{1,50}$/;           # email
-   state $c = qr/^[\w\/\@\:\.\s\-\(\)\"]{1,50}$/;    # shell command
-   state $pw = qr/^.{8,20}$/;               # password
+   state $i  = qr/^\d{1,20}$/;                        # integer
+   state $w  = qr/^\w{1,50}$/;                        # word
+   state $f  = qr/^[\d\.]{1,20}$/;                    # float
+   state $p  = qr/^[\w\/\@\:\.]{1,50}$/;              # path
+   state $e  = qr/^[\w\.\@]{1,50}$/;                  # email
+   state $c  = qr/^[\w\/\@\:\.\s\-\(\)\"]{1,50}$/;    # shell command
+   state $pw = qr/^.{8,20}$/;                         # password
 
    state %routing = (
 
@@ -1035,15 +1054,38 @@ sub routing {
       # job related
       'create_job' => [ \&create_job, 1, [ { name => $p, shell_command => $c }, { server => $w, description => $w, out_log_path => $w, err_log_path => $w } ] ],
       'read_job'   => [ \&read_job,   1, [ {}, { name => $p, id => $i, cluster_id => $i } ] ],
-      'update_job' => [ \&update_job, 1, [ {}, { name => $p, id => $i, signal => $i, exit_code => $i, server_id => $i, mem => $f, cpu => $f, newname => $w, state => $w, server => $w, ppid => $i, pid => $i, shell_command => $c, started => $i, ended => $i } ] ],
-      'delete_job' => [ \&delete_job, 1, [ {}, { name => $p, id => $i } ] ],
-      'start_job'  => [ \&start_job,  1, [ {}, { name => $p, id => $i } ] ],
-      'kill_job'   => [ \&kill_job,   1, [ {}, { name => $p, id => $i } ] ],
+      'update_job' => [
+         \&update_job,
+         1,
+         [
+            {},
+            {
+               name          => $p,
+               id            => $i,
+               signal        => $i,
+               exit_code     => $i,
+               server_id     => $i,
+               mem           => $f,
+               cpu           => $f,
+               newname       => $w,
+               state         => $w,
+               server        => $w,
+               ppid          => $i,
+               pid           => $i,
+               shell_command => $c,
+               started       => $i,
+               ended         => $i
+            }
+         ]
+      ],
+      'delete_job' => [ \&delete_job, 1, [ {},              { name => $p, id => $i } ] ],
+      'start_job'  => [ \&start_job,  1, [ {},              { name => $p, id => $i } ] ],
+      'kill_job'   => [ \&kill_job,   1, [ {},              { name => $p, id => $i } ] ],
       'nice_job'   => [ \&nice_job,   1, [ { level => $i }, { name => $p, id => $i } ] ],
-      'hold_job'   => [ \&hold_job,   1, [ {}, { name => $p, id => $i } ] ],
-      'ice_job'    => [ \&ice_job,    1, [ {}, { name => $p, id => $i } ] ],
-      'finish_job' => [ \&finish_job, 1, [ {}, { name => $p, id => $i } ] ],
-      'copy_job'   => [ \&copy_job,   1, [ {}, { name => $p, id => $i, to => $p } ] ],
+      'hold_job'   => [ \&hold_job,   1, [ {},              { name => $p, id => $i } ] ],
+      'ice_job'    => [ \&ice_job,    1, [ {},              { name => $p, id => $i } ] ],
+      'finish_job' => [ \&finish_job, 1, [ {},              { name => $p, id => $i } ] ],
+      'copy_job'   => [ \&copy_job,   1, [ {},              { name => $p, id => $i, to => $p } ] ],
 
       # cluster related
       'create_cluster' => [ \&create_cluster, 1, [ { name => $p }, { description => $w } ] ],
@@ -1058,12 +1100,13 @@ sub routing {
 
       # server related
       'create_server'  => [ \&create_server, 1, [ { name => $w, username => $w, hostname => $p }, { password => $pw } ] ],
-      'read_server'    => [ \&read_server,   1, [ {}, { id => $i, name => $w } ] ],
+      'read_server'    => [ \&read_server,   1, [ {},                                                              { id => $i, name => $w } ] ],
       'update_server'  => [ \&update_server, 1, [ {}, { id => $i, name => $w, newname => $w, username => $w, hostname => $p } ] ],
-      'delete_server'  => [ \&delete_server, 1, [ {}, { id => $i, name => $w } ] ],
-      'start_monitor'  => [ \&start_monitor, 1, [ {}, { id => $i, name => $w } ] ],
-      'ssh_copy'       => [ \&_ssh_copy,     1, [ { name => $w, username => $w, hostname => $p, password => $pw }, {} ] ],
-      'stop_monitor'   => [ \&stop_monitor,   1, [ {}, { id => $i, name => $w } ] ],
+      'delete_server'  => [ \&delete_server, 1, [ {},                                                              { id => $i, name => $w } ] ],
+      'start_monitor'  => [ \&start_monitor, 1, [ {},                                                              { id => $i, name => $w } ] ],
+      'ssh_copy'       => [ \&_ssh_copy,     1, [ { name => $w, username => $w, hostname => $p, password => $p }, {} ] ],
+      'stop_monitor'   => [ \&stop_monitor,  1, [ {},                                                              { id => $i, name => $w } ] ],
+      'upgrade_monitor'  => [ \&upgrade_monitor, 1, [ {}, { id => $i, name => $w } ] ],
       'update_sysinfo' => [
          \&update_sysinfo,
          1,

@@ -221,12 +221,12 @@ sub linux_disk {
 
 sub pid_info {
 
-   my $ppids = shift;
-   my %ppid;
+   my $pids = shift;
+   my %pid;
    my $t = Proc::ProcessTable->new;
 
    foreach my $p ( @{ $t->table } ) {
-      $ppid{ $p->ppid } = {
+      $pid{ $p->pid } = {
          pid      => $p->pid,
          tty_dev  => $p->ttydev,
          state    => $p->state,
@@ -247,8 +247,8 @@ sub pid_info {
       };
    }
 
-   my @found = map { $ppid{$_} } grep { exists $ppid{$_} } @$ppids;
-   my @zombies = grep { !exists $ppid{$_} } @$ppids;
+   my @found = map { $pid{$_} } grep { exists $pid{$_} } @$pids;
+   my @zombies = grep { !exists $pid{$_} } @$pids;
    return (\@found, \@zombies);
 }
 
