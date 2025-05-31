@@ -10,7 +10,7 @@ use Sys::Hostname;
 use POSIX ":sys_wait_h";
 use Data::Dumper;
 
-# handler for child process termination
+# TODO: inheritance, threshholds, dependencies, monitor time series stats
 $SIG{CHLD} = sub {
    1 while ( ( waitpid( -1, WNOHANG ) ) > 0 );
 };
@@ -81,7 +81,7 @@ sub startup {
 
    # start server monitors
    my $monitor_sql = <<~"SQL";
-      select s.id as id, s.org_id, u.id as user_id, max(u.id) as mid, u.token as token
+      select s.id as id, s.org_id as org_id, u.id as user_id, min(u.id) as mid, u.token as token
       from server s
       join user u on u.org_id = s.org_id
       where s.active = 1
@@ -89,8 +89,9 @@ sub startup {
    SQL
    my $results = $self->sqlite->db->query($monitor_sql);
    while ( my $s = $results->hash ) {
-      my $user = ordo::Model::User->new( id => $s->{mid}, token => $s->{token} );
-      $self->_connect_ssh($user, { id => $s->{id} });
+      my $user = ordo::Model::User->new( id => $s->{mid}, org_id => $s->{org_id} );
+      $self->_install_monitor($user, { id => $s->{id} });
+      $self->_start_monitor($user, { id => $s->{id} });
    }
 }
 
@@ -526,7 +527,7 @@ sub _job_info {
       join cluster c on j.cluster_id = c.id
       left join server s on j.server_id = s.id
       left join job_states js on j.state_id = js.id
-      where 
+      where c.org_id = $user_info->{org_id} and 
    SQL
 
       $sql .=
@@ -655,7 +656,7 @@ sub update_sysinfo {
    if ( $d->{pids} && ref $d->{pids} eq 'ARRAY' ) {
       foreach my $pid ( @{ $d->{pids} } ) {
          my $update = { map { $_, $pid->{$_} } grep { exists $pid->{$_} } (qw(pctcpu pid time start size priority rss pctmem ppid state cmndline fname)) };
-         eval { $self->sqlite->db->update( 'job', $update, { ppid => $pid->{ppid} } ) };
+         eval { $self->sqlite->db->update( 'job', $update, { pid => $pid->{pid} } ) };
          die $@ if $@;
       }
    }
@@ -664,7 +665,7 @@ sub update_sysinfo {
    if ( $d->{zombies} && ref $d->{zombies} eq 'ARRAY' ) {
       my $ids = $self->sqlite->db->select( 'job', [ 'id', 'state_id' ], { pid => $d->{zombies}, state_id => $running } );
       while ( my $next = $ids->hash ) {
-         $self->update_job( $user, { state => 'zombie' }, { id => $next->{id} } );
+         $self->update_job( $user, { state => 'zombie', ended => time }, { id => $next->{id} } );
       }
    }
 
@@ -782,6 +783,18 @@ sub _reset_job {
 
 # server related subroutines
 
+sub ssh_copy {
+   my ( $self, $user, $d ) = @_;
+   my $servers = $self->_server_info( $user, $d );
+   return { success => 0, message => 'no servers found' } unless scalar @{$servers};
+   foreach my $s (@$servers) {
+      $s->{password} = $d->{password} if $d->{password};
+      next unless $s->{password} && $s->{username} && $s->{hostname};
+      $self->_ssh_copy($user, $s);
+   }
+   return { success => 1 };
+}
+
 sub _ssh_copy {
    my ( $self, $user, $d ) = @_;
    my $port = $d->{port} || 22;
@@ -794,7 +807,7 @@ sub _ssh_copy {
 }
 
 # install
-sub _install_server {
+sub _install_monitor {
    my ( $self, $user, $d ) = @_;
    my $servers = $self->_server_info( $user, $d );
    return { success => 0, message => 'no servers found' } unless scalar @{$servers};
@@ -823,7 +836,7 @@ sub _install_server {
          my $error = $ssh->error || $err;
          return { success => 0, message => $error } if $error;
          my $basicinfo = decode_json($out);
-         my $update    = { map { $_, $basicinfo->{$_} } grep { exists $basicinfo->{$_} } (qw(os cores cwd)) };
+         my $update    = { map { $_, $basicinfo->{$_} } grep { exists $basicinfo->{$_} } (qw(home os cores cwd)) };
          $self->sqlite->db->update( 'server', $update, { id => $s->{id} } );
       };
       return { success => 0, message => $@ } if $@;
@@ -831,7 +844,7 @@ sub _install_server {
    return { success => 1 };
 }
 
-sub create_server {
+sub create_monitor {
    my ( $self, $user, $d ) = @_;
 
    $self->_ssh_copy($user, $d) if $d->{password};
@@ -849,13 +862,13 @@ sub create_server {
    }
    else {
       $self->_connect_ssh( $user, { id => $id } );
-      $self->_install_server( $user, { id => $id } );
-      $self->start_monitor( $user, { id => $id } );
+      $self->_install_monitor( $user, { id => $id } );
+      $self->_start_monitor( $user, { id => $id } );
       return { id => $id, success => 1, message => 'connected' };
    }
 }
 
-sub read_server {
+sub read_monitor {
    my ( $self, $user, $d ) = @_;
    my $servers = $self->_server_info( $user, $d );
    return scalar @$servers ? { success => 1, servers => $servers } : { success => 0 };
@@ -873,7 +886,7 @@ sub _server_info {
    while ( my $next = $results->hash ) {
       my $ssh       = $self->ssh_connection->{ $next->{id} };
       my $connected = $ssh && $ssh->check_master ? 1 : 0;
-      my $row       = { map { $_, $next->{$_} } (qw(id active os cwd cores update_time ping username hostname name port total_memory used_memory cpu total_disk used_disk uptime)) };
+      my $row       = { map { $_, $next->{$_} } (qw(id active os cwd home cores update_time ping username hostname name port total_memory used_memory cpu total_disk used_disk uptime)) };
       $row->{connected} = $connected;
       push @rows, $row;
    }
@@ -938,7 +951,7 @@ sub _connect_ssh {
 
 sub _start_monitor {
    my ( $self, $user, $d ) = @_;
-   my $token   = $self->read_user( $user, $d )->{token};
+   my $token   = $self->read_user( $user )->{token};
    my $servers = $self->_server_info( $user, $d );
    return { success => 0, message => 'no servers found' } unless scalar @{$servers};
    foreach my $s (@$servers) {
@@ -949,7 +962,7 @@ sub _start_monitor {
       $ssh->system( { stdout_discard => 1, stderr_discard => 1 }, "perl cc_worker/script/sysinfo.pl stop" );
       $ssh->system( { stdout_discard => 1, stderr_discard => 1 }, "perl cc_worker/script/sysinfo.pl start '$json'" );
    }
-   return { success => 1 };
+   return { success => 1, message => 'monitor started' };
 }
 
 # refresh ssh session and start sysinfo
@@ -972,16 +985,17 @@ sub stop_monitor {
    return $rv;
 }
 
-sub update_server {
+sub update_monitor {
    my ( $self, $user, $d ) = @_;
+   return { success => 1 };
 }
 
 sub upgrade_monitor {
    my ( $self, $user, $d ) = @_;
-   return $self->_install_server( $user, $d );
+   return $self->_install_monitor( $user, $d );
 }
 
-sub delete_server {
+sub delete_monitor {
    my ( $self, $user, $d ) = @_;
    return { success => 0, message => 'missing name or id' } unless $d->{name} || $d->{id};
    my $servers = $self->_server_info( $user, $d );
@@ -1098,13 +1112,13 @@ sub routing {
       #'start_cluster'  => [ \&start_cluster,  1, [ {}, {} ] ],
       #'copy_cluster'   => [ \&copy_cluster,   1, [ {}, { name => $p, id => $i, to => $p } ] ],
 
-      # server related
-      'create_server'  => [ \&create_server, 1, [ { name => $w, username => $w, hostname => $p }, { password => $pw } ] ],
-      'read_server'    => [ \&read_server,   1, [ {},                                                              { id => $i, name => $w } ] ],
-      'update_server'  => [ \&update_server, 1, [ {}, { id => $i, name => $w, newname => $w, username => $w, hostname => $p } ] ],
-      'delete_server'  => [ \&delete_server, 1, [ {},                                                              { id => $i, name => $w } ] ],
+      # monitor related
+      'create_monitor'  => [ \&create_monitor, 1, [ { name => $w, username => $w, hostname => $p }, { password => $pw } ] ],
+      'read_monitor'    => [ \&read_monitor,   1, [ {},                                                              { id => $i, name => $w } ] ],
+      'update_monitor'  => [ \&update_monitor, 1, [ {}, { id => $i, name => $w, newname => $w, username => $w, hostname => $p } ] ],
+      'delete_monitor'  => [ \&delete_monitor, 1, [ {},                                                              { id => $i, name => $w } ] ],
       'start_monitor'  => [ \&start_monitor, 1, [ {},                                                              { id => $i, name => $w } ] ],
-      'ssh_copy'       => [ \&_ssh_copy,     1, [ { name => $w, username => $w, hostname => $p, password => $p }, {} ] ],
+      'ssh_copy'       => [ \&ssh_copy,     1, [ { name => $w, username => $w, hostname => $p }, { password => $pw } ] ],
       'stop_monitor'   => [ \&stop_monitor,  1, [ {},                                                              { id => $i, name => $w } ] ],
       'upgrade_monitor'  => [ \&upgrade_monitor, 1, [ {}, { id => $i, name => $w } ] ],
       'update_sysinfo' => [

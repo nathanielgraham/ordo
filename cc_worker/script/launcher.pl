@@ -75,6 +75,7 @@ elsif ($pid == 0) {
 }
 else {
     # parent
+    $0 = "supervisor_$pid";
     say "Started child process with PID $pid";
     &post( { command => 'update_job', token => $token, id => $id, state => 'running', pid => $pid, ppid => $$ } );
 

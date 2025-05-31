@@ -6,8 +6,7 @@ use File::Spec;
 use Sys::Hostname;
 use Cwd;
 use JSON::PP;
-
-#use File::HomeDir;
+use File::HomeDir;
 
 my $json = JSON::PP->new->ascii->pretty->allow_nonref;
 
@@ -27,9 +26,8 @@ sub basic_info {
    my $username = $ENV{LOGNAME} || $ENV{USER} || getpwuid($<);
    my $cwd   = cwd;
    my $cores = get_cores();
-
-   #my $home = File::HomeDir->my_home;
-   return { cores => $cores, os => $os, cwd => $cwd, tempdir => $tmpdir, username => $username, hostname => $hostname };
+   my $home = File::HomeDir->my_home;
+   return { cores => $cores, os => $os, home => $home, cwd => $cwd, tempdir => $tmpdir, username => $username, hostname => $hostname };
 }
 
 sub get_cores {

@@ -1,0 +1,14 @@
+PRAGMA foreign_keys=on;
+BEGIN TRANSACTION;
+DROP TABLE IF EXISTS job_need;
+CREATE TABLE job_need (
+        id INTEGER PRIMARY KEY NOT NULL,
+        job_id INTEGER,
+        need_job_id INTEGER,
+        FOREIGN KEY(job_id) REFERENCES job(id),
+        FOREIGN KEY(need_job_id) REFERENCES job(id)
+);
+
+CREATE UNIQUE INDEX job_need_idx1 ON job_need (job_id, need_job_id);
+
+COMMIT;

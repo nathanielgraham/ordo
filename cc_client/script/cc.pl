@@ -79,7 +79,7 @@ my $help = sub {
    return { success => 1 };
 };
 
-my $read_server = sub {
+my $read_monitor = sub {
    my $json     = shift;
    my $rows = [ [qw(ID ALIAS %MEMORY %DISK LOADAVG PING UPTIME OS ACTIVE UPDATED HOST)] ];
    my @servers = @{ $json->{servers} };
@@ -203,7 +203,7 @@ my $remote_dispatch = {
    change_cluster => $change_cluster,
    read_user      => $read_user,
    find_cluster   => $find_cluster,
-   read_server    => $read_server,
+   read_monitor    => $read_monitor,
 };
 
 my $local_dispatch = {

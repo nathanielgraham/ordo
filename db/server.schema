@@ -10,6 +10,7 @@ CREATE TABLE server (
         hostname varchar,
         os varchar,
 	cwd varchar,
+	home varchar,
 	cores integer,
         port integer not null default 22,
         total_memory integer,

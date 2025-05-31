@@ -3,15 +3,12 @@ BEGIN TRANSACTION;
 DROP TABLE IF EXISTS cluster_need;
 CREATE TABLE cluster_need (
         id INTEGER PRIMARY KEY NOT NULL,
-        cluster_definition_id INTEGER NOT NULL,
-        need_cluster_definition_id INTEGER NOT NULL,
-        need_state INTEGER DEFAULT 5,
-        creation_time DEFAULT CURRENT_TIMESTAMP,
-	FOREIGN KEY(cluster_definition_id) REFERENCES cluster_definition(id) ON UPDATE CASCADE ON DELETE CASCADE,
-	FOREIGN KEY(need_cluster_definition_id) REFERENCES cluster_definition(id) ON UPDATE CASCADE ON DELETE CASCADE
+        cluster_id INTEGER,
+        need_cluster_id INTEGER,
+        FOREIGN KEY(cluster_id) REFERENCES cluster(id),
+        FOREIGN KEY(need_cluster_id) REFERENCES cluster(id)
 );
 
-CREATE UNIQUE INDEX cluster_need_idx1 ON cluster_need (cluster_definition_id, need_cluster_definition_id);
-CREATE INDEX cluster_need_idx2 ON cluster_need (need_cluster_definition_id);
+CREATE UNIQUE INDEX cluster_need_idx1 ON cluster_need (cluster_id, need_cluster_id);
 
 COMMIT;
