@@ -10,7 +10,7 @@ use Sys::Hostname;
 use POSIX ":sys_wait_h";
 use Data::Dumper;
 
-# TODO: inheritance, threshholds, dependencies, monitor time series stats
+# TODO: inheritance, threshholds, dependencies, monitor time series stats, org_id security
 $SIG{CHLD} = sub {
    1 while ( ( waitpid( -1, WNOHANG ) ) > 0 );
 };
@@ -90,8 +90,8 @@ sub startup {
    my $results = $self->sqlite->db->query($monitor_sql);
    while ( my $s = $results->hash ) {
       my $user = ordo::Model::User->new( id => $s->{mid}, org_id => $s->{org_id} );
-      $self->_install_monitor($user, { id => $s->{id} });
-      $self->_start_monitor($user, { id => $s->{id} });
+      $self->_install_monitor( $user, { id => $s->{id} } );
+      $self->_start_monitor( $user, { id => $s->{id} } );
    }
 }
 
@@ -192,17 +192,79 @@ sub read_cluster {
    # undef = root cluster, 0 = cluster not found
    return { success => 0, message => 'cluster not found' } if defined $cluster_id && $cluster_id == 0;
 
-   my $c           = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id } )->hash;
+   my $c           = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id, org_id => $user->org_id } )->hash;
    my $is_readable = $self->is_readable( $user, $c );
    return { success => 0, message => 'you do not have permission to read this cluster' } unless $is_readable;
-   my @fields = qw(id mode org_id user_id parent_id server_id state_id name description started ended);
+   my @fields = qw(id next_start command mode org_id user_id parent_id server_id state_id name description started ended);
    my %rv     = map { $_, $c->{$_} } @fields;
+   if ( $rv{state_id} ) {
+      $rv{jobstate} = $self->sqlite->db->select( 'job_states', ['state'], { id => $rv{state_id} } )->hash->{state};
+   }
    return { success => 1, %rv };
+}
+
+sub start_cluster {
+   my ( $self, $user, $d ) = @_;
+   my $cluster_info = $self->read_cluster( $user, $d );
+   return $cluster_info if $cluster_info->{success} == 0;
+   my $cluster_id = $cluster_info->{id};
+
+   # undef = root cluster, 0 = cluster not found
+   return { success => 0, message => 'cluster not found' } if defined $cluster_id && $cluster_id == 0;
+
+   print "GOT THIS FAR: 2\n";
+
+   # check jobs are in ready state
+   my $complete = $self->job_states->{complete};
+   my $running  = $self->job_states->{running};
+   my $ready    = $self->job_states->{ready};
+   my $hold     = $self->job_states->{hold};
+   my $ice      = $self->job_states->{ice};
+
+   return { success => 0, message => 'cluster already running' } if $cluster_info->{state_id} == $self->job_states->{running};
+
+   my $not_ready = $self->sqlite->db->select( 'job', ['id'], { cluster_id => $cluster_id, state_id => { '!=', [ -and => ( $complete, $ready, $hold, $ice ) ] } } );
+   return { success => 0, message => 'jobs not in a ready state' } if $not_ready->rows;
+
+   # start jobs in cluster
+   $self->_reset_cluster( $user, { id => $cluster_id } );
+
+   eval { $self->sqlite->db->update( 'cluster', { started => time, state_id => $running }, { id => $cluster_id } ) };
+   return { success => 0, message => $@ } if $@;
+
+   my $results = $self->sqlite->db->select( 'job', ['id'], { cluster_id => $cluster_id, state_id => { '=', [$ready] } } )->hashes;
+
+   foreach my $j ( @{ $results->to_array }) {
+      $self->start_job( $user, $j );
+   }
+   return { success => 1 };
+   return { success => 0, message => 'no jobs in cluster' };
+}
+
+sub _reset_cluster {
+   my ( $self, $user, $d ) = @_;
+   my $cluster_info = $self->read_cluster( $user, $d );
+   my $cluster_id   = $cluster_info->{id};
+   my $ready        = $self->job_states->{ready};
+   my $hold         = $self->job_states->{hold};
+   my $ice          = $self->job_states->{ice};
+   eval { $self->sqlite->db->update( 'cluster', { state_id => $ready, started => undef, ended => undef }, { id => $cluster_id } ) };
+   eval { $self->sqlite->db->update( 'job', { state_id => $ready, started => undef, ended => undef }, { cluster_id => $cluster_id, state_id => { '!=', [ -and => ( $hold, $ice ) ] } } ) };
+   my $success = $@ ? 0 : 1;
+   return { success => $success };
+}
+
+sub reset_cluster {
+   my ( $self, $user, $d ) = @_;
+   return $self->_reset_cluster( $user, $d );
 }
 
 sub find_cluster {
    my ( $self, $user, $d ) = @_;
-   my $cluster_id = $d->{id} || $self->path2id( $user, $d->{name} );
+
+   #my $cluster_id = $d->{id} || $self->path2id( $user, $d->{name} );
+   my $cluster_info = $self->read_cluster( $user, $d );
+   my $cluster_id   = $cluster_info->{id};
 
    # undef = root cluster, 0 = cluster not found
    return { success => 0, message => 'cluster not found' } if defined $cluster_id && $cluster_id == 0;
@@ -210,18 +272,35 @@ sub find_cluster {
    my @clusters;
 
    if ($cluster_id) {
-      my $top         = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id } )->hash;
+      my $top = $cluster_info;
+
+      #my $top         = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id, org_id => $user->org_id } )->hash;
       my $is_readable = $self->is_readable( $user, $top );
       return { success => 0, message => 'you do not have permission to read this cluster' } unless $is_readable;
 
-      my $jobs = $self->_job_info( $user, { cluster_id => $cluster_id } )->{jobs};
+      my $jobs = $self->_job_info( $user, { cluster_id => $cluster_id, org_id => $user->org_id } )->{jobs};
       $top->{jobs} = $jobs;
       push @clusters, $top;
    }
 
    my $find_clusters = sub {
-      my $id      = shift;
-      my $cluster = $self->sqlite->db->select( 'cluster', ['*'], { parent_id => $id } );
+      my $id     = shift;
+      my $org_id = $user->org_id;
+
+      my $patch = $id ? " = $id " : " IS NULL ";
+
+      my $sql = <<~"SQL";
+         select c.*, js.state as jobstate
+         from cluster c
+         left join job_states js on c.state_id = js.id
+         where parent_id $patch
+         and org_id = $org_id 
+      SQL
+
+      #my $cluster = $self->sqlite->db->select( 'cluster', ['*'], { parent_id => $id, org_id => $user->org_id } );
+
+      my $cluster = $self->sqlite->db->query($sql);
+
       while ( my $c = $cluster->hash ) {
          my $jobs = $self->_job_info( $user, { cluster_id => $c->{id} } )->{jobs};
          $c->{jobs} = $jobs;
@@ -237,10 +316,13 @@ sub find_cluster {
 
 sub update_cluster {
    my ( $self, $user, $d ) = @_;
-   my $cluster_id = $d->{id} || $self->path2id( $user, $d->{name} );    # undef = root cluster, 0 = cluster not found
+   my $cluster_info = $self->read_cluster( $user, $d );
+   return $cluster_info if $cluster_info->{success} == 0;
+   my $cluster_id = $cluster_info->{id};
+
    return { success => 0, message => 'cluster not found' } if defined $cluster_id && $cluster_id == 0;
    if ($cluster_id) {
-      my $top         = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id } )->hash;
+      my $top         = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id, org_id => $user->org_id } )->hash;
       my $is_writable = $self->is_writable( $user, $top );
       return { success => 0, message => 'you do not have permission to write to this cluster' } unless $is_writable;
    }
@@ -255,13 +337,15 @@ sub update_cluster {
 }
 
 sub delete_cluster {
-   my ( $self, $user, $decoded ) = @_;
-   my $cluster_id = $decoded->{id} || $self->path2id( $user, $decoded->{name} );
+   my ( $self, $user, $d ) = @_;
+   my $cluster_info = $self->read_cluster( $user, $d );
+   return $cluster_info if $cluster_info->{success} == 0;
+   my $cluster_id = $cluster_info->{id};
 
    # undef = root cluster, 0 = cluster not found
    return { success => 0, message => 'cluster not found' } if defined $cluster_id && $cluster_id == 0;
    if ($cluster_id) {
-      my $top         = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id } )->hash;
+      my $top         = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id, org_id => $user->org_id } )->hash;
       my $is_writable = $self->is_writable( $user, $top );
       return { success => 0, message => 'no write permissions on this cluster' } unless $is_writable;
    }
@@ -323,11 +407,12 @@ sub create_cluster {
 }
 
 sub change_cluster {
-   my ( $self, $user, $decoded ) = @_;
-   my $cluster_id = $decoded->{id} || $self->path2id( $user, $decoded->{name} );
+   my ( $self, $user, $d ) = @_;
+   my $cluster_info = $self->read_cluster( $user, $d );
+   my $cluster_id   = $cluster_info->{id};
 
    if ($cluster_id) {
-      my $top         = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id } )->hash;
+      my $top         = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id, org_id => $user->org_id } )->hash;
       my $is_readable = $self->is_readable( $user, $top );
       return { success => 0, message => 'you do not have permission to read this cluster' } unless $is_readable;
    }
@@ -367,7 +452,7 @@ sub path2id {
    my $parent_id = undef;
 
    foreach my $part (@parts) {
-      my $result = $self->sqlite->db->select( 'cluster', ['*'], { parent_id => $parent_id, name => $part } )->hash;
+      my $result = $self->sqlite->db->select( 'cluster', ['*'], { parent_id => $parent_id, name => $part, org_id => $user_info->{org_id} } )->hash;
       $parent_id = $result->{id};
       return 0 if $part && !$parent_id;    # invalid path name
    }
@@ -535,6 +620,7 @@ sub _job_info {
         : $cluster_id ? " j.cluster_id = $cluster_id"
         :               "j.cluster_id is null";         # root
 
+      $sql .= " order by j.id, c.org_id ";
       my @jobs;
       my $results = $self->sqlite->db->query($sql);
       while ( my $next = $results->hash ) {
@@ -543,6 +629,22 @@ sub _job_info {
            (
             qw(signal cmndline fname exit_code last_update pid ppid priority pctmem pctcpu rss size id start started ended jobstate state state_id name mode cluster_id server_id server_name shell_command description out_log_path err_log_path)
            );
+
+         my $need_sql = <<~"SQL";
+            select jn.job_id, jn.needs_job_id, j.state_id
+            from job_needs jn
+            join job j on jn.needs_job_id = j.id
+            where jn.job_id = $next->{id}
+         SQL
+
+         my $need = $self->sqlite->db->query($need_sql);
+         my %needs;
+
+         while ( my $jn = $need->hash ) {
+            $needs{ $jn->{needs_job_id} } = $jn->{state_id};
+         }
+
+         $info{needs} = \%needs;
          push @jobs, \%info;
       }
       $rval->{jobs} = \@jobs;
@@ -589,17 +691,75 @@ sub create_job {
 sub read_job {
    my ( $self, $user, $d ) = @_;
    my $job_info = $self->_job_info( $user, $d );
-   return { success => 0, message => 'bad path name' } if ( $job_info->{name} && !$job_info->{id} );
-   return { success => 0, message => 'no jobs found' } unless $job_info->{jobs} && scalar @{ $job_info->{jobs} };
-   return { success => 1, %{$job_info} };
+   my $job      = shift @{ $job_info->{jobs} };
+   return { success => 0, message => 'job not found' } unless $job->{id};
+   return { success => 1, %{$job} };
 }
 
 sub delete_job {
    my ( $self, $user, $d ) = @_;
    my $job_info = $self->_job_info( $user, $d );
-   return { success => 0, message => 'job not found' } unless $job_info->{id};
-   eval { $self->sqlite->db->delete( 'job', { id => $job_info->{id} } ); };
+   my $job      = shift @{ $job_info->{jobs} };
+   return { success => 0, message => 'job not found' } unless $job->{id};
+   eval { $self->sqlite->db->delete( 'job', { id => $job->{id} } ); };
    return $@ ? { success => 0, message => $@ } : { success => 1, id => $job_info->{id} };
+}
+
+sub melt_job {
+   my ( $self, $user, $d ) = @_;
+   my $job_info = $self->_job_info( $user, $d );
+   my $job      = shift @{ $job_info->{jobs} };
+   return { success => 0, message => 'job not found' } unless $job->{id};
+   return { success => 0, message => 'job not on ice' } unless $job->{state_id} == $self->job_states->{ice};
+   eval {
+      $self->sqlite->db->update( 'job', { state_id => $self->job_states->{ready} }, { id => $job->{id} } );
+   };
+
+   if ($@) { 
+      return { success => 0, message => $@ };
+   }
+   return { success => 1 };
+}
+
+sub ice_job {
+   my ( $self, $user, $d ) = @_;
+   my $job_info = $self->_job_info( $user, $d );
+   my $job      = shift @{ $job_info->{jobs} };
+   return { success => 0, message => 'job not found' } unless $job->{id};
+   eval {
+      $self->sqlite->db->update( 'job', { state_id => $self->job_states->{ice} }, { id => $job->{id} } );
+   };
+
+   if ($@) {
+      return { success => 0, message => $@ };
+   }
+   return { success => 1 };
+}
+
+sub release_job {
+   my ( $self, $user, $d ) = @_;
+   my $job_info = $self->_job_info( $user, $d );
+   my $job      = shift @{ $job_info->{jobs} };
+   return { success => 0, message => 'job not found' } unless $job->{id};
+   return { success => 0, message => 'job not on hold' } unless $job->{state_id} == $self->job_states->{hold};
+   
+   eval {
+      $self->sqlite->db->update( 'job', { state_id => $self->job_states->{ready} }, { id => $job->{id} } );
+   };
+
+   if ($@) {
+      return { success => 0, message => $@ };
+   }
+   return $self->start_job($user, { id => $job->{id} });
+}
+
+sub hold_job {
+   my ( $self, $user, $d ) = @_;
+   my $job_info = $self->_job_info( $user, $d );
+   my $job      = shift @{ $job_info->{jobs} };
+   return { success => 0, message => 'job not found' } unless $job->{id};
+   return { success => 0, message => 'job is running' } if $job->{state_id} == $self->job_states->{running};
+   return $self->update_job($user, { id => $job->{id}, state => 'hold' });
 }
 
 sub update_job {
@@ -615,9 +775,61 @@ sub update_job {
          $update_hash->{started} = time;
          $update_hash->{ended}   = undef;
       }
-      elsif ( grep { $d->{state} eq $_ } (qw(failed killed complete)) ) {
+      elsif ( grep { $d->{state} eq $_ } (qw(failed killed)) ) {
          $update_hash->{ended} = time;
          $self->_reset_job( $user, { id => $job->{id} } );
+      }
+      if ( $d->{state} eq 'complete' || $d->{state} eq 'fake_complete' ) {
+
+         $self->sqlite->db->update( 'job', { state_id => $self->job_states->{complete} }, { id => $job->{id} } ) unless $d->{state} eq 'fake_complete';
+
+         # find all jobs in ready state that had a dependency met
+         my $ready     = $self->job_states->{ready};
+         my $completed = $self->job_states->{complete};
+         my $hold      = $self->job_states->{hold};
+         my $ice       = $self->job_states->{ice};
+
+         my $depends_sql = <<~"SQL";
+            select jn.job_id, j.state_id
+            from job_needs jn
+            join job j on jn.job_id = j.id
+            where jn.needs_job_id = $job->{id}
+            and j.state_id in ($ready)
+         SQL
+
+         #   and j.state_id = $ready
+         #   and j.id != $job->{id}
+
+         my $need = $self->sqlite->db->query($depends_sql);
+         while ( my $j = $need->hash ) {
+
+            # start job if all dependanciess are complete or on ice
+
+            my $complete_sql = <<~"SQL";
+               select jn.needs_job_id, j.state_id
+               from job_needs jn
+               join job j on jn.needs_job_id = j.id
+               where jn.job_id = $j->{job_id}
+               and state_id not in ($completed, $ice)
+            SQL
+
+            my $ret = $self->sqlite->db->query($complete_sql);
+
+            unless ( $ret->hash ) {
+               eval { $self->sqlite->db->update( 'job', $update_hash, { id => $job->{id} } ) };
+               $self->start_job( $user, { id => $j->{job_id} } );
+            }
+         }
+         $update_hash->{ended} = time;
+         $self->_reset_job( $user, { id => $job->{id} } );
+
+         # jobs in cluster not completed or on ice
+         my $f = $self->sqlite->db->select( 'job', ['*'], { cluster_id => $job->{cluster_id}, id => { '!=', $job->{id} }, state_id => { '!=', [ -and => ( $completed, $ice ) ] } } );
+
+         # complete cluster if any such jobs found
+         unless ( $f->hash ) {
+            $self->sqlite->db->update( 'cluster', { state_id => $self->job_states->{complete}, ended => time }, { id => $job->{cluster_id} } );
+         }
       }
    }
    if ( $d->{server} ) {
@@ -686,9 +898,24 @@ sub start_job {
    # arrayref of jobs in $job_info->{jobs}
    my $job_info = $self->_job_info( $user, $d );    #job info
    my $job      = shift @{ $job_info->{jobs} };
+   print "GOT THIS FAR 0\n";
    return { success => 0, message => 'command not found' } unless ref $job && $job->{id} && $job->{shell_command};
    return { success => 0, message => 'job not found' }     unless $job_info->{success} && $job_info->{id};
    return { success => 0, message => 'job is already running' } if $self->job_states->{running} == $job->{state_id};
+
+   print "GOT THIS FAR 1\n";
+   if ( $job->{state_id} == $self->job_states->{ice} ) {
+      $self->update_job($user, { id => $job->{id}, state => 'fake_complete' });
+      return { success => 0, message => 'job on ice' };
+   }
+
+   # don't start if dependencies not satisfied
+   while ( my ( $id, $state_id ) = each %{ $job->{needs} } ) {
+      if ( !grep { $state_id == $self->job_states->{$_} } (qw(complete ice)) ) {
+      #if ( $state_id != $self->job_states->{complete} ) {
+         return { success => 0, message => 'dependencies not satisfied' };
+      }
+   }
 
    # returns arrayref of servers
    my $server_info = $self->_server_info( $user, { id => $job->{server_id} } );
@@ -745,14 +972,6 @@ sub kill_job {
    return $ssh->error ? { success => 0, message => $ssh->error } : { success => 1 };
 }
 
-sub hold_job {
-   my ( $self, $user, $d ) = @_;
-}
-
-sub ice_job {
-   my ( $self, $user, $d ) = @_;
-}
-
 sub nice_job {
    my ( $self, $user, $d ) = @_;
    my $job_info = $self->_job_info( $user, $d );    #job info
@@ -790,7 +1009,7 @@ sub ssh_copy {
    foreach my $s (@$servers) {
       $s->{password} = $d->{password} if $d->{password};
       next unless $s->{password} && $s->{username} && $s->{hostname};
-      $self->_ssh_copy($user, $s);
+      $self->_ssh_copy( $user, $s );
    }
    return { success => 1 };
 }
@@ -822,7 +1041,8 @@ sub _install_monitor {
       eval {
          # copy cc_worker directory to remote server
          $ssh->scp_put( { recursive => 1 }, "$Bin/../cc_worker" );
-           #or die "scp failed: " . $ssh->error;
+
+         #or die "scp failed: " . $ssh->error;
 
          my $token = $self->read_user($user)->{token};
          my $json  = encode_json( { token => $token, id => $s->{id} } );
@@ -847,7 +1067,7 @@ sub _install_monitor {
 sub create_monitor {
    my ( $self, $user, $d ) = @_;
 
-   $self->_ssh_copy($user, $d) if $d->{password};
+   $self->_ssh_copy( $user, $d ) if $d->{password};
 
    my $port        = $d->{port} || 22;
    my $insert_hash = { map { $_ => $d->{$_} } grep { exists $d->{$_} } (qw(name username hostname password)) };
@@ -915,7 +1135,7 @@ sub _disconnect_ssh {
 # refresh ssh connection
 sub _connect_ssh {
    my ( $self, $user, $d ) = @_;
-   my $token   = $self->read_user( $user )->{token};
+   my $token   = $self->read_user($user)->{token};
    my $servers = $self->_server_info( $user, $d );
    return { success => 0, message => 'no servers found' } unless scalar @{$servers};
    foreach my $s (@$servers) {
@@ -933,6 +1153,7 @@ sub _connect_ssh {
          port       => $port,
          batch_mode => 1,
          timeout    => 3,
+
          #kill_ssh_on_timeout => 1,
          #master_opts => [-o => "ControlPersist=10m" ],
          master_opts => [ -o => "ControlMaster=auto" ],
@@ -951,7 +1172,7 @@ sub _connect_ssh {
 
 sub _start_monitor {
    my ( $self, $user, $d ) = @_;
-   my $token   = $self->read_user( $user )->{token};
+   my $token   = $self->read_user($user)->{token};
    my $servers = $self->_server_info( $user, $d );
    return { success => 0, message => 'no servers found' } unless scalar @{$servers};
    foreach my $s (@$servers) {
@@ -1097,7 +1318,9 @@ sub routing {
       'kill_job'   => [ \&kill_job,   1, [ {},              { name => $p, id => $i } ] ],
       'nice_job'   => [ \&nice_job,   1, [ { level => $i }, { name => $p, id => $i } ] ],
       'hold_job'   => [ \&hold_job,   1, [ {},              { name => $p, id => $i } ] ],
+      'release_job' => [ \&release_job,   1, [ {},          { name => $p, id => $i } ] ],
       'ice_job'    => [ \&ice_job,    1, [ {},              { name => $p, id => $i } ] ],
+      'melt_job'    => [ \&melt_job,    1, [ {},            { name => $p, id => $i } ] ],
       'finish_job' => [ \&finish_job, 1, [ {},              { name => $p, id => $i } ] ],
       'copy_job'   => [ \&copy_job,   1, [ {},              { name => $p, id => $i, to => $p } ] ],
 
@@ -1108,20 +1331,22 @@ sub routing {
       'delete_cluster' => [ \&delete_cluster, 1, [ {}, { name => $p, id   => $i } ] ],
       'change_cluster' => [ \&change_cluster, 1, [ {}, { name => $p, id   => $i } ] ],
       'find_cluster'   => [ \&find_cluster,   1, [ {}, { name => $p, id   => $i } ] ],
+      'reset_cluster'  => [ \&reset_cluster,  1, [ {}, { name => $p, id   => $i } ] ],
 
-      #'start_cluster'  => [ \&start_cluster,  1, [ {}, {} ] ],
+      'start_cluster' => [ \&start_cluster, 1, [ {}, { id => $i, name => $p } ] ],
+
       #'copy_cluster'   => [ \&copy_cluster,   1, [ {}, { name => $p, id => $i, to => $p } ] ],
 
       # monitor related
-      'create_monitor'  => [ \&create_monitor, 1, [ { name => $w, username => $w, hostname => $p }, { password => $pw } ] ],
-      'read_monitor'    => [ \&read_monitor,   1, [ {},                                                              { id => $i, name => $w } ] ],
-      'update_monitor'  => [ \&update_monitor, 1, [ {}, { id => $i, name => $w, newname => $w, username => $w, hostname => $p } ] ],
-      'delete_monitor'  => [ \&delete_monitor, 1, [ {},                                                              { id => $i, name => $w } ] ],
-      'start_monitor'  => [ \&start_monitor, 1, [ {},                                                              { id => $i, name => $w } ] ],
-      'ssh_copy'       => [ \&ssh_copy,     1, [ { name => $w, username => $w, hostname => $p }, { password => $pw } ] ],
-      'stop_monitor'   => [ \&stop_monitor,  1, [ {},                                                              { id => $i, name => $w } ] ],
-      'upgrade_monitor'  => [ \&upgrade_monitor, 1, [ {}, { id => $i, name => $w } ] ],
-      'update_sysinfo' => [
+      'create_monitor'  => [ \&create_monitor,  1, [ { name => $w, username => $w, hostname => $p }, { password => $pw } ] ],
+      'read_monitor'    => [ \&read_monitor,    1, [ {},                                             { id       => $i, name => $w } ] ],
+      'update_monitor'  => [ \&update_monitor,  1, [ {},                                             { id       => $i, name => $w, newname => $w, username => $w, hostname => $p } ] ],
+      'delete_monitor'  => [ \&delete_monitor,  1, [ {},                                             { id       => $i, name => $w } ] ],
+      'start_monitor'   => [ \&start_monitor,   1, [ {},                                             { id       => $i, name => $w } ] ],
+      'ssh_copy'        => [ \&ssh_copy,        1, [ { name => $w, username => $w, hostname => $p }, { password => $pw } ] ],
+      'stop_monitor'    => [ \&stop_monitor,    1, [ {},                                             { id       => $i, name => $w } ] ],
+      'upgrade_monitor' => [ \&upgrade_monitor, 1, [ {},                                             { id       => $i, name => $w } ] ],
+      'update_sysinfo'  => [
          \&update_sysinfo,
          1,
          [

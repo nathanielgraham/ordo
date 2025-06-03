@@ -135,28 +135,14 @@ my $find_cluster = sub {
       my $colored    = colored( $path, 'bold blue' );
       my $cluster_id = pop @{$part} || 0;
       my $c          = $cluster{$cluster_id};
-      my ( $start, $end, $dur ) = &format_epoch( $c->{started}, $c->{ended} );
-      push @{$rows}, [ $c->{id}, $colored, $c->{state},,,,,,,,,$dur ];
+      my ($started, $ended, $duration) = format_time($c);
+      push @{$rows}, [ $c->{id}, $colored, $c->{jobstate},'','','','','','','',$started,$ended,$duration ];
 
       next unless $cluster{$cluster_id}->{jobs};
 
       foreach my $j ( @{ $cluster{$cluster_id}->{jobs} } ) {
-         my ( $s, $e, $d ) = &format_epoch( $j->{started}, $j->{ended} );
 
-         my $started = strftime("%H:%M:%S", localtime($j->{started})),
-
-         my ($ended, $end_seconds);
-         if ( $j->{jobstate} eq 'running' ) {
-            $ended = '';
-            $end_seconds = time;
-         }
-         else {
-            $end_seconds = $j->{ended};
-            $ended = strftime("%H:%M:%S", localtime($j->{ended})),
-            $j->{$_} = '' for (qw(fname pname pctmem pctcpu priority pid state));
-         }
-
-         my $duration = sprintf ("%.3f hrs", ($end_seconds - $j->{started}) / 3600);
+         my ($started, $ended, $duration) = format_time($j);
 
          my $row = [ 
             $j->{id},
@@ -176,27 +162,34 @@ my $find_cluster = sub {
          
          push @{$rows}, $row; 
 
-         print Dumper($j);
+         #print Dumper($j);
       }
    }
    say generate_table( rows => $rows, header_row => 1 );
 };
 
-sub format_epoch {
-   my ( $start, $end ) = @_;
-   return ( '', '', '' ) unless $start;
-   my $sdt = DateTime->from_epoch( epoch => $start );
-   my $s   = $sdt->ymd . ' ' . $sdt->hms;
+sub format_time {
+   my $row = shift;
+   my $s = $row->{started};
+   my $e = $row->{ended};
 
-   my $epoch = $end || time;
+   return ('','','') unless $s;
 
-   my $edt = DateTime->from_epoch( epoch => $epoch );
+   my $started = strftime("%H:%M:%S", localtime($s)),
+   my ($ended, $end_seconds);
 
-   my $dur     = $edt - $sdt;
-   my $elapsed = sprintf '%02s:%02s:%02s', $dur->hours, $dur->minutes, $dur->seconds;
+   if ( $row->{jobstate} eq 'running' ) {
+      $ended = '';
+      $end_seconds = time;
+   }
+   else {
+      $end_seconds = $e || time;
+      $ended = $e ? strftime("%H:%M:%S", localtime($end_seconds)) : '';
+      $row->{$_} = '' for (qw(fname pname pctmem pctcpu priority pid state));
+   }
 
-   my $e = $end ? $edt->ymd . ' ' . $edt->hms : '';
-   return ( $s, $e, $elapsed );
+   my $duration = sprintf ("%.3f hrs", ($end_seconds - $s) / 3600);
+   return ( $started, $ended, $duration );
 }
 
 my $remote_dispatch = {
@@ -218,7 +211,7 @@ sub request {
    my $line = shift;
    my $r    = &string2hash($line);
    unless ( $r->{token} ) {
-      say to_json( $r, { pretty => 1 } );
+      #say to_json( $r, { pretty => 1 } );
       return;
    }
 
@@ -242,7 +235,7 @@ sub string2hash {
    my %options;
    my ( $ret, $args ) = GetOptionsFromString(
       $string,   \%options, "command=s", "token=s", "state:s", "username:s",  "hostname:s", "newname:s", "password:s", "shell_command:s", "email:s",
-      "level:s", "server_id:i", "name:s",  "job_id:i",  "cluster_id:i", "server:s", "org_id:i",  "pid:i",      "to:s",            "id:s",
+      "level:s", "description:s", "server_id:i", "name:s",  "job_id:i",  "cluster_id:i", "server:s", "org_id:i",  "pid:i",      "to:s",            "id:s",
    );
 
    my ( $verb, $noun, $name ) = @{$args};
