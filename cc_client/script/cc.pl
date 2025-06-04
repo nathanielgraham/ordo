@@ -6,7 +6,6 @@ use warnings;
 use Term::ReadLine::Perl5;
 use Mojo::UserAgent;
 use Term::ANSIColor;
-use DateTime;
 use POSIX qw(strftime);
 use Data::Dumper;
 use Getopt::Long qw(GetOptionsFromString);
@@ -129,14 +128,14 @@ my $find_cluster = sub {
       push @paths, \@parts;
    }
 
-   my $rows = [ [qw(ID CLUSTER/JOB STATE SERVER %MEM %CPU PRI PID PSTATE PNAME STARTED ENDED DURATION)] ];
+   my $rows = [ [qw(ID CLUSTER/JOB STATE NEEDS %MEM %CPU PRI PID PSTATE PNAME SERVER STARTED ENDED DURATION)] ];
    foreach my $part (@paths) {
       my $path       = join( '/', ( map { $cluster{$_}->{name} } @{$part} ) );
       my $colored    = colored( $path, 'bold blue' );
       my $cluster_id = pop @{$part} || 0;
       my $c          = $cluster{$cluster_id};
       my ($started, $ended, $duration) = format_time($c);
-      push @{$rows}, [ $c->{id}, $colored, $c->{jobstate},'','','','','','','',$started,$ended,$duration ];
+      push @{$rows}, [ $c->{id}, $colored, $c->{jobstate},'','','','','','','','',$started,$ended,$duration ];
 
       next unless $cluster{$cluster_id}->{jobs};
 
@@ -148,13 +147,14 @@ my $find_cluster = sub {
             $j->{id},
             "$path/$j->{name}",
             $j->{jobstate},
-            $j->{server_name},
+            join(' ', keys %{ $j->{needs}}),
             $j->{pctmem},
             $j->{pctcpu},
             $j->{priority},
             $j->{pid},
             $j->{state},
             $j->{fname},
+            $j->{server_name},
             $started,
             $ended,
             $duration,
@@ -188,7 +188,13 @@ sub format_time {
       $row->{$_} = '' for (qw(fname pname pctmem pctcpu priority pid state));
    }
 
-   my $duration = sprintf ("%.3f hrs", ($end_seconds - $s) / 3600);
+   my $epoch_seconds = $end_seconds - $s;
+   my $hours = int($epoch_seconds / 3600);
+   my $minutes = int(($epoch_seconds % 3600) / 60);
+   my $seconds = $epoch_seconds % 60;
+
+   my $duration = sprintf("%02d:%02d:%02d", $hours, $minutes, $seconds);
+   #my $duration = sprintf ("%.3f hrs", ($end_seconds - $s) / 3600);
    return ( $started, $ended, $duration );
 }
 
@@ -231,11 +237,11 @@ while ( defined( my $line = $term->readline("$user:/$cluster> ") ) ) {
 
 sub string2hash {
    my $string = shift;
-
    my %options;
+
    my ( $ret, $args ) = GetOptionsFromString(
-      $string,   \%options, "command=s", "token=s", "state:s", "username:s",  "hostname:s", "newname:s", "password:s", "shell_command:s", "email:s",
-      "level:s", "description:s", "server_id:i", "name:s",  "job_id:i",  "cluster_id:i", "server:s", "org_id:i",  "pid:i",      "to:s",            "id:s",
+      $string, \%options, "command=s", "token=s", "state:s", "username:s",  "hostname:s", "newname:s", "password:s", "shell_command:s", "email:s",
+      "level:i", "needs:i@", "description:s", "server_id:i", "name:s",  "job_id:i",  "cluster_id:i", "server:s", "org_id:i",  "pid:i",      "to:s",            "id:s",
    );
 
    my ( $verb, $noun, $name ) = @{$args};

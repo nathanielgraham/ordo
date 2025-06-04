@@ -7,7 +7,7 @@ CREATE TABLE job (
         cluster_id INTEGER,
         server_id INTEGER,
         shell_command varchar,
-        state_id INTEGER NOT NULL DEFAULT 1,
+        state_id INTEGER NOT NULL DEFAULT 2,
         name varchar,
         description varchar,
         started INTEGER,

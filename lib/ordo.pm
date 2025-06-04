@@ -212,8 +212,6 @@ sub start_cluster {
    # undef = root cluster, 0 = cluster not found
    return { success => 0, message => 'cluster not found' } if defined $cluster_id && $cluster_id == 0;
 
-   print "GOT THIS FAR: 2\n";
-
    # check jobs are in ready state
    my $complete = $self->job_states->{complete};
    my $running  = $self->job_states->{running};
@@ -224,7 +222,7 @@ sub start_cluster {
    return { success => 0, message => 'cluster already running' } if $cluster_info->{state_id} == $self->job_states->{running};
 
    my $not_ready = $self->sqlite->db->select( 'job', ['id'], { cluster_id => $cluster_id, state_id => { '!=', [ -and => ( $complete, $ready, $hold, $ice ) ] } } );
-   return { success => 0, message => 'jobs not in a ready state' } if $not_ready->rows;
+   return { success => 0, message => 'jobs not in a ready state' } if $not_ready->hash;
 
    # start jobs in cluster
    $self->_reset_cluster( $user, { id => $cluster_id } );
@@ -234,7 +232,7 @@ sub start_cluster {
 
    my $results = $self->sqlite->db->select( 'job', ['id'], { cluster_id => $cluster_id, state_id => { '=', [$ready] } } )->hashes;
 
-   foreach my $j ( @{ $results->to_array }) {
+   foreach my $j ( @{ $results->to_array } ) {
       $self->start_job( $user, $j );
    }
    return { success => 1 };
@@ -674,9 +672,11 @@ sub create_job {
       my $is_writable = $self->is_writable( $user, $top );
       return { success => 0, message => 'you do not have permission to write to this cluster' } unless $is_writable;
    }
+
    else {
       return { success => 0, message => 'cluster not found' };
    }
+
    my $insert_hash = { cluster_id => $ji->{cluster_id}, name => $ji->{name}, shell_command => $d->{shell_command} };
    if ( $d->{server} ) {
       my $res = $self->sqlite->db->select( 'server', ['id'], { name => $d->{server}, org_id => $user->org_id } )->hash;
@@ -685,7 +685,14 @@ sub create_job {
    }
    my $id;
    eval { $id = $self->sqlite->db->insert( 'job', $insert_hash )->last_insert_id; };
-   return $@ ? { success => 0, message => $@ } : { success => 1, id => $id, name => $ji->{name}, cluster_id => $ji->{cluster_id} };
+
+   if ($@) {
+      return { success => 0, message => $@ };
+   }
+   elsif ( $d->{needs} ) {
+      $self->_add_needs($user, { needs => $d->{needs}, id => $id });
+   }
+   return { success => 1, id => $id, name => $ji->{name}, cluster_id => $ji->{cluster_id} };
 }
 
 sub read_job {
@@ -709,13 +716,11 @@ sub melt_job {
    my ( $self, $user, $d ) = @_;
    my $job_info = $self->_job_info( $user, $d );
    my $job      = shift @{ $job_info->{jobs} };
-   return { success => 0, message => 'job not found' } unless $job->{id};
+   return { success => 0, message => 'job not found' }  unless $job->{id};
    return { success => 0, message => 'job not on ice' } unless $job->{state_id} == $self->job_states->{ice};
-   eval {
-      $self->sqlite->db->update( 'job', { state_id => $self->job_states->{ready} }, { id => $job->{id} } );
-   };
+   eval { $self->sqlite->db->update( 'job', { state_id => $self->job_states->{ready} }, { id => $job->{id} } ); };
 
-   if ($@) { 
+   if ($@) {
       return { success => 0, message => $@ };
    }
    return { success => 1 };
@@ -726,9 +731,7 @@ sub ice_job {
    my $job_info = $self->_job_info( $user, $d );
    my $job      = shift @{ $job_info->{jobs} };
    return { success => 0, message => 'job not found' } unless $job->{id};
-   eval {
-      $self->sqlite->db->update( 'job', { state_id => $self->job_states->{ice} }, { id => $job->{id} } );
-   };
+   eval { $self->sqlite->db->update( 'job', { state_id => $self->job_states->{ice} }, { id => $job->{id} } ); };
 
    if ($@) {
       return { success => 0, message => $@ };
@@ -740,17 +743,16 @@ sub release_job {
    my ( $self, $user, $d ) = @_;
    my $job_info = $self->_job_info( $user, $d );
    my $job      = shift @{ $job_info->{jobs} };
-   return { success => 0, message => 'job not found' } unless $job->{id};
+   return { success => 0, message => 'job not found' }   unless $job->{id};
    return { success => 0, message => 'job not on hold' } unless $job->{state_id} == $self->job_states->{hold};
-   
-   eval {
-      $self->sqlite->db->update( 'job', { state_id => $self->job_states->{ready} }, { id => $job->{id} } );
-   };
+
+   eval { $self->sqlite->db->update( 'job', { state_id => $self->job_states->{ready} }, { id => $job->{id} } ); };
 
    if ($@) {
       return { success => 0, message => $@ };
    }
-   return $self->start_job($user, { id => $job->{id} });
+   my $cluster_state = $self->read_cluster( $user, { id => $job->{cluster_id} } )->{state_id};
+   return $cluster_state == $self->job_states->{running} ? $self->start_job( $user, { id => $job->{id} } ) : { success => 1 };
 }
 
 sub hold_job {
@@ -759,7 +761,7 @@ sub hold_job {
    my $job      = shift @{ $job_info->{jobs} };
    return { success => 0, message => 'job not found' } unless $job->{id};
    return { success => 0, message => 'job is running' } if $job->{state_id} == $self->job_states->{running};
-   return $self->update_job($user, { id => $job->{id}, state => 'hold' });
+   return $self->update_job( $user, { id => $job->{id}, state => 'hold' } );
 }
 
 sub update_job {
@@ -832,6 +834,9 @@ sub update_job {
          }
       }
    }
+   if ( $d->{needs} ) {
+      $self->_add_needs($user, { needs => $d->{needs}, id => $job->{id} });
+   }
    if ( $d->{server} ) {
       my $res = $self->sqlite->db->select( 'server', ['id'], { name => $d->{server}, org_id => $user->org_id } )->hash;
       return { success => 0, message => 'server not found' } unless $res->{id};
@@ -842,6 +847,25 @@ sub update_job {
    eval { $self->sqlite->db->update( 'job', $update_hash, { id => $job->{id} } ) };
    my $success = $@ ? 0 : 1;
    return { success => $success, %{$update_hash} };
+}
+
+sub _add_needs {
+   my ( $self, $user, $d ) = @_;
+
+   my $needs;
+   if (ref $d->{needs} eq 'ARRAY') {
+      my @n = grep { $_ =~ /^\d{1,10}$/ } @{ $d->{needs} };
+      $needs = $self->sqlite->db->select( 'job', ['id'], { id => { '=', [@n] } } )->hashes->to_array;
+      return { success => 0, message => 'no needs found' } unless scalar @{ $needs };
+   }
+   else {
+      return { success => 0, message => 'not an array reference' };
+   }
+
+   $self->sqlite->db->delete( 'job_needs', { job_id => $d->{id} } );
+   foreach my $need ( @{$needs} ) {
+      $self->sqlite->db->insert( 'job_needs', { job_id => $d->{id}, needs_job_id => $need->{id} } );
+   }
 }
 
 sub _ping {
@@ -898,21 +922,20 @@ sub start_job {
    # arrayref of jobs in $job_info->{jobs}
    my $job_info = $self->_job_info( $user, $d );    #job info
    my $job      = shift @{ $job_info->{jobs} };
-   print "GOT THIS FAR 0\n";
    return { success => 0, message => 'command not found' } unless ref $job && $job->{id} && $job->{shell_command};
    return { success => 0, message => 'job not found' }     unless $job_info->{success} && $job_info->{id};
    return { success => 0, message => 'job is already running' } if $self->job_states->{running} == $job->{state_id};
 
-   print "GOT THIS FAR 1\n";
    if ( $job->{state_id} == $self->job_states->{ice} ) {
-      $self->update_job($user, { id => $job->{id}, state => 'fake_complete' });
+      $self->update_job( $user, { id => $job->{id}, state => 'fake_complete' } );
       return { success => 0, message => 'job on ice' };
    }
 
    # don't start if dependencies not satisfied
    while ( my ( $id, $state_id ) = each %{ $job->{needs} } ) {
       if ( !grep { $state_id == $self->job_states->{$_} } (qw(complete ice)) ) {
-      #if ( $state_id != $self->job_states->{complete} ) {
+
+         #if ( $state_id != $self->job_states->{complete} ) {
          return { success => 0, message => 'dependencies not satisfied' };
       }
    }
@@ -983,9 +1006,7 @@ sub nice_job {
    my $ssh = $self->ssh_connection->{ $job->{server_id} };
    $self->_connect_ssh( $user, { id => $job->{server_id} } ) unless $ssh && $ssh->check_master;
 
-   $ssh->system("perl -e 'setpriority(0, $job->{pid}, $d->{level}) or die'");
-
-   #$ssh->system("renice -n $d->{level} -p $job->{pid}");
+   $ssh->system("renice -n 19 -p $job->{pid}");
    return $ssh->error ? { success => 0, message => $ssh->error } : { success => 1 };
 }
 
@@ -1287,7 +1308,7 @@ sub routing {
       'login_user'  => [ \&login_user,  0, [ { token => $w }, {} ] ],
 
       # job related
-      'create_job' => [ \&create_job, 1, [ { name => $p, shell_command => $c }, { server => $w, description => $w, out_log_path => $w, err_log_path => $w } ] ],
+      'create_job' => [ \&create_job, 1, [ { name => $p, shell_command => $c }, { needs => 's', server => $w, description => $w, out_log_path => $w, err_log_path => $w } ] ],
       'read_job'   => [ \&read_job,   1, [ {}, { name => $p, id => $i, cluster_id => $i } ] ],
       'update_job' => [
          \&update_job,
@@ -1309,20 +1330,22 @@ sub routing {
                pid           => $i,
                shell_command => $c,
                started       => $i,
-               ended         => $i
+               needs         => 's',
+               ended         => $i,
             }
          ]
       ],
-      'delete_job' => [ \&delete_job, 1, [ {},              { name => $p, id => $i } ] ],
-      'start_job'  => [ \&start_job,  1, [ {},              { name => $p, id => $i } ] ],
-      'kill_job'   => [ \&kill_job,   1, [ {},              { name => $p, id => $i } ] ],
-      'nice_job'   => [ \&nice_job,   1, [ { level => $i }, { name => $p, id => $i } ] ],
-      'hold_job'   => [ \&hold_job,   1, [ {},              { name => $p, id => $i } ] ],
-      'release_job' => [ \&release_job,   1, [ {},          { name => $p, id => $i } ] ],
-      'ice_job'    => [ \&ice_job,    1, [ {},              { name => $p, id => $i } ] ],
-      'melt_job'    => [ \&melt_job,    1, [ {},            { name => $p, id => $i } ] ],
-      'finish_job' => [ \&finish_job, 1, [ {},              { name => $p, id => $i } ] ],
-      'copy_job'   => [ \&copy_job,   1, [ {},              { name => $p, id => $i, to => $p } ] ],
+      'delete_job'  => [ \&delete_job,  1, [ {}, { name => $p, id => $i } ] ],
+      'start_job'   => [ \&start_job,   1, [ {}, { name => $p, id => $i } ] ],
+      'kill_job'    => [ \&kill_job,    1, [ {}, { name => $p, id => $i } ] ],
+      'nice_job'    => [ \&nice_job,    1, [ {}, { name => $p, id => $i } ] ],
+      'hold_job'    => [ \&hold_job,    1, [ {}, { name => $p, id => $i } ] ],
+      'release_job' => [ \&release_job, 1, [ {}, { name => $p, id => $i } ] ],
+      'ice_job'     => [ \&ice_job,     1, [ {}, { name => $p, id => $i } ] ],
+      'melt_job'    => [ \&melt_job,    1, [ {}, { name => $p, id => $i } ] ],
+      'finish_job'  => [ \&finish_job,  1, [ {}, { name => $p, id => $i } ] ],
+
+      #'copy_job'   => [ \&copy_job,   1, [ {},              { name => $p, id => $i, to => $p } ] ],
 
       # cluster related
       'create_cluster' => [ \&create_cluster, 1, [ { name => $p }, { description => $w } ] ],
@@ -1332,8 +1355,7 @@ sub routing {
       'change_cluster' => [ \&change_cluster, 1, [ {}, { name => $p, id   => $i } ] ],
       'find_cluster'   => [ \&find_cluster,   1, [ {}, { name => $p, id   => $i } ] ],
       'reset_cluster'  => [ \&reset_cluster,  1, [ {}, { name => $p, id   => $i } ] ],
-
-      'start_cluster' => [ \&start_cluster, 1, [ {}, { id => $i, name => $p } ] ],
+      'start_cluster'  => [ \&start_cluster,  1, [ {}, { id   => $i, name => $p } ] ],
 
       #'copy_cluster'   => [ \&copy_cluster,   1, [ {}, { name => $p, id => $i, to => $p } ] ],
 
