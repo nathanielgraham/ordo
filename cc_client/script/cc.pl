@@ -63,6 +63,7 @@ my $update_token = sub {
    }
    else {
       $success = 1;
+      &request("read user");
       say "Using new token: $token";
    }
    return { success => $success };
@@ -162,7 +163,6 @@ my $find_cluster = sub {
          
          push @{$rows}, $row; 
 
-         #print Dumper($j);
       }
    }
    say generate_table( rows => $rows, header_row => 1 );
@@ -185,7 +185,7 @@ sub format_time {
    else {
       $end_seconds = $e || time;
       $ended = $e ? strftime("%H:%M:%S", localtime($end_seconds)) : '';
-      $row->{$_} = '' for (qw(fname pname pctmem pctcpu priority pid state));
+      #$row->{$_} = '' for (qw(fname pname pctmem pctcpu priority pid state));
    }
 
    my $epoch_seconds = $end_seconds - $s;
@@ -241,13 +241,12 @@ sub string2hash {
 
    my ( $ret, $args ) = GetOptionsFromString(
       $string, \%options, "command=s", "token=s", "state:s", "username:s",  "hostname:s", "newname:s", "password:s", "shell_command:s", "email:s",
-      "level:i", "needs:i@", "description:s", "server_id:i", "name:s",  "job_id:i",  "cluster_id:i", "server:s", "org_id:i",  "pid:i",      "to:s",            "id:s",
+      "level:i", "needs:i@", "description:s", "server_id:i", "name:s",  "job_id:i",  "cluster_id:i", "server:s", "org_id:i",  "pid:i",      "to:s", "id:s", "match:s",
    );
 
    my ( $verb, $noun, $name ) = @{$args};
 
    return { success => 0, message => 'missing verb' } unless defined $verb;
-
    unless ( $noun || exists $local_dispatch->{$verb} || exists $aliases->{$verb} ) {
       return { success => 0, message => 'missing noun' };
    }

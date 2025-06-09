@@ -8,11 +8,6 @@ use Proc::ProcessTable;
 use AnyEvent;
 use AnyEvent::HTTP;
 use FindBin       qw($Bin);
-use App::Daemon   qw( daemonize );
-$App::Daemon::logfile  = "$Bin/../logs/sysinfo.log";
-$App::Daemon::pidfile  = "$Bin/../logs/sysinfo.pid";
-
-daemonize();
 
 my $api   = 'http://127.0.0.1:3000/api';
 my $json  = JSON::PP->new->ascii->pretty->allow_nonref;
