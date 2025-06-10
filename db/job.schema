@@ -23,6 +23,7 @@ CREATE TABLE job (
         ppid integer,
         cmndline varchar,
         fname varchar,
+        state varchar,
 	exit_code integer,
 	signal integer,
 	watcher integer not null default 0,
@@ -30,8 +31,8 @@ CREATE TABLE job (
         restart_max INTEGER NOT NULL DEFAULT 0,
         restart_delay INTEGER NOT NULL DEFAULT 0,
         creation_time integer DEFAULT (strftime('%s', 'now')),
-        FOREIGN KEY(server_id) REFERENCES server(id),
-        FOREIGN KEY(cluster_id) REFERENCES cluster(id)
+        FOREIGN KEY(server_id) REFERENCES server(id) ON DELETE CASCADE,
+        FOREIGN KEY(cluster_id) REFERENCES cluster(id) ON DELETE CASCADE
 );
 
 CREATE UNIQUE INDEX job_idx1 ON job (cluster_id, name);

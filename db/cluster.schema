@@ -7,7 +7,7 @@ CREATE TABLE cluster (
   	org_id INTEGER,
   	user_id INTEGER,
   	parent_id INTEGER,
-        state_id INTEGER NOT NULL DEFAULT 1,
+        state_id INTEGER NOT NULL DEFAULT 2,
 	server_id INTEGER,
 	name varchar,
 	command varchar,
@@ -23,7 +23,5 @@ CREATE TABLE cluster (
 );
 
 CREATE UNIQUE INDEX cluster_idx1 ON cluster (org_id, name, parent_id);
-INSERT INTO cluster VALUES(3,'770',1,1,NULL,1,NULL,'myorlov',NULL,NULL,NULL,'2025-05-16 00:33:07');
-INSERT INTO cluster VALUES(4,'770',1,1,NULL,1,NULL,'pdpd',NULL,NULL,NULL,'2025-05-16 00:55:21');
 
 COMMIT;

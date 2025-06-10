@@ -20,7 +20,6 @@ CREATE TABLE server (
         uptime integer,
         cpu real,
         ping real,
-        active integer not null default 1,
 	update_time integer,
         creation_time DEFAULT CURRENT_TIMESTAMP
 );
