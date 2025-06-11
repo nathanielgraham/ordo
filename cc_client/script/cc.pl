@@ -79,9 +79,27 @@ my $help = sub {
    return { success => 1 };
 };
 
+my $top_jobs = sub {
+   my $json     = shift;
+   my $rows = [ [qw(cmndline pid pctcpu pctmem state start)] ];
+   foreach my $j (@{ $json->{jobs} }) {
+      my $cmd = substr($j->{cmndline}, 0, 30) || $j->{fname} || '';
+      my $duration;
+      if ($j->{start}) {
+         my $s = time - $j->{start};
+         my $hours = int($s / 3600);
+         my $minutes = int(($s % 3600) / 60);
+         my $seconds = $s % 60;
+         $duration = sprintf("%02d:%02d:%02d", $hours, $minutes, $seconds);
+      }
+      push @$rows, [ $cmd, $j->{pid}, $j->{pctcpu}, $j->{pctmem}, $j->{state}, $duration ];
+   }
+   say generate_table( rows => $rows, header_row => 1 );
+};
+
 my $read_monitor = sub {
    my $json     = shift;
-   my $rows = [ [qw(ID ALIAS %MEMORY %DISK LOADAVG PING UPTIME OS ACTIVE UPDATED HOST)] ];
+   my $rows = [ [qw(ID ALIAS %MEMORY %DISK LOADAVG PING UPTIME OS UPDATED HOST)] ];
    my @servers = @{ $json->{servers} };
    for my $s (@servers) {
       my ($cpu, $pmem, $pdisk, $uptime, $ping, $conn, $update);
@@ -106,8 +124,7 @@ my $read_monitor = sub {
          $cpu = sprintf("%.2f (%i)", $s->{cpu}, $cores);
       }
 
-      $conn = $s->{connected} ? 'yes' : 'no';
-      push @$rows, [ $s->{id}, $s->{name}, $pmem, $pdisk, $cpu, $ping, $uptime, $s->{os}, $conn, $update, $s->{hostname} ];
+      push @$rows, [ $s->{id}, $s->{name}, $pmem, $pdisk, $cpu, $ping, $uptime, $s->{os}, $update, $s->{hostname} ];
    }
    say generate_table( rows => $rows, header_row => 1 );
 };
@@ -203,6 +220,7 @@ my $remote_dispatch = {
    read_user      => $read_user,
    find_cluster   => $find_cluster,
    read_monitor    => $read_monitor,
+   top_jobs    => $top_jobs,
 };
 
 my $local_dispatch = {
@@ -241,7 +259,7 @@ sub string2hash {
 
    my ( $ret, $args ) = GetOptionsFromString(
       $string, \%options, "command=s", "token=s", "state:s", "username:s",  "hostname:s", "newname:s", "password:s", "shell_command:s", "email:s",
-      "level:i", "needs:i@", "description:s", "server_id:i", "name:s",  "job_id:i",  "cluster_id:i", "server:s", "org_id:i",  "pid:i",      "to:s", "id:s", "match:s",
+      "level:i", "count:i", "needs:i@", "sort:s", "description:s", "server_id:i", "name:s",  "job_id:i",  "cluster_id:i", "server:s", "org_id:i",  "pid:i",      "to:s", "id:s", "match:s",
    );
 
    my ( $verb, $noun, $name ) = @{$args};
