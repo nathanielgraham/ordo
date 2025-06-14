@@ -81,7 +81,7 @@ my $help = sub {
 
 my $top_jobs = sub {
    my $json     = shift;
-   my $rows = [ [qw(cmndline pid pctcpu pctmem state start)] ];
+   my $rows = [ [qw(cmndline pid pctcpu pctmem state duration)] ];
    foreach my $j (@{ $json->{jobs} }) {
       my $cmd = substr($j->{cmndline}, 0, 30) || $j->{fname} || '';
       my $duration;
@@ -90,7 +90,8 @@ my $top_jobs = sub {
          my $hours = int($s / 3600);
          my $minutes = int(($s % 3600) / 60);
          my $seconds = $s % 60;
-         $duration = sprintf("%02d:%02d:%02d", $hours, $minutes, $seconds);
+         $duration = sprintf("%.2f h", (time - $j->{start}) / 3600);
+         #$duration = sprintf("%02d:%02d:%02d", $hours, $minutes, $seconds);
       }
       push @$rows, [ $cmd, $j->{pid}, $j->{pctcpu}, $j->{pctmem}, $j->{state}, $duration ];
    }
@@ -153,7 +154,8 @@ my $find_cluster = sub {
       my $cluster_id = pop @{$part} || 0;
       my $c          = $cluster{$cluster_id};
       my ($started, $ended, $duration) = format_time($c);
-      push @{$rows}, [ $c->{id}, $colored, $c->{jobstate},'','','','','','','','',$started,$ended,$duration ];
+      my $needs = join(' ', keys %{ $c->{needs}});
+      push @{$rows}, [ $c->{id}, $colored, $c->{jobstate},$needs,'','','','','','','',$started,$ended,$duration ];
 
       next unless $cluster{$cluster_id}->{jobs};
 

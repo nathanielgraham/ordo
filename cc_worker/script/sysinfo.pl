@@ -3,11 +3,11 @@
 use strict;
 use warnings;
 use local::lib;
+use LWP::UserAgent;
 use JSON::PP;
+#use Time::HiRes qw(sleep);
 use Proc::ProcessTable;
-use AnyEvent;
-use AnyEvent::HTTP;
-use FindBin       qw($Bin);
+use FindBin qw($Bin);
 
 my $api   = 'http://127.0.0.1:3000/api';
 my $json  = JSON::PP->new->ascii->pretty->allow_nonref;
@@ -31,44 +31,36 @@ my $update_payload = sub {
      : $os eq 'darwin'  ? &darwin_info
      :                    &linux_info;
 
-   my ($found, $zombies) = &pid_info($pids);
+   my ( $found, $zombies ) = &pid_info($pids);
    return $json->encode( { token => $token, id => $id, command => 'update_sysinfo', %$sysinfo, pids => $found, zombies => $zombies } );
 };
 
-# Create event loop
-my $cv = AnyEvent->condvar;
+# Create a user agent object
+my $ua = LWP::UserAgent->new;
 
-# Set up timer for periodic requests
-my $timer;
-$timer = AnyEvent->timer(
-   after    => 0,      # Start immediately
-   interval => 4,
-   cb       => sub {
+while (1) {
+   my $encoded = &$update_payload;
+   my $response = $ua->post(
+      $api,
+      Content_Type => 'application/json',
+      Content      => $encoded
+   );
 
-      my $encoded = &$update_payload;
-
-      # Make non-blocking HTTP request
-      http_post $api, $encoded, sub {
-         my ( $body, $hdr ) = @_;
-
-         if ( $hdr->{Status} =~ /^2/ ) {
-            my $args = decode_json($body) or die "unable to parse json: $!";
-            if ( $args->{exit} || $args->{success} == 0 ) {
-               undef $timer;
-               exit;
-            }
-            $pids = $args->{pids};
-         }
-         else {
-            undef $timer;
-            exit;
-         }
-      };
+   if ( $response->is_success ) {
+      my $body = $response->decoded_content;
+      my $args = decode_json($body) or die "unable to parse json: $!";
+      if ( $args->{exit} || $args->{success} == 0 ) {
+         exit;
+      }
+      $pids = $args->{pids};
    }
-);
+   else {
+      exit;
+   }
 
-# Start the event loop
-$cv->recv;
+   # Sleep for 4 seconds
+   sleep(4);
+}
 
 sub windows_info {
    my %sysinfo;
@@ -242,8 +234,8 @@ sub pid_info {
       };
    }
 
-   my @found = map { $pid{$_} } grep { exists $pid{$_} } @$pids;
+   my @found   = map  { $pid{$_} } grep { exists $pid{$_} } @$pids;
    my @zombies = grep { !exists $pid{$_} } @$pids;
-   return (\@found, \@zombies);
+   return ( \@found, \@zombies );
 }
 
