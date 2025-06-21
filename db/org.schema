@@ -7,10 +7,8 @@ CREATE TABLE org (
         bookmark varchar,
         name varchar,
         description varchar,
-        creation_time DEFAULT CURRENT_TIMESTAMP,
+        creation_time integer DEFAULT (strftime('%s', 'now')),
         FOREIGN KEY(user_id) REFERENCES user(id)
 );
-
---INSERT INTO org (user_id, name) VALUES(1,'org_1');
 
 COMMIT;

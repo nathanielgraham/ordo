@@ -3,12 +3,13 @@ BEGIN TRANSACTION;
 DROP TABLE IF EXISTS cluster;
 CREATE TABLE cluster (
         id INTEGER PRIMARY KEY NOT NULL,
-  	mode varchar NOT NULL DEFAULT 770,
+  	mode varchar NOT NULL DEFAULT '770',
   	org_id INTEGER,
   	user_id INTEGER,
   	parent_id INTEGER,
         state_id INTEGER NOT NULL DEFAULT 2,
 	server_id INTEGER,
+	crontab varchar,
 	name varchar,
 	command varchar,
 	description varchar,
@@ -16,7 +17,7 @@ CREATE TABLE cluster (
 	started INTEGER,
 	ended INTEGER,
         creation_time integer DEFAULT (strftime('%s', 'now')),
-  	FOREIGN KEY(org_id) REFERENCES org(id),
+  	FOREIGN KEY(org_id) REFERENCES org(id) on DELETE CASCADE,
   	FOREIGN KEY(user_id) REFERENCES user(id),
   	FOREIGN KEY(server_id) REFERENCES server(id),
   	FOREIGN KEY(parent_id) REFERENCES cluster(id)

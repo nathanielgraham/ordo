@@ -4,13 +4,15 @@ use Mojo::SQLite;
 use ordo::Model::User;
 use JSON;
 use Digest::SHA qw(hmac_sha1_hex);
-use FindBin     qw($Bin);
+use FindBin qw($Bin);
 use Net::OpenSSH;
 use Sys::Hostname;
 use POSIX ":sys_wait_h";
+use EV;
+use Algorithm::Cron;
 use Data::Dumper;
 
-# TODO: inheritance, threshholds, dependencies, monitor time series stats, org_id security
+# TODO: logs, threshholds, time series stats, timers
 $SIG{CHLD} = sub {
    1 while ( ( waitpid( -1, WNOHANG ) ) > 0 );
 };
@@ -20,7 +22,11 @@ has 'user' => sub {
 };
 
 has 'ssh_connection' => sub {
-   state $user = {};
+   state $ssh = {};
+};
+
+has 'crontab' => sub {
+   state $timer = {};
 };
 
 # This method will run once at server start
@@ -31,11 +37,13 @@ sub startup {
    # Configure the application
    $self->secrets( [ 'gu$!$#UessM%#eI36#$fYo43@#$uC^%5an', '%!#GDA$#!gfds%#@sdf' ] );
 
+   #my $log = Mojo::Log->new(path => '/tmp/mojo.log', level => 'fatal'); # new log instance
+   #$self->log($log); # tell app to use new log instance
+
    # Helpers
    $self->helper( request => \&request );
    $self->helper( routing => \&routing );
    $self->helper( sqlite  => sub { state $sql = Mojo::SQLite->new("$Bin/../db/ordo.db"); $sql->db->query('PRAGMA foreign_keys = ON;') } );
-   $self->sqlite->db->query('PRAGMA foreign_keys = ON;');
 
    my $states = $self->sqlite->db->select( 'job_states', ['*'] )->hashes->to_array;
    $self->helper(
@@ -134,7 +142,7 @@ sub request {
             my $regex = $required->{$param} || $optional->{$param};
 
             # check that param matches regex
-            unless ( $regex eq 's' || $params->{$param} =~ $regex ) {
+            unless ( ($regex eq 's' && ref $params->{$param} eq 'ARRAY') || $params->{$param} =~ $regex ) {
                $error      = 1;
                $bad_option = $param;
                last;
@@ -142,7 +150,7 @@ sub request {
          }
          $response =
            $error
-           ? { success => 0, message => "invalid option: $bad_option" }
+           ? { success => 0, message => "validation failed: $bad_option" }
            : &$sub( $self, $user, {%$params} );
       }
    }
@@ -194,7 +202,7 @@ sub read_cluster {
    my $c           = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id, org_id => $user->org_id } )->hash;
    my $is_readable = $self->is_readable( $user, $c );
    return { success => 0, message => 'you do not have permission to read this cluster' } unless $is_readable;
-   my @fields = qw(id next_start command mode org_id user_id parent_id server_id state_id name description started ended);
+   my @fields = qw(id crontab next_start command mode org_id user_id parent_id server_id state_id name description started ended);
    my %rv     = map { $_, $c->{$_} } @fields;
    if ( $rv{state_id} ) {
       $rv{jobstate} = $self->sqlite->db->select( 'job_states', ['state'], { id => $rv{state_id} } )->hash->{state};
@@ -236,7 +244,6 @@ sub start_cluster {
       $self->start_job( $user, $j );
    }
    return { success => 1 };
-   return { success => 0, message => 'no jobs in cluster' };
 }
 
 sub _reset_cluster {
@@ -317,24 +324,27 @@ sub update_cluster {
    return $cluster_info if $cluster_info->{success} == 0;
    my $cluster_id = $cluster_info->{id};
 
-   return { success => 0, message => 'cluster not found' } if defined $cluster_id && $cluster_id == 0;
-   if ($cluster_id) {
-      my $top         = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id, org_id => $user->org_id } )->hash;
-      my $is_writable = $self->is_writable( $user, $top );
-      return { success => 0, message => 'you do not have permission to write to this cluster' } unless $is_writable;
-   }
+   #return { success => 0, message => 'cluster not found' } if defined $cluster_id && $cluster_id == 0;
+   return { success => 0, message => 'cluster not found' } unless $cluster_id;
+   my $top         = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id, org_id => $user->org_id } )->hash;
+   my $is_writable = $self->is_writable( $user, $top );
+   return { success => 0, message => 'you do not have permission to write to this cluster' } unless $is_writable;
 
-   my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(description)) };
+   my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(description crontab)) };
    $update_hash->{name} = $d->{newname} if $d->{newname};
 
    eval {
       my $tx = $self->sqlite->db->begin;
+      if ($d->{crontab}) {
+         $self->crontab->{$cluster_id} = $self->_create_crontab($user, { id => $cluster_id, crontab => $d->{crontab} }); 
+         die unless $self->crontab->{$cluster_id};
+      }
       $self->sqlite->db->update( 'cluster', $update_hash, { id => $cluster_id } )       if scalar keys %{$update_hash};
       $self->_write_cluster_needs( $user, { id => $cluster_id, needs => $d->{needs} } ) if $d->{needs};
       $tx->commit;
    };
    my $success = $@ ? 0 : 1;
-   return { success => $success, id => $cluster_id };
+   return $@ ? { success => 0, message => $@ } : { success => 1, id => $cluster_id };
 }
 
 sub delete_cluster {
@@ -362,7 +372,10 @@ sub delete_cluster {
       }
 
       # delete cluster
-      eval { $self->sqlite->db->delete( 'cluster', { id => $c->{id} } ); };
+      eval { 
+         $self->sqlite->db->delete( 'cluster', { id => $c->{id} } );
+         delete $self->crontab->{ $c->{id} };
+      };
    }
 
    my $success = $@ ? 0 : 1;
@@ -400,14 +413,20 @@ sub create_cluster {
       name      => $name,
    };
 
+   $insert_hash->{mode} = $user_info->{mode} if $user_info->{mode};
+
    my $id;
    eval {
       my $tx = $self->sqlite->db->begin;
       $id = $self->sqlite->db->insert( 'cluster', $insert_hash )->last_insert_id;
+      if ($d->{crontab}) {
+         $self->crontab->{$cluster_id} = $self->_create_crontab($user, { id => $id, crontab => $d->{crontab} });
+         die unless $self->crontab->{$id};
+      }
       $self->_write_cluster_needs( $user, { id => $id, needs => $d->{needs} } ) if $d->{needs};
       $tx->commit;
    };
-   return $id ? { success => 1, id => $id } : { success => 0 };
+   return $id ? { success => 1, id => $id } : { success => 0, message => $@ };
 }
 
 sub change_cluster {
@@ -527,7 +546,7 @@ sub create_user {
          $cluster_id = $cluster->{id};
       }
       else {
-         $cluster_id = $db->insert( 'cluster', { org_id => $org_id, name => 'monitors' } )->last_insert_id;
+         $cluster_id = $db->insert( 'cluster', { org_id => $org_id, name => 'monitors', mode => 550 } )->last_insert_id;
       }
 
       # generate login token
@@ -536,7 +555,7 @@ sub create_user {
       $user_insert->{base_cluster_id} = $cluster_id;
       $user_insert->{token}           = $token;
       $user_id                        = $db->insert( 'user', $user_insert )->last_insert_id;
-      $db->update( 'org', { user_id => $user_id, name => "org_$user_id" }, { id => $org_id } );
+      $db->update( 'org', { user_id => $user_id }, { id => $org_id } );
       $db->update( 'cluster', { user_id => $user_id }, { id => $cluster_id } );
       $tx->commit;
    };
@@ -560,6 +579,7 @@ sub read_user {
       level           => $info->{level},
       email           => $info->{email},
       base_cluster_id => $info->{base_cluster_id},
+      mode            => $info->{mode},
       remote_address  => $user->remote_address,
       hostname        => hostname(),
       path            => $path,
@@ -688,6 +708,7 @@ sub _is_stale {
    my $updated = time - $job->{last_update};
    if ( ( grep { $job->{state_id} == $self->job_states->{$_} } (qw(running watching)) ) && $updated > 20 ) {
       $self->update_job( $user, { id => $job->{id}, state => 'stale' } );
+      $job->{state_id} = $self->job_states->{stale};
       $self->_reset_stats( $user, { id => $job->{id} } );
       return 1;
    }
@@ -726,7 +747,7 @@ sub create_job {
    elsif ( $d->{needs} ) {
       $self->_write_job_needs( $user, { needs => $d->{needs}, id => $id } );
    }
-   return { success => 1, job_id => $j->{id}, cluster_id => $j->{cluster_id} };
+   return { success => 1, id => $id, cluster_id => $j->{cluster_id} };
 }
 
 sub read_job {
@@ -1149,7 +1170,6 @@ sub start_job {
    my $cmd      = "perl cc_worker/script/launcher.pl $json_hex";
 
    $ssh->spawn($cmd);
-
    #$ssh->system($cmd);
 
    if ( $ssh->error ) {
@@ -1157,7 +1177,6 @@ sub start_job {
       return { success => 0, message => $ssh->error };
    }
    else {
-      #$self->update_job( $user, { state => 'starting', started => time, ended => undef }, { id => $job->{id} } );
       return { success => 1 };
    }
 }
@@ -1304,11 +1323,8 @@ sub create_monitor {
 
       my $cwd = $server->{cwd} || '';
 
-      #$self->delete_job($user, { name => $d->{name}, cluster_id => $cluster_id } );
-      my $rv = $self->create_job( $user, { name => $d->{name}, cluster_id => $cluster_id, shell_command => "$cwd/cc_worker/script/sysinfo.pl $json", server_id => $id } );
-      $self->start_job( $user, { id => $rv->{id} } ) if $rv->{success};
-
-      return { id => $id, success => 1, message => 'connected' };
+      my $rv = $self->create_job( $user, { name => "/monitors/$d->{name}", shell_command => "$cwd/cc_worker/script/sysinfo.pl $json", server_id => $id } );
+      return $self->start_job( $user, { id => $rv->{id} } ) if $rv->{success};
    }
 }
 
@@ -1443,39 +1459,40 @@ sub delete_monitor {
    return { success => $success };
 }
 
-sub addcron {
-   my ( $self, $connection_id, $decoded ) = @_;
-   my $user = $self->app->user->{$connection_id};
-   my $set  = DateTime::Event::Cron->from_cron( cron => $decoded->{crontab}, after => DateTime->now );
-   my $db   = $self->app->sqlite->db;
-   $db->update( 'container', { crontab => $decoded->{crontab} }, { id => $decoded->{crontainer_id} } );
+# crontab related subroutines
 
-   my $w = EV::periodic_ns(
-      0, 0,
+sub _create_crontab {
+   my ( $self, $user, $d ) = @_;
+   # cluster_id crontab
+
+   my $cron;
+   eval {
+      $cron = Algorithm::Cron->new(
+         base => 'local',
+         crontab => $d->{crontab},
+      );
+   };
+
+   return if $@;
+
+   if ( $self->crontab->{ $d->{id} } ) {
+      $self->crontab->{ $d->{id} }->stop;
+      delete $self->crontab->{ $d->{id} };
+   }
+
+   #$self->crontab->{ $d->{id} } = EV::periodic_ns (
+   $self->crontab->{ $d->{id} } = EV::periodic (
+      0,
+      0,
       sub {
-         my ( $w, $now ) = @_;
-         my $set  = DateTime::Event::Cron->new( $decoded->{crontab} );
-         my $iter = $set->iterator( after => DateTime->from_epoch( epoch => $now ) );
-         return $iter->next( DateTime->from_epoch( epoch => $now ) )->epoch;
-
-         #return $iter->next(DateTime->from_epoch(epoch => $now, time_zone => $local_TZ))->epoch;
+         my ($watcher, $now) = @_;
+         return $cron->next_time($now);
       },
       sub {
-         # start container if status = A
-         my ( $w, $now ) = @_;
-         my $status = $db->select( 'container', ['status'], { id => $decoded->{crontainer_id} } )->hash->{id};
-         if ( $status eq 'A' ) {
-
-            #$w->start;
-            $self->start_container( container_id => $decoded->{crontainer_id} );
-         }
-
-         # start timer if container status = A
-         # $w->start;
+         $self->start_cluster($user, { id => $d->{id} });
+         print "start cluster: $d->{id} " . time . "\n";
       }
    );
-   $self->app->timers->{ $decoded->{container_id} } = $w;
-   $user->tx->send( encode_json( { response => 'crontab installed', crontab => $decoded->{crontab} } ) );
 }
 
 # command routing
@@ -1486,9 +1503,11 @@ sub routing {
    state $f  = qr/^[\d\.]{1,20}$/;          # float
    state $p  = qr/^[\w\/\@\:\.]{1,50}$/;    # path
    state $e  = qr/^[\w\.\@]{1,50}$/;        # email
-                                            #state $c  = qr/^[\w\/\@\:\.\s\-\(\)\"\']{1,50}$/;    # shell command
+                                            # state $c  = qr/^[\w\/\@\:\.\s\-\(\)\"\']{1,50}$/;    # shell command
    state $c  = qr/.{1,60}/;                 # shell command
    state $pw = qr/^.{8,20}$/;               # password
+   state $ct = qr/^(\S{1,12})\s+(\S{1,12})\s+(\S{1,12})\s+(\S{1,12})\s+(\S{1,12})(\s+(\S{1,12}))?$/;         # crontab
+   #state $ct =  qr/.{1,60}/;
 
    state %routing = (
 
@@ -1542,15 +1561,14 @@ sub routing {
       #'copy_job'   => [ \&copy_job,   1, [ {},              { name => $p, id => $i, to => $p } ] ],
 
       # cluster related
-      'create_cluster' => [ \&create_cluster, 1, [ { name => $p }, { needs => 's', description => $w } ] ],
+      'create_cluster' => [ \&create_cluster, 1, [ { name => $p }, { needs => 's', description => $w, crontab => $ct } ] ],
       'read_cluster'   => [ \&read_cluster,   1, [ {},             { name  => $p,  id          => $i } ] ],
-      'update_cluster' => [ \&update_cluster, 1, [ {}, { id   => $i, name => $p, needs => 's', newname => $w, description => $w } ] ],
+      'update_cluster' => [ \&update_cluster, 1, [ {}, { id => $i, name => $p, needs => 's', newname => $w, description => $w, crontab => $ct } ] ],
       'delete_cluster' => [ \&delete_cluster, 1, [ {}, { name => $p, id   => $i } ] ],
       'change_cluster' => [ \&change_cluster, 1, [ {}, { name => $p, id   => $i } ] ],
       'find_cluster'   => [ \&find_cluster,   1, [ {}, { name => $p, id   => $i } ] ],
       'reset_cluster'  => [ \&reset_cluster,  1, [ {}, { name => $p, id   => $i } ] ],
       'start_cluster'  => [ \&start_cluster,  1, [ {}, { id   => $i, name => $p } ] ],
-
       #'copy_cluster'   => [ \&copy_cluster,   1, [ {}, { name => $p, id => $i, to => $p } ] ],
 
       # monitor related
@@ -1585,4 +1603,7 @@ sub routing {
    );
    return \%routing;
 }
+
+EV::run;
+
 1;

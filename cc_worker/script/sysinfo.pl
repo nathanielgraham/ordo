@@ -17,19 +17,12 @@ my $token = $args->{token}       or die "missing token";
 my $id    = $args->{id}          or die "missing server id";
 my $pids  = [];
 
-# system info
-
-my ($os) =
-    $^O =~ /MSWin32/i ? 'windows'
-  : $^O =~ /darwin/i  ? 'darwin'
-  :                     'linux';
-
 my $update_payload = sub {
 
    my $sysinfo =
-       $os eq 'windows' ? &windows_info
-     : $os eq 'darwin'  ? &darwin_info
-     :                    &linux_info;
+       $^O =~ /MSWin32/i ? &windows_info
+     : $^O =~ /darwin/i  ? &darwin_info
+     :                     &linux_info;
 
    my ( $found, $zombies ) = &pid_info($pids);
    return $json->encode( { token => $token, id => $id, command => 'update_sysinfo', %$sysinfo, pids => $found, zombies => $zombies } );
@@ -58,7 +51,6 @@ while (1) {
       exit;
    }
 
-   # Sleep for 4 seconds
    sleep(4);
 }
 

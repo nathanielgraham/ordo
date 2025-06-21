@@ -1,12 +1,7 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
-use FindBin qw($Bin);
 use CPAN;
-
-
-#my $json = pop @ARGV;
-#die "missing token" unless $json;
 
 # Install from CPAN with defaults
 $ENV{PERL_MM_USE_DEFAULT} = 1;
@@ -26,8 +21,5 @@ local::lib->import;
 
 CPAN::Shell->install(qw(install Sys::Hostname));
 CPAN::Shell->install(qw(install Proc::ProcessTable));
-CPAN::Shell->install(qw(install AnyEvent));
-CPAN::Shell->install(qw(install AnyEvent::HTTP));
-CPAN::Shell->install(qw(install App::Daemon));
 CPAN::Shell->install(qw(install File::HomeDir));
 exit 0;

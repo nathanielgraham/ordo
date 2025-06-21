@@ -261,7 +261,7 @@ sub string2hash {
 
    my ( $ret, $args ) = GetOptionsFromString(
       $string, \%options, "command=s", "token=s", "state:s", "username:s",  "hostname:s", "newname:s", "password:s", "shell_command:s", "email:s",
-      "level:i", "count:i", "needs:i@", "sort:s", "description:s", "server_id:i", "name:s",  "job_id:i",  "cluster_id:i", "server:s", "org_id:i",  "pid:i",      "to:s", "id:s", "match:s",
+      "level:i", "crontab:s", "count:i", "needs:i@", "sort:s", "description:s", "server_id:i", "name:s",  "job_id:i",  "cluster_id:i", "server:s", "org_id:i",  "pid:i",      "to:s", "id:s", "match:s",
    );
 
    my ( $verb, $noun, $name ) = @{$args};
