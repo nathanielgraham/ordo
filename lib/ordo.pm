@@ -9,7 +9,8 @@ use Net::OpenSSH;
 use Sys::Hostname;
 use POSIX ":sys_wait_h";
 use EV;
-use Algorithm::Cron;
+use DateTime;
+use DateTime::Event::Cron;
 use Data::Dumper;
 
 # TODO: logs, threshholds, time series stats, timers
@@ -25,7 +26,11 @@ has 'ssh_connection' => sub {
    state $ssh = {};
 };
 
-has 'crontab' => sub {
+has 'cron' => sub {
+   state $timer = {};
+};
+
+has 'at' => sub {
    state $timer = {};
 };
 
@@ -100,6 +105,22 @@ sub startup {
       my $user = ordo::Model::User->new( id => $s->{mid}, org_id => $s->{org_id} );
       $self->_install_monitor( $user, { id => $s->{id} } );
       $self->_start_monitor( $user, { id => $s->{id} } );
+      # run start_monitor ?
+   }
+
+   # load at timers
+   my $at_timers = $self->sqlite->db->select( 'cluster', ['*'], { at_id => { '!=', undef } } );
+   while ( my $a = $at_timers->hash ) {
+      my $user = ordo::Model::User->new( id => $a->{user_id}, org_id => $a->{org_id} );
+      my $at = $self->_create_at_object($user, { at_id => $a->{at_id}, cluster_id => $a->{id} });
+   }
+
+   # load cron timers
+   # TODO add time zone to at and cron tables
+   my $cron_timers = $self->sqlite->db->select( 'cluster', ['*'], { cron_id => { '!=', undef } } );
+   while ( my $a = $cron_timers->hash ) {
+      my $user = ordo::Model::User->new( id => $a->{user_id}, org_id => $a->{org_id} );
+      $self->_create_cron_object($user, { cron_id => $a->{cron_id}, cluster_id => $a->{id} });
    }
 }
 
@@ -202,13 +223,40 @@ sub read_cluster {
    my $c           = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id, org_id => $user->org_id } )->hash;
    my $is_readable = $self->is_readable( $user, $c );
    return { success => 0, message => 'you do not have permission to read this cluster' } unless $is_readable;
-   my @fields = qw(id crontab next_start command mode org_id user_id parent_id server_id state_id name description started ended);
+
+   #my @fields = qw(id cron at cal cal_id next_start command mode org_id user_id parent_id server_id state_id name description started ended);
+   my @fields = qw(id cal_id cron_id at_id next_start command mode org_id user_id parent_id server_id state_id name description started ended);
    my %rv     = map { $_, $c->{$_} } @fields;
-   if ( $rv{state_id} ) {
-      $rv{jobstate} = $self->sqlite->db->select( 'job_states', ['state'], { id => $rv{state_id} } )->hash->{state};
+   $rv{at} = $self->sqlite->db->select( 'at', ['value'], { id => $c->{at_id} } )->hash->{value} if $c->{at_id};
+   $rv{cron} = $self->sqlite->db->select( 'cron', ['value'], { id => $c->{cron_id} } )->hash->{value} if $c->{cron_id};
+   if ($c->{cal_id}) {
+      $rv{cal} = {}; # TODO
    }
+   $rv{jobstate} = $self->sqlite->db->select( 'job_states', ['state'], { id => $rv{state_id} } )->hash->{state} if $rv{state_id};
    $rv{needs} = $self->_read_cluster_needs( $user, { id => $cluster_id } );
    return { success => 1, %rv };
+}
+
+sub _set_cluster_state {
+   my ( $self, $user, $d ) = @_;
+   # id state
+
+   my $state_id = $self->job_states->{ $d->{state} };
+   return unless $state_id;
+   
+   my $update_hash = { state_id => $state_id };
+
+   if ($d->{state} == 'running') {
+      $update_hash->{started} = time;
+      $update_hash->{ended} = undef;
+   }
+   elsif ($d->{state} == 'complete') {
+      $update_hash->{ended} = time;
+   }
+   elsif ($d->{state} == 'failed') {
+      $update_hash->{ended} = time;
+   }
+   $self->sqlite->db->update( 'cluster', $update_hash, { id => $d->{id} } );
 }
 
 sub start_cluster {
@@ -223,27 +271,56 @@ sub start_cluster {
    # check jobs are in ready state
    my $complete = $self->job_states->{complete};
    my $running  = $self->job_states->{running};
+   my $failed   = $self->job_states->{failed};
    my $ready    = $self->job_states->{ready};
    my $hold     = $self->job_states->{hold};
    my $ice      = $self->job_states->{ice};
 
    return { success => 0, message => 'cluster already running' } if $cluster_info->{state_id} == $self->job_states->{running};
 
-   my $not_ready = $self->sqlite->db->select( 'job', ['id'], { cluster_id => $cluster_id, state_id => { '!=', [ -and => ( $complete, $ready, $hold, $ice ) ] } } );
-   return { success => 0, message => 'jobs not in a ready state' } if $not_ready->hash;
+   #my $jobs_ready = $self->sqlite->db->select( 'job', ['id'], { cluster_id => $cluster_id, state_id => [ ( $complete, $ready ) ] }, { limit => 1 } );
+   #return { success => 0, message => 'no jobs to start' } unless $jobs_ready->hash;
 
-   # start jobs in cluster
+   my $not_ready = $self->sqlite->db->select( 'job', ['id'], { cluster_id => $cluster_id, state_id => { '!=', [ -and => ( $complete, $ready, $hold, $ice ) ] } }, { limit => 1 } );
+   return { success => 0, message => 'jobs not ready' } if $not_ready->hash;
+
    $self->_reset_cluster( $user, { id => $cluster_id } );
 
-   eval { $self->sqlite->db->update( 'cluster', { started => time, state_id => $running }, { id => $cluster_id } ) };
    return { success => 0, message => $@ } if $@;
 
-   my $results = $self->sqlite->db->select( 'job', ['id'], { cluster_id => $cluster_id, state_id => { '=', [$ready] } } )->hashes;
+   my $results = $self->sqlite->db->select('job', ['id'], { cluster_id => $cluster_id, state_id => { '=', [$ready] } }, { -desc => 'id' } )->hashes;
 
+   my $jobs_started = 0;
+   my $jobs_failed = 0;
+   my $jobs_skipped = 0;
+   my $error;
    foreach my $j ( @{ $results->to_array } ) {
-      $self->start_job( $user, $j );
+      my $rv = $self->start_job( $user, $j );
+      if ( $rv->{success} ) {
+         $jobs_started++;
+      }
+      elsif ( $rv->{skipped} ) {
+         $jobs_skipped++;
+      }
+      else {
+         $jobs_failed++;
+         $error = $rv->{message};
+      }
    }
-   return { success => 1 };
+
+   if ($jobs_failed) {
+      $self->_set_cluster_state($user, { state => 'failed', id => $cluster_id });
+      return { success => 0, message => "$jobs_failed failed jobs: $error" };
+   }
+   elsif ($jobs_started) {
+      $self->_set_cluster_state($user, { state => 'running', id => $cluster_id });
+      return { success => 1, message => "$jobs_started jobs started, $jobs_skipped jobs skipped" };
+   }
+   else {
+      $self->_set_cluster_state($user, { state => 'running', id => $cluster_id });
+      $self->_set_cluster_state($user, { state => 'complete', id => $cluster_id });
+      return { success => 1, message => "nothing to start" };
+   }
 }
 
 sub _reset_cluster {
@@ -324,27 +401,57 @@ sub update_cluster {
    return $cluster_info if $cluster_info->{success} == 0;
    my $cluster_id = $cluster_info->{id};
 
-   #return { success => 0, message => 'cluster not found' } if defined $cluster_id && $cluster_id == 0;
    return { success => 0, message => 'cluster not found' } unless $cluster_id;
    my $top         = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id, org_id => $user->org_id } )->hash;
    my $is_writable = $self->is_writable( $user, $top );
    return { success => 0, message => 'you do not have permission to write to this cluster' } unless $is_writable;
 
-   my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(description crontab)) };
+   my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(description)) };
    $update_hash->{name} = $d->{newname} if $d->{newname};
 
    eval {
-      my $tx = $self->sqlite->db->begin;
-      if ($d->{crontab}) {
-         $self->crontab->{$cluster_id} = $self->_create_crontab($user, { id => $cluster_id, crontab => $d->{crontab} }); 
-         die unless $self->crontab->{$cluster_id};
-      }
+      $self->_update_timers($user, $d) or die "unable to load timer";
       $self->sqlite->db->update( 'cluster', $update_hash, { id => $cluster_id } )       if scalar keys %{$update_hash};
       $self->_write_cluster_needs( $user, { id => $cluster_id, needs => $d->{needs} } ) if $d->{needs};
-      $tx->commit;
    };
    my $success = $@ ? 0 : 1;
    return $@ ? { success => 0, message => $@ } : { success => 1, id => $cluster_id };
+}
+
+sub _update_timers {
+   my ( $self, $user, $d ) = @_;
+   my $cluster_info = $self->read_cluster( $user, $d );
+   my $cluster_id = $cluster_info->{id};
+   my $update_hash = {};
+   eval {
+      if (defined $d->{at}) {
+         $self->_delete_at($user, { at_id => $cluster_info->{at_id} }) if $cluster_info->{at_id};
+         return 1 unless $d->{at};
+         my $at_id = $self->_create_at_row($user, { at => $d->{at} }) or die "unable to create at row";
+         $self->_create_at_object($user, { at_id => $at_id, cluster_id => $cluster_id }) or die "invalid at";
+         $update_hash->{at_id} = $at_id;
+         $self->_delete_cron($user, { cron_id => $cluster_info->{cron_id} }) if $cluster_info->{cron_id};
+         $self->_delete_cal($user, { cal_id => $cluster_info->{cal_id} }) if $cluster_info->{cal_id};
+      }
+      elsif (defined $d->{cron}) {
+         $self->_delete_cron($user, { cron_id => $cluster_info->{cron_id} }) if $cluster_info->{cron_id};
+         return 1 unless $d->{cron};
+         my $cron_id = $self->_create_cron_row($user, { cron => $d->{cron}, tz => $d->{tz} }) or die "unable to create cron row";
+         $self->_create_cron_object($user, { cron_id => $cron_id, cluster_id => $cluster_id }) or die "invalid cron";
+         $update_hash->{cron_id} = $cron_id;
+         $self->_delete_at($user, { at_id => $cluster_info->{at_id} }) if $cluster_info->{at_id};
+         $self->_delete_cal($user, { cal_id => $cluster_info->{cal_id} }) if $cluster_info->{cal_id};
+      }
+      elsif (defined $d->{cal_id}) {
+         $self->_delete_cal($user, { cal_id => $cluster_info->{cal_id} }) if $cluster_info->{cal_id};
+         return 1 unless $d->{cal_id};
+         $update_hash->{cal_id} = $d->{cal_id};
+         $self->_delete_at($user, { at_id => $cluster_info->{at_id} }) if $cluster_info->{at_id};
+         $self->_delete_cron($user, { cron_id => $cluster_info->{cron_id} }) if $cluster_info->{cron_id};
+      }
+      $self->sqlite->db->update( 'cluster', $update_hash, { id => $cluster_id } ) if scalar keys %{$update_hash};
+   };
+   return $@ ? 0 : 1;
 }
 
 sub delete_cluster {
@@ -374,7 +481,7 @@ sub delete_cluster {
       # delete cluster
       eval { 
          $self->sqlite->db->delete( 'cluster', { id => $c->{id} } );
-         delete $self->crontab->{ $c->{id} };
+         delete $self->cron->{ $c->{id} };
       };
    }
 
@@ -417,16 +524,11 @@ sub create_cluster {
 
    my $id;
    eval {
-      my $tx = $self->sqlite->db->begin;
       $id = $self->sqlite->db->insert( 'cluster', $insert_hash )->last_insert_id;
-      if ($d->{crontab}) {
-         $self->crontab->{$cluster_id} = $self->_create_crontab($user, { id => $id, crontab => $d->{crontab} });
-         die unless $self->crontab->{$id};
-      }
+      $self->_update_timers($user, { %$d, id => $cluster_id });
       $self->_write_cluster_needs( $user, { id => $id, needs => $d->{needs} } ) if $d->{needs};
-      $tx->commit;
    };
-   return $id ? { success => 1, id => $id } : { success => 0, message => $@ };
+   return $@ ? { success => 0, message => $@ } : { success => 1, id => $id };
 }
 
 sub change_cluster {
@@ -763,7 +865,7 @@ sub delete_job {
    my $job = $self->_job_info( $user, $d );
    return { success => 0, message => 'job not found' } unless $job->{id};
    eval {
-      $self->update_job( $user, { id => $job->{id}, state => 'running' } );
+      #$self->update_job( $user, { id => $job->{id}, state => 'running' } );
       $self->sqlite->db->delete( 'job', { id => $job->{id} } );
    };
    return $@ ? { success => 0, message => $@ } : { success => 1, id => $job->{id} };
@@ -845,13 +947,16 @@ sub update_job {
 
          }
          else {
-            $self->sqlite->db->update( 'cluster', { state_id => $self->job_states->{running}, started => time, ended => undef }, { id => $job->{cluster_id} } );
+            $self->_set_cluster_state($user, { state => 'running', id => $job->{cluster_id} });
+
+            #$self->sqlite->db->update( 'cluster', { state_id => $self->job_states->{running}, started => time, ended => undef }, { id => $job->{cluster_id} } );
          }
       }
       elsif ( grep { $d->{state} eq $_ } (qw(failed killed zombie)) ) {
          $update_hash->{ended} = time;
          $self->_reset_stats( $user, { id => $job->{id} } );
-         $self->sqlite->db->update( 'cluster', { state_id => $self->job_states->{failed}, ended => time }, { id => $job->{cluster_id} } );
+         $self->_set_cluster_state($user, { state => 'failed', id => $job->{cluster_id} });
+         #$self->sqlite->db->update( 'cluster', { state_id => $self->job_states->{failed}, ended => time }, { id => $job->{cluster_id} } );
       }
       elsif ( $d->{state} eq 'complete' || $d->{state} eq 'fake_complete' ) {
 
@@ -898,7 +1003,8 @@ sub update_job {
 
          my $c = $self->sqlite->db->select( 'job', ['*'], { cluster_id => $cluster_id, state_id => { '!=', [ -and => ( $completed, $ice ) ] } } );
          if ( !$c->hash ) {
-            $self->sqlite->db->update( 'cluster', { state_id => $self->job_states->{complete}, ended => time }, { id => $job->{cluster_id} } );
+            #$self->sqlite->db->update( 'cluster', { state_id => $self->job_states->{complete}, ended => time }, { id => $job->{cluster_id} } );
+            $self->_set_cluster_state($user, { state => 'complete', id => $job->{cluster_id} });
 
             # find all clusters in ready state that just had a dependency met
 
@@ -1138,24 +1244,27 @@ sub start_job {
    my ( $self, $user, $d ) = @_;
 
    my $job = $self->_job_info( $user, $d );    #job info
-   return { success => 0, message => 'job not found' } unless $job->{id};
-   return { success => 0, message => 'job is already running' } if $self->job_states->{running} == $job->{state_id};
+   return { success => 0, skipped => 1, message => 'job not found' } unless $job->{id};
+   return { success => 0, skipped => 1, message => 'job is already running' } if $self->job_states->{running} == $job->{state_id};
 
    # skip if job on ice
    if ( $job->{state_id} == $self->job_states->{ice} ) {
       $self->update_job( $user, { id => $job->{id}, state => 'fake_complete' } );
-      return { success => 0, message => 'job on ice' };
+      return { success => 0, skipped => 1, message => 'job on ice' };
    }
 
    # don't start if dependencies not satisfied
    while ( my ( $id, $state_id ) = each %{ $job->{needs} } ) {
       if ( !grep { $state_id == $self->job_states->{$_} } (qw(complete ice)) ) {
-         return { success => 0, message => 'dependencies not satisfied' };
+         return { success => 0, skipped => 1, message => 'dependencies not satisfied' };
       }
    }
 
    my $server = $self->_server_info( $user, { id => $job->{server_id} } );
-   return { success => 0, message => 'server not found' } unless $server;
+   unless ($server) {
+      $self->update_job( $user, { id => $job->{id}, state => 'failed' } );
+      return { success => 0, message => 'server not found' };
+   }
 
    # check connection
    my $ssh = $self->ssh_connection->{ $job->{server_id} };
@@ -1425,10 +1534,15 @@ sub stop_monitor {
    return $rv;
 }
 
-# alias for start job monitor
 sub start_monitor {
    my ( $self, $user, $d ) = @_;
-   return $self->start_job( $user, $d );
+   my $server = $self->_server_info( $user, $d );
+   return { success => 0, message => 'monitor not found' } unless $server;
+
+   my $job = $self->_job_info( $user, { name => "/monitors/$server->{name}" });
+
+   return { success => 0, message => 'monitor job not found' } unless $job->{id};
+   return $self->start_job( $user, { id => $job->{id} } );
 }
 
 sub update_monitor {
@@ -1459,40 +1573,143 @@ sub delete_monitor {
    return { success => $success };
 }
 
-# crontab related subroutines
+# cron related subroutines
 
-sub _create_crontab {
+# add row to cron table and return id
+sub _create_cron_row {
    my ( $self, $user, $d ) = @_;
-   # cluster_id crontab
+   # cron tz cal_id
+
+   my $crontab = $d->{cron};
+   $crontab =~ s/^\s+|\s+$//g;
+   $crontab =~ s/\s+/ /g;
+   
+   eval {
+      my $cron = DateTime::Event::Cron->new($crontab);
+   };
+   
+   return if $@;
+
+   my $id = $self->sqlite->db->insert( 'cron', { value => $crontab, tz => $d->{tz}, cal_id => $d->{cal_id}, org_id => $user->org_id } )->last_insert_id;
+   return $id;
+}
+
+sub _create_cron_object {
+   my ( $self, $user, $d ) = @_;
+   # cron_id cluster_id tz
+
+   my $c = $self->sqlite->db->select( 'cron', ['value', 'tz'], { id => $d->{cron_id} } )->hash;
+   my $crontab = $c->{value};
+   my $tz = $c->{tz} || 'UTC';
+   return unless $crontab;
 
    my $cron;
+   
    eval {
-      $cron = Algorithm::Cron->new(
-         base => 'local',
-         crontab => $d->{crontab},
-      );
+      $cron = DateTime::Event::Cron->new($crontab);
    };
 
    return if $@;
 
-   if ( $self->crontab->{ $d->{id} } ) {
-      $self->crontab->{ $d->{id} }->stop;
-      delete $self->crontab->{ $d->{id} };
-   }
-
-   #$self->crontab->{ $d->{id} } = EV::periodic_ns (
-   $self->crontab->{ $d->{id} } = EV::periodic (
+   $self->cron->{ $d->{cron_id} } = EV::periodic (
       0,
       0,
       sub {
          my ($watcher, $now) = @_;
-         return $cron->next_time($now);
+         return $cron->next(DateTime->from_epoch(epoch => $now, time_zone => $tz))->epoch;
       },
       sub {
-         $self->start_cluster($user, { id => $d->{id} });
-         print "start cluster: $d->{id} " . time . "\n";
+         $self->start_cluster($user, { id => $d->{cluster_id} });
+         print "start cluster: " . $d->{cluster_id} . " " . time . "\n";
       }
    );
+}
+
+sub _delete_cron {
+   my ( $self, $user, $d ) = @_;
+   # cron_id
+   
+   my $w = $self->cron->{ $d->{cron_id} };
+   $w->stop if $w && $w->is_active;
+   delete $self->cron->{ $d->{cron_id} };
+   $self->sqlite->db->delete( 'cron', { id => $d->{cron_id} } );
+   print "delete cron timer: $d->{cron_id} " . time . "\n";
+   return $@ ? 0 : 1;
+}
+
+# at related subroutines:
+
+# add row to at table and return id
+sub _create_at_row {
+   my ( $self, $user, $d ) = @_;
+   # at cal_id
+   
+   eval {
+      my $time = localtime($d->{at});
+   };
+
+   return if $@;
+
+   my $seconds = $d->{at} - time;
+   return unless $seconds > 0; # future times only
+
+   my $id = $self->sqlite->db->insert( 'at', { value => $d->{at}, cal_id => $d->{cal_id}, org_id => $user->org_id } )->last_insert_id;
+   return $id;
+}
+
+# create, validate, and return at timer
+sub _create_at_object {
+   my ( $self, $user, $d ) = @_;
+   # at_id cluster_id
+
+   my $at = $self->sqlite->db->select( 'at', ['value'], { id => $d->{at_id} } )->hash->{value};
+   return unless $at;
+
+   eval {
+      my $time = localtime($at);
+   };
+
+   return if $@;
+
+   my $seconds = $at - time; 
+   return unless $seconds > 0; # future times only
+
+   $self->at->{ $d->{at_id} } = EV::timer $seconds, 0, sub {
+      $self->start_cluster($user, { id => $d->{cluster_id} });
+      print "start cluster: $d->{cluster_id} " . time . "\n";
+      $self->_delete_at($user, { at_id => $d->{at_id} });
+   };
+}
+
+sub _delete_at {
+   my ( $self, $user, $d ) = @_;
+   # at_id
+
+   my $w = $self->at->{ $d->{at_id} };
+   $w->stop if $w && $w->is_active;
+   delete $self->at->{ $d->{at_id} };
+   $self->sqlite->db->delete( 'at', { id => $d->{at_id} } );
+   print "delete at timer: $d->{at_id} " . time . "\n";
+   return $@ ? 0 : 1;
+}
+
+# cal related subroutines
+
+sub _delete_cal {
+   my ( $self, $user, $d ) = @_;
+   # cal_id
+
+   eval {
+      my $tx = $self->sqlite->db->begin;
+      $self->sqlite->db->delete( 'cal', { id => $d->{cal_id} } );
+      $tx->commit;
+   };
+   print "delete cal: $d->{cal_id} " . time . "\n";
+   return $@ ? 0 : 1;
+}
+
+sub _create_cal {
+   my ( $self, $user, $d ) = @_;
 }
 
 # command routing
@@ -1506,15 +1723,15 @@ sub routing {
                                             # state $c  = qr/^[\w\/\@\:\.\s\-\(\)\"\']{1,50}$/;    # shell command
    state $c  = qr/.{1,60}/;                 # shell command
    state $pw = qr/^.{8,20}$/;               # password
-   state $ct = qr/^(\S{1,12})\s+(\S{1,12})\s+(\S{1,12})\s+(\S{1,12})\s+(\S{1,12})(\s+(\S{1,12}))?$/;         # crontab
-   #state $ct =  qr/.{1,60}/;
+   state $ct = qr/^((\S{1,12})\s+(\S{1,12})\s+(\S{1,12})\s+(\S{1,12})\s+(\S{1,12})|\s*)$/;         # cron
+   state $at = qr/^(\d+|\s*)$/;         # at
 
    state %routing = (
 
       # user related
       'create_user' => [ \&create_user, 3, [ { name => $w }, { org_id => $i, email => $w, level => $i } ] ],
       'read_user'   => [ \&read_user,   1, [ {},             {} ] ],
-      'update_user' => [ \&update_user, 1, [ {},             { email => $e, name => $w, newname => $w, id => $i } ] ],
+      'update_user' => [ \&update_user, 1, [ {},             { email => $e, name => $w } ] ],
       'delete_user' => [ \&delete_user, 3, [ { id => $i }, {} ] ],
       'login_user'  => [ \&login_user,  0, [ { token => $w }, {} ] ],
 
@@ -1561,15 +1778,21 @@ sub routing {
       #'copy_job'   => [ \&copy_job,   1, [ {},              { name => $p, id => $i, to => $p } ] ],
 
       # cluster related
-      'create_cluster' => [ \&create_cluster, 1, [ { name => $p }, { needs => 's', description => $w, crontab => $ct } ] ],
+      'create_cluster' => [ \&create_cluster, 1, [ { name => $p }, { needs => 's', description => $w, cron => $ct, at => $at, cal => $w, cal_id => $i, tz => $p } ] ],
       'read_cluster'   => [ \&read_cluster,   1, [ {},             { name  => $p,  id          => $i } ] ],
-      'update_cluster' => [ \&update_cluster, 1, [ {}, { id => $i, name => $p, needs => 's', newname => $w, description => $w, crontab => $ct } ] ],
+      'update_cluster' => [ \&update_cluster, 1, [ {}, { id => $i, name => $p, needs => 's', newname => $w, description => $w, cron => $ct, at => $at, cal => $w, cal_id => $i, tz => $p } ] ],
       'delete_cluster' => [ \&delete_cluster, 1, [ {}, { name => $p, id   => $i } ] ],
       'change_cluster' => [ \&change_cluster, 1, [ {}, { name => $p, id   => $i } ] ],
       'find_cluster'   => [ \&find_cluster,   1, [ {}, { name => $p, id   => $i } ] ],
       'reset_cluster'  => [ \&reset_cluster,  1, [ {}, { name => $p, id   => $i } ] ],
       'start_cluster'  => [ \&start_cluster,  1, [ {}, { id   => $i, name => $p } ] ],
       #'copy_cluster'   => [ \&copy_cluster,   1, [ {}, { name => $p, id => $i, to => $p } ] ],
+
+      # calendar related
+      'create_cal' => [ \&create_cal, 1, [ { name => $w }, {} ] ],
+      'read_cal'   => [ \&read_cal,   1, [ {}, { name  => $w,  id => $i } ] ],
+      'update_cal' => [ \&update_cal, 1, [ {}, { id => $i, name => $w, addcron => $ct, rmcron_id => $i, addat => $i, rmat_id => $i } ] ],
+      'delete_cal' => [ \&delete_cal, 1, [ {}, { name => $p, id   => $i } ] ],
 
       # monitor related
       'create_monitor'  => [ \&create_monitor,  1, [ { name => $w, username => $w, hostname => $p }, { password => $pw } ] ],

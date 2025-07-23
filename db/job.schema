@@ -4,8 +4,8 @@ DROP TABLE IF EXISTS job;
 CREATE TABLE job (
         id INTEGER PRIMARY KEY NOT NULL,
 	mode INTEGER NOT NULL DEFAULT 770,
-        cluster_id INTEGER,
-        server_id INTEGER,
+        cluster_id INTEGER REFERENCES cluster(id) ON DELETE CASCADE,
+        server_id INTEGER REFERENCES server(id) ON DELETE CASCADE,
         shell_command varchar,
         state_id INTEGER NOT NULL DEFAULT 2,
         name varchar,
@@ -30,9 +30,9 @@ CREATE TABLE job (
 	last_update integer,
         restart_max INTEGER NOT NULL DEFAULT 0,
         restart_delay INTEGER NOT NULL DEFAULT 0,
-        creation_time integer DEFAULT (strftime('%s', 'now')),
-        FOREIGN KEY(server_id) REFERENCES server(id) ON DELETE CASCADE,
-        FOREIGN KEY(cluster_id) REFERENCES cluster(id) ON DELETE CASCADE
+        creation_time integer DEFAULT (strftime('%s', 'now'))
+--        FOREIGN KEY(server_id) REFERENCES server(id) ON DELETE CASCADE,
+--        FOREIGN KEY(cluster_id) REFERENCES cluster(id) ON DELETE CASCADE
 );
 
 CREATE UNIQUE INDEX job_idx1 ON job (cluster_id, name);

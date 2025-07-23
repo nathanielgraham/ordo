@@ -1,0 +1,17 @@
+PRAGMA foreign_keys=on;
+BEGIN TRANSACTION;
+DROP TABLE IF EXISTS cron;
+CREATE TABLE cron (
+        id INTEGER PRIMARY KEY NOT NULL,
+        org_id INTEGER REFERENCES org(id) ON DELETE CASCADE,
+        cal_id INTEGER REFERENCES cal(id) ON DELETE CASCADE,
+        name varchar,
+        value varchar,
+        tz varchar,
+	update_time integer,
+        creation_time integer DEFAULT (strftime('%s', 'now'))
+);
+
+CREATE UNIQUE INDEX cron_idx1 ON cron (org_id, name);
+
+COMMIT;

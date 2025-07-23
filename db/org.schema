@@ -6,6 +6,7 @@ CREATE TABLE org (
 	user_id integer,
         bookmark varchar,
         name varchar,
+        tz varchar,
         description varchar,
         creation_time integer DEFAULT (strftime('%s', 'now')),
         FOREIGN KEY(user_id) REFERENCES user(id)

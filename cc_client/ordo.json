@@ -1,1 +1,24 @@
-{"token":"1bb6eda29b864133bf8fc776d11dc8c0b228f9dc","aliases":{"um":"update_monitor","rm":"read_monitor","cm":"create_monitor","dm":"delete_monitor","mkdir":"create_cluster","ls":"find_cluster","dir":"find_cluster","cd":"change_cluster","uj":"update_job","fc":"find_cluster","cc":"create_cluster","dc":"delete_cluster","rj":"read_job","dj":"delete_job","sc":"change_cluster","cj":"create_job","rc":"read_cluster","uc":"update_cluster"},"api":"http://127.0.0.1:3000/api"}
+{
+   "aliases" : {
+      "dc" : "delete_cluster",
+      "rc" : "read_cluster",
+      "uc" : "update_cluster",
+      "cm" : "create_monitor",
+      "fc" : "find_cluster",
+      "sc" : "change_cluster",
+      "mkdir" : "create_cluster",
+      "cd" : "change_cluster",
+      "dj" : "delete_job",
+      "rj" : "read_job",
+      "uj" : "update_job",
+      "cj" : "create_job",
+      "dir" : "find_cluster",
+      "um" : "update_monitor",
+      "dm" : "delete_monitor",
+      "rm" : "read_monitor",
+      "cc" : "create_cluster",
+      "ls" : "find_cluster"
+   },
+   "api" : "http://127.0.0.1:3000/api",
+   "token" : "1bb6eda29b864133bf8fc776d11dc8c0b228f9dc"
+}
