@@ -10,8 +10,6 @@ CREATE TABLE cluster (
         state_id INTEGER NOT NULL DEFAULT 2,
 	server_id INTEGER REFERENCES server(id) ON DELETE SET NULL,
 	cal_id INTEGER REFERENCES cal(id) ON DELETE SET NULL,
-	cron_id INTEGER REFERENCES cron(id) ON DELETE SET NULL,
-	at_id INTEGER REFERENCES at(id) ON DELETE SET NULL,
 	name varchar,
 	command varchar,
 	description varchar,

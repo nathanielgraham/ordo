@@ -1,13 +1,15 @@
 PRAGMA foreign_keys=on;
 BEGIN TRANSACTION;
-DROP TABLE IF EXISTS at;
-CREATE TABLE at (
+DROP TABLE IF EXISTS cal;
+CREATE TABLE cal (
         id INTEGER PRIMARY KEY NOT NULL,
         org_id INTEGER REFERENCES org(id) ON DELETE CASCADE,
-        cal_id INTEGER REFERENCES cal(id) ON DELETE CASCADE,
-        value varchar,
+        name varchar,
+        description varchar,
 	update_time integer,
         creation_time integer DEFAULT (strftime('%s', 'now'))
 );
+
+CREATE UNIQUE INDEX cal_idx1 ON cal (org_id, name);
 
 COMMIT;

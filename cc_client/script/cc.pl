@@ -5,8 +5,8 @@ use warnings;
 
 use Term::ReadLine::Perl5;
 use Mojo::UserAgent;
-use Term::ANSIColor;
 use POSIX qw(strftime);
+use Term::ANSIColor;
 use Data::Dumper;
 use Getopt::Long qw(GetOptionsFromString);
 use JSON;
@@ -45,11 +45,11 @@ my $read_user = sub {
 my $update_token = sub {
    my $new_token = shift;
    return { success => 0, message => 'missing token' } unless $new_token;
-   
+
    $token = $new_token;
    $config->{token} = $token;
    my $success = &write_config($config);
-   
+
    if ($success) {
       say "Using new token: $token";
    }
@@ -140,9 +140,12 @@ my $find_cluster = sub {
       my $colored    = colored( $path, 'bold blue' );
       my $cluster_id = pop @{$part} || 0;
       my $c          = $cluster{$cluster_id};
+      my $cstate = $c->{jobstate} eq 'complete' ? colored( $c->{jobstate}, 'bold green' )
+                   : $c->{jobstate} eq 'failed' ? colored( $c->{jobstate}, 'bold red' )
+                   : $c->{jobstate};
       my ( $started, $ended, $duration ) = format_time($c);
       my $needs = join( ' ', keys %{ $c->{needs} } );
-      push @{$rows}, [ $c->{id}, $colored, $c->{jobstate}, $needs, '', '', '', '', '', '', '', $started, $ended, $duration ];
+      push @{$rows}, [ $c->{id}, $colored, $cstate, $needs, '', '', '', '', '', '', '', $started, $ended, $duration ];
 
       next unless $cluster{$cluster_id}->{jobs};
 
@@ -150,8 +153,12 @@ my $find_cluster = sub {
 
          my ( $started, $ended, $duration ) = format_time($j);
 
+         my $jstate = $j->{jobstate} eq 'complete' ? colored( $j->{jobstate}, 'bold green' )
+                    : $j->{jobstate} eq 'failed' ? colored( $j->{jobstate}, 'bold red' )
+                    : $j->{jobstate};
+
          my $row = [
-            $j->{id},     "$path/$j->{name}", $j->{jobstate}, join( ' ', keys %{ $j->{needs} } ),
+            $j->{id},     "$path/$j->{name}", $jstate, join( ' ', keys %{ $j->{needs} } ),
             $j->{pctmem}, $j->{pctcpu}, $j->{priority}, $j->{pid}, $j->{state}, $j->{fname}, $j->{server_name}, $started, $ended, $duration,
          ];
 
@@ -187,8 +194,6 @@ sub format_time {
    my $seconds       = $epoch_seconds % 60;
 
    my $duration = sprintf( "%02d:%02d:%02d", $hours, $minutes, $seconds );
-
-   #my $duration = sprintf ("%.3f hrs", ($end_seconds - $s) / 3600);
    return ( $started, $ended, $duration );
 }
 
@@ -206,16 +211,15 @@ my $local_dispatch = {
    help         => $help,
 };
 
-#sub string2hash {
 my $string2hash = sub {
    my $string = shift;
    my %options;
 
    my ( $ret, $args ) = GetOptionsFromString(
-      $string,   \%options,  "command=s", "token=s",       "state:s",     "username:s",    "hostname:s", "newname:s",    "password:s", "shell_command:s",
-      "email:s", "level:i",  "cron:s",    "at:s",          "calendar:s",  "calendar_id:i", "addcron:s",  "rmcron_id:i",  "addat:i",    "rmat_id:i",
-      "count:i", "needs:i@", "sort:s",    "description:s", "server_id:i", "name:s",        "job_id:i",   "cluster_id:i", "server:s",   "org_id:i",
-      "pid:i",   "to:s",     "id:s",      "match:s",       "tz:s"
+      $string,   \%options,  "command=s", "token=s",       "state:s",     "username:s", "hostname:s", "newname:s",    "password:s", "shell_command:s",
+      "email:s", "level:i",  "cron:s",    "at:s",          "cal:s",       "cal_id:i",   "addcron:s",  "cron_id:i",  "remove",
+      "count:i", "needs:i@", "sort:s",    "description:s", "server_id:i", "name:s",     "job_id:i",   "cluster_id:i", "server:s",   "org_id:i",
+      "pid:i",   "to:s",     "id:s",      "match:s",       "tz:s",        "start:i",    "end:i"
    );
 
    my ( $verb, $noun, $name ) = @{$args};
@@ -250,17 +254,19 @@ my $string2hash = sub {
 
    # execute remote command
 
-   # convert at date to epoch seconds
-   if ($options{at}) {
-      my $seconds = &date_to_epoch($options{at});
-      if ($seconds) {
-         $options{at} = $seconds;
-      }
-      else {
-         delete $options{at};
+   # convert dates to epoch seconds
+   foreach my $o (qw(at start end)) {
+      if ( $options{$o} ) {
+         my $seconds = &date_to_epoch( $options{$o} );
+         if ($seconds) {
+            $options{$o} = $seconds;
+         }
+         else {
+            delete $options{$o};
+         }
       }
    }
-   $options{tz} ||= $tz if $options{cron}; # time zone needed for crontab
+   $options{tz} ||= $tz if $options{cron} || $options{at};    # time zone needed for crontab
    my $r = { token => $token, command => $cmd, %options };
    $r->{name} = $name if defined $name;
    return $r;
@@ -276,8 +282,9 @@ while ( defined( my $line = $term->readline("$user:/$cluster> ") ) ) {
 
 sub request {
    my $line = shift;
-   my $r    = &{ $string2hash }($line);
+   my $r    = &{$string2hash}($line);
    unless ( $r->{token} ) {
+
       #say to_json( $r, { pretty => 1 } );
       return;
    }
@@ -309,12 +316,11 @@ sub write_config {
 }
 
 sub date_to_epoch {
-    my $date = shift;
-    my $epoch;
-    eval {
-       $epoch = $date =~ /^\d+$/ ? $date : str2time($date);
-       $epoch ||= qx/date -d "$date" +%s/;
-       chomp($epoch);
-    };
-    return $@ ? undef : $epoch;
+   my $date = shift;
+   my $epoch;
+   $epoch = $date =~ /^\d+$/ ? $date : str2time($date);
+   $epoch ||= qx/date -d "$date" +%s/;
+   chomp($epoch);
+   print "EPOCH: $epoch\n";
+   return $epoch;
 }
