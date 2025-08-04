@@ -87,6 +87,7 @@ my $top_jobs = sub {
 
 my $read_monitor = sub {
    my $json    = shift;
+   return unless $json->{servers};
    my $rows    = [ [qw(ID ALIAS %MEMORY %DISK LOADAVG PING UPTIME OS UPDATED HOST)] ];
    my @servers = @{ $json->{servers} };
    for my $s (@servers) {
@@ -117,8 +118,37 @@ my $read_monitor = sub {
    say generate_table( rows => $rows, header_row => 1 );
 };
 
-my $find_cluster = sub {
-   my $json     = shift;
+sub find_cal {
+   my $json = shift;
+   return unless $json->{cals} && scalar @{ $json->{cals} };
+   print "Local time is " . localtime(time) . " $tz\n";
+   foreach my $cal ( @{ $json->{cals} } ) {
+      my $crows       = [ [qw(ID CALENDAR NEXT_START TIME_ZONE CLUSTER_IDS DESCRIPTION)] ];
+      my $cnext       = $cal->{next_start} ? strftime( "%b %d %H:%M:%S", localtime( $cal->{next_start} ) ) : '';
+      my $cluster_ids = join( ',', @{ $cal->{cluster_ids} } );
+      push @$crows, [ $cal->{id}, $cal->{name}, $cnext, $cal->{tz}, $cluster_ids, $cal->{description} ];
+      say generate_table( rows => $crows, header_row => 1, style => 'classic' );
+      unless ( scalar @{ $cal->{crons} } ) {
+         print "\n";
+         next;
+      }
+      my $rows = [ [qw(ID QUARTZ_CRONTAB NEXT_START BEGINS EXPIRES DESCRIPTION)] ];
+      foreach my $cron ( @{ $cal->{crons} } ) {
+         my $start = $cron->{start}      ? strftime( "%b %d %H:%M:%S %Y", localtime( $cron->{start} ) )      : '';
+         my $end   = $cron->{end}        ? strftime( "%b %d %H:%M:%S %Y", localtime( $cron->{end} ) )        : 'never';
+         my $next  = $cron->{next_start} ? strftime( "%b %d %H:%M:%S %Y", localtime( $cron->{next_start} ) ) : '';
+         push @$rows, [ $cron->{id}, $cron->{name}, $next, $start, $end, $cron->{description} ];
+      }
+      say generate_table( rows => $rows, header_row => 1, style => 'classic' );
+      print "\n";
+   }
+}
+
+sub find_cluster {
+   my $json = shift;
+   return unless $json->{clusters} && scalar @{ $json->{clusters} };
+   print "Local time is " . localtime(time) . " $tz\n";
+
    my @clusters = @{ $json->{clusters} };
    my %cluster  = map { $_->{id}, $_ } @{ $json->{clusters} };
 
@@ -134,18 +164,20 @@ my $find_cluster = sub {
       push @paths, \@parts;
    }
 
-   my $rows = [ [qw(ID CLUSTER/JOB STATE NEEDS %MEM %CPU PRI PID PSTATE PNAME SERVER STARTED ENDED DURATION)] ];
+   my $rows = [ [qw(ID CLUSTER/JOB STATE NEEDS %MEM %CPU PID SERVER STARTED DURATION NEXT_START CAL_ID)] ];
    foreach my $part (@paths) {
       my $path       = join( '/', ( map { $cluster{$_}->{name} } @{$part} ) );
       my $colored    = colored( $path, 'bold blue' );
       my $cluster_id = pop @{$part} || 0;
       my $c          = $cluster{$cluster_id};
-      my $cstate = $c->{jobstate} eq 'complete' ? colored( $c->{jobstate}, 'bold green' )
-                   : $c->{jobstate} eq 'failed' ? colored( $c->{jobstate}, 'bold red' )
-                   : $c->{jobstate};
+      my $cstate =
+          $c->{jobstate} eq 'complete' ? colored( $c->{jobstate}, 'bold green' )
+        : $c->{jobstate} eq 'failed'   ? colored( $c->{jobstate}, 'bold red' )
+        :                                $c->{jobstate};
       my ( $started, $ended, $duration ) = format_time($c);
-      my $needs = join( ' ', keys %{ $c->{needs} } );
-      push @{$rows}, [ $c->{id}, $colored, $cstate, $needs, '', '', '', '', '', '', '', $started, $ended, $duration ];
+      my $needs = join( ',', keys %{ $c->{needs} } );
+      my $next  = $c->{next_start} ? strftime( "%b %d %H:%M:%S", localtime( $c->{next_start} ) ) : '';
+      push @{$rows}, [ $c->{id}, $colored, $cstate, $needs, '', '', '', '', $started, $duration, $next, $c->{cal_id} ];
 
       next unless $cluster{$cluster_id}->{jobs};
 
@@ -153,21 +185,19 @@ my $find_cluster = sub {
 
          my ( $started, $ended, $duration ) = format_time($j);
 
-         my $jstate = $j->{jobstate} eq 'complete' ? colored( $j->{jobstate}, 'bold green' )
-                    : $j->{jobstate} eq 'failed' ? colored( $j->{jobstate}, 'bold red' )
-                    : $j->{jobstate};
+         my $jstate =
+             $j->{jobstate} eq 'complete' ? colored( $j->{jobstate}, 'bold green' )
+           : $j->{jobstate} eq 'failed'   ? colored( $j->{jobstate}, 'bold red' )
+           :                                $j->{jobstate};
 
-         my $row = [
-            $j->{id},     "$path/$j->{name}", $jstate, join( ' ', keys %{ $j->{needs} } ),
-            $j->{pctmem}, $j->{pctcpu}, $j->{priority}, $j->{pid}, $j->{state}, $j->{fname}, $j->{server_name}, $started, $ended, $duration,
-         ];
+         my $row = [ $j->{id}, "$path/$j->{name}", $jstate, join( ',', keys %{ $j->{needs} } ), $j->{pctmem}, $j->{pctcpu}, $j->{pid}, $j->{server_name}, $started, $duration, '', '' ];
 
          push @{$rows}, $row;
 
       }
    }
-   say generate_table( rows => $rows, header_row => 1 );
-};
+   say generate_table( rows => $rows, header_row => 1, style => 'classic' );
+}
 
 sub format_time {
    my $row = shift;
@@ -176,7 +206,7 @@ sub format_time {
 
    return ( '', '', '' ) unless $s;
 
-   my $started = strftime( "%H:%M:%S", localtime($s) );
+   my $started = strftime( "%b %d %H:%M:%S", localtime($s) );
    my ( $ended, $end_seconds );
 
    if ( $row->{jobstate} eq 'running' ) {
@@ -185,7 +215,7 @@ sub format_time {
    }
    else {
       $end_seconds = $e || time;
-      $ended       = $e ? strftime( "%H:%M:%S", localtime($end_seconds) ) : '';
+      $ended       = $e ? strftime( "%b %d %H:%M:%S", localtime($end_seconds) ) : '';
    }
 
    my $epoch_seconds = $end_seconds - $s;
@@ -200,7 +230,9 @@ sub format_time {
 my $remote_dispatch = {
    change_cluster => $change_cluster,
    read_user      => $read_user,
-   find_cluster   => $find_cluster,
+   find_cluster   => \&find_cluster,
+   find_cal       => \&find_cal,
+   read_cal       => \&find_cal,
    read_monitor   => $read_monitor,
    top_jobs       => $top_jobs,
 };
@@ -216,10 +248,10 @@ my $string2hash = sub {
    my %options;
 
    my ( $ret, $args ) = GetOptionsFromString(
-      $string,   \%options,  "command=s", "token=s",       "state:s",     "username:s", "hostname:s", "newname:s",    "password:s", "shell_command:s",
-      "email:s", "level:i",  "cron:s",    "at:s",          "cal:s",       "cal_id:i",   "addcron:s",  "cron_id:i",  "remove",
-      "count:i", "needs:i@", "sort:s",    "description:s", "server_id:i", "name:s",     "job_id:i",   "cluster_id:i", "server:s",   "org_id:i",
-      "pid:i",   "to:s",     "id:s",      "match:s",       "tz:s",        "start:i",    "end:i"
+      $string,         \%options,     "command=s", "token=s",  "state:s",      "username:s", "hostname:s", "newname:s", "password:s", "shell_command:s",
+      "email:s",       "level:i",     "cron:s",    "at:s",     "cal:s",        "cal_id:i",   "force",      "count:i",   "needs:i@",   "sort:s",
+      "description:s", "server_id:i", "name:s",    "job_id:i", "cluster_id:i", "server:s",   "org_id:i",   "pid:i",     "to:s",       "id:s",
+      "match:s",       "tz:s",        "begins:s",  "expires:s"
    );
 
    my ( $verb, $noun, $name ) = @{$args};
@@ -255,7 +287,7 @@ my $string2hash = sub {
    # execute remote command
 
    # convert dates to epoch seconds
-   foreach my $o (qw(at start end)) {
+   foreach my $o (qw(at begins expires)) {
       if ( $options{$o} ) {
          my $seconds = &date_to_epoch( $options{$o} );
          if ($seconds) {
@@ -266,9 +298,15 @@ my $string2hash = sub {
          }
       }
    }
-   $options{tz} ||= $tz if $options{cron} || $options{at};    # time zone needed for crontab
+
+   if ( $cmd eq 'create_at' ) {
+      $name = &date_to_epoch($name);
+   }
+
+   $options{tz} ||= $tz;    # time zone needed for crontab
    my $r = { token => $token, command => $cmd, %options };
    $r->{name} = $name if defined $name;
+   print Dumper($r);
    return $r;
 };
 
@@ -293,8 +331,15 @@ sub request {
    eval { $json = $ua->get( $api => { Accept => 'application/json' } => json => $r )->result->json; };
    $json = { success => 0, message => $@ } if $@;
    print to_json( $json, { pretty => 1 } );
-   return unless $json->{success};
-   &{ $remote_dispatch->{ $json->{command_reply} } }($json) if exists $json->{command_reply} && $remote_dispatch->{ $json->{command_reply} };
+
+   #return unless $json->{success};
+   if ( exists $json->{command_reply} && exists $remote_dispatch->{ $json->{command_reply} } ) {
+      &{ $remote_dispatch->{ $json->{command_reply} } }($json);
+   }
+   my $success = $json->{success} ? 'successful' : 'failed';
+   print "Command $success. ";
+   print ucfirst("$json->{message}.") if $json->{message};
+   print "\n\n";
 }
 
 sub read_config {

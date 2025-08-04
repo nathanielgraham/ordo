@@ -5,13 +5,15 @@ CREATE TABLE cron (
         id INTEGER PRIMARY KEY NOT NULL,
         org_id INTEGER REFERENCES org(id) ON DELETE CASCADE,
         cal_id INTEGER REFERENCES cal(id) ON DELETE CASCADE,
-        value varchar,
-        tz varchar,
+        name varchar,
+        description varchar,
         next_start integer,
         start integer,
         end integer,
 	update_time integer,
         creation_time integer DEFAULT (strftime('%s', 'now'))
 );
+
+CREATE UNIQUE INDEX cron_idx1 ON cron (org_id, cal_id, name);
 
 COMMIT;

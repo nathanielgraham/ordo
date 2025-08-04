@@ -12,6 +12,7 @@ CREATE UNIQUE INDEX job_states_idx1 ON job_states (state);
 INSERT INTO job_states (state) VALUES('inactive');
 INSERT INTO job_states (state) VALUES('ready');
 INSERT INTO job_states (state) VALUES('starting');
+INSERT INTO job_states (state) VALUES('stopping');
 INSERT INTO job_states (state) VALUES('running');
 INSERT INTO job_states (state) VALUES('complete');
 INSERT INTO job_states (state) VALUES('failed');
@@ -20,7 +21,6 @@ INSERT INTO job_states (state) VALUES('ice');
 INSERT INTO job_states (state) VALUES('killed');
 INSERT INTO job_states (state) VALUES('zombie');
 INSERT INTO job_states (state) VALUES('waiting');
-INSERT INTO job_states (state) VALUES('stale');
 INSERT INTO job_states (state) VALUES('watching');
 
 COMMIT;

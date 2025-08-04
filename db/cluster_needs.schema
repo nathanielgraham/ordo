@@ -3,10 +3,8 @@ BEGIN TRANSACTION;
 DROP TABLE IF EXISTS cluster_needs;
 CREATE TABLE cluster_needs (
         id INTEGER PRIMARY KEY NOT NULL,
-        cluster_id INTEGER,
-        needs_cluster_id INTEGER,
-        FOREIGN KEY(cluster_id) REFERENCES cluster(id) ON DELETE CASCADE,
-        FOREIGN KEY(needs_cluster_id) REFERENCES cluster(id) ON DELETE CASCADE
+        cluster_id INTEGER REFERENCES cluster(id) ON DELETE CASCADE,
+        needs_cluster_id INTEGER REFERENCES cluster(id) ON DELETE CASCADE
 );
 
 CREATE UNIQUE INDEX cluster_needs_idx1 ON cluster_needs (cluster_id, needs_cluster_id);

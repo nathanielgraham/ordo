@@ -3,9 +3,8 @@ BEGIN TRANSACTION;
 DROP TABLE IF EXISTS job_needs;
 CREATE TABLE job_needs (
         id INTEGER PRIMARY KEY NOT NULL,
-        job_id INTEGER,
-        needs_job_id INTEGER,
-        FOREIGN KEY(job_id) REFERENCES job(id) ON DELETE CASCADE
+        job_id INTEGER REFERENCES job(id) ON DELETE CASCADE,
+        needs_job_id INTEGER REFERENCES job(id) ON DELETE CASCADE
 );
 
 CREATE UNIQUE INDEX job_needs_idx1 ON job_needs (job_id, needs_job_id);
