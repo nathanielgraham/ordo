@@ -86,7 +86,7 @@ my $top_jobs = sub {
 };
 
 my $read_monitor = sub {
-   my $json    = shift;
+   my $json = shift;
    return unless $json->{servers};
    my $rows    = [ [qw(ID ALIAS %MEMORY %DISK LOADAVG PING UPTIME OS UPDATED HOST)] ];
    my @servers = @{ $json->{servers} };
@@ -132,10 +132,10 @@ sub find_cal {
          print "\n";
          next;
       }
-      my $rows = [ [qw(ID QUARTZ_CRONTAB NEXT_START BEGINS EXPIRES DESCRIPTION)] ];
+      my $rows = [ [qw(ID QUARTZ_CRONTAB NEXT_START BEGIN EXPIRE DESCRIPTION)] ];
       foreach my $cron ( @{ $cal->{crons} } ) {
-         my $start = $cron->{start}      ? strftime( "%b %d %H:%M:%S %Y", localtime( $cron->{start} ) )      : '';
-         my $end   = $cron->{end}        ? strftime( "%b %d %H:%M:%S %Y", localtime( $cron->{end} ) )        : 'never';
+         my $start = $cron->{begin}      ? strftime( "%b %d %H:%M:%S %Y", localtime( $cron->{begin} ) )      : '';
+         my $end   = $cron->{expire}     ? strftime( "%b %d %H:%M:%S %Y", localtime( $cron->{expire} ) )     : 'never';
          my $next  = $cron->{next_start} ? strftime( "%b %d %H:%M:%S %Y", localtime( $cron->{next_start} ) ) : '';
          push @$rows, [ $cron->{id}, $cron->{name}, $next, $start, $end, $cron->{description} ];
       }
@@ -164,7 +164,7 @@ sub find_cluster {
       push @paths, \@parts;
    }
 
-   my $rows = [ [qw(ID CLUSTER/JOB STATE NEEDS %MEM %CPU PID SERVER STARTED DURATION NEXT_START CAL_ID)] ];
+   my $rows = [ [qw(ID CLUSTER/JOB STATE NEEDS %MEM %CPU PID SERVER STARTED DURATION NEXT_START CALENDAR)] ];
    foreach my $part (@paths) {
       my $path       = join( '/', ( map { $cluster{$_}->{name} } @{$part} ) );
       my $colored    = colored( $path, 'bold blue' );
@@ -177,7 +177,7 @@ sub find_cluster {
       my ( $started, $ended, $duration ) = format_time($c);
       my $needs = join( ',', keys %{ $c->{needs} } );
       my $next  = $c->{next_start} ? strftime( "%b %d %H:%M:%S", localtime( $c->{next_start} ) ) : '';
-      push @{$rows}, [ $c->{id}, $colored, $cstate, $needs, '', '', '', '', $started, $duration, $next, $c->{cal_id} ];
+      push @{$rows}, [ $c->{id}, $colored, $cstate, $needs, '', '', '', '', $started, $duration, $next, $c->{cal} ];
 
       next unless $cluster{$cluster_id}->{jobs};
 
@@ -248,10 +248,13 @@ my $string2hash = sub {
    my %options;
 
    my ( $ret, $args ) = GetOptionsFromString(
-      $string,         \%options,     "command=s", "token=s",  "state:s",      "username:s", "hostname:s", "newname:s", "password:s", "shell_command:s",
-      "email:s",       "level:i",     "cron:s",    "at:s",     "cal:s",        "cal_id:i",   "force",      "count:i",   "needs:i@",   "sort:s",
-      "description:s", "server_id:i", "name:s",    "job_id:i", "cluster_id:i", "server:s",   "org_id:i",   "pid:i",     "to:s",       "id:s",
-      "match:s",       "tz:s",        "begins:s",  "expires:s"
+      $string,       \%options,         "command=s",     "token=s",        "state:s",      "username:s",      "hostname:s",     "newname:s",
+      "password:s",  "shell_command:s", "email:s",       "level:i",        "cron:s",       "at:s",            "cal:s",          "cal_id:i",
+      "force",       "count:i",         "needs:i@",      "description:s",  "server_id:i",  "name:s",          "job_id:i",       "cluster_id:i",
+      "server:s",    "org_id:i",        "pid:i",         "id:s",           "match:s",      "tz:s",            "begin:s",        "expire:s",
+      "parent_id:i", "retrys:i",        "retry_delay:i", "loops:i",        "loop_delay:i", "fail_hook:i",     "max_duration:i", "max_duration_hook:i",
+      "max_cpu:f",   "max_cpu_hook:i",  "max_mem:f",     "max_mem_hook:i", "max_disk:f",   "max_disk_hook:i", "max_load:f",     "max_load_hook:i",
+      "max_ping:f",  "max_ping_hook:i", "max_uptime:f",  "max_uptime_hook:i"
    );
 
    my ( $verb, $noun, $name ) = @{$args};
@@ -287,7 +290,7 @@ my $string2hash = sub {
    # execute remote command
 
    # convert dates to epoch seconds
-   foreach my $o (qw(at begins expires)) {
+   foreach my $o (qw(at begin expire)) {
       if ( $options{$o} ) {
          my $seconds = &date_to_epoch( $options{$o} );
          if ($seconds) {

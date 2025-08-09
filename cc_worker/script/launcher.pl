@@ -13,11 +13,11 @@ my $json = pack( 'H*', $hex );
 
 my $api = 'http://127.0.0.1:3000/api';
 
-my $job = decode_json($json) or die $!;
-my $id  = $job->{id};
-
-my $command = $job->{shell};
-my $token   = $job->{token};
+my $job        = decode_json($json) or die $!;
+my $id         = $job->{id};
+my $cluster_id = $job->{cluster_id};
+my $command    = $job->{shell};
+my $token      = $job->{token};
 
 die "params missing" unless ( $id && $command && $token );
 
@@ -70,6 +70,9 @@ if ( !defined $pid ) {
 elsif ( $pid == 0 ) {
 
    # child
+   $ENV{JOB_ID} = $id;
+   $ENV{CLUSTER_ID} = $cluster_id;
+   $ENV{TOKEN}  = $token;
    my @cmd = $command =~ /"([^"]*)"|(\S+)/g;
    @cmd = grep { defined $_ } @cmd;
    eval { exec { $cmd[0] } @cmd or die "Exec failed: $!" };
@@ -92,7 +95,7 @@ else {
          my $exit_code = $? >> 8;
          my $signal    = $? & 127;
          my $state     = $signal ? 'killed' : $exit_code ? 'failed' : 'complete';
-         &post( { command => 'update_job', token => $token, id => $id, state => $state, exit_code => $exit_code } );
+         &post( { command => 'update_job', token => $token, id => $id, state => $state, signal => $signal, exit_code => $exit_code } );
          exit 0;
       }
    }

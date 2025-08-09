@@ -11,11 +11,17 @@ CREATE TABLE cluster (
 	server_id INTEGER REFERENCES server(id) ON DELETE SET NULL,
 	cal_id INTEGER REFERENCES cal(id) ON DELETE SET NULL,
 	name varchar,
-	command varchar,
 	description varchar,
 	next_start INTEGER,
 	started INTEGER,
 	ended INTEGER,
+        fail_hook integer, 
+        max_duration integer,
+        max_duration_hook integer,
+        clone_cluster_id integer,
+        loops integer,
+        loop_delay integer not null default 0,
+        loop_count integer not null default 0,
         creation_time integer DEFAULT (strftime('%s', 'now'))
 );
 

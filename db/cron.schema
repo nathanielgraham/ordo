@@ -8,8 +8,8 @@ CREATE TABLE cron (
         name varchar,
         description varchar,
         next_start integer,
-        start integer,
-        end integer,
+        begin integer,
+        expire integer,
 	update_time integer,
         creation_time integer DEFAULT (strftime('%s', 'now'))
 );
