@@ -22,5 +22,7 @@ INSERT INTO job_states (state) VALUES('killed');
 INSERT INTO job_states (state) VALUES('zombie');
 INSERT INTO job_states (state) VALUES('waiting');
 INSERT INTO job_states (state) VALUES('watching');
+INSERT INTO job_states (state) VALUES('looping');
+INSERT INTO job_states (state) VALUES('retrying');
 
 COMMIT;

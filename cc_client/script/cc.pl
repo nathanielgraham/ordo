@@ -164,33 +164,52 @@ sub find_cluster {
       push @paths, \@parts;
    }
 
-   my $rows = [ [qw(ID CLUSTER/JOB STATE NEEDS %MEM %CPU PID SERVER STARTED DURATION NEXT_START CALENDAR)] ];
+   my $rows = [ [qw(ID CLUSTER/JOB STATE NEEDS %MEM %CPU PID SERVER LAST_START DURATION NEXT_START CALENDAR)] ];
    foreach my $part (@paths) {
       my $path       = join( '/', ( map { $cluster{$_}->{name} } @{$part} ) );
       my $colored    = colored( $path, 'bold blue' );
       my $cluster_id = pop @{$part} || 0;
       my $c          = $cluster{$cluster_id};
+      my $credo = $c->{retry_count} || $c->{loop_count};
+
       my $cstate =
-          $c->{jobstate} eq 'complete' ? colored( $c->{jobstate}, 'bold green' )
-        : $c->{jobstate} eq 'failed'   ? colored( $c->{jobstate}, 'bold red' )
-        :                                $c->{jobstate};
+          scalar (grep { $c->{jobstate} eq $_ } (qw(complete ice))) ? colored( $c->{jobstate}, 'bold green' )
+        : scalar (grep { $c->{jobstate} eq $_ } (qw(failed zombie killed))) ? colored( $c->{jobstate}, 'bold red' )
+        : scalar (grep { $c->{jobstate} eq $_ } (qw(running))) ? colored( $c->{jobstate}, 'bold magenta' )
+        : scalar (grep { $c->{jobstate} eq $_ } (qw(ready waiting))) ? colored( $c->{jobstate}, 'bold yellow' )
+        : $credo ? colored( "$c->{jobstate}($credo)", 'bold yellow' )
+        : $c->{jobstate};
+
       my ( $started, $ended, $duration ) = format_time($c);
       my $needs = join( ',', keys %{ $c->{needs} } );
-      my $next  = $c->{next_start} ? strftime( "%b %d %H:%M:%S", localtime( $c->{next_start} ) ) : '';
-      push @{$rows}, [ $c->{id}, $colored, $cstate, $needs, '', '', '', '', $started, $duration, $next, $c->{cal} ];
+
+      #my $next  = $c->{next_start} ? strftime( "%b %d %H:%M:%S", localtime( $c->{next_start} ) ) : '';
+      my $ctminus = &epoch_to_tminus( $c->{next_start} );
+      my $ctplus  = &epoch_to_tminus( $c->{started} );
+      my $cdur    = &epoch_to_duration( $c->{started}, $c->{ended} );
+
+      push @{$rows}, [ $c->{id}, $colored, $cstate, $needs, '', '', '', '', $ctplus, $cdur, $ctminus, $c->{cal} ];
 
       next unless $cluster{$cluster_id}->{jobs};
 
       foreach my $j ( @{ $cluster{$cluster_id}->{jobs} } ) {
 
+         my $jtminus = &epoch_to_tminus( $c->{next_start} );
+         my $jtplus  = &epoch_to_tminus( $c->{started} );
+         my $jdur    = &epoch_to_duration( $c->{started}, $c->{ended} );
+
          my ( $started, $ended, $duration ) = format_time($j);
 
+         my $redo = $j->{retry_count} || $j->{loop_count};
          my $jstate =
-             $j->{jobstate} eq 'complete' ? colored( $j->{jobstate}, 'bold green' )
-           : $j->{jobstate} eq 'failed'   ? colored( $j->{jobstate}, 'bold red' )
-           :                                $j->{jobstate};
+             scalar (grep { $j->{jobstate} eq $_ } (qw(complete ice))) ? colored( $j->{jobstate}, 'bold green' )
+           : scalar (grep { $j->{jobstate} eq $_ } (qw(failed zombie killed))) ? colored( $j->{jobstate}, 'bold red' )
+           : scalar (grep { $j->{jobstate} eq $_ } (qw(running))) ? colored( $j->{jobstate}, 'bold magenta' )
+           : scalar (grep { $j->{jobstate} eq $_ } (qw(ready waiting))) ? colored( $j->{jobstate}, 'bold yellow' )
+           : $redo ? colored( "$c->{jobstate}($redo)", 'bold yellow' )
+           : $j->{jobstate};
 
-         my $row = [ $j->{id}, "$path/$j->{name}", $jstate, join( ',', keys %{ $j->{needs} } ), $j->{pctmem}, $j->{pctcpu}, $j->{pid}, $j->{server_name}, $started, $duration, '', '' ];
+         my $row = [ $j->{id}, "$path/$j->{name}", $jstate, join( ',', keys %{ $j->{needs} } ), $j->{pctmem}, $j->{pctcpu}, $j->{pid}, $j->{server_name}, $jtplus, $duration, '', '' ];
 
          push @{$rows}, $row;
 
@@ -199,17 +218,50 @@ sub find_cluster {
    say generate_table( rows => $rows, header_row => 1, style => 'classic' );
 }
 
+sub epoch_to_tminus {
+   my $epoch = shift;
+
+   return unless $epoch && $epoch =~ /^\d+$/;
+
+   my $current_epoch = time;
+   my $sign          = $epoch > $current_epoch ? '-' : '+';
+
+   my $duration = &epoch_to_duration( $current_epoch, $epoch );
+
+   return "T$sign$duration";
+}
+
+sub epoch_to_duration {
+   my ( $start, $end ) = @_;
+   return unless $start && $end;
+   my $diff_seconds = abs( $end - $start );
+
+   # Convert to days, hours, minutes, seconds
+   my $days = int( $diff_seconds / ( 24 * 60 * 60 ) );
+   $diff_seconds %= ( 24 * 60 * 60 );
+   my $hours = int( $diff_seconds / ( 60 * 60 ) );
+   $diff_seconds %= ( 60 * 60 );
+   my $minutes  = int( $diff_seconds / 60 );
+   my $seconds  = $diff_seconds % 60;
+   my $duration = sprintf( "%02d:%02d:%02d", $hours, $minutes, $seconds );
+
+   if ($days) {
+      $duration .= " +$days" . 'd';
+   }
+   return $duration;
+}
+
 sub format_time {
-   my $row = shift;
-   my $s   = $row->{started};
-   my $e   = $row->{ended};
+   my $opt = shift;
+   my $s   = $opt->{started};
+   my $e   = $opt->{ended};
 
    return ( '', '', '' ) unless $s;
 
    my $started = strftime( "%b %d %H:%M:%S", localtime($s) );
    my ( $ended, $end_seconds );
 
-   if ( $row->{jobstate} eq 'running' ) {
+   if ( $opt->{jobstate} eq 'running' ) {
       $ended       = '';
       $end_seconds = time;
    }
@@ -247,17 +299,32 @@ my $string2hash = sub {
    my $string = shift;
    my %options;
 
-   my ( $ret, $args ) = GetOptionsFromString(
-      $string,       \%options,         "command=s",     "token=s",        "state:s",      "username:s",      "hostname:s",     "newname:s",
-      "password:s",  "shell_command:s", "email:s",       "level:i",        "cron:s",       "at:s",            "cal:s",          "cal_id:i",
-      "force",       "count:i",         "needs:i@",      "description:s",  "server_id:i",  "name:s",          "job_id:i",       "cluster_id:i",
-      "server:s",    "org_id:i",        "pid:i",         "id:s",           "match:s",      "tz:s",            "begin:s",        "expire:s",
-      "parent_id:i", "retrys:i",        "retry_delay:i", "loops:i",        "loop_delay:i", "fail_hook:i",     "max_duration:i", "max_duration_hook:i",
-      "max_cpu:f",   "max_cpu_hook:i",  "max_mem:f",     "max_mem_hook:i", "max_disk:f",   "max_disk_hook:i", "max_load:f",     "max_load_hook:i",
-      "max_ping:f",  "max_ping_hook:i", "max_uptime:f",  "max_uptime_hook:i"
-   );
+   my ($cmds) = $string =~ /(.*?)(-.*)?$/;
+   my ($opts) = $string =~ /(-.*$)/;
+   my ( $verb, $noun, $name ) = ( split( /\s+/, $cmds ) )[ 0 .. 2 ];
 
-   my ( $verb, $noun, $name ) = @{$args};
+   if ($opts) {
+
+      my ( $ret, $args ) = GetOptionsFromString(
+         $opts,         \%options,         "command=s",     "token=s",           "state:s",      "username:s",      "hostname:s",     "newname:s",
+         "password:s",  "shell_command:s", "email:s",       "level:i",           "cron:s",       "at:s",            "cal:s",          "cal_id:i",
+         "force",       "count:i",         "needs:i@",      "description:s",     "server_id:i",  "name:s",          "job_id:i",       "cluster_id:i",
+         "server:s",    "org_id:i",        "pid:i",         "id:s",              "match:s",      "tz:s",            "begin:s",        "expire:s",
+         "parent_id:i", "retrys:i",        "retry_delay:i", "loops:i",           "loop_delay:i", "fail_hook:i",     "max_duration:i", "max_duration_hook:i",
+         "max_cpu:f",   "max_cpu_hook:i",  "max_mem:f",     "max_mem_hook:i",    "max_disk:f",   "max_disk_hook:i", "max_load:f",     "max_load_hook:i",
+         "max_ping:f",  "max_ping_hook:i", "max_uptime:f",  "max_uptime_hook:i", "mode:i",       "clonable"
+      );
+
+      # allow multi-value needs
+
+      if ($opts =~ /needs/) {
+        my @needs;
+        $opts =~ s/^.*?(-needs.*$)/$1/;
+        $opts =~ s/(.*?needs[^-]*?)-.*/$1/;
+        GetOptionsFromString( $opts, 'needs:i{,}' => \@needs );
+        $options{needs} = \@needs if scalar @needs && scalar @needs > scalar @{ $options{needs} };
+      }
+   }
 
    return { success => 0, message => 'missing verb' } unless defined $verb;
    unless ( $noun || exists $local_dispatch->{$verb} || exists $aliases->{$verb} ) {
@@ -300,10 +367,6 @@ my $string2hash = sub {
             delete $options{$o};
          }
       }
-   }
-
-   if ( $cmd eq 'create_at' ) {
-      $name = &date_to_epoch($name);
    }
 
    $options{tz} ||= $tz;    # time zone needed for crontab

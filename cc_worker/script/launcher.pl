@@ -18,6 +18,8 @@ my $id         = $job->{id};
 my $cluster_id = $job->{cluster_id};
 my $command    = $job->{shell};
 my $token      = $job->{token};
+my $origin     = $job->{origin};
+my $delay      = $job->{delay};
 
 die "params missing" unless ( $id && $command && $token );
 
@@ -61,6 +63,15 @@ sub daemonize {
 daemonize();
 
 my $ppid = $$;
+
+if ($delay && $delay <= 3600) {
+   my $state = $origin eq 'retry' ? 'retrying' : $origin eq 'loop' ? 'looping' : undef;
+   if ($state) {
+      &post( { command => 'update_job', token => $token, id => $id, state => $state, ppid => $ppid } );
+      sleep $delay;
+   }
+}
+
 my $pid  = fork();
 
 if ( !defined $pid ) {
@@ -69,12 +80,12 @@ if ( !defined $pid ) {
 }
 elsif ( $pid == 0 ) {
 
+   # TODO: add cwd to PATH
    # child
    $ENV{JOB_ID} = $id;
    $ENV{CLUSTER_ID} = $cluster_id;
    $ENV{TOKEN}  = $token;
-   my @cmd = $command =~ /"([^"]*)"|(\S+)/g;
-   @cmd = grep { defined $_ } @cmd;
+   my @cmd = &extract_command($command);
    eval { exec { $cmd[0] } @cmd or die "Exec failed: $!" };
 
    if ($@) {
@@ -130,4 +141,51 @@ sub post {
    else {
       say STDERR $response->status_line;
    }
+}
+
+sub extract_command {
+   my $string = shift;
+   my @parts;
+   my $current   = '';
+   my $in_quotes = '';
+   my $i         = 0;
+
+   while ( $i < length($string) ) {
+      my $char = substr( $string, $i, 1 );
+
+      if ($in_quotes) {
+
+         # Inside quotes, collect until matching quote
+         $current .= $char;
+         if ( $char eq $in_quotes && ( $i == 0 || substr( $string, $i - 1, 1 ) ne '\\' ) ) {
+            $in_quotes = '';    # Exit quote mode
+         }
+      }
+      elsif ( $char eq '"' || $char eq "'" ) {
+
+         # Start of quoted string
+         $in_quotes = $char;
+         $current .= $char;
+      }
+      elsif ( $char =~ /\s/ ) {
+
+         # Whitespace outside quotes: finalize current part
+         if ( $current ne '' ) {
+            push @parts, $current;
+            $current = '';
+         }
+      }
+      else {
+         # Non-whitespace outside quotes
+         $current .= $char;
+      }
+      $i++;
+   }
+
+   push @parts, $current if $current ne '';
+
+   # Clean up quotes from the parts
+   @parts = map { s/^['"]|['"]$//g; $_ } @parts;
+
+   return @parts;
 }
