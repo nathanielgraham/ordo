@@ -170,44 +170,47 @@ sub find_cluster {
       my $colored    = colored( $path, 'bold blue' );
       my $cluster_id = pop @{$part} || 0;
       my $c          = $cluster{$cluster_id};
-      my $credo = $c->{retry_count} || $c->{loop_count};
+      my $credo      = $c->{retry_count} || $c->{loop_count};
 
       my $cstate =
-          scalar (grep { $c->{jobstate} eq $_ } (qw(complete ice))) ? colored( $c->{jobstate}, 'bold green' )
-        : scalar (grep { $c->{jobstate} eq $_ } (qw(failed zombie killed))) ? colored( $c->{jobstate}, 'bold red' )
-        : scalar (grep { $c->{jobstate} eq $_ } (qw(running))) ? colored( $c->{jobstate}, 'bold magenta' )
-        : scalar (grep { $c->{jobstate} eq $_ } (qw(ready waiting))) ? colored( $c->{jobstate}, 'bold yellow' )
-        : $credo ? colored( "$c->{jobstate}($credo)", 'bold yellow' )
-        : $c->{jobstate};
+          scalar( grep { $c->{jobstate} eq $_ } (qw(complete ice)) )                   ? colored( $c->{jobstate}, 'bold green' )
+        : scalar( grep { $c->{jobstate} eq $_ } (qw(failed zombie killed hold)) )      ? colored( $c->{jobstate}, 'bold red' )
+        : scalar( grep { $c->{jobstate} eq $_ } (qw(running)) )                        ? colored( $c->{jobstate}, 'bold magenta' )
+        : scalar( grep { $c->{jobstate} eq $_ } (qw(ready waiting looping retrying)) ) ? colored( $c->{jobstate}, 'bold yellow' )
+        :                                                                                $c->{jobstate};
 
+      $cstate .= "($credo)" if $credo;
       my ( $started, $ended, $duration ) = format_time($c);
       my $needs = join( ',', keys %{ $c->{needs} } );
 
-      #my $next  = $c->{next_start} ? strftime( "%b %d %H:%M:%S", localtime( $c->{next_start} ) ) : '';
+      #my $clast = $c->{started} ? strftime( "%b %d %H:%M:%S", localtime( $c->{started} ) ) : '';
       my $ctminus = &epoch_to_tminus( $c->{next_start} );
       my $ctplus  = &epoch_to_tminus( $c->{started} );
-      my $cdur    = &epoch_to_duration( $c->{started}, $c->{ended} );
+      my $cdur    = &epoch_to_duration( $c->{started}, $c->{ended} || time );
 
-      push @{$rows}, [ $c->{id}, $colored, $cstate, $needs, '', '', '', '', $ctplus, $cdur, $ctminus, $c->{cal} ];
+      push @{$rows}, [ $c->{id}, $colored, $cstate, $needs, '', '', '', '', $ctplus, $cdur, $ctminus, $c->{cal_id} ];
 
       next unless $cluster{$cluster_id}->{jobs};
 
       foreach my $j ( @{ $cluster{$cluster_id}->{jobs} } ) {
 
-         my $jtminus = &epoch_to_tminus( $c->{next_start} );
-         my $jtplus  = &epoch_to_tminus( $c->{started} );
-         my $jdur    = &epoch_to_duration( $c->{started}, $c->{ended} );
+         #my $jlast = $j->{started} ? strftime( "%b %d %H:%M:%S", localtime( $j->{started} ) ) : '';
+         my $jtminus = &epoch_to_tminus( $j->{next_start} );
+         my $jtplus  = &epoch_to_tminus( $j->{started} );
+         my $jdur    = &epoch_to_duration( $j->{started}, $j->{ended} || time );
 
          my ( $started, $ended, $duration ) = format_time($j);
 
          my $redo = $j->{retry_count} || $j->{loop_count};
+
          my $jstate =
-             scalar (grep { $j->{jobstate} eq $_ } (qw(complete ice))) ? colored( $j->{jobstate}, 'bold green' )
-           : scalar (grep { $j->{jobstate} eq $_ } (qw(failed zombie killed))) ? colored( $j->{jobstate}, 'bold red' )
-           : scalar (grep { $j->{jobstate} eq $_ } (qw(running))) ? colored( $j->{jobstate}, 'bold magenta' )
-           : scalar (grep { $j->{jobstate} eq $_ } (qw(ready waiting))) ? colored( $j->{jobstate}, 'bold yellow' )
-           : $redo ? colored( "$c->{jobstate}($redo)", 'bold yellow' )
-           : $j->{jobstate};
+             scalar( grep { $j->{jobstate} eq $_ } (qw(complete ice)) )                   ? colored( $j->{jobstate}, 'bold green' )
+           : scalar( grep { $j->{jobstate} eq $_ } (qw(failed zombie killed hold)) )      ? colored( $j->{jobstate}, 'bold red' )
+           : scalar( grep { $j->{jobstate} eq $_ } (qw(running)) )                        ? colored( $j->{jobstate}, 'bold magenta' )
+           : scalar( grep { $j->{jobstate} eq $_ } (qw(ready waiting looping retrying)) ) ? colored( $j->{jobstate}, 'bold yellow' )
+           :                                                                                $j->{jobstate};
+
+         $jstate .= "($redo)" if $redo;
 
          my $row = [ $j->{id}, "$path/$j->{name}", $jstate, join( ',', keys %{ $j->{needs} } ), $j->{pctmem}, $j->{pctcpu}, $j->{pid}, $j->{server_name}, $jtplus, $duration, '', '' ];
 
@@ -317,12 +320,12 @@ my $string2hash = sub {
 
       # allow multi-value needs
 
-      if ($opts =~ /needs/) {
-        my @needs;
-        $opts =~ s/^.*?(-needs.*$)/$1/;
-        $opts =~ s/(.*?needs[^-]*?)-.*/$1/;
-        GetOptionsFromString( $opts, 'needs:i{,}' => \@needs );
-        $options{needs} = \@needs if scalar @needs && scalar @needs > scalar @{ $options{needs} };
+      if ( $opts =~ /needs/ ) {
+         my @needs;
+         $opts =~ s/^.*?(-needs.*$)/$1/;
+         $opts =~ s/(.*?needs[^-]*?)-.*/$1/;
+         GetOptionsFromString( $opts, 'needs:i{,}' => \@needs );
+         $options{needs} = \@needs if scalar @needs && scalar @needs > scalar @{ $options{needs} };
       }
    }
 
@@ -372,7 +375,6 @@ my $string2hash = sub {
    $options{tz} ||= $tz;    # time zone needed for crontab
    my $r = { token => $token, command => $cmd, %options };
    $r->{name} = $name if defined $name;
-   print Dumper($r);
    return $r;
 };
 

@@ -1,0 +1,24 @@
+PRAGMA foreign_keys=on;
+BEGIN TRANSACTION;
+DROP TABLE IF EXISTS job_stats;
+CREATE TABLE job_stats (
+        id INTEGER PRIMARY KEY NOT NULL,
+	job_id INTEGER REFERENCES job(id) ON DELETE CASCADE,
+        pctcpu real,
+        pid integer,
+        time integer,
+        start integer,
+        size integer,
+        priority integer,
+        rss integer,
+        pctmem real,
+        ppid integer,
+        cmndline varchar,
+        fname varchar,
+        state varchar,
+        creation_time integer DEFAULT (strftime('%s', 'now'))
+);
+
+CREATE UNIQUE INDEX job_stats_idx1 ON job_stats (job_id, creation_time);
+
+COMMIT;

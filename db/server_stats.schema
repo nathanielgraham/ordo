@@ -1,0 +1,19 @@
+PRAGMA foreign_keys=on;
+BEGIN TRANSACTION;
+DROP TABLE IF EXISTS server_stats;
+CREATE TABLE server_stats (
+        id INTEGER PRIMARY KEY NOT NULL,
+	server_id INTEGER REFERENCES server(id) ON DELETE CASCADE,
+        total_memory integer,
+        used_memory integer,
+        total_disk integer,
+        used_disk integer,
+        uptime integer,
+        cpu real,
+        ping real,
+        creation_time integer DEFAULT (strftime('%s', 'now'))
+);
+
+CREATE UNIQUE INDEX server_stats_idx1 ON server_stats (server_id, creation_time);
+
+COMMIT;

@@ -1,0 +1,19 @@
+PRAGMA foreign_keys=on;
+BEGIN TRANSACTION;
+DROP TABLE IF EXISTS job_log;
+CREATE TABLE job_log (
+        id INTEGER PRIMARY KEY NOT NULL,
+	job_id INTEGER REFERENCES job(id) ON DELETE CASCADE,
+	logfile varchar,
+        started INTEGER,
+        ended INTEGER,
+	exit_state_id integer,
+	exit_code integer,
+	exit_signal integer,
+        pid integer,
+        creation_time integer DEFAULT (strftime('%s', 'now'))
+);
+
+CREATE INDEX job_log_idx1 ON job_log (job_id, started);
+
+COMMIT;

@@ -55,7 +55,7 @@ while (1) {
       exit;
    }
 
-   sleep(4);
+   sleep(3);
 }
 
 sub windows_info {
