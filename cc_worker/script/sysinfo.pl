@@ -16,10 +16,6 @@ my $args  = $json->decode($jarg) or die "unable to parse json: $!";
 my $token = $args->{token}       or die "missing token";
 my $id    = $args->{id}          or die "missing server id";
 my $pids  = [];
-#my $lockfile = "$Bin/../ordo.lock";
-
-#open my $fh, '>', $lockfile or die "Cannot open lock file: $!";
-#flock($fh, LOCK_EX | LOCK_NB) or die "Another instance is running";
 
 my $update_payload = sub {
 

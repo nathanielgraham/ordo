@@ -6,6 +6,7 @@ use LWP::UserAgent;
 use JSON::PP;
 use FindBin qw($Bin);
 use POSIX   qw(:sys_wait_h setsid);
+use Cwd 'abs_path';
 use feature qw(say);
 
 my $hex  = pop @ARGV or die "missing arg";
@@ -20,17 +21,9 @@ my $command    = $job->{shell};
 my $token      = $job->{token};
 my $origin     = $job->{origin};
 my $delay      = $job->{delay};
+my $log_bar = "========================================";
 
 die "params missing" unless ( $id && $command && $token );
-
-# logging
-my $time    = time;
-my $out_log = "$Bin/../logs/out.$id.$time.log";
-my $err_log = "$Bin/../logs/err.$id.$time.log";
-
-open STDOUT, '>', $out_log or die $!;
-open STDERR, '>', $err_log or die $!;
-close STDIN;
 
 sub daemonize {
 
@@ -64,40 +57,75 @@ daemonize();
 
 my $ppid = $$;
 
+# logging
+my $time    = time;
+my $out_log = abs_path("$Bin/../logs/out.$id.$ppid.$time.log");
+my $err_log = abs_path("$Bin/../logs/err.$id.$ppid.$time.log");
+
+$| = 1;
+
+open STDOUT, '>', $out_log or die $!;
+open STDERR, '>', $err_log or die $!;
+close STDIN;
+
+
 if ($delay && $delay <= 3600) {
    my $state = $origin eq 'retry' ? 'retrying' : $origin eq 'loop' ? 'looping' : undef;
    if ($state) {
-      &post( { command => 'update_job', token => $token, id => $id, state => $state, ppid => $ppid } );
+      &post( { command => 'update_job', token => $token, id => $id, log_id => $time, state => $state, ppid => $ppid } );
       sleep $delay;
    }
 }
 
+my $started = scalar localtime($time);
+
+print STDOUT "\n$log_bar\n";
+print STDOUT " STDOUT LOG  : $out_log\n";
+print STDOUT " START TIME  : $started\n";
+
+print STDERR "\n$log_bar\n";
+print STDERR " STDERR LOG  : $err_log\n";
+print STDERR " START TIME  : $started\n";
+
+my $log_info = <<~"HEAD";
+ JOB ID      : $id
+ SCRIPT      : $command
+ PPID        : $ppid
+HEAD
+
+print STDOUT $log_info;
+print STDERR $log_info;
+
 my $pid  = fork();
 
 if ( !defined $pid ) {
-   &post( { command => 'update_job', token => $token, id => $id, state => 'failed', ppid => $ppid } );
-   die "First fork failed: $!";
+   &post( { command => 'update_job', token => $token, id => $id, log_id => $time, state => 'failed', ppid => $ppid } );
+   die "fork failed: $!";
 }
 elsif ( $pid == 0 ) {
+
+   print STDOUT " PID         : $$\n";
+   print STDERR " PID         : $$\n";
+   print STDOUT "$log_bar\n\n";
+   print STDERR "$log_bar\n\n";
 
    # TODO: add cwd to PATH
    # child
    $ENV{JOB_ID} = $id;
-   $ENV{CLUSTER_ID} = $cluster_id;
    $ENV{TOKEN}  = $token;
    my @cmd = &extract_command($command);
    eval { exec { $cmd[0] } @cmd or die "Exec failed: $!" };
 
+
    if ($@) {
-      &post( { command => 'update_job', token => $token, id => $id, state => 'failed', pid => $$, ppid => $ppid } );
-      die "Second fork failed: $@";
+      &post( { command => 'update_job', token => $token, id => $id, state => 'failed', pid => $$, ppid => $ppid, log_id => $time } );
+      die "fork failed: $@";
    }
 }
 else {
    # parent
    $0 = "supervisor_$pid";
-   say "Started child process with PID $pid";
-   &post( { command => 'update_job', token => $token, id => $id, state => 'running', pid => $pid, ppid => $$ } );
+   &post( { command => 'update_job', token => $token, started => time, id => $id, state => 'running', pid => $pid, ppid => $$, log_id => $time } );
 
    while (1) {    # stain' alive
       sleep(1);
@@ -106,7 +134,22 @@ else {
          my $exit_code = $? >> 8;
          my $signal    = $? & 127;
          my $state     = $signal ? 'killed' : $exit_code ? 'failed' : 'complete';
-         &post( { command => 'update_job', token => $token, id => $id, state => $state, signal => $signal, exit_code => $exit_code } );
+         &post( { command => 'update_job', ended => time, token => $token, id => $id, log_id => $time, ppid => $$, state => $state, signal => $signal, exit_code => $exit_code } );
+
+         my $ended = scalar localtime(time);
+         my $log_tail = <<~"TAIL";
+
+         $log_bar
+          END TIME    : $ended
+          SIGNAL      : $signal
+          EXIT CODE   : $exit_code
+         $log_bar
+
+         TAIL
+
+         print STDOUT $log_tail;
+         print STDERR $log_tail;
+
          exit 0;
       }
    }
@@ -128,7 +171,6 @@ sub post {
    $ua->timeout(10);
    $ua->agent('cc');
    my $json = encode_json($data);
-   say $json;
    my $response = $ua->post(
       $api,
       Content_Type => 'application/json',
@@ -136,10 +178,10 @@ sub post {
    );
 
    if ( $response->is_success ) {
-      say STDOUT $response->decoded_content;
+      #say $response->decoded_content);
    }
    else {
-      say STDERR $response->status_line;
+      #say STDERR $response->status_line;
    }
 }
 

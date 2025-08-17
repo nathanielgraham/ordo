@@ -1,23 +1,16 @@
 {
    "aliases" : {
-      "mkdir" : "create_cluster",
-      "uc" : "update_cluster",
       "rm" : "read_monitor",
-      "cm" : "create_monitor",
-      "dm" : "delete_monitor",
-      "fc" : "find_cluster",
-      "sc" : "change_cluster",
-      "uj" : "update_job",
-      "ls" : "find_cluster",
-      "cc" : "create_cluster",
-      "dir" : "find_cluster",
       "rc" : "read_cluster",
-      "cd" : "change_cluster",
-      "um" : "update_monitor",
-      "dc" : "delete_cluster",
       "rj" : "read_job",
-      "cj" : "create_job",
-      "dj" : "delete_job"
+      "rl" : "read_log",
+      "log" : "read_log",
+      "fc" : "find_cluster",
+      "ls" : "find_cluster",
+      "fl" : "find_log",
+      "logs" : "find_log",
+      "cd" : "change_cluster",
+      "cc" : "change_cluster"
    },
    "api" : "http://127.0.0.1:3000/api",
    "token" : "1bb6eda29b864133bf8fc776d11dc8c0b228f9dc"

@@ -15,6 +15,8 @@ use Text::Table::Tiny 1.02 qw/ generate_table /;
 use Date::Parse;
 use Time::Local;
 use DateTime::TimeZone;
+use MIME::Base64;
+use Term::ReadKey;
 
 use feature qw(say);
 
@@ -27,22 +29,40 @@ my $api     = $config->{api};
 my $user    = 'offline';
 my $cluster = '';
 
-my $ua = Mojo::UserAgent->new;
+my $term = Term::ReadLine::Perl5->new('ordo');
+my $ua   = Mojo::UserAgent->new;
 $ua->inactivity_timeout(10);
 $ua->max_redirects(0)->connect_timeout(3)->request_timeout(5);
 
-my $change_cluster = sub {
+my $rv = &request("read user");
+
+#die "Invalid token\n" unless $rv->{success};
+
+# main loop
+while ( defined( my $line = $term->readline("$user:/$cluster> ") ) ) {
+   next unless $line;
+   my $json = &request($line);
+
+   #print to_json( $json, { pretty => 1 } );
+
+   my $success = $json->{success} ? 'successful' : 'failed';
+   print "Command $success. ";
+   print ucfirst("$json->{message}.") if $json->{message};
+   print "\n\n";
+}
+
+sub change_cluster {
    my $json = shift;
    $cluster = $json->{path} || '';
-};
+}
 
-my $read_user = sub {
+sub read_user {
    my $json = shift;
    $user    = $json->{hostname} || 'offline';
    $cluster = $json->{path}     || '';
-};
+}
 
-my $update_token = sub {
+sub update_token {
    my $new_token = shift;
    return { success => 0, message => 'missing token' } unless $new_token;
 
@@ -55,9 +75,9 @@ my $update_token = sub {
    }
 
    return { success => $success };
-};
+}
 
-my $help = sub {
+sub help {
    say <<~'HELP';
       TODO
       cmd1
@@ -65,27 +85,19 @@ my $help = sub {
       cmd3
    HELP
    return { success => 1 };
-};
+}
 
-my $top_jobs = sub {
+sub read_job {
    my $json = shift;
-   my $rows = [ [qw(cmndline pid pctcpu pctmem state duration)] ];
-   foreach my $j ( @{ $json->{jobs} } ) {
-      my $cmd = substr( $j->{cmndline}, 0, 30 ) || $j->{fname} || '';
-      my $duration;
-      if ( $j->{start} ) {
-         my $s       = time - $j->{start};
-         my $hours   = int( $s / 3600 );
-         my $minutes = int( ( $s % 3600 ) / 60 );
-         my $seconds = $s % 60;
-         $duration = sprintf( "%.2f h", ( time - $j->{start} ) / 3600 );
-      }
-      push @$rows, [ $cmd, $j->{pid}, $j->{pctcpu}, $j->{pctmem}, $j->{state}, $duration ];
-   }
-   say generate_table( rows => $rows, header_row => 1 );
-};
+   print Dumper($json);
+}
 
-my $read_monitor = sub {
+sub read_cluster {
+   my $json = shift;
+   print Dumper($json);
+}
+
+sub read_monitor {
    my $json = shift;
    return unless $json->{servers};
    my $rows    = [ [qw(ID ALIAS %MEMORY %DISK LOADAVG PING UPTIME OS UPDATED HOST)] ];
@@ -116,7 +128,38 @@ my $read_monitor = sub {
       push @$rows, [ $s->{id}, $s->{name}, $pmem, $pdisk, $cpu, $ping, $uptime, $s->{os}, $update, $s->{hostname} ];
    }
    say generate_table( rows => $rows, header_row => 1 );
-};
+}
+
+sub find_log {
+   my $json = shift;
+   return unless $json && $json->{success} && $json->{logs};
+   print "\nJob history for $json->{path}/$json->{name}\n";
+   my $rows    = [ [qw(ID JOB_ID PID STARTED ENDED EXIT_CODE SIGNAL)] ];
+   foreach my $l (@{ $json->{logs} }) {
+      my $started = $l->{started} ? strftime( "%b %d %H:%M:%S", localtime($l->{started}) ) : '';
+      my $ended = $l->{ended} ? strftime( "%b %d %H:%M:%S", localtime($l->{ended}) ) : '';
+      push @$rows, [ $l->{id}, $l->{job_id}, $l->{pid}, $started, $ended, $l->{exit_code}, $l->{signal} ];
+   }
+   say generate_table( rows => $rows, header_row => 1 );
+   #print Dumper($json);
+}
+
+sub read_log {
+   my $json = shift;
+   return unless $json && $json->{err} && $json->{out};
+
+   my $joined = $json->{out} . $json->{err};
+
+   ReadMode('raw');
+   if ( $^O =~ /MSWin32/i ) {
+      print $joined;
+   }
+   else {
+      &less($joined);
+      #system("echo '$joined' | less");
+   }
+   ReadMode('normal');
+}
 
 sub find_cal {
    my $json = shift;
@@ -282,23 +325,32 @@ sub format_time {
    return ( $started, $ended, $duration );
 }
 
-my $remote_dispatch = {
-   change_cluster => $change_cluster,
-   read_user      => $read_user,
-   find_cluster   => \&find_cluster,
-   find_cal       => \&find_cal,
-   read_cal       => \&find_cal,
-   read_monitor   => $read_monitor,
-   top_jobs       => $top_jobs,
-};
+sub remote_dispatch {
+   my ( $command, $json ) = @_;
+
+   my %dispatch = (
+      change_cluster => \&change_cluster,
+      read_user      => \&read_user,
+      find_cluster   => \&find_cluster,
+      read_job       => \&read_job,
+      read_cluster   => \&read_cluster,
+      find_cal       => \&find_cal,
+      read_cal       => \&find_cal,
+      find_log       => \&find_log,
+      read_log       => \&read_log,
+      read_monitor   => \&read_monitor,
+   );
+
+   &{ $dispatch{$command} }($json) if exists( $dispatch{$command} );
+}
 
 my $local_dispatch = {
-   token        => $update_token,
-   update_token => $update_token,
-   help         => $help,
+   token        => \&update_token,
+   update_token => \&update_token,
+   help         => \&help,
 };
 
-my $string2hash = sub {
+sub string2hash {
    my $string = shift;
    my %options;
 
@@ -315,7 +367,7 @@ my $string2hash = sub {
          "server:s",    "org_id:i",        "pid:i",         "id:s",              "match:s",      "tz:s",            "begin:s",        "expire:s",
          "parent_id:i", "retrys:i",        "retry_delay:i", "loops:i",           "loop_delay:i", "fail_hook:i",     "max_duration:i", "max_duration_hook:i",
          "max_cpu:f",   "max_cpu_hook:i",  "max_mem:f",     "max_mem_hook:i",    "max_disk:f",   "max_disk_hook:i", "max_load:f",     "max_load_hook:i",
-         "max_ping:f",  "max_ping_hook:i", "max_uptime:f",  "max_uptime_hook:i", "mode:i",       "clonable"
+         "max_ping:f",  "max_ping_hook:i", "max_uptime:f",  "max_uptime_hook:i", "mode:i",       "forkable",        "log:i"
       );
 
       # allow multi-value needs
@@ -376,38 +428,22 @@ my $string2hash = sub {
    my $r = { token => $token, command => $cmd, %options };
    $r->{name} = $name if defined $name;
    return $r;
-};
-
-&request("read user");
-
-my $term = Term::ReadLine::Perl5->new('ordo');
-while ( defined( my $line = $term->readline("$user:/$cluster> ") ) ) {
-   next unless $line;
-   &request($line);
 }
 
 sub request {
    my $line = shift;
-   my $r    = &{$string2hash}($line);
-   unless ( $r->{token} ) {
-
-      #say to_json( $r, { pretty => 1 } );
-      return;
-   }
+   my $r    = &string2hash($line);
+   return unless $r->{token};
 
    my $json;
    eval { $json = $ua->get( $api => { Accept => 'application/json' } => json => $r )->result->json; };
    $json = { success => 0, message => $@ } if $@;
-   print to_json( $json, { pretty => 1 } );
 
-   #return unless $json->{success};
-   if ( exists $json->{command_reply} && exists $remote_dispatch->{ $json->{command_reply} } ) {
-      &{ $remote_dispatch->{ $json->{command_reply} } }($json);
+   if ( exists $json->{command_reply} ) {
+      &remote_dispatch( $json->{command_reply}, $json );
    }
-   my $success = $json->{success} ? 'successful' : 'failed';
-   print "Command $success. ";
-   print ucfirst("$json->{message}.") if $json->{message};
-   print "\n\n";
+
+   return $json;
 }
 
 sub read_config {
@@ -436,4 +472,65 @@ sub date_to_epoch {
    chomp($epoch);
    print "EPOCH: $epoch\n";
    return $epoch;
+}
+
+sub less {
+   my $string = shift;
+   my @lines = split( /\n/, $string );
+   $_ .= "\n" for @lines;
+
+   # Get terminal size (rows)
+   my ( $term_width, $term_height ) = GetTerminalSize();
+   $term_height = $term_height - 1;    # Reserve one line for prompt
+
+   # Initialize variables
+   my $start_line  = 0;                # Starting line for the current page
+   my $total_lines = @lines;
+
+   # If file fits on one screen, print it and exit
+   if ($total_lines <= $term_height) {
+     print $_ for @lines;
+     return;
+   }
+
+   # Enable raw mode for key input
+   ReadMode('cbreak');
+
+   # Main loop
+   while (1) {
+
+      # Clear the screen (portable way)
+      system( $^O eq 'MSWin32' ? 'cls' : 'clear' );
+
+      # Display lines for the current page
+      for my $i ( $start_line .. $start_line + $term_height - 1 ) {
+         last if $i >= $total_lines;
+         print $lines[$i];
+      }
+
+      # Show prompt
+      print ": (q to quit, space for next page, b for previous page) ";
+
+      # Read a single key
+      my $key = ReadKey(0);
+
+      # Process key commands
+      if ( $key eq 'q' ) {
+         last;    # Quit
+      }
+      elsif ( $key eq ' ' ) {
+
+         # Move to next page
+         $start_line += $term_height if $start_line + $term_height < $total_lines;
+      }
+      elsif ( $key eq 'b' ) {
+
+         # Move to previous page
+         $start_line -= $term_height if $start_line > 0;
+      }
+   }
+
+   # Restore terminal mode and clear screen
+   ReadMode('restore');
+   #system( $^O eq 'MSWin32' ? 'cls' : 'clear' );
 }
