@@ -22,12 +22,12 @@ print $json->encode($basic_info);
 
 sub basic_info {
    my $tmpdir   = File::Spec->tmpdir();
-   my $hostname = hostname();
-   my $username = $ENV{LOGNAME} || $ENV{USER} || getpwuid($<);
+   my $host = hostname();
+   my $user = $ENV{LOGNAME} || $ENV{USER} || getpwuid($<);
    my $cwd   = cwd;
    my $cores = get_cores();
    my $home = File::HomeDir->my_home;
-   return { cores => $cores, os => $os, home => $home, cwd => $cwd, tempdir => $tmpdir, username => $username, hostname => $hostname };
+   return { cores => $cores, os => $os, home => $home, cwd => $cwd, tempdir => $tmpdir, user => $user, host => $host };
 }
 
 sub get_cores {

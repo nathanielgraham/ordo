@@ -24,5 +24,6 @@ INSERT INTO job_states (state) VALUES('waiting');
 INSERT INTO job_states (state) VALUES('watching');
 INSERT INTO job_states (state) VALUES('looping');
 INSERT INTO job_states (state) VALUES('retrying');
+INSERT INTO job_states (state) VALUES('immutable');
 
 COMMIT;

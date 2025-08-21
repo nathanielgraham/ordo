@@ -6,6 +6,7 @@ use local::lib;
 use LWP::UserAgent;
 use JSON::PP;
 use Proc::ProcessTable;
+use Data::Dumper;
 #use FindBin qw($Bin);
 #use Fcntl ':flock';
 
@@ -32,26 +33,36 @@ my $update_payload = sub {
 my $ua = LWP::UserAgent->new;
 
 while (1) {
-   my $encoded = &$update_payload;
-   my $response = $ua->post(
-      $api,
-      Content_Type => 'application/json',
-      Content      => $encoded
-   );
-
+   my $request = &$update_payload;
+   my $response = &post($request);
    if ( $response->is_success ) {
       my $body = $response->decoded_content;
       my $args = decode_json($body) or die "unable to parse json: $!";
       if ( $args->{exit} || $args->{success} == 0 ) {
-         exit;
+         say STDERR "exit signal received from scheduler";
+         while (my ($k, $v) = each %$args ) {
+            print "$k: $v\n";
+         }
+         exit 1;
       }
       $pids = $args->{pids};
    }
    else {
-      exit;
+      print STDERR $response->status_line . "\n";
+      exit 1;
    }
 
    sleep(3);
+}
+
+sub post {
+   my $payload = shift;
+   my $response = $ua->post(
+      $api,
+      Content_Type => 'application/json',
+      Content      => $payload
+   );
+   return $response;
 }
 
 sub windows_info {

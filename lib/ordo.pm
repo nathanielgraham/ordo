@@ -12,6 +12,7 @@ use EV;
 use DateTime;
 use DateTime::Event::Cron::Quartz;
 use MIME::Base64;
+use UUID::Tiny ':std';
 use Data::Dumper;
 
 # TODO: logs, time series stats, runtime alarms, state alarms, threshold alarms, eggs (lay, hatch, rezrov, blorb)
@@ -88,13 +89,19 @@ sub startup {
          }
          else {
             state $user = ordo::Model::User->new( remote_address => $c->tx->remote_address );
-            my $auth = $self->request( $user, { token => $body->{token}, command => 'login_user' } );
-            if ( $auth->{success} ) {
-               my $result = $self->request( $user, $body );
+            if ( $body->{command} eq 'register_user' ) {
+               my $result = $self->request( $user, { command => 'register_user' } );
                $c->render( json => $result );
             }
             else {
-               $c->render( json => { success => 0, message => 'invalid login token' }, status => 401 );
+               my $auth = $self->request( $user, { token => $body->{token}, command => 'login_user' } );
+               if ( $auth->{success} ) {
+                  my $result = $self->request( $user, $body );
+                  $c->render( json => $result );
+               }
+               else {
+                  $c->render( json => { success => 0, message => 'invalid login token' }, status => 401 );
+               }
             }
          }
       }
@@ -103,25 +110,34 @@ sub startup {
    # start monitors
 
    my $monitor_sql = <<~"SQL";
-      select s.id as server_id, j.id as job_id, j.name, s.name, j.state_id, u.org_id, min(u.id) as user_id, u.token
+      select s.id as server_id, j.id as job_id, j.name as job_name, s.name, j.state_id, u.org_id, min(u.id) as user_id, u.token
       from job j 
       join cluster c on j.cluster_id = c.id
       join server s on s.name = j.name
       join user u on u.org_id = c.org_id
-      where c.name = 'monitors' and c.parent_id IS NULL
+      join org o on u.org_id = o.id
+      where c.name = 'monitors' and c.parent_id = o.root_cluster_id
       group by j.id
    SQL
 
    my $results = $self->sqlite->db->query($monitor_sql);
    while ( my $s = $results->hash ) {
-      my $user = ordo::Model::User->new( id => $s->{user_id}, org_id => $s->{org_id} );
+      my $user = ordo::Model::User->new();
+      $self->request( $user, { token => $s->{token}, command => 'login_user' } );
+
+      my $connection_ok = $self->_connect_ssh($user, { id => $s->{server_id} });
+      if (!$connection_ok) {
+         $self->complete_job($user, { name => "/root/monitors/$s->{job_name}" });
+         next;
+      }
+
       $self->_install_monitor( $user, { id => $s->{server_id} } );
       $self->_start_monitor( $user, { id => $s->{server_id} } );
 
       # start_monitor if monitor job left in running state
       if ( scalar grep { $s->{state_id} == $self->job_states->{$_} } (qw(starting running)) ) {
          $self->stop_monitor( $user, { id => $s->{server_id} } );
-         $self->start_monitor( $user, { id => $s->{server_id} } );
+         my $rv = $self->start_monitor( $user, { id => $s->{server_id} } );
       }
    }
 
@@ -130,7 +146,7 @@ sub startup {
 
    # load cron timers
    my $cron_timers_sql = <<~"SQL";
-      select cal.id as cal_id, cal.org_id as org_id, cron.id as cron_id, min(user.id) as user_id
+      select cal.id as cal_id, cal.org_id as org_id, cron.id as cron_id, min(user.id) as user_id, user.token
       from cron 
       join cal on cron.cal_id = cal.id
       join user on cal.org_id = user.org_id
@@ -141,7 +157,9 @@ sub startup {
    while ( my $a = $cron_timers->hash ) {
       my $count = $self->sqlite->db->query("select count(*) as count from cluster where cal_id = $a->{cal_id}")->hash->{count};
       next unless $count;
+      #my $user = ordo::Model::User->new( id => $a->{user_id}, org_id => $a->{org_id} );
       my $user = ordo::Model::User->new( id => $a->{user_id}, org_id => $a->{org_id} );
+      $self->request( $user, { token => $a->{token}, command => 'login_user' } );
       $self->_create_cron_object( $user, { id => $a->{cron_id} } );
    }
 
@@ -173,7 +191,7 @@ sub request {
 
       if ( $user->level < $min_level ) {
          $response->{success} = 0;
-         $response->{message} = 'Level too low.';
+         $response->{message} = 'permission denied';
       }
       elsif ( scalar @unknown ) {
          $response->{success} = 0;
@@ -190,10 +208,26 @@ sub request {
             my $regex = $required->{$param} || $optional->{$param};
 
             # check that param matches regex
-            unless ( ( $regex eq 's' && ref $params->{$param} eq 'ARRAY' ) || $params->{$param} =~ $regex ) {
-               $error      = 1;
-               $bad_option = $param;
-               last;
+            if ( $regex eq 's' && ref $params->{$param} eq 'ARRAY' ) {
+               if (scalar @{ $params->{$param} } > 10000) {
+                  $error      = 1;
+                  $bad_option = $param;
+                  last;
+               }
+               foreach my $item (@{ $params->{$param} }) {
+                  unless ($item =~ /^\d+$/ && $item < 999999999 || ref $item eq 'HASH' && scalar keys %{ $item } < 100 ) {
+                     $error      = 1;
+                     $bad_option = $param;
+                     last;
+                  }
+               }
+            }
+            else { 
+               unless ( $params->{$param} =~ $regex ) {
+                  $error      = 1;
+                  $bad_option = $param;
+                  last;
+               }
             }
          }
          $response =
@@ -250,7 +284,8 @@ sub is_executable {
 sub _cluster_info {
    my ( $self, $user, $d ) = @_;
    my $cluster_id = $d->{id} || $self->path2id( $user, $d->{name} );
-   return if defined $cluster_id && $cluster_id == 0;
+   #return if defined $cluster_id && $cluster_id == 0;
+   return unless $cluster_id;
    my $cluster = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id, org_id => $user->org_id } )->hash;
    return $cluster;
 }
@@ -272,6 +307,7 @@ sub read_cluster {
    my %rv = map { $_, $cluster->{$_} } @fields;
    $rv{jobstate}   = $self->sqlite->db->select( 'job_states', ['state'], { id => $rv{state_id} } )->hash->{state} if $rv{state_id};
    $rv{cal}        = $self->sqlite->db->select( 'cal',        ['name'],  { id => $rv{cal_id} } )->hash->{name}    if $rv{cal_id};
+   $rv{jobs}       = $self->_find_jobs( $user, { cluster_id => $cluster_id } );
    $rv{needs}      = $self->_read_cluster_needs( $user, { id => $cluster_id } );
    $rv{next_start} = $self->_cal_next_start( $user, { id => $rv{cal_id} } ) if $rv{cal_id};
    return { success => 1, %rv };
@@ -282,21 +318,13 @@ sub _set_cluster_state {
 
    # id state
 
-   my $update_hash;
-
-   # needed for fake_complete job status
-   if ( $self->job_states->{ $d->{state} } ) {
-      $update_hash->{state_id} = $self->job_states->{ $d->{state} };
-   }
+   my $update_hash = {};
 
    my $cluster = $self->sqlite->db->select( 'cluster', ['*'], { id => $d->{id} } )->hash;
 
-   #my $state_id = $self->job_states->{ $d->{state} };
-   #return unless $state_id;
-   #my $cluster = $self->sqlite->db->select( 'cluster', ['*'], { id => $d->{id} } )->hash;
-   #my $current_state_id = $cluster->{state_id};
-   #return if $current_state_id && $current_state_id == $state_id;
-   #my $update_hash = { state_id => $state_id };
+   if ( $self->job_states->{ $d->{state} } && $cluster->{state_id} ne $self->job_states->{immutable} ) {
+      $update_hash->{state_id} = $self->job_states->{ $d->{state} };
+   }
 
    if ( $d->{state} eq 'running' ) {
       $update_hash->{started} = time;
@@ -329,7 +357,6 @@ sub _set_cluster_state {
          }
       }
 
-      print "COMPLETING CLUSTER: $cluster->{id}\n";
       $update_hash->{ended} = time;
 
       # update cluster
@@ -388,9 +415,14 @@ sub _set_cluster_state {
          }
       }
    }
-
+   elsif ( $d->{state} eq 'ready' ) {
+      unless ($cluster->{ended}) {
+         $update_hash->{ended} = time;
+      }
+   }
+      
    # update cluster
-   $self->sqlite->db->update( 'cluster', $update_hash, { id => $d->{id} } );
+   $self->sqlite->db->update( 'cluster', $update_hash, { id => $d->{id} } ) if scalar keys %{ $update_hash };
    return 1;
 }
 
@@ -409,12 +441,11 @@ sub _start_cluster {
    # origin_id
    # loop_count
 
-   my $cluster_info = $self->read_cluster( $user, $d );
-   return $cluster_info if $cluster_info->{success} == 0;
-   my $cluster_id = $cluster_info->{id};
+   my $cluster = $self->read_cluster( $user, $d );
+   return $cluster if $cluster->{success} == 0;
+   my $cluster_id = $cluster->{id};
 
-   # undef = root cluster, 0 = cluster not found
-   return { success => 0, message => 'cluster not found' } if defined $cluster_id && $cluster_id == 0;
+   return { success => 0, message => 'cluster not found' } unless $cluster_id;
 
    # check jobs are in ready state
    my $complete = $self->job_states->{complete};
@@ -425,32 +456,38 @@ sub _start_cluster {
    my $hold     = $self->job_states->{hold};
    my $ice      = $self->job_states->{ice};
 
-   # hard stop if cluster is already running
-   if ( $cluster_info->{state_id} == $self->job_states->{running} ) {
+   # hard stop if cluster is running
+   if ( $cluster->{state_id} == $self->job_states->{running} ) {
       return { success => 0, message => 'cluster already running' };
-
       # TODO: clone if clonable
    }
-   elsif ( $cluster_info->{state_id} == $self->job_states->{hold} ) {
+
+   elsif ( $cluster->{id} == $user->root_cluster_id ) {
+      return { success => 0, message => 'root cluster cannot be started' };
+   }
+   elsif ( $cluster->{state_id} == $self->job_states->{hold} ) {
       return { success => 0, skipped => 1, message => 'cluster on hold' };
    }
-   elsif ( $cluster_info->{state_id} == $self->job_states->{ice} ) {
+   elsif ( $cluster->{state_id} == $self->job_states->{ice} ) {
       $self->_set_cluster_state( $user, { id => $cluster_id, state => 'fake_complete' } );
       return { success => 0, skipped => 1, message => 'cluster on ice' };
    }
 
    unless ( $d->{force} ) {
 
-      if ( $cluster_info->{next_start} && $d->{origin} ne 'cron' ) {
+      #if ( $cluster->{state_id} == $self->job_states->{running} ) {
+      #   return { success => 0, message => 'cluster already running' };
+      #}
+
+      if ( $cluster->{next_start} && $d->{origin} ne 'cron' ) {
          return { success => 0, waiting => 1, message => 'expecting cron start. use --force to start anyway' };
       }
-
-      unless ( $self->_cluster_is_ready( $user, { id => $cluster_id } ) ) {
+      elsif ( !$self->_cluster_is_ready( $user, { id => $cluster_id } ) ) {
          return { success => 0, skipped => 1, message => 'cluster not ready. use --force to start anyway' };
       }
 
       # return if cluster needs not met
-      while ( my ( $id, $state_id ) = each %{ $cluster_info->{needs} } ) {
+      while ( my ( $id, $state_id ) = each %{ $cluster->{needs} } ) {
          if ( !grep { $state_id == $self->job_states->{$_} } (qw(complete)) ) {
             return { success => 0, waiting => 1, message => "dependency not met. use --force to start anyway" };
          }
@@ -459,12 +496,14 @@ sub _start_cluster {
 
    $self->_reset_cluster( $user, { id => $cluster_id } );
 
+   $self->_set_cluster_state( $user, { state => 'running', id => $cluster_id } );
+
    # start clusters in cluster
    my $clusters_started = 0;
+   my $clusters_completed = 0;
    my $clusters_failed  = 0;
    my $clusters_waiting = 0;
    my $clusters_skipped = 0;
-   my $cluster_error;
 
    my $clusters = $self->sqlite->db->select(
       'cluster',
@@ -478,9 +517,8 @@ sub _start_cluster {
    )->hashes;
 
    foreach my $c ( @{ $clusters->to_array } ) {
-
-      my $rv = $self->_start_cluster( $user, { id => $c->{id}, origin => 'auto' } );
-      if ( $rv->{success} ) {
+      my $rv = $self->_start_cluster( $user, { id => $c->{id}, origin => 'auto1' } );
+      if ( $rv->{started} ) {
          $clusters_started++;
       }
       elsif ( $rv->{waiting} ) {
@@ -489,9 +527,11 @@ sub _start_cluster {
       elsif ( $rv->{skipped} ) {
          $clusters_skipped++;
       }
-      else {
+      elsif ( $rv->{completed} ) {
+         $clusters_completed++;
+      }
+      elsif ( $rv->{failed} ) {
          $clusters_failed++;
-         $cluster_error = $rv->{message};
       }
    }
 
@@ -530,25 +570,26 @@ sub _start_cluster {
       }
    }
 
+   my $message = "$jobs_started $jobs_waiting $jobs_skipped $jobs_failed $clusters_started $clusters_completed $clusters_failed $clusters_waiting $clusters_skipped";
    if ( $jobs_failed || $clusters_failed ) {
       $self->_set_cluster_state( $user, { state => 'failed', id => $cluster_id } );
-      return { success => 0, message => "$jobs_failed failed jobs $clusters_failed failed clusters" };
+      return { success => 0, failed => 1, message => "$jobs_failed failed jobs $clusters_failed failed clusters" };
    }
-   elsif ( $jobs_started || $clusters_started ) {
-      $self->_set_cluster_state( $user, { state => 'running', id => $cluster_id } );
-      return { success => 1, message => "$jobs_started jobs started $clusters_started clusters started" };
-   }
+   #elsif ( $jobs_started || $clusters_started ) {
+   #   $self->_set_cluster_state( $user, { state => 'running', id => $cluster_id } );
+   #   return { success => 1, message => "$jobs_started jobs started $clusters_started clusters started" };
+   #}
    elsif ( $jobs_waiting || $clusters_waiting ) {
       $self->_set_cluster_state( $user, { state => 'waiting', id => $cluster_id } );
-      return { success => 1, message => "$clusters_waiting clusters waiting $jobs_waiting jobs waiting" };
+      return { success => 1, waiting => 1, message => "$clusters_waiting clusters waiting $jobs_waiting jobs waiting" };
    }
    elsif ( $self->_cluster_is_complete( $user, { id => $cluster_id } ) ) {
       $self->_set_cluster_state( $user, { state => 'complete', id => $cluster_id } );
-      return { success => 1, message => "cluster complete $cluster_id" };
+      return { success => 1, completed => 1, message => "cluster complete $cluster_id" };
    }
    else {
       #$self->_set_cluster_state( $user, { state => 'failed', id => $cluster_id } );
-      return { success => 0, message => "$jobs_skipped jobs skipped $clusters_skipped clusters skipped" };
+      return { success => 1, started => 1, message => "$jobs_skipped jobs skipped $clusters_skipped clusters skipped" };
    }
 }
 
@@ -559,13 +600,14 @@ sub _reset_cluster {
    my $hold         = $self->job_states->{hold};
    my $ice          = $self->job_states->{ice};
 
-   # set cluster state to ready or waiting
    my $needs = $self->_read_cluster_needs( $user, { id => $cluster_id } );
-
-   # wait for cron or dependencies to be met
    my $cluster_state = $cluster_info->{next_start} || scalar keys %$needs ? 'waiting' : 'ready';
+
+   print "HERE1\n";
+   # set cluster state to ready or waiting
    $self->_set_cluster_state( $user, { id => $cluster_id, state => $cluster_state } );
 
+   print "HERE2\n";
    # set child job states to ready or waiting
    my $jobs = $self->sqlite->db->select( 'job', ['id'], { cluster_id => $cluster_id, state_id => { '!=', [ -and => ( $hold, $ice ) ] } } );
    while ( my $job = $jobs->hash ) {
@@ -574,6 +616,7 @@ sub _reset_cluster {
       $self->_set_job_state( $user, { id => $job->{id}, state => $job_state } );
    }
 
+   print "HERE2\n";
    # reset descendent clusters
    my $clusters = $self->sqlite->db->select( 'cluster', ['id'], { parent_id => $cluster_id, state_id => { '!=', [ -and => ( $hold, $ice ) ] } } );
    while ( my $cluster = $clusters->hash ) {
@@ -593,38 +636,38 @@ sub find_cluster {
    my ( $self, $user, $d ) = @_;
 
    my $cluster    = $self->read_cluster( $user, $d );
-   my $cluster_id = $cluster->{id};
+   #my $cluster_id = $cluster->{id};
 
    # undef = root cluster, 0 = cluster not found
-   return { success => 0, message => 'cluster not found' } if defined $cluster_id && $cluster_id == 0;
+   #return { success => 0, message => 'cluster not found' } if defined $cluster_id && $cluster_id == 0;
+   return { success => 0, message => 'cluster not found' } unless $cluster->{id};
 
    my @clusters;
 
-   if ($cluster_id) {
+   #if ($cluster_id) {
       my $is_readable = $self->is_readable( $user, { id => $cluster->{id} } );
       return { success => 0, message => 'you do not have permission to read this cluster' } unless $is_readable;
-      $cluster->{jobs}  = $self->_find_jobs( $user, { cluster_id => $cluster_id } );
-      $cluster->{needs} = $self->_read_cluster_needs( $user, { id => $cluster_id } );
+      #$cluster->{jobs}  = $self->_find_jobs( $user, { cluster_id => $cluster_id } );
+      #$cluster->{needs} = $self->_read_cluster_needs( $user, { id => $cluster_id } );
       push @clusters, $cluster;
-   }
+   #}
 
    my $find_clusters = sub {
       my $id     = shift;
       my $org_id = $user->org_id;
 
-      my $patch = $id ? " = $id " : " IS NULL ";
-
       my $sql = <<~"SQL";
          select c.*, js.state as jobstate
          from cluster c
          left join job_states js on c.state_id = js.id
-         where parent_id $patch
+         where parent_id = $id
          and org_id = $org_id 
+         order by c.id
       SQL
 
-      my $cluster = $self->sqlite->db->query($sql);
+      my $children = $self->sqlite->db->query($sql);
 
-      while ( my $c = $cluster->hash ) {
+      while ( my $c = $children->hash ) {
          $c->{jobs}       = $self->_find_jobs( $user, { cluster_id => $c->{id} } );
          $c->{needs}      = $self->_read_cluster_needs( $user, { id => $c->{id} } );
          $c->{next_start} = $self->_cal_next_start( $user, { id => $c->{cal_id} } ) if $c->{cal_id};
@@ -635,7 +678,7 @@ sub find_cluster {
       return;
    };
 
-   $find_clusters->($cluster_id);
+   $find_clusters->($cluster->{id});
    return scalar @clusters ? { success => 1, clusters => \@clusters } : { success => 0, message => 'no clusters found' };
 }
 
@@ -710,19 +753,21 @@ sub delete_cluster {
    my ( $self, $user, $d ) = @_;
    my $cluster = $self->read_cluster( $user, $d );
    return $cluster if $cluster->{success} == 0;
-   my $cluster_id = $cluster->{id};
 
-   # undef = root cluster, 0 = cluster not found
-   return { success => 0, message => 'cluster not found' } if defined $cluster_id && $cluster_id == 0;
+   return { success => 0, message => 'cluster not found' } unless $cluster->{id};
+   return { success => 0, message => 'root cluster cannot be deleted' } if $user->root_cluster_id == $cluster->{id};
 
-   if ($cluster_id) {
-      my $is_writable = $self->is_writable( $user, { id => $cluster_id } );
+   if ($cluster->{id}) {
+      my $is_writable = $self->is_writable( $user, { id => $cluster->{id} } );
       return { success => 0, message => 'no write permissions on this cluster' } unless $is_writable;
    }
 
    # delete cluster and all descendants
 
-   my $clusters = $self->find_cluster( $user, { id => $cluster_id } )->{clusters};
+   my $clusters = $self->find_cluster( $user, { id => $cluster->{id} } )->{clusters};
+   push @{ $clusters }, $cluster;
+   
+   my $delete_count = 0;
    foreach my $c ( @{$clusters} ) {
 
       # delete jobs
@@ -732,7 +777,8 @@ sub delete_cluster {
       }
 
       # delete cluster
-      $self->sqlite->db->delete( 'cluster', { id => $c->{id} } );
+      my $rows = $self->sqlite->db->delete( 'cluster', { id => $c->{id} } )->rows;
+      $delete_count += $rows;
       next unless $c->{cal_id};
 
       # calendar cleanup
@@ -746,8 +792,8 @@ sub delete_cluster {
          $self->sqlite->db->delete( 'cal', { name => undef, id => $c->{cal_id}, org_id => $user->org_id } );
       }
    }
-   my $success = $@ ? 0 : 1;
-   return { success => $success, id => $cluster_id };
+   return { success => 0, message => $@ } if $@;
+   return $delete_count ? { success => 1, deleted => $delete_count } : { success => 0 };
 }
 
 sub create_cluster {
@@ -764,14 +810,12 @@ sub create_cluster {
 
    return { success => 0, message => 'a cluster by that name already exists' } if $cluster->{id};
 
-   # undef = root cluster, 0 = cluster not found
-   return { success => 0, message => 'cluster not found' } if defined $cluster_id && $cluster_id == 0;
+   #return { success => 0, message => 'cluster not found' } if defined $cluster_id && $cluster_id == 0;
+   return { success => 0, message => 'cluster not found' } unless $cluster_id;
    my $user_info = $self->read_user($user);
 
-   if ($cluster_id) {
-      my $is_writable = $self->is_writable( $user, { id => $cluster_id } );
-      return { success => 0, message => 'you do not have permission to write to this cluster' } unless $is_writable;
-   }
+   my $is_writable = $self->is_writable( $user, { id => $cluster_id } );
+   return { success => 0, message => 'you do not have permission to write to this cluster' } unless $is_writable;
 
    my $insert_hash = {
       org_id    => $user_info->{org_id},
@@ -852,9 +896,10 @@ sub change_cluster {
    }
 
    # 0 = not found, undef = root cluster
-   return { success => 0, message => 'unable to locate cluster' } if defined $cluster_id && $cluster_id == 0;
+   #return { success => 0, message => 'unable to locate cluster' } if defined $cluster_id && $cluster_id == 0;
+   return { success => 0, message => 'unable to locate cluster' } unless $cluster_id;
 
-   my $fullpath  = $self->id2path($cluster_id);
+   my $fullpath  = $self->id2path($user, { id => $cluster_id });
    my $user_info = $self->read_user($user);
    eval { $self->sqlite->db->update( 'user', { base_cluster_id => $cluster_id }, { id => $user_info->{id} } ); };
    my $success = $@ ? 0 : 1;
@@ -863,9 +908,11 @@ sub change_cluster {
 
 sub path2id {
    my ( $self, $user, $path ) = @_;
-   my $user_info       = $self->read_user($user);
-   my $base_cluster_id = $user_info->{base_cluster_id};
-   my $base_path       = $self->id2path($base_cluster_id);
+   #my $user_info       = $self->read_user($user);
+   #my $base_cluster_id = $user_info->{base_cluster_id};
+   my $base_cluster_id = $user->base_cluster_id;
+   my $base_path       = $self->id2path($user, { id => $base_cluster_id });
+
    my $fullpath =
        ( $path && substr( $path, 0, 1 ) eq '/' ) ? $path
      : $path && $base_path                       ? "/$base_path/$path"
@@ -873,7 +920,7 @@ sub path2id {
      : $base_path                                ? "/$base_path"
      :                                             '/';
 
-   my @parts    = split( '/', $fullpath );
+   my @parts    = grep { $_ } split( '/', $fullpath );
    my @ups      = grep { $parts[$_] eq '..' } ( 1 .. $#parts );
    my $up_count = scalar @ups;
    if ($up_count) {
@@ -882,29 +929,48 @@ sub path2id {
       $offset = $offset > 0 ? $offset : 0;
       splice( @parts, $offset, $up_count );
    }
-
+   #my $parent_id = $user->root_cluster_id;
    my $parent_id = undef;
 
+   # verify path exists
    foreach my $part (@parts) {
-      my $result = $self->sqlite->db->select( 'cluster', ['*'], { parent_id => $parent_id, name => $part, org_id => $user_info->{org_id} } )->hash;
-      $parent_id = $result->{id};
-      return 0 if $part && !$parent_id;    # invalid path name
+      my $c = $self->sqlite->db->select( 'cluster', ['id'], { parent_id => $parent_id, name => $part, org_id => $user->org_id } )->hash;
+      #$parent_id = $result->{id};
+
+      # invalid path
+      return unless $c->{id};
+      $parent_id = $c->{id};
    }
+
+   # return cluster_id only if path really exists
    return $parent_id;
 }
 
 sub id2path {
-   my ( $self, $cluster_id ) = @_;
+   #my ( $self, $user, $d $cluster_id ) = @_;
+   my ( $self, $user, $d ) = @_;
 
-   my $parent_id = $cluster_id;
+   my $cluster = $self->sqlite->db->select( 'cluster', ['id'], { id => $d->{id} } )->hash;
+   my $cluster_id = $cluster->{id};
+
    my @names;
+   my $count = 0;
 
-   while ( defined $parent_id ) {
-      my $results = $self->sqlite->db->select( 'cluster', ['*'], { id => $parent_id } )->hash;
-      $parent_id = $results->{parent_id};
-      unshift( @names, $results->{name} );
+   while (defined $cluster_id) {
+      my $c = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id } )->hash;
+      #last unless $c->{parent_id};
+      last unless $c->{id};
+
+      # max depth of 10
+      $count++;
+      return if $count > 10;
+
+      unshift( @names, $c->{name} );
+      $cluster_id = $c->{parent_id};
    }
-   @names = grep { $_ } @names;
+
+   return unless scalar @names;
+
    my $path = join( '/', @names );
    return $path;
 }
@@ -913,22 +979,47 @@ sub id2path {
 
 sub login_user {
    my ( $self, $user, $d ) = @_;
-   my $results = $self->sqlite->db->select( 'user', ['*'], { token => $d->{token} } )->hash;
 
-   my ( $message, $success );
+   my $results = $self->sqlite->db->select( 'user', ['*'], { token => $d->{token} } )->hash;
+   my $org = $self->sqlite->db->select( 'org', ['root_cluster_id'], { id => $results->{org_id} } )->hash;
+
+   my ( $message, $success, $path );
+   my $host = hostname();
 
    if ( $results->{id} ) {
       $user->id( $results->{id} );
       $user->level( $results->{level} );
       $user->org_id( $results->{org_id} );
-      $message = 'logged in as ' . $results->{name};
+      $user->token( $results->{token} );
+      $user->base_cluster_id( $results->{base_cluster_id} );
+      $user->root_cluster_id( $org->{root_cluster_id} );
+      $path = $self->id2path( $user, { id => $results->{base_cluster_id} } );
+      $message = 'login success';
       $success = 1;
    }
    else {
       $message = 'login failed';
       $success = 0;
    }
-   return { message => $message, success => $success, user_id => $user->id };
+   return { message => $message, success => $success, user_id => $user->id, host => $host, path => $path, level => $user->level };
+}
+
+sub register_user {
+   my ( $self, $user, $d ) = @_;
+   my $new_user = $self->create_user($user, { level => 0 });
+   if ($new_user->{success}) {
+      #$user->id ( $new_user->{id} );
+      my $login = $self->login_user($user, { token => $new_user->{token} });
+      if ($login->{success}) {
+         return { success => 1, token => $new_user->{token}, message => "registered and awaiting confirmation" };
+      }
+      else {
+         return { success => 0 };
+      }
+   }
+   else {
+      return { success => 0 };
+   }
 }
 
 sub create_user {
@@ -946,54 +1037,79 @@ sub create_user {
    eval {
       my $tx = $db->begin;
 
-      # generate org bookmark
-      my $bookmark = hmac_sha1_hex( $d->{name}, $self->app->secrets->[1] );
+      # create org
+      my $org_id;
+      if ($d->{org_id}) {
+         my $org = $self->sqlite->db->select( 'org', ['id'], { id => $d->{org_id} } )->hash;
+         if ($org->{id}) {
+            $org_id = $org->{id};
+         }
+         else {
+            die 'no such org';
+         }
+      }
+      else {
+         $org_id = $db->query("INSERT INTO org DEFAULT VALUES")->last_insert_id;
+      }
 
-      my $org_id = $d->{org_id} || $db->insert( 'org', { bookmark => $bookmark } )->last_insert_id;
-      my $cluster_id;
+      die "unable to create org" unless $org_id;
 
-      #my $cluster = $db->select( 'cluster', ['id'], { org_id => $org_id, name => 'monitors' } );
-      #if ( $cluster->{id} ) {
-      #   $cluster_id = $cluster->{id};
-      #}
-      #else {
-      #   $cluster_id = $db->insert( 'cluster', { org_id => $org_id, name => 'monitors', mode => 550 } )->last_insert_id;
-      #}
+      # create root cluster
+      my $root_id;
 
-      # generate login token
-      my $token = hmac_sha1_hex( $d->{name}, $self->app->secrets->[0] );
+      my $root = $db->select( 'cluster', ['id'], { org_id => $org_id, name => 'root', parent_id => undef } );
+      if ($root->{id}) {
+         $root_id = $root->{id};
+      }
+      else {
+         $root_id = $db->insert( 'cluster', { org_id => $org_id, name => 'root', mode => 550, state_id => $self->job_states->{immutable} } )->last_insert_id;
+      }
+
+      die "unable to create root cluster" unless $root_id;
+
       $user_insert->{org_id}          = $org_id;
-      $user_insert->{base_cluster_id} = $cluster_id;
-      $user_insert->{token}           = $token;
+      $user_insert->{base_cluster_id} = $root_id;
       $user_insert->{mode}            = 770;
       $user_id                        = $db->insert( 'user', $user_insert )->last_insert_id;
-      $db->update( 'org',     { user_id => $user_id }, { id => $org_id } );
-      $db->update( 'cluster', { user_id => $user_id }, { id => $cluster_id } );
+      die unless $user_id;
+      #$user->id($user_id);
+
+      # TODO: firewall config
+      # TODO: nginx config for reverse proxy with self-signed certificate 
+      # TODO: move register_user to separate app
+      $db->update( 'org',     { user_id => $user_id, root_cluster_id => $root_id }, { id => $org_id } );
+      $db->update( 'cluster', { user_id => $user_id }, { id => $root_id } );
       $tx->commit;
    };
 
-   return { message => $@, success => 0 } if $@;
-   my $user_info = $db->select( 'user', ['*'], { id => $user_id } )->hash;
-   return $user_info;
+   my $token = $self->new_token($user);
+   return $@ ? { message => $@, success => 0 } : { success => 1, id => $user_id, token => $token->{token}, message => "user $user_id created" };
+}
+
+sub new_token {
+   my ( $self, $user ) = @_;
+   my $uuid = create_uuid_as_string();
+   my $token = hmac_sha1_hex( $uuid );
+   $self->sqlite->db->update( 'user', { token => $token }, { id => $user->id } )->hash;
+   return { success => 1, token => $token };
 }
 
 sub read_user {
    my ( $self, $user, $decoded ) = @_;
 
    my $info = $self->sqlite->db->select( 'user', ['*'], { id => $user->id } )->hash;
-   my $path = $self->id2path( $info->{base_cluster_id} );
+   my $path = $self->id2path( $user, { id => $info->{base_cluster_id} } );
 
    return {
       id              => $info->{id},
       org_id          => $info->{org_id},
       name            => $info->{name},
-      token           => $info->{token},
+      #token           => $info->{token},
       level           => $info->{level},
       email           => $info->{email},
       base_cluster_id => $info->{base_cluster_id},
       mode            => $info->{mode},
       remote_address  => $user->remote_address,
-      hostname        => hostname(),
       path            => $path,
       success         => 1,
    };
@@ -1008,9 +1124,10 @@ sub update_user {
 
 sub delete_user {
    my ( $self, $user, $decoded ) = @_;
-   eval { $self->sqlite->db->delete( 'user', { id => $decoded->{id} } )->hash; };
-   my $success = $@ ? 0 : 1;
-   return { success => $success, id => $decoded->{id} };
+   my $rows;
+   eval { $rows = $self->sqlite->db->delete( 'user', { id => $decoded->{id} } )->rows };
+   return { success => 0, message => $@ } if $@;
+   return { success => $rows, id => $decoded->{id} };
 }
 
 # job related subroutines
@@ -1030,7 +1147,8 @@ sub _path2name {
    };
 
    # cluster found
-   unless ( defined $cluster_id && $cluster_id == 0 ) {
+   #unless ( defined $cluster_id && $cluster_id == 0 ) {
+   if ( $cluster_id ) {
       my $cluster = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id } )->hash;
       $rv->{is_writable}   = $self->is_writable( $user, $cluster );
       $rv->{is_readable}   = $self->is_readable( $user, $cluster );
@@ -1235,7 +1353,7 @@ sub release_cluster {
          $user,
          {
             id     => $cluster->{id},
-            origin => 'auto',
+            origin => 'auto2',
          }
       );
    }
@@ -1312,6 +1430,7 @@ sub _create_job {
    my $j = $self->_path2name( $user, $d->{name} );
    return { success => 0, message => 'a job by that name already exists' } if $j->{job_id};
    return { success => 0, message => 'cluster not found' }                 if defined $j->{cluster_id} && $j->{cluster_id} == 0;
+   return { success => 0, message => 'jobs not allowed in the root cluster' } if $user->root_cluster_id == $j->{cluster_id};
 
    #return { success => 0, message => 'you do not have permission to write to this cluster' } unless $j->{is_writable};
 
@@ -1463,7 +1582,7 @@ sub hold_job {
 sub _cluster_is_ready {
    my ( $self, $user, $d ) = @_;
 
-   my $cluster_id = $d->{id};
+   my $id = $d->{id};
 
    my $complete = $self->job_states->{complete};
    my $waiting  = $self->job_states->{waiting};
@@ -1471,10 +1590,10 @@ sub _cluster_is_ready {
    my $hold     = $self->job_states->{hold};
    my $ice      = $self->job_states->{ice};
 
-   my $jb = $self->sqlite->db->select( 'job',     ['*'], { cluster_id => $cluster_id, state_id => { '!=', [ -and => ( $waiting, $complete, $ready, $ice, $hold ) ] } }, { limit => 1 } );
-   my $cl = $self->sqlite->db->select( 'cluster', ['*'], { parent_id  => $cluster_id, state_id => { '!=', [ -and => ( $waiting, $complete, $ready, $ice, $hold ) ] } }, { limit => 1 } );
+   my $c = $self->sqlite->db->select( 'cluster', ['*'], { parent_id  => $id, state_id => { '!=', [ -and => ( $waiting, $complete, $ready, $ice, $hold ) ] } }, { limit => 1 } )->hash;
+   my $j = $self->sqlite->db->select( 'job',     ['*'], { cluster_id => $id, state_id => { '!=', [ -and => ( $waiting, $complete, $ready, $ice, $hold ) ] } }, { limit => 1 } )->hash;
 
-   return !$jb->hash && !$cl->hash ? 1 : 0;
+   return $c->{id} || $j->{id} ? 0 : 1;
 }
 
 # returns true if cluster is complete
@@ -1698,7 +1817,6 @@ sub _update_job {
                my $count = $self->sqlite->db->query("select count(*) as count from job_log where job_id = $d->{id}")->hash->{count};
                if ( $count > 10 ) {
                   my $dl = $self->sqlite->db->select( 'job_log', ['*'], { job_id => $job->{id} }, { order_by => 'id', limit => 1 } )->hash;
-                  print Dumper($dl);
                   $self->sqlite->db->delete( 'job_log', { id => $dl->{id} } );
 
                   my $ssh = $self->ssh_connection->{ $job->{server_id} };
@@ -1848,7 +1966,7 @@ sub update_sysinfo {
 
    my $ssh = $self->ssh_connection->{ $server->{id} };
    return { success => 0, exit => 1 } unless $server->{id} && $ssh && $ssh->check_master;
-   $uh->{ping}        = $self->_ping( $server->{hostname} ) if $server->{hostname};
+   $uh->{ping}        = $self->_ping( $server->{host} ) if $server->{host};
    $uh->{update_time} = time;
    my $running  = $self->job_states->{running};
    my $watching = $self->job_states->{watching};
@@ -1930,12 +2048,6 @@ sub watch_job {
 
 }
 
-# TODO: replace top_jobs with output from top
-sub top_jobs {
-   my ( $self, $user, $d ) = @_;
-   return { success => 0 };
-}
-
 sub complete_job {
    my ( $self, $user, $d ) = @_;
 
@@ -2007,8 +2119,14 @@ sub _start_job {
       $ssh = $self->ssh_connection->{ $job->{server_id} };
    }
 
-   my $token = $self->read_user($user)->{token};
-   my $opts  = { token => $token, id => $job->{id}, cluster_id => $job->{cluster_id}, shell => $job->{script} };
+   # second try
+   unless ( $ssh && $ssh->check_master ) {
+      $self->_set_job_state( $user, { id => $job->{id}, state => 'failed' } );
+      return { success => 0, message => 'connection failed' };
+   }
+
+   my $token = $user->token;
+   my $opts  = { token => $token, id => $job->{id}, cluster_id => $job->{cluster_id}, script => $job->{script} };
    $opts->{origin_id} = $d->{origin_id} if $d->{origin_id};
    if ( $d->{origin} eq 'retry' ) {
       $opts->{origin} = $d->{origin};
@@ -2019,7 +2137,6 @@ sub _start_job {
       $opts->{delay}  = $job->{loop_delay};
    }
 
-   #my $json     = encode_json( { token => $token, id => $job->{id}, cluster_id => $job->{cluster_id}, shell => $job->{script} } );
    my $json = encode_json($opts);
 
    # TODO: encode with MIME::Base64
@@ -2032,7 +2149,7 @@ sub _start_job {
 
    #$ssh->system($cmd);
    if ( $ssh->error ) {
-      $self->_set_job_state( $user, { id => $job->{id}, state => $d->{failed} } );
+      $self->_set_job_state( $user, { id => $job->{id}, state => 'failed' } );
       return { success => 0, message => $ssh->error };
    }
    else {
@@ -2065,14 +2182,9 @@ sub _hard_kill_job {
    $self->_connect_ssh( $user, { id => $job->{server_id} } ) unless $ssh && $ssh->check_master;
 
    my $rv = $ssh->system("perl -e 'kill KILL, $pid_list'");
+   $self->_set_job_state( $user, { id => $job->{id}, state => 'killed' } );
 
-   if ($rv) {
-      $self->_set_job_state( $user, { id => $job->{id}, state => 'killed' } );
-      return { success => 1 };
-   }
-   else {
-      return { success => 0 };
-   }
+   return $rv ? { success => 1 } : { success => 0 };
 }
 
 sub kill_job {
@@ -2124,22 +2236,26 @@ sub _reset_job_stats {
 
 sub ssh_copy {
    my ( $self, $user, $d ) = @_;
-   my $s = $self->_server_info( $user, $d );
-   return { success => 0, message => 'no servers found' } unless $s;
-   return { success => 0 }                                unless $s->{password} && $s->{username} && $s->{hostname};
-   $self->_ssh_copy( $user, $s );
-   return { success => 1 };
+   my $success = $self->_ssh_copy( $user, $d );
+   return { success => $success };
 }
 
 sub _ssh_copy {
    my ( $self, $user, $d ) = @_;
-   my $port = $d->{port} || 22;
+
+   my $s = $self->_server_info( $user, $d );
+   return 0 unless $s;
+
+   my $port = $s->{port} || 22;
+   my $password = $d->{password} || $s->{password} || '';
+   return 0 unless $password;
 
    # copy public ssh key to remote host
-   my $copy_key  = "sshpass -p $d->{password} ssh-copy-id -p $port $d->{username}\@$d->{hostname}";
-   my $exit_code = system($copy_key);
-   my $success   = $exit_code ? 0 : 1;
-   return { success => $success, exit_code => $exit_code };
+   my $copy_key  = "sshpass -p $password ssh-copy-id -p $port $s->{user}\@$s->{host}";
+   print "COPY: $copy_key\n";
+   system($copy_key);
+   my $exit_code = $? >> 8;
+   return $exit_code ? 0 : 1; 
 }
 
 # install
@@ -2160,7 +2276,7 @@ sub _install_monitor {
 
       #or die "scp failed: " . $ssh->error;
 
-      my $token = $self->read_user($user)->{token};
+      my $token = $user->token;
       my $json  = encode_json( { token => $token, id => $s->{id} } );
 
       # install perl modules in background
@@ -2180,12 +2296,12 @@ sub _install_monitor {
 
 sub create_monitor {
    my ( $self, $user, $d ) = @_;
-   my $token = $self->read_user($user)->{token};
+   my $token = $user->token;
 
-   $self->_ssh_copy( $user, $d ) if $d->{password};
+   my $exit_code = $self->_ssh_copy( $user, $d ) if $d->{password};
 
    my $port        = $d->{port} || 22;
-   my $insert_hash = { map { $_ => $d->{$_} } grep { exists $d->{$_} } (qw(name username hostname password)) };
+   my $insert_hash = { map { $_ => $d->{$_} } grep { exists $d->{$_} } (qw(name user host password)) };
    $insert_hash->{port}   = $port;
    $insert_hash->{org_id} = $user->org_id;
 
@@ -2195,15 +2311,15 @@ sub create_monitor {
       my $tx = $self->sqlite->db->begin;
 
       # create monitor and start it
-      $id = $self->sqlite->db->insert( 'server', $insert_hash )->last_insert_id;
+      $id = $self->sqlite->db->insert( 'server', $insert_hash )->last_insert_id or die;
       $self->_connect_ssh( $user, { id => $id } )     or die "connect failed";
       $self->_install_monitor( $user, { id => $id } ) or die "install failed";
       $self->_start_monitor( $user, { id => $id } )   or die "start failed";
 
       # create monitor cluster if it doesn't already exist
-      my $monitors = $self->sqlite->db->select( 'cluster', ['id'], { org_id => $user->org_id, name => 'monitors', parent_id => undef } )->hash;
+      my $monitors = $self->sqlite->db->select( 'cluster', ['id'], { org_id => $user->org_id, name => 'monitors', parent_id => $user->root_cluster_id } )->hash;
       unless ( $monitors->{id} ) {
-         my $monitors = $self->create_cluster( $user, { name => '/monitors', mode => 550 } );
+         my $monitors = $self->create_cluster( $user, { name => '/root/monitors', mode => 550 } );
          die "create monitor cluster failed" unless $monitors->{success};
       }
 
@@ -2212,7 +2328,7 @@ sub create_monitor {
       die "missing server" unless $server->{id};
       $json = encode_json( { token => $token, id => $id } );
       $cwd  = $server->{cwd} || '';
-      my $rv = $self->_create_job( $user, { name => "/monitors/$d->{name}", script => "$cwd/cc_worker/script/sysinfo.pl $json", server_id => $id } );
+      my $rv = $self->_create_job( $user, { name => "/root/monitors/$d->{name}", script => "$cwd/cc_worker/script/sysinfo.pl $json", server_id => $id } );
       die "create monitor job failed" unless $rv->{success};
       my $sj = $self->_start_job(
          $user,
@@ -2227,7 +2343,7 @@ sub create_monitor {
       $tx->commit;
    };
 
-   return $@ ? { success => 0, message => $@ } : { success => 1 };
+   return $@ ? { success => 0, message => $@, exit_code => $exit_code, %{$d} } : { success => 1, %{$d} };
 }
 
 sub read_monitor {
@@ -2235,7 +2351,7 @@ sub read_monitor {
    my $servers = $self->sqlite->db->select( 'server', ['*'], { org_id => $user->org_id } );
    my @s;
    while ( my $server = $servers->hash ) {
-      my $info = { map { $_, $server->{$_} } (qw(id os cwd home cores update_time ping username hostname name port total_memory used_memory cpu total_disk used_disk uptime)) };
+      my $info = { map { $_, $server->{$_} } (qw(id os cwd home cores update_time ping user host name port total_memory used_memory cpu total_disk used_disk uptime)) };
       push @s, $info;
    }
    return scalar @s ? { success => 1, servers => \@s } : { success => 0, message => 'no monitors found' };
@@ -2257,7 +2373,7 @@ sub _server_info {
    #my $connected = $ssh && $ssh->check_master ? 1 : 0;
    return unless $server;
 
-   my $info = { map { $_, $server->{$_} } (qw(id os cwd home cores update_time ping username hostname name port total_memory used_memory cpu total_disk used_disk uptime)) };
+   my $info = { map { $_, $server->{$_} } (qw(id os cwd home cores update_time ping user host name port total_memory used_memory cpu total_disk used_disk uptime)) };
    return $info;
 }
 
@@ -2275,10 +2391,10 @@ sub _disconnect_ssh {
 # refresh ssh connection
 sub _connect_ssh {
    my ( $self, $user, $d ) = @_;
-   my $token = $self->read_user($user)->{token};
+   my $token = $user->token;
    my $s     = $self->_server_info( $user, $d );
 
-   return unless $s && $s->{id} && $s->{username} && $s->{hostname};
+   return unless $s && $s->{id} && $s->{user} && $s->{host};
    my $port    = $s->{port} || 22;
    my $old_ssh = $self->ssh_connection->{ $s->{id} };
    if ( $old_ssh && ref $old_ssh ) {
@@ -2288,7 +2404,7 @@ sub _connect_ssh {
    }
 
    my %option = (
-      user       => $s->{username},
+      user       => $s->{user},
       port       => $port,
       batch_mode => 1,
       timeout    => 3,
@@ -2298,7 +2414,7 @@ sub _connect_ssh {
       master_opts => [ -o => "ControlMaster=auto" ],
    );
 
-   my $ssh = Net::OpenSSH->new( $s->{hostname}, %option );
+   my $ssh = Net::OpenSSH->new( $s->{host}, %option );
 
    return if $ssh->error || !$ssh->check_master;
 
@@ -2310,7 +2426,7 @@ sub _connect_ssh {
 
 sub _start_monitor {
    my ( $self, $user, $d ) = @_;
-   my $token = $self->read_user($user)->{token};
+   my $token = $user->token;
    my $s     = $self->_server_info( $user, $d );
    return unless $s;
    $self->_disconnect_ssh( $user, $d );
@@ -2328,7 +2444,7 @@ sub stop_monitor {
    my $server = $self->_server_info( $user, $d );
    return { success => 0, message => 'monitor not found' } unless $server;
 
-   my $job = $self->_job_info( $user, { name => "/monitors/$server->{name}" } );
+   my $job = $self->_job_info( $user, { name => "/root/monitors/$server->{name}" } );
    return { success => 0, message => 'monitor job not found' } unless $job->{id};
 
    my $rv = $self->_hard_kill_job( $user, { id => $job->{id} } );
@@ -2341,7 +2457,7 @@ sub start_monitor {
    my $server = $self->_server_info( $user, $d );
    return { success => 0, message => 'monitor not found' } unless $server;
 
-   my $job = $self->_job_info( $user, { name => "/monitors/$server->{name}" } );
+   my $job = $self->_job_info( $user, { name => "/root/monitors/$server->{name}" } );
 
    return { success => 0, message => 'monitor job not found' } unless $job->{id};
    return $self->start_job( $user, { id => $job->{id}, force => 1, origin => 'auto', origin_id => $job->{cluster_id} } );
@@ -2349,7 +2465,19 @@ sub start_monitor {
 
 sub update_monitor {
    my ( $self, $user, $d ) = @_;
-   return { success => 1 };
+
+   my $server = $self->_server_info( $user, $d );
+   return { success => 0, message => 'monitor not found' } unless $server;
+
+   my $update_hash = { map { $_ => $d->{$_} } grep { exists $d->{$_} } (qw(user host password)) };
+   if (scalar keys %{ $update_hash }) {
+      eval { $self->sqlite->db->update( 'server', $update_hash, { id => $server->{id} } ) };
+      return  { success => 0, message => $@ } if $@;
+   }
+
+   my $exit_code = $self->_ssh_copy( $user, { id => $server->{id}, password => $d->{password} } ) if $d->{password};
+   my $connection_ok = $self->_connect_ssh($user, { id => $server->{id} });
+   return $connection_ok ?  { success => 1 } :  { success => 0, message => 'connection failed' };
 }
 
 sub upgrade_monitor {
@@ -2364,7 +2492,7 @@ sub delete_monitor {
    my $server = $self->_server_info( $user, $d );
    return { success => 0, message => 'server not found' } unless $server;
    my $id  = $server->{id};
-   my $ci  = $self->sqlite->db->select( 'cluster', ['id'], { parent_id => undef, name => 'monitors', org_id => $user->org_id } )->hash;
+   my $ci  = $self->sqlite->db->select( 'cluster', ['id'], { parent_id => $user->root_cluster_id, name => 'monitors', org_id => $user->org_id } )->hash;
    my $job = $self->sqlite->db->select( 'job',     [ 'id', 'cluster_id' ], { cluster_id => $ci->{id}, name => $server->{name} } )->hash;
 
    if ( $job->{id} ) {
@@ -2385,6 +2513,7 @@ sub read_log {
    my ( $self, $user, $d ) = @_;
 
    my $job = $self->_job_info( $user, $d );
+
    return { success => 0, message => 'job not found' } unless $job->{id};
 
    my $log;
@@ -2405,13 +2534,13 @@ sub read_log {
    }
 
    my $o = "cc_worker/logs/out.$log->{job_id}.$log->{ppid}.$log->{log_id}.log";
-   my $e = "cc_worker/logs/err.$log->{job_id}.$log->{ppid}.$log->{log_id}.log";
+   #my $e = "cc_worker/logs/err.$log->{job_id}.$log->{ppid}.$log->{log_id}.log";
 
    # TODO: change to cross-platform script
    my $out = $ssh->capture("cat $o");
-   my $err = $ssh->capture("cat $e");
+   #my $err = $ssh->capture("cat $e") if $log->{exit_code};
 
-   return $ssh->error ? { success => 0, message => $ssh->error } : { success => 1, out => $out, err => $err };
+   return $ssh->error ? { success => 0, message => $ssh->error } : { success => 1, out => $out };
 }
 
 sub find_log {
@@ -2425,7 +2554,7 @@ sub find_log {
    while ( my $log = $logs->hash ) {
       push @all, $log;
    }
-   my $path = $self->id2path($job->{cluster_id});
+   my $path = $self->id2path($user, { id => $job->{cluster_id} });
    return scalar @all ? { success => 1, path => $path, name => $job->{name}, logs => \@all } : { success => 0, message => 'no logs found' };
 
 }
@@ -2940,10 +3069,12 @@ sub routing {
 
       # user related
       'create_user' => [ \&create_user, 3, [ { name => $w }, { org_id => $i, email => $w, level => $i } ] ],
-      'read_user'   => [ \&read_user,   1, [ {},             {} ] ],
+      'read_user'   => [ \&read_user,   0, [ {},             {} ] ],
       'update_user' => [ \&update_user, 1, [ {},             { email => $e, name => $w } ] ],
       'delete_user' => [ \&delete_user, 3, [ { id => $i }, {} ] ],
       'login_user'  => [ \&login_user,  0, [ { token => $w }, {} ] ],
+      'new_token'  => [ \&new_token,  3, [ {}, {} ] ],
+      'register_user' => [ \&register_user,  0, [ {}, {} ] ],
 
       # job related
       'create_job' => [
@@ -3016,8 +3147,6 @@ sub routing {
       'ice_job'      => [ \&ice_job,      1, [ {}, { name => $p, id => $i } ] ],
       'melt_job'     => [ \&melt_job,     1, [ {}, { name => $p, id => $i } ] ],
       'complete_job' => [ \&complete_job, 1, [ {}, { name => $p, id => $i } ] ],
-
-      #'top_jobs'    => [ \&top_jobs,    1, [ {}, { count => $i, sort => $w, server_id => $i, name => $p, id => $i } ] ],
 
       # cluster related
       'create_cluster' => [
@@ -3094,15 +3223,15 @@ sub routing {
       'update_cron' => [ \&update_cron, 1, [ { id => $i }, { description => $d, begin => $i, expire => $i, cal => $w, cal_id => $i } ] ],
 
       # logs
-      'find_log'   => [ \&find_log,   1, [ {}, { name => $p, id   => $i } ] ],
-      'read_log'   => [ \&read_log,   1, [ {}, { name => $p, id   => $i, log => $i } ] ],
+      'find_log'   => [ \&find_log,   1, [ {}, { name => $p, id => $i } ] ],
+      'read_log'   => [ \&read_log,   1, [ {}, { name => $p, id => $i, log => $i } ] ],
 
       # monitor related
       'create_monitor' => [
          \&create_monitor,
          1,
          [
-            { name => $w, username => $w, hostname => $p },
+            { name => $w, user => $w, host => $p },
             {
                password => $pw,
             }
@@ -3117,14 +3246,14 @@ sub routing {
             {
                id       => $i,
                name     => $p,
-               newname  => $w,
-               username => $w,
-               hostname => $p,
+               user => $w,
+               host => $p,
+               password => $pw,
             }
          ]
       ],
       'delete_monitor'  => [ \&delete_monitor,  1, [ {},                                             { id       => $i, name => $p } ] ],
-      'ssh_copy'        => [ \&ssh_copy,        1, [ { name => $w, username => $w, hostname => $p }, { password => $pw } ] ],
+      'ssh_copy'        => [ \&ssh_copy,        1, [ { name => $w, user => $w, host => $p }, { password => $pw } ] ],
       'stop_monitor'    => [ \&stop_monitor,    1, [ {},                                             { id       => $i, name => $p } ] ],
       'start_monitor'   => [ \&start_monitor,   1, [ {},                                             { id       => $i, name => $p } ] ],
       'upgrade_monitor' => [ \&upgrade_monitor, 1, [ {},                                             { id       => $i, name => $p } ] ],

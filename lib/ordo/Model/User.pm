@@ -5,6 +5,12 @@ has 'id' => ( is => 'rw', );
 
 has 'org_id' => ( is => 'rw', );
 
+has 'root_cluster_id' => ( is => 'rw', );
+
+has 'base_cluster_id' => ( is => 'rw', );
+
+has 'token' => ( is => 'rw', );
+
 has 'tx' => ( is => 'rw', );
 
 has 'level' => (

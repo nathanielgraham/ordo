@@ -4,7 +4,7 @@ DROP TABLE IF EXISTS org;
 CREATE TABLE org (
         id INTEGER PRIMARY KEY NOT NULL,
 	user_id integer,
-        bookmark varchar,
+        root_cluster_id integer,
         name varchar,
         tz varchar,
         description varchar,

@@ -17,6 +17,7 @@ use Time::Local;
 use DateTime::TimeZone;
 use MIME::Base64;
 use Term::ReadKey;
+use POSIX qw(ceil);
 
 use feature qw(say);
 
@@ -26,65 +27,91 @@ my $tz      = $config->{tz} || DateTime::TimeZone::Local->TimeZone->name;
 my $token   = $config->{token};
 my $aliases = $config->{aliases};
 my $api     = $config->{api};
-my $user    = 'offline';
+
+#my $api     = "https://127.0.0.1/api";
+my $host    = '';
 my $cluster = '';
 
 my $term = Term::ReadLine::Perl5->new('ordo');
-my $ua   = Mojo::UserAgent->new;
+my $ua   = Mojo::UserAgent->new(
+   ssl_opts => {
+      #ca => ['/etc/nginx/ssl/nginx-selfsigned.crt']
+      #ca => ['/etc/nginx/ssl/dhparam.pem']
+      #insecure => 1
+   }
+);
+
 $ua->inactivity_timeout(10);
 $ua->max_redirects(0)->connect_timeout(3)->request_timeout(5);
 
-my $rv = &request("read user");
+my $login = &request("login user");
 
-#die "Invalid token\n" unless $rv->{success};
+if ( $login->{success} ) {
+   if ( $login->{level} == 0 ) {
+      say "Already registered and awaiting confirmation. Try again later.";
+      exit;
+   }
+}
+else {
+   say $login->{message} if $login->{message};
+   exit;
+}
 
 # main loop
-while ( defined( my $line = $term->readline("$user:/$cluster> ") ) ) {
+while ( defined( my $line = $term->readline("$host:/$cluster> ") ) ) {
    next unless $line;
    my $json = &request($line);
 
    #print to_json( $json, { pretty => 1 } );
 
    my $success = $json->{success} ? 'successful' : 'failed';
-   print "Command $success. ";
-   print ucfirst("$json->{message}.") if $json->{message};
+   print "\nCommand $success. ";
+   print ucfirst("$json->{message}") if $json->{message};
    print "\n\n";
 }
 
 sub change_cluster {
    my $json = shift;
+   if ( $json && $json->{success} ) {
+      $cluster = $json->{path};
+   }
+}
+
+sub login_user {
+   my $json = shift;
+   $host    = $json->{host} || '';
    $cluster = $json->{path} || '';
 }
 
-sub read_user {
+sub new_token {
    my $json = shift;
-   $user    = $json->{hostname} || 'offline';
-   $cluster = $json->{path}     || '';
-}
+   return { success => 0 } unless $json && $json->{token};
 
-sub update_token {
-   my $new_token = shift;
-   return { success => 0, message => 'missing token' } unless $new_token;
+   $config->{token} = $json->{token};
+   $token = $json->{token};
 
-   $token = $new_token;
-   $config->{token} = $token;
    my $success = &write_config($config);
 
    if ($success) {
-      say "Using new token: $token";
+      say "Using new token: $json->{token}";
    }
-
-   return { success => $success };
 }
 
-sub help {
-   say <<~'HELP';
-      TODO
-      cmd1
-      cmd2
-      cmd3
-   HELP
-   return { success => 1 };
+sub create_monitor {
+   my $json = shift;
+   if ($json->{exit_code}) {
+      print "Enter the password: ";
+      ReadMode 'noecho';
+      my $password = ReadLine(0);
+      chomp $password;
+      ReadMode 'normal';
+      delete $json->{success};
+      delete $json->{message};
+      $json->{command} = delete $json->{command_reply};
+      $json->{password} = $password;
+      $json->{token} = $token;
+      &send_request($json);
+   }
 }
 
 sub read_job {
@@ -134,30 +161,21 @@ sub find_log {
    my $json = shift;
    return unless $json && $json->{success} && $json->{logs};
    print "\nJob history for $json->{path}/$json->{name}\n";
-   my $rows    = [ [qw(ID JOB_ID PID STARTED ENDED EXIT_CODE SIGNAL)] ];
-   foreach my $l (@{ $json->{logs} }) {
-      my $started = $l->{started} ? strftime( "%b %d %H:%M:%S", localtime($l->{started}) ) : '';
-      my $ended = $l->{ended} ? strftime( "%b %d %H:%M:%S", localtime($l->{ended}) ) : '';
+   my $rows = [ [qw(ID JOB_ID PID STARTED ENDED EXIT_CODE SIGNAL)] ];
+   foreach my $l ( @{ $json->{logs} } ) {
+      my $started = $l->{started} ? strftime( "%b %d %H:%M:%S", localtime( $l->{started} ) ) : '';
+      my $ended   = $l->{ended}   ? strftime( "%b %d %H:%M:%S", localtime( $l->{ended} ) )   : '';
       push @$rows, [ $l->{id}, $l->{job_id}, $l->{pid}, $started, $ended, $l->{exit_code}, $l->{signal} ];
    }
    say generate_table( rows => $rows, header_row => 1 );
-   #print Dumper($json);
 }
 
 sub read_log {
    my $json = shift;
-   return unless $json && $json->{err} && $json->{out};
-
-   my $joined = $json->{out} . $json->{err};
+   return unless $json && $json->{out};
 
    ReadMode('raw');
-   if ( $^O =~ /MSWin32/i ) {
-      print $joined;
-   }
-   else {
-      &less($joined);
-      #system("echo '$joined' | less");
-   }
+   &less($json->{out});
    ReadMode('normal');
 }
 
@@ -209,7 +227,8 @@ sub find_cluster {
 
    my $rows = [ [qw(ID CLUSTER/JOB STATE NEEDS %MEM %CPU PID SERVER LAST_START DURATION NEXT_START CALENDAR)] ];
    foreach my $part (@paths) {
-      my $path       = join( '/', ( map { $cluster{$_}->{name} } @{$part} ) );
+      my $path = join( '/', ( map { $cluster{$_}->{name} } @{$part} ) );
+      $path = "/$path" if !$cluster{ $part->[0] }->{parent_id};
       my $colored    = colored( $path, 'bold blue' );
       my $cluster_id = pop @{$part} || 0;
       my $c          = $cluster{$cluster_id};
@@ -219,6 +238,7 @@ sub find_cluster {
           scalar( grep { $c->{jobstate} eq $_ } (qw(complete ice)) )                   ? colored( $c->{jobstate}, 'bold green' )
         : scalar( grep { $c->{jobstate} eq $_ } (qw(failed zombie killed hold)) )      ? colored( $c->{jobstate}, 'bold red' )
         : scalar( grep { $c->{jobstate} eq $_ } (qw(running)) )                        ? colored( $c->{jobstate}, 'bold magenta' )
+        : scalar( grep { $c->{jobstate} eq $_ } (qw(immutable)) )                      ? colored( $c->{jobstate}, 'bold cyan' )
         : scalar( grep { $c->{jobstate} eq $_ } (qw(ready waiting looping retrying)) ) ? colored( $c->{jobstate}, 'bold yellow' )
         :                                                                                $c->{jobstate};
 
@@ -325,12 +345,13 @@ sub format_time {
    return ( $started, $ended, $duration );
 }
 
-sub remote_dispatch {
+sub after_dispatch {
    my ( $command, $json ) = @_;
+   return unless $command && $json;
 
    my %dispatch = (
       change_cluster => \&change_cluster,
-      read_user      => \&read_user,
+      login_user     => \&login_user,
       find_cluster   => \&find_cluster,
       read_job       => \&read_job,
       read_cluster   => \&read_cluster,
@@ -339,16 +360,22 @@ sub remote_dispatch {
       find_log       => \&find_log,
       read_log       => \&read_log,
       read_monitor   => \&read_monitor,
+      create_monitor => \&create_monitor,
+      #update_monitor => \&create_monitor,
+      #new_token      => \&new_token,
    );
 
    &{ $dispatch{$command} }($json) if exists( $dispatch{$command} );
 }
 
-my $local_dispatch = {
-   token        => \&update_token,
-   update_token => \&update_token,
-   help         => \&help,
-};
+sub before_dispatch {
+   my ( $command, $json ) = @_;
+
+   my %dispatch = (
+   );
+
+   &{ $dispatch{$command} }($json) if exists( $dispatch{$command} );
+}
 
 sub string2hash {
    my $string = shift;
@@ -361,8 +388,8 @@ sub string2hash {
    if ($opts) {
 
       my ( $ret, $args ) = GetOptionsFromString(
-         $opts,         \%options,         "command=s",     "token=s",           "state:s",      "username:s",      "hostname:s",     "newname:s",
-         "password:s",  "shell_command:s", "email:s",       "level:i",           "cron:s",       "at:s",            "cal:s",          "cal_id:i",
+         $opts,         \%options,         "command=s",     "token=s",           "state:s",      "user:s",          "host:s",         "newname:s",
+         "password:s",  "script:s",        "email:s",       "level:i",           "cron:s",       "at:s",            "cal:s",          "cal_id:i",
          "force",       "count:i",         "needs:i@",      "description:s",     "server_id:i",  "name:s",          "job_id:i",       "cluster_id:i",
          "server:s",    "org_id:i",        "pid:i",         "id:s",              "match:s",      "tz:s",            "begin:s",        "expire:s",
          "parent_id:i", "retrys:i",        "retry_delay:i", "loops:i",           "loop_delay:i", "fail_hook:i",     "max_duration:i", "max_duration_hook:i",
@@ -382,7 +409,7 @@ sub string2hash {
    }
 
    return { success => 0, message => 'missing verb' } unless defined $verb;
-   unless ( $noun || exists $local_dispatch->{$verb} || exists $aliases->{$verb} ) {
+   unless ( $noun || exists $aliases->{$verb} ) {
       return { success => 0, message => 'missing noun' };
    }
 
@@ -393,23 +420,8 @@ sub string2hash {
       $name = $noun;
    }
    else {
-      $cmd =
-        $noun
-        ? join( '_', ( $verb, $noun ) )
-        : $verb;
+      $cmd = $noun ? join( '_', ( $verb, $noun ) ) : $verb;
    }
-
-   # execute local command
-   if ( exists $local_dispatch->{$verb} ) {
-      my $v = &{ $local_dispatch->{$verb} }($noun);
-      return $v;
-   }
-   elsif ( exists $local_dispatch->{$cmd} ) {
-      my $v = &{ $local_dispatch->{$cmd} }($name);
-      return $v;
-   }
-
-   # execute remote command
 
    # convert dates to epoch seconds
    foreach my $o (qw(at begin expire)) {
@@ -425,26 +437,31 @@ sub string2hash {
    }
 
    $options{tz} ||= $tz;    # time zone needed for crontab
-   my $r = { token => $token, command => $cmd, %options };
-   $r->{name} = $name if defined $name;
-   return $r;
+   my $res = { token => $token, command => $cmd, %options };
+   $res->{name} = $name if defined $name;
+   return $res;
 }
 
 sub request {
    my $line = shift;
-   my $r    = &string2hash($line);
-   return unless $r->{token};
+   my $command = &string2hash($line);
 
-   my $json;
-   eval { $json = $ua->get( $api => { Accept => 'application/json' } => json => $r )->result->json; };
-   $json = { success => 0, message => $@ } if $@;
-
-   if ( exists $json->{command_reply} ) {
-      &remote_dispatch( $json->{command_reply}, $json );
-   }
+   &before_dispatch( $command->{command}, $command ) if $command->{command};
+   #print Dumper($command);
+   my $json = &send_request($command);
+   #print Dumper($json);
+   &after_dispatch( $json->{command_reply}, $json );
 
    return $json;
 }
+
+sub send_request {
+   my $request = shift;
+   my $json;
+   eval { $json = $ua->get( $api => { Accept => 'application/json' } => json => $request )->result->json; };
+   return $@ ? { success => 0, message => $@ } : $json;
+}
+
 
 sub read_config {
    my $config;
@@ -470,67 +487,89 @@ sub date_to_epoch {
    $epoch = $date =~ /^\d+$/ ? $date : str2time($date);
    $epoch ||= qx/date -d "$date" +%s/;
    chomp($epoch);
-   print "EPOCH: $epoch\n";
    return $epoch;
 }
 
 sub less {
    my $string = shift;
-   my @lines = split( /\n/, $string );
+   my @lines  = split( /\n/, $string );
    $_ .= "\n" for @lines;
 
-   # Get terminal size (rows)
+   # Get terminal size
    my ( $term_width, $term_height ) = GetTerminalSize();
-   $term_height = $term_height - 1;    # Reserve one line for prompt
+   $term_height -= 1;    # Reserve one line for status
 
-   # Initialize variables
-   my $start_line  = 0;                # Starting line for the current page
-   my $total_lines = @lines;
+   my $total_lines  = @lines;
+   my $current_line = 0;
 
-   # If file fits on one screen, print it and exit
-   if ($total_lines <= $term_height) {
-     print $_ for @lines;
-     return;
+   # If lines fits on one screen, print and return
+   if ( $total_lines <= $term_height ) {
+      print @lines;                # Print all lines
+      return;
    }
 
-   # Enable raw mode for key input
+   # Enable raw mode for key reading
    ReadMode('cbreak');
 
    # Main loop
    while (1) {
 
-      # Clear the screen (portable way)
-      system( $^O eq 'MSWin32' ? 'cls' : 'clear' );
+      # Clear screen
+      #print "\033[2J\033[0;0H";
 
       # Display lines for the current page
-      for my $i ( $start_line .. $start_line + $term_height - 1 ) {
+      for my $i ( $current_line .. $current_line + $term_height - 1 ) {
          last if $i >= $total_lines;
          print $lines[$i];
       }
 
-      # Show prompt
-      print ": (q to quit, space for next page, b for previous page) ";
+      # Display status line
+      #print "\033[7m [Press q to quit, space to page down, b to page up, j/down or k/up to scroll]\033[0m";
+      print ": q to quit, space to page down, b to page up, j/down or k/up to scroll";
 
-      # Read a single key
-      my $key = ReadKey(0);
+      # Read key with better arrow key handling
+      my $key   = ReadKey(0);
+      my $input = $key;
 
-      # Process key commands
-      if ( $key eq 'q' ) {
-         last;    # Quit
+      # Handle arrow key escape sequences
+      if ( $key eq "\033" ) {    # Escape sequence start
+         $key = ReadKey(0);
+         if ( $key eq '[' ) {    # Arrow key sequence
+            $key   = ReadKey(0);
+            $input = "\033[$key";    # Full escape sequence
+         }
+         else {
+            $input = "\033$key";     # Handle other escape sequences
+         }
       }
-      elsif ( $key eq ' ' ) {
 
-         # Move to next page
-         $start_line += $term_height if $start_line + $term_height < $total_lines;
+      # Handle key presses
+      if ( $input eq 'q' ) {
+         last;                       # Quit
       }
-      elsif ( $key eq 'b' ) {
-
-         # Move to previous page
-         $start_line -= $term_height if $start_line > 0;
+      elsif ( $input eq ' ' ) {
+         $current_line += $term_height;    # Page down
+         $current_line = $total_lines - $term_height if $current_line > $total_lines - $term_height;
+         $current_line = 0                           if $current_line < 0;
+      }
+      elsif ( $input eq 'b' ) {
+         $current_line -= $term_height;    # Page up
+         $current_line = 0 if $current_line < 0;
+      }
+      elsif ( $input eq 'j' || $input eq "\033[B" ) {    # j or down arrow
+         $current_line += 1;                             # Scroll down one line
+         $current_line = $total_lines - $term_height if $current_line > $total_lines - $term_height;
+         $current_line = 0                           if $current_line < 0;
+      }
+      elsif ( $input eq 'k' || $input eq "\033[A" ) {    # k or up arrow
+         $current_line -= 1;                             # Scroll up one line
+         $current_line = 0 if $current_line < 0;
       }
    }
 
-   # Restore terminal mode and clear screen
+   # Restore terminal
    ReadMode('restore');
-   #system( $^O eq 'MSWin32' ? 'cls' : 'clear' );
+   #print "\033[2J\033[0;0H";    # Clear screen
+
 }
+

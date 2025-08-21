@@ -1,17 +1,17 @@
 {
+   "token" : "5ab562e100a7db17d983330e74e557ddab0dddc4",
    "aliases" : {
       "rm" : "read_monitor",
+      "cc" : "change_cluster",
+      "fl" : "find_log",
       "rc" : "read_cluster",
-      "rj" : "read_job",
+      "cd" : "change_cluster",
+      "fc" : "find_cluster",
       "rl" : "read_log",
       "log" : "read_log",
-      "fc" : "find_cluster",
-      "ls" : "find_cluster",
-      "fl" : "find_log",
       "logs" : "find_log",
-      "cd" : "change_cluster",
-      "cc" : "change_cluster"
+      "rj" : "read_job",
+      "ls" : "find_cluster"
    },
-   "api" : "http://127.0.0.1:3000/api",
-   "token" : "1bb6eda29b864133bf8fc776d11dc8c0b228f9dc"
+   "api" : "https://127.0.0.1/api"
 }

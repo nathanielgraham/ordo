@@ -8,16 +8,17 @@ use FindBin qw($Bin);
 use POSIX   qw(:sys_wait_h setsid);
 use Cwd 'abs_path';
 use feature qw(say);
+use Data::Dumper;
 
 my $hex  = pop @ARGV or die "missing arg";
 my $json = pack( 'H*', $hex );
 
-my $api = 'http://127.0.0.1:3000/api';
+my $api = 'https://127.0.0.1/api';
 
 my $job        = decode_json($json) or die $!;
 my $id         = $job->{id};
 my $cluster_id = $job->{cluster_id};
-my $command    = $job->{shell};
+my $command    = $job->{script};
 my $token      = $job->{token};
 my $origin     = $job->{origin};
 my $delay      = $job->{delay};
@@ -60,14 +61,14 @@ my $ppid = $$;
 # logging
 my $time    = time;
 my $out_log = abs_path("$Bin/../logs/out.$id.$ppid.$time.log");
-my $err_log = abs_path("$Bin/../logs/err.$id.$ppid.$time.log");
+#my $err_log = abs_path("$Bin/../logs/err.$id.$ppid.$time.log");
 
 $| = 1;
 
-open STDOUT, '>', $out_log or die $!;
-open STDERR, '>', $err_log or die $!;
-close STDIN;
 
+open STDOUT, '>', $out_log or die $!;
+open STDERR, '>&', \*STDOUT or die $!;
+close STDIN;
 
 if ($delay && $delay <= 3600) {
    my $state = $origin eq 'retry' ? 'retrying' : $origin eq 'loop' ? 'looping' : undef;
@@ -80,21 +81,15 @@ if ($delay && $delay <= 3600) {
 my $started = scalar localtime($time);
 
 print STDOUT "\n$log_bar\n";
-print STDOUT " STDOUT LOG  : $out_log\n";
+print STDOUT " LOG FILE    : $out_log\n";
 print STDOUT " START TIME  : $started\n";
-
-print STDERR "\n$log_bar\n";
-print STDERR " STDERR LOG  : $err_log\n";
-print STDERR " START TIME  : $started\n";
 
 my $log_info = <<~"HEAD";
  JOB ID      : $id
  SCRIPT      : $command
- PPID        : $ppid
 HEAD
 
 print STDOUT $log_info;
-print STDERR $log_info;
 
 my $pid  = fork();
 
@@ -105,9 +100,7 @@ if ( !defined $pid ) {
 elsif ( $pid == 0 ) {
 
    print STDOUT " PID         : $$\n";
-   print STDERR " PID         : $$\n";
    print STDOUT "$log_bar\n\n";
-   print STDERR "$log_bar\n\n";
 
    # TODO: add cwd to PATH
    # child
@@ -148,7 +141,6 @@ else {
          TAIL
 
          print STDOUT $log_tail;
-         print STDERR $log_tail;
 
          exit 0;
       }

@@ -5,9 +5,9 @@ CREATE TABLE server (
         id INTEGER PRIMARY KEY NOT NULL,
         org_id INTEGER,
         name varchar,
-        username varchar,
+        user varchar,
+        host varchar,
         password varchar,
-        hostname varchar,
         os varchar,
 	cwd varchar,
 	home varchar,
@@ -38,6 +38,6 @@ CREATE TABLE server (
         creation_time DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE UNIQUE INDEX server_idx1 ON server (org_id, hostname);
+CREATE UNIQUE INDEX server_idx1 ON server (org_id, host);
 
 COMMIT;
