@@ -3,6 +3,8 @@ use strict;
 use warnings;
 use CPAN;
 
+use lib ("$ENV{HOME}/perl5/lib/perl5/lib/perl5", "$ENV{HOME}/perl5/lib/perl5");
+
 # Install from CPAN with defaults
 $ENV{PERL_MM_USE_DEFAULT} = 1;
 

@@ -13,5 +13,5 @@
       "rj" : "read_job",
       "ls" : "find_cluster"
    },
-   "api" : "https://127.0.0.1/api"
+   "api" : "https://192.168.68.56/api"
 }

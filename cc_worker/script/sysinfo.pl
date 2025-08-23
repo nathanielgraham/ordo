@@ -1,16 +1,18 @@
-#!/usr/bin/env perl
+#!/usr/bin/perl
 
 use strict;
 use warnings;
-use local::lib;
+
+use lib ("$ENV{HOME}/perl5/lib/perl5/lib/perl5", "$ENV{HOME}/perl5/lib/perl5");
+
+#use local::lib;
 use LWP::UserAgent;
 use JSON::PP;
 use Proc::ProcessTable;
 use Data::Dumper;
-#use FindBin qw($Bin);
-#use Fcntl ':flock';
 
-my $api   = 'http://127.0.0.1:3000/api';
+my $api   = 'http://192.168.68.56:3000/api';
+#my $api   = 'https://192.168.68.56/api';
 my $json  = JSON::PP->new->ascii->pretty->allow_nonref;
 my $jarg  = pop @ARGV;
 my $args  = $json->decode($jarg) or die "unable to parse json: $!";

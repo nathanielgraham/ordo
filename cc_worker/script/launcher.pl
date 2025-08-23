@@ -1,7 +1,13 @@
-#!/usr/bin/env perl
+#!/usr/bin/perl
 
 use warnings;
 use strict;
+
+use lib ("$ENV{HOME}/perl5/lib/perl5/lib/perl5", "$ENV{HOME}/perl5/lib/perl5");
+#use local::lib;
+#print Dumper(\@INC);
+#print Dumper(\%ENV);
+
 use LWP::UserAgent;
 use JSON::PP;
 use FindBin qw($Bin);
@@ -13,7 +19,8 @@ use Data::Dumper;
 my $hex  = pop @ARGV or die "missing arg";
 my $json = pack( 'H*', $hex );
 
-my $api = 'https://127.0.0.1/api';
+my $api = 'http://192.168.68.56:3000/api';
+#my $api = 'https://192.168.68.56/api';
 
 my $job        = decode_json($json) or die $!;
 my $id         = $job->{id};
@@ -106,6 +113,8 @@ elsif ( $pid == 0 ) {
    # child
    $ENV{JOB_ID} = $id;
    $ENV{TOKEN}  = $token;
+   $ENV{PATH} = "$ENV{HOME}/cc_worker/script:$ENV{PATH}";
+   print Dumper(\%ENV);
    my @cmd = &extract_command($command);
    eval { exec { $cmd[0] } @cmd or die "Exec failed: $!" };
 

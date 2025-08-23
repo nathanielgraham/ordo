@@ -28,6 +28,8 @@ my $token   = $config->{token};
 my $aliases = $config->{aliases};
 my $api     = $config->{api};
 
+#$api = "http://localhost:3000/api";
+#$api = "https://192.168.68.56/api";
 #my $api     = "https://127.0.0.1/api";
 my $host    = '';
 my $cluster = '';
@@ -35,8 +37,8 @@ my $cluster = '';
 my $term = Term::ReadLine::Perl5->new('ordo');
 my $ua   = Mojo::UserAgent->new(
    ssl_opts => {
-      #ca => ['/etc/nginx/ssl/nginx-selfsigned.crt']
-      #ca => ['/etc/nginx/ssl/dhparam.pem']
+      #ca => ['/etc/nginx/ssl/nginx-selfsigned.crt'],
+      #ca => ['/etc/nginx/ssl/dhparam.pem'],
       #insecure => 1
    }
 );
