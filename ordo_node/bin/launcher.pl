@@ -2,36 +2,35 @@
 
 use warnings;
 use strict;
+use File::Spec;
 
-use lib ("$ENV{HOME}/perl5/lib/perl5/lib/perl5", "$ENV{HOME}/perl5/lib/perl5");
-#use local::lib;
-#print Dumper(\@INC);
-#print Dumper(\%ENV);
+# set PERL5LIB
+#my $home_dir = $ENV{HOME} || $ENV{USERPROFILE} || die "Home directory not found.\n";
+#my $perl5lib = File::Spec->catdir($home_dir, 'perl5', 'lib', 'perl5');
+#$ENV{PERL5LIB} = $perl5lib;
 
 use LWP::UserAgent;
 use JSON::PP;
 use FindBin qw($Bin);
-use POSIX   qw(:sys_wait_h setsid);
 use Cwd 'abs_path';
+use POSIX qw(:sys_wait_h setsid);
 use feature qw(say);
 use Data::Dumper;
 
 my $hex  = pop @ARGV or die "missing arg";
 my $json = pack( 'H*', $hex );
 
-my $api = 'http://192.168.68.56:3000/api';
-#my $api = 'https://192.168.68.56/api';
-
 my $job        = decode_json($json) or die $!;
+my $api        = $job->{api};
 my $id         = $job->{id};
 my $cluster_id = $job->{cluster_id};
 my $command    = $job->{script};
 my $token      = $job->{token};
 my $origin     = $job->{origin};
 my $delay      = $job->{delay};
-my $log_bar = "========================================";
+my $log_bar    = "========================================";
 
-die "params missing" unless ( $id && $command && $token );
+die "params missing" unless ( $id && $command && $token && $api );
 
 sub daemonize {
 
@@ -68,22 +67,12 @@ my $ppid = $$;
 # logging
 my $time    = time;
 my $out_log = abs_path("$Bin/../logs/out.$id.$ppid.$time.log");
-#my $err_log = abs_path("$Bin/../logs/err.$id.$ppid.$time.log");
 
 $| = 1;
 
-
-open STDOUT, '>', $out_log or die $!;
+open STDOUT, '>',  $out_log or die $!;
 open STDERR, '>&', \*STDOUT or die $!;
 close STDIN;
-
-if ($delay && $delay <= 3600) {
-   my $state = $origin eq 'retry' ? 'retrying' : $origin eq 'loop' ? 'looping' : undef;
-   if ($state) {
-      &post( { command => 'update_job', token => $token, id => $id, log_id => $time, state => $state, ppid => $ppid } );
-      sleep $delay;
-   }
-}
 
 my $started = scalar localtime($time);
 
@@ -98,7 +87,7 @@ HEAD
 
 print STDOUT $log_info;
 
-my $pid  = fork();
+my $pid = fork();
 
 if ( !defined $pid ) {
    &post( { command => 'update_job', token => $token, id => $id, log_id => $time, state => 'failed', ppid => $ppid } );
@@ -109,15 +98,29 @@ elsif ( $pid == 0 ) {
    print STDOUT " PID         : $$\n";
    print STDOUT "$log_bar\n\n";
 
-   # TODO: add cwd to PATH
+   if ( $delay && $delay <= 3600 ) {
+      my $state = $origin eq 'retry' ? 'retrying' : $origin eq 'loop' ? 'looping' : undef;
+      if ($state) {
+         &post( { command => 'update_job', token => $token, id => $id, log_id => $time, state => $state, ppid => $ppid } );
+         sleep $delay;
+      }
+   }
+
    # child
-   $ENV{JOB_ID} = $id;
-   $ENV{TOKEN}  = $token;
-   $ENV{PATH} = "$ENV{HOME}/cc_worker/script:$ENV{PATH}";
-   print Dumper(\%ENV);
+   $ENV{ORDO_JOB_ID}     = $id;
+   $ENV{ORDO_SERVER_ID}  = $job->{server_id};
+   $ENV{ORDO_NEEDS}      = $job->{needs}  if $job->{needs};
+   $ENV{ORDO_NEEDED}     = $job->{needed} if $job->{needed};
+   $ENV{ORDO_CLUSTER_ID} = $cluster_id;
+   $ENV{ORDO_JSON}       = $job->{json} if $job->{json};
+   $ENV{ORDO_TOKEN}      = $token;
+   $ENV{ORDO_API}        = $api;
+   #$ENV{PATH} = "$ENV{HOME}/ordo_node/bin:$ENV{HOME}/ordo_node/scripts:$ENV{PATH}";
+   &add_to_path("$ENV{HOME}/ordo_node/bin");
+   &add_to_path("$ENV{HOME}/ordo_node/scripts");
+
    my @cmd = &extract_command($command);
    eval { exec { $cmd[0] } @cmd or die "Exec failed: $!" };
-
 
    if ($@) {
       &post( { command => 'update_job', token => $token, id => $id, state => 'failed', pid => $$, ppid => $ppid, log_id => $time } );
@@ -138,7 +141,7 @@ else {
          my $state     = $signal ? 'killed' : $exit_code ? 'failed' : 'complete';
          &post( { command => 'update_job', ended => time, token => $token, id => $id, log_id => $time, ppid => $$, state => $state, signal => $signal, exit_code => $exit_code } );
 
-         my $ended = scalar localtime(time);
+         my $ended    = scalar localtime(time);
          my $log_tail = <<~"TAIL";
 
          $log_bar
@@ -171,7 +174,7 @@ sub post {
    my $ua   = LWP::UserAgent->new;
    $ua->timeout(10);
    $ua->agent('cc');
-   my $json = encode_json($data);
+   my $json     = encode_json($data);
    my $response = $ua->post(
       $api,
       Content_Type => 'application/json',
@@ -179,6 +182,7 @@ sub post {
    );
 
    if ( $response->is_success ) {
+
       #say $response->decoded_content);
    }
    else {
@@ -231,4 +235,20 @@ sub extract_command {
    @parts = map { s/^['"]|['"]$//g; $_ } @parts;
 
    return @parts;
+}
+
+sub add_to_path {
+   my $new_path = shift;
+
+   # Normalize path for the current platform
+   $new_path = File::Spec->canonpath($new_path);
+
+   # Get current PATH
+   my $path_var = $ENV{PATH} || '';
+
+   # Determine path separator based on OS
+   my $sep = $^O =~ /MSWin32/i ? ';' : ':';
+
+   # Add new path to PATH
+   $ENV{PATH} = $path_var ? "$new_path$sep$path_var" : $new_path;
 }

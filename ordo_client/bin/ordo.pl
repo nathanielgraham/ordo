@@ -15,7 +15,7 @@ use Text::Table::Tiny 1.02 qw/ generate_table /;
 use Date::Parse;
 use Time::Local;
 use DateTime::TimeZone;
-use MIME::Base64;
+#use MIME::Base64;
 use Term::ReadKey;
 use POSIX qw(ceil);
 
@@ -37,6 +37,7 @@ my $cluster = '';
 my $term = Term::ReadLine::Perl5->new('ordo');
 my $ua   = Mojo::UserAgent->new(
    ssl_opts => {
+
       #ca => ['/etc/nginx/ssl/nginx-selfsigned.crt'],
       #ca => ['/etc/nginx/ssl/dhparam.pem'],
       #insecure => 1
@@ -44,7 +45,7 @@ my $ua   = Mojo::UserAgent->new(
 );
 
 $ua->inactivity_timeout(10);
-$ua->max_redirects(0)->connect_timeout(3)->request_timeout(5);
+$ua->max_redirects(0)->connect_timeout(4)->request_timeout(7);
 
 my $login = &request("login user");
 
@@ -53,6 +54,7 @@ if ( $login->{success} ) {
       say "Already registered and awaiting confirmation. Try again later.";
       exit;
    }
+   &request("find cluster");
 }
 else {
    say $login->{message} if $login->{message};
@@ -62,12 +64,13 @@ else {
 # main loop
 while ( defined( my $line = $term->readline("$host:/$cluster> ") ) ) {
    next unless $line;
+   print "\n";
    my $json = &request($line);
 
    #print to_json( $json, { pretty => 1 } );
 
    my $success = $json->{success} ? 'successful' : 'failed';
-   print "\nCommand $success. ";
+   print "Command $success. ";
    print ucfirst("$json->{message}") if $json->{message};
    print "\n\n";
 }
@@ -83,6 +86,32 @@ sub login_user {
    my $json = shift;
    $host    = $json->{host} || '';
    $cluster = $json->{path} || '';
+}
+
+sub _print_table {
+   my $json = shift;
+   return unless $json && ref $json eq 'HASH';
+
+   #my $success = delete $json->{success};
+   return unless $json->{success};
+   my $rows = [ [qw(key value)] ];
+   for my $k ( sort { $a cmp $b } keys %{$json} ) {
+      next if $k eq 'success';
+      my $row =
+          ref $json->{$k} eq 'ARRAY' ? join( ' ', map { $_->{id} } @{ $json->{$k} } )
+        : ref $json->{$k} eq 'HASH'  ? join( ' ', keys %{ $json->{$k} } )
+        :                              $json->{$k};
+      push @$rows, [ $k, $row ];
+   }
+
+   &less( generate_table( rows => $rows, header_row => 1 ) );
+
+   #ReadMode('normal');
+}
+
+sub read_user {
+   my $json = shift;
+   &_print_table($json);
 }
 
 sub new_token {
@@ -101,7 +130,7 @@ sub new_token {
 
 sub create_monitor {
    my $json = shift;
-   if ($json->{exit_code}) {
+   if ( $json->{exit_code} ) {
       print "Enter the password: ";
       ReadMode 'noecho';
       my $password = ReadLine(0);
@@ -109,27 +138,27 @@ sub create_monitor {
       ReadMode 'normal';
       delete $json->{success};
       delete $json->{message};
-      $json->{command} = delete $json->{command_reply};
+      $json->{command}  = delete $json->{command_reply};
       $json->{password} = $password;
-      $json->{token} = $token;
+      $json->{token}    = $token;
       &send_request($json);
    }
 }
 
 sub read_job {
    my $json = shift;
-   print Dumper($json);
+   &_print_table($json);
 }
 
 sub read_cluster {
    my $json = shift;
-   print Dumper($json);
+   &_print_table($json);
 }
 
-sub read_monitor {
+sub find_monitor {
    my $json = shift;
    return unless $json->{servers};
-   my $rows    = [ [qw(ID ALIAS %MEMORY %DISK LOADAVG PING UPTIME OS UPDATED HOST)] ];
+   my $rows    = [ [qw(ID ALIAS %MEMORY %DISK LOADAVG PING UPTIME OS UPDATED USER@HOST)] ];
    my @servers = @{ $json->{servers} };
    for my $s (@servers) {
       my ( $cpu, $pmem, $pdisk, $uptime, $ping, $conn, $update );
@@ -149,12 +178,12 @@ sub read_monitor {
          my $seconds = time - $s->{update_time};
          $update = sprintf( "%is ago", $seconds );
       }
-      if ( $s->{cpu} ) {
+      if ( exists $s->{cpu} ) {
          my $cores = $s->{cores} || 1;
          $cpu = sprintf( "%.2f (%i)", $s->{cpu}, $cores );
       }
 
-      push @$rows, [ $s->{id}, $s->{name}, $pmem, $pdisk, $cpu, $ping, $uptime, $s->{os}, $update, $s->{hostname} ];
+      push @$rows, [ $s->{id}, $s->{name}, $pmem, $pdisk, $cpu, $ping, $uptime, $s->{os}, $update, $s->{user} . '@' . $s->{host} ];
    }
    say generate_table( rows => $rows, header_row => 1 );
 }
@@ -176,9 +205,10 @@ sub read_log {
    my $json = shift;
    return unless $json && $json->{out};
 
-   ReadMode('raw');
-   &less($json->{out});
-   ReadMode('normal');
+   #ReadMode('raw');
+   &less( $json->{out} );
+
+   #ReadMode('normal');
 }
 
 sub find_cal {
@@ -192,7 +222,8 @@ sub find_cal {
       push @$crows, [ $cal->{id}, $cal->{name}, $cnext, $cal->{tz}, $cluster_ids, $cal->{description} ];
       say generate_table( rows => $crows, header_row => 1, style => 'classic' );
       unless ( scalar @{ $cal->{crons} } ) {
-         print "\n";
+
+         #print "\n";
          next;
       }
       my $rows = [ [qw(ID QUARTZ_CRONTAB NEXT_START BEGIN EXPIRE DESCRIPTION)] ];
@@ -203,7 +234,6 @@ sub find_cal {
          push @$rows, [ $cron->{id}, $cron->{name}, $next, $start, $end, $cron->{description} ];
       }
       say generate_table( rows => $rows, header_row => 1, style => 'classic' );
-      print "\n";
    }
 }
 
@@ -227,14 +257,29 @@ sub find_cluster {
       push @paths, \@parts;
    }
 
-   my $rows = [ [qw(ID CLUSTER/JOB STATE NEEDS %MEM %CPU PID SERVER LAST_START DURATION NEXT_START CALENDAR)] ];
-   foreach my $part (@paths) {
-      my $path = join( '/', ( map { $cluster{$_}->{name} } @{$part} ) );
-      $path = "/$path" if !$cluster{ $part->[0] }->{parent_id};
-      my $colored    = colored( $path, 'bold blue' );
-      my $cluster_id = pop @{$part} || 0;
-      my $c          = $cluster{$cluster_id};
-      my $credo      = $c->{retry_count} || $c->{loop_count};
+   my $path_padding = ' ';
+
+   my $rows = [ [qw(ID CLUSTER/JOB STATE SERVER NEEDS %MEM %CPU PID LAST_START DURATION NEXT_START CALENDAR)] ];
+   foreach my $i ( 0 .. $#paths ) {
+      my @parts      = @{ $paths[$i] };
+      my $cluster_id = $parts[$#parts];
+
+      unless ( $i == 0 ) {
+         shift @parts;
+      }
+      my $path = join( '/', ( map { $cluster{$_}->{name} } @parts ) );
+
+      #my $blue_path;
+      if ( $i == 0 ) {
+         $path .= '/';
+      }
+      else {
+         $path = $path_padding . $path;
+      }
+      my $blue_path = colored( $path, 'bold blue' );
+
+      my $c     = $cluster{$cluster_id};
+      my $credo = $c->{retry_count} || $c->{loop_count};
 
       my $cstate =
           scalar( grep { $c->{jobstate} eq $_ } (qw(complete ice)) )                   ? colored( $c->{jobstate}, 'bold green' )
@@ -253,12 +298,15 @@ sub find_cluster {
       my $ctplus  = &epoch_to_tminus( $c->{started} );
       my $cdur    = &epoch_to_duration( $c->{started}, $c->{ended} || time );
 
-      push @{$rows}, [ $c->{id}, $colored, $cstate, $needs, '', '', '', '', $ctplus, $cdur, $ctminus, $c->{cal_id} ];
+      push @{$rows}, [ $c->{id}, $blue_path, $cstate, '', $needs, '', '', '', $ctplus, $cdur, $ctminus, $c->{cal_id} ];
 
       next unless $cluster{$cluster_id}->{jobs};
 
       foreach my $j ( @{ $cluster{$cluster_id}->{jobs} } ) {
 
+         my $pathname = $i == 0 ? $path_padding . $j->{name} : "$path/$j->{name}";
+
+         #my $pathname = $i == 0 ? " $path" . $j->{name};
          #my $jlast = $j->{started} ? strftime( "%b %d %H:%M:%S", localtime( $j->{started} ) ) : '';
          my $jtminus = &epoch_to_tminus( $j->{next_start} );
          my $jtplus  = &epoch_to_tminus( $j->{started} );
@@ -277,7 +325,7 @@ sub find_cluster {
 
          $jstate .= "($redo)" if $redo;
 
-         my $row = [ $j->{id}, "$path/$j->{name}", $jstate, join( ',', keys %{ $j->{needs} } ), $j->{pctmem}, $j->{pctcpu}, $j->{pid}, $j->{server_name}, $jtplus, $duration, '', '' ];
+         my $row = [ $j->{id}, $pathname, $jstate, $j->{server_name}, join( ',', keys %{ $j->{needs} } ), $j->{pctmem}, $j->{pctcpu}, $j->{pid}, $jtplus, $duration, '', '' ];
 
          push @{$rows}, $row;
 
@@ -355,28 +403,39 @@ sub after_dispatch {
       change_cluster => \&change_cluster,
       login_user     => \&login_user,
       find_cluster   => \&find_cluster,
-      read_job       => \&read_job,
-      read_cluster   => \&read_cluster,
+      read_job       => \&_print_table,
+      read_cluster   => \&_print_table,
+      read_path      => \&_print_table,
       find_cal       => \&find_cal,
       read_cal       => \&find_cal,
       find_log       => \&find_log,
       read_log       => \&read_log,
-      read_monitor   => \&read_monitor,
+      read_monitor   => \&_print_table,
+      find_monitor   => \&find_monitor,
       create_monitor => \&create_monitor,
+
       #update_monitor => \&create_monitor,
-      #new_token      => \&new_token,
+      new_token => \&new_token,
+      read_user => \&_print_table,
    );
 
-   &{ $dispatch{$command} }($json) if exists( $dispatch{$command} );
+   if ( exists( $dispatch{$command} ) ) {
+      &{ $dispatch{$command} }($json);
+      return 1;
+   }
+   return 0;
 }
 
 sub before_dispatch {
    my ( $command, $json ) = @_;
 
-   my %dispatch = (
-   );
+   my %dispatch = ();
 
-   &{ $dispatch{$command} }($json) if exists( $dispatch{$command} );
+   if ( exists( $dispatch{$command} ) ) {
+      &{ $dispatch{$command} }($json);
+      return 1;
+   }
+   return 0;
 }
 
 sub string2hash {
@@ -396,7 +455,7 @@ sub string2hash {
          "server:s",    "org_id:i",        "pid:i",         "id:s",              "match:s",      "tz:s",            "begin:s",        "expire:s",
          "parent_id:i", "retrys:i",        "retry_delay:i", "loops:i",           "loop_delay:i", "fail_hook:i",     "max_duration:i", "max_duration_hook:i",
          "max_cpu:f",   "max_cpu_hook:i",  "max_mem:f",     "max_mem_hook:i",    "max_disk:f",   "max_disk_hook:i", "max_load:f",     "max_load_hook:i",
-         "max_ping:f",  "max_ping_hook:i", "max_uptime:f",  "max_uptime_hook:i", "mode:i",       "forkable",        "log:i"
+         "max_ping:f",  "max_ping_hook:i", "max_uptime:f",  "max_uptime_hook:i", "mode:i",       "forkable",        "log:i",          "json:s"
       );
 
       # allow multi-value needs
@@ -410,20 +469,33 @@ sub string2hash {
       }
    }
 
-   return { success => 0, message => 'missing verb' } unless defined $verb;
-   unless ( $noun || exists $aliases->{$verb} ) {
-      return { success => 0, message => 'missing noun' };
-   }
-
    my $cmd;
 
    if ( exists $aliases->{$verb} ) {
       $cmd  = $aliases->{$verb};
       $name = $noun;
    }
-   else {
+   else {   
       $cmd = $noun ? join( '_', ( $verb, $noun ) ) : $verb;
    }
+
+
+   #return { success => 0, message => 'command not found' } unless $noun && defined $verb;
+   return { success => 0, message => 'command not found' } unless $cmd;
+
+#   unless ( $noun || exists $aliases->{$verb} ) {
+#      return { success => 0, message => 'command not found' };
+#   }
+
+#   my $cmd;
+
+#   if ( exists $aliases->{$verb} ) {
+#      $cmd  = $aliases->{$verb};
+#      $name = $noun;
+#   }
+#   else {
+#      $cmd = $noun ? join( '_', ( $verb, $noun ) ) : $verb;
+#   }
 
    # convert dates to epoch seconds
    foreach my $o (qw(at begin expire)) {
@@ -445,13 +517,14 @@ sub string2hash {
 }
 
 sub request {
-   my $line = shift;
+   my $line    = shift;
    my $command = &string2hash($line);
 
-   &before_dispatch( $command->{command}, $command ) if $command->{command};
-   #print Dumper($command);
+   return $command if defined $command->{success} && $command->{success} == 0;
+   &before_dispatch( $command->{command}, $command );
+
    my $json = &send_request($command);
-   #print Dumper($json);
+
    &after_dispatch( $json->{command_reply}, $json );
 
    return $json;
@@ -463,7 +536,6 @@ sub send_request {
    eval { $json = $ua->get( $api => { Accept => 'application/json' } => json => $request )->result->json; };
    return $@ ? { success => 0, message => $@ } : $json;
 }
-
 
 sub read_config {
    my $config;
@@ -496,6 +568,7 @@ sub less {
    my $string = shift;
    my @lines  = split( /\n/, $string );
    $_ .= "\n" for @lines;
+   push @lines, "\n";
 
    # Get terminal size
    my ( $term_width, $term_height ) = GetTerminalSize();
@@ -504,58 +577,78 @@ sub less {
    my $total_lines  = @lines;
    my $current_line = 0;
 
-   # If lines fits on one screen, print and return
+   # If file fits in one screen, print and exit
    if ( $total_lines <= $term_height ) {
-      print @lines;                # Print all lines
+      for my $i ( 0 .. $total_lines - 1 ) {
+         print $lines[$i];
+      }
       return;
    }
 
    # Enable raw mode for key reading
    ReadMode('cbreak');
 
-   # Main loop
+   # Main loop for interactive paging
    while (1) {
 
-      # Clear screen
-      #print "\033[2J\033[0;0H";
+      # Move to top for content
+      print "\033[1;1H";
 
-      # Display lines for the current page
-      for my $i ( $current_line .. $current_line + $term_height - 1 ) {
+      # Display lines for the current page, ensuring last line is shown
+      my $lines_to_show = $term_height;
+      if ( $current_line + $term_height > $total_lines ) {
+         $current_line  = $total_lines - $term_height if $total_lines >= $term_height;
+         $current_line  = 0                           if $current_line < 0;
+         $lines_to_show = $total_lines - $current_line;
+      }
+      for my $i ( $current_line .. $current_line + $lines_to_show - 1 ) {
          last if $i >= $total_lines;
+         print "\033[K";    # Clear line
          print $lines[$i];
       }
 
-      # Display status line
-      #print "\033[7m [Press q to quit, space to page down, b to page up, j/down or k/up to scroll]\033[0m";
-      print ": q to quit, space to page down, b to page up, j/down or k/up to scroll";
+      # Clear any remaining lines to prevent artifacts
+      for my $i ( $lines_to_show + 1 .. $term_height ) {
+         print "\033[$i;1H\033[K";    # Clear line
+      }
+
+      # Calculate percentage
+      my $percent = ( $total_lines > 0 ) ? ceil( ( $current_line + $lines_to_show ) / $total_lines * 100 ) : 100;
+      $percent = 100 if $percent > 100;
+
+      # Move cursor to bottom and print status line
+      my $bottom_line = $current_line + $lines_to_show;
+      print "\033[$term_height;1H\033[K";    # Move to bottom, clear line
+      print "\033[7m:(line $bottom_line of $total_lines, $percent%) [Press q to quit, space to page down, b to page up, j/down or k/up to scroll]\033[0m";
 
       # Read key with better arrow key handling
       my $key   = ReadKey(0);
       my $input = $key;
 
       # Handle arrow key escape sequences
-      if ( $key eq "\033" ) {    # Escape sequence start
+      if ( $key eq "\033" ) {                # Escape sequence start
          $key = ReadKey(0);
-         if ( $key eq '[' ) {    # Arrow key sequence
+         if ( $key eq '[' ) {                # Arrow key sequence
             $key   = ReadKey(0);
-            $input = "\033[$key";    # Full escape sequence
+            $input = "\033[$key";            # Full escape sequence
          }
          else {
-            $input = "\033$key";     # Handle other escape sequences
+            $input = "\033$key";             # Handle other escape sequences
          }
       }
 
       # Handle key presses
       if ( $input eq 'q' ) {
-         last;                       # Quit
+         print "\033[$term_height;1H\033[K";    # Clear status line
+         last;                                  # Quit
       }
       elsif ( $input eq ' ' ) {
-         $current_line += $term_height;    # Page down
+         $current_line += $term_height;         # Page down
          $current_line = $total_lines - $term_height if $current_line > $total_lines - $term_height;
          $current_line = 0                           if $current_line < 0;
       }
       elsif ( $input eq 'b' ) {
-         $current_line -= $term_height;    # Page up
+         $current_line -= $term_height;         # Page up
          $current_line = 0 if $current_line < 0;
       }
       elsif ( $input eq 'j' || $input eq "\033[B" ) {    # j or down arrow
@@ -571,7 +664,6 @@ sub less {
 
    # Restore terminal
    ReadMode('restore');
-   #print "\033[2J\033[0;0H";    # Clear screen
 
 }
 

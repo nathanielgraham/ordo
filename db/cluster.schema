@@ -15,13 +15,13 @@ CREATE TABLE cluster (
 	next_start INTEGER,
 	started INTEGER,
 	ended INTEGER,
+	json text,
         fail_hook integer REFERENCES cluster(id) ON DELETE SET NULL, 
         max_duration integer,
         max_duration_hook integer REFERENCES cluster(id) ON DELETE SET NULL,
-        forkable integer, 
-        fork_cluster_id integer REFERENCES cluster(id) ON DELETE CASCADE,
+        clonable integer, 
+        clone_cluster_id integer REFERENCES cluster(id) ON DELETE CASCADE,
         loops integer integer not null default 0,
-        loop_delay integer not null default 0,
         loop_count integer not null default 0,
         creation_time integer DEFAULT (strftime('%s', 'now'))
 );

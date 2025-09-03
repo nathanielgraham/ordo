@@ -3,10 +3,11 @@ BEGIN TRANSACTION;
 DROP TABLE IF EXISTS server;
 CREATE TABLE server (
         id INTEGER PRIMARY KEY NOT NULL,
-        org_id INTEGER,
+        org_id INTEGER REFERENCES org(id) ON DELETE CASCADE,
         name varchar,
         user varchar,
         host varchar,
+        ip_address varchar,
         password varchar,
         os varchar,
 	cwd varchar,
@@ -35,7 +36,7 @@ CREATE TABLE server (
         max_updated integer,
         max_updated_hook integer REFERENCES cluster(id) ON DELETE SET NULL,
 	update_time integer,
-        creation_time DEFAULT CURRENT_TIMESTAMP
+        creation_time integer DEFAULT (strftime('%s', 'now'))
 );
 
 CREATE UNIQUE INDEX server_idx1 ON server (org_id, host);
