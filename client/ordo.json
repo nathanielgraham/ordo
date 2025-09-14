@@ -1,0 +1,27 @@
+{
+   "api" : "https://192.168.68.56/api",
+   "aliases" : {
+      "log" : "read_log",
+      "rm" : "read_monitor",
+      "sp" : "start_path",
+      "cluster" : "read_cluster",
+      "dp" : "delete_path",
+      "logs" : "find_log",
+      "fl" : "find_log",
+      "cd" : "change_cluster",
+      "fm" : "find_monitor",
+      "monitors" : "find_monitor",
+      "cc" : "change_cluster",
+      "rl" : "read_log",
+      "clusters" : "find_cluster",
+      "fc" : "find_cluster",
+      "ls" : "find_cluster",
+      "job" : "read_job",
+      "rp" : "read_path",
+      "kp" : "kill_path",
+      "monitor" : "read_monitor",
+      "rc" : "read_cluster",
+      "rj" : "read_job"
+   },
+   "token" : "243635676cd00d73ac3bb6384596041a1818008a"
+}

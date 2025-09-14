@@ -10,8 +10,8 @@ use JSON::PP;
 use Data::Dumper;
 
 my $api = $ENV{ORDO_API} or die "API missing";
-my $json  = JSON::PP->new->ascii->pretty->allow_nonref;
-my $token = $ENV{ORDO_TOKEN}      or die "TOKEN missing";
+my $json = JSON::PP->new->ascii->pretty->allow_nonref;
+my $token = $ENV{ORDO_TOKEN} or die "TOKEN missing";
 my $id = $ENV{ORDO_SERVER_ID} or die "SERVER_ID missing";
 my $pids  = [];
 

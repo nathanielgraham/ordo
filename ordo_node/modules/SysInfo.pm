@@ -248,10 +248,11 @@ sub find_pids {
 sub linux_pid_info {
    my $pid = shift;
 
-   my ( $process_id, $process_name, $start_time, $cpu_percent, $mem_percent, $parent_pid );
+   my ( $process_id, $process_name, $start_time, $cpu_percent, $mem_percent, $parent_pid, $priority);
 
    # Unix-like: Use ps command
-   my $ps_cmd = "ps -p $pid -o pid,comm,etime,%cpu,%mem,ppid";
+   my $ps_cmd = "ps -p $pid -o pid,comm,etime,%cpu,%mem,ppid,priority";
+   #my $ps_cmd = "ps -p $pid -o pid,comm,etime,%cpu,%mem,ppid";
    my @output = `$ps_cmd 2>/dev/null`;
    my $found  = 0;
 
@@ -262,13 +263,16 @@ sub linux_pid_info {
       next if $line =~ /^\s*PID/;
 
       # Example output: " 1234 firefox 1-02:34:56  2.5  3.2  789"
-      if ( $line =~ /^\s*(\d+)\s+(\S+)\s+(\S+)\s+(\d+\.\d+)\s+(\d+\.\d+)\s+(\d+)/ ) {
+      #if ( $line =~ /^\s*(\d+)\s+(\S+)\s+(\S+)\s+(\d+\.\d+)\s+(\d+\.\d+)\s+(\d+)/ ) {
+      if ($line =~ /^\s*(\d+)\s+(\S+)\s+(\S+)\s+(\d+\.\d+)\s+(\d+\.\d+)\s+(\d+)\s+(-?\d+)/) {
+
          $process_id   = $1;
          $process_name = $2;
          my $elapsed_time = $3;
          $cpu_percent = $4;
          $mem_percent = $5;
          $parent_pid  = $6;
+         $priority = $7;
 
          # Calculate start time in epoch seconds
          my $current_time    = time;
@@ -302,13 +306,15 @@ sub linux_pid_info {
       }
    }
    return unless defined $process_id;
-   return { pid => $process_id, ppid => $parent_pid, fname => $process_name, start => $start_time, pctcpu => $cpu_percent, pctmem => $mem_percent };
+   return { pid => $process_id, ppid => $parent_pid, priority => $priority, fname => $process_name, start => $start_time, pctcpu => $cpu_percent, pctmem => $mem_percent };
 }
 
 sub windows_pid_info {
    my $pid = shift;
 
-   my ( $process_id, $process_name, $start_time, $cpu_percent, $mem_percent, $parent_pid );
+   #my ( $process_id, $process_name, $start_time, $cpu_percent, $mem_percent, $parent_pid );
+   my ($process_id, $process_name, $start_time, $cpu_percent, $mem_percent, $parent_pid, $priority);
+
 
    my $total_mem;
 
@@ -324,7 +330,8 @@ sub windows_pid_info {
    $total_mem ||= 1; # Avoid division by zero
 
    # Windows: Use wmic to get process info
-   my $wmic_cmd = "wmic process where ProcessId=$pid get Name,CreationDate,UserModeTime,WorkingSetSize,ParentProcessId /format:csv";
+   my $wmic_cmd = "wmic process where ProcessId=$pid get Name,CreationDate,UserModeTime,WorkingSetSize,ParentProcessId,Priority /format:csv";
+   #my $wmic_cmd = "wmic process where ProcessId=$pid get Name,CreationDate,UserModeTime,WorkingSetSize,ParentProcessId /format:csv";
    my @output   = `$wmic_cmd 2>nul`;
    my $found    = 0;
 
@@ -334,15 +341,18 @@ sub windows_pid_info {
       # Skip header or empty lines
       next if $line =~ /^Node,/ || $line =~ /^\s*$/;
 
+
       # Example output: "Node,Name,CreationDate,UserModeTime,WorkingSetSize,ParentProcessId"
       # "DESKTOP-XYZ,notepad.exe,20250825140723.123456-300,156250,5432000,789"
-      if ( $line =~ /[^,]+,([^,]+),(\d{14}\.\d+-\d+),(\d+),(\d+),(\d+)/ ) {
+
+      if ($line =~ /[^,]+,([^,]+),(\d{14}\.\d+-\d+),(\d+),(\d+),(\d+),(\d+)/) {
          $process_name = $1;
-         $process_id   = $pid;
+         $process_id = $pid;
          my $creation_date = $2;
-         my $user_time     = $3 / 10000000;    # Convert 100-nanosecond intervals to seconds
-         my $working_set   = $4;               # Memory in bytes
+         my $user_time = $3 / 10000000; # Convert 100-nanosecond intervals to seconds
+         my $working_set = $4; # Memory in bytes
          $parent_pid = $5;
+         $priority = $6;
 
          # Convert CreationDate (YYYYMMDDHHMMSS.ssssss-TZ) to epoch seconds
          if ( $creation_date =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+-(\d+)/ ) {

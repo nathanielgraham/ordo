@@ -87,6 +87,15 @@ HEAD
 
 print STDOUT $log_info;
 
+   my $state = $origin eq 'retry' ? 'retrying' : $origin eq 'loop' ? 'looping' : $delay && $delay <= 3600 ? 'sleeping' : undef;
+   if ($state) {
+      &post( { command => 'update_job', token => $token, id => $id, log_id => $time, state => $state, ppid => $ppid } );
+   }
+
+   if ( $delay && $delay <= 3600 ) {
+      sleep $delay;
+   }
+
 my $pid = fork();
 
 if ( !defined $pid ) {
@@ -97,14 +106,6 @@ elsif ( $pid == 0 ) {
 
    print STDOUT " PID         : $$\n";
    print STDOUT "$log_bar\n\n";
-
-   if ( $delay && $delay <= 3600 ) {
-      my $state = $origin eq 'retry' ? 'retrying' : $origin eq 'loop' ? 'looping' : undef;
-      if ($state) {
-         &post( { command => 'update_job', token => $token, id => $id, log_id => $time, state => $state, ppid => $ppid } );
-         sleep $delay;
-      }
-   }
 
    # child
    $ENV{ORDO_JOB_ID}     = $id;
@@ -139,7 +140,7 @@ else {
          my $exit_code = $? >> 8;
          my $signal    = $? & 127;
          my $state     = $signal ? 'killed' : $exit_code ? 'failed' : 'complete';
-         &post( { command => 'update_job', ended => time, token => $token, id => $id, log_id => $time, ppid => $$, state => $state, signal => $signal, exit_code => $exit_code } );
+         &post( { command => 'update_job', ended => time, token => $token, id => $id, log_id => $time, state => $state, signal => $signal, exit_code => $exit_code } );
 
          my $ended    = scalar localtime(time);
          my $log_tail = <<~"TAIL";
@@ -182,11 +183,10 @@ sub post {
    );
 
    if ( $response->is_success ) {
-
-      #say $response->decoded_content);
+      #say $response->decoded_content;
    }
    else {
-      #say STDERR $response->status_line;
+      say STDERR $response->status_line;
    }
 }
 

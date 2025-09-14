@@ -9,7 +9,7 @@ CREATE TABLE job_states (
 
 CREATE UNIQUE INDEX job_states_idx1 ON job_states (state);
 
-INSERT INTO job_states (state) VALUES('inactive');
+INSERT INTO job_states (state) VALUES('pruned');
 INSERT INTO job_states (state) VALUES('ready');
 INSERT INTO job_states (state) VALUES('starting');
 INSERT INTO job_states (state) VALUES('stopping');
@@ -25,5 +25,6 @@ INSERT INTO job_states (state) VALUES('watching');
 INSERT INTO job_states (state) VALUES('looping');
 INSERT INTO job_states (state) VALUES('retrying');
 INSERT INTO job_states (state) VALUES('immutable');
+INSERT INTO job_states (state) VALUES('sleeping');
 
 COMMIT;

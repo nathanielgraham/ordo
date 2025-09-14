@@ -15,6 +15,7 @@ use Text::Table::Tiny 1.02 qw/ generate_table /;
 use Date::Parse;
 use Time::Local;
 use DateTime::TimeZone;
+
 #use MIME::Base64;
 use Term::ReadKey;
 use POSIX qw(ceil);
@@ -58,7 +59,8 @@ if ( $login->{success} ) {
 }
 else {
    say $login->{message} if $login->{message};
-   exit;
+
+   #exit;
 }
 
 # main loop
@@ -84,6 +86,10 @@ sub change_cluster {
 
 sub login_user {
    my $json = shift;
+   return unless $json && $json->{token};
+
+   #print Dumper($json);
+   &new_token($json);
    $host    = $json->{host} || '';
    $cluster = $json->{path} || '';
 }
@@ -116,7 +122,9 @@ sub read_user {
 
 sub new_token {
    my $json = shift;
-   return { success => 0 } unless $json && $json->{token};
+
+   #return { success => 0 } unless $json && $json->{token};
+   return unless $json && $json->{token};
 
    $config->{token} = $json->{token};
    $token = $json->{token};
@@ -124,7 +132,7 @@ sub new_token {
    my $success = &write_config($config);
 
    if ($success) {
-      say "Using new token: $json->{token}";
+      say "Using token: $json->{token}";
    }
 }
 
@@ -143,6 +151,11 @@ sub create_monitor {
       $json->{token}    = $token;
       &send_request($json);
    }
+}
+
+sub help {
+   my $json = shift;
+   print Dumper($json);
 }
 
 sub read_job {
@@ -207,7 +220,6 @@ sub read_log {
 
    #ReadMode('raw');
    &less( $json->{out} );
-
    #ReadMode('normal');
 }
 
@@ -282,7 +294,7 @@ sub find_cluster {
       my $credo = $c->{retry_count} || $c->{loop_count};
 
       my $cstate =
-          scalar( grep { $c->{jobstate} eq $_ } (qw(complete ice)) )                   ? colored( $c->{jobstate}, 'bold green' )
+          scalar( grep { $c->{jobstate} eq $_ } (qw(complete ice pruned)) )            ? colored( $c->{jobstate}, 'bold green' )
         : scalar( grep { $c->{jobstate} eq $_ } (qw(failed zombie killed hold)) )      ? colored( $c->{jobstate}, 'bold red' )
         : scalar( grep { $c->{jobstate} eq $_ } (qw(running)) )                        ? colored( $c->{jobstate}, 'bold magenta' )
         : scalar( grep { $c->{jobstate} eq $_ } (qw(immutable)) )                      ? colored( $c->{jobstate}, 'bold cyan' )
@@ -291,7 +303,7 @@ sub find_cluster {
 
       $cstate .= "($credo)" if $credo;
       my ( $started, $ended, $duration ) = format_time($c);
-      my $needs = join( ',', keys %{ $c->{needs} } );
+      my $needs = join( ' ', keys %{ $c->{needs} } );
 
       #my $clast = $c->{started} ? strftime( "%b %d %H:%M:%S", localtime( $c->{started} ) ) : '';
       my $ctminus = &epoch_to_tminus( $c->{next_start} );
@@ -317,7 +329,7 @@ sub find_cluster {
          my $redo = $j->{retry_count} || $j->{loop_count};
 
          my $jstate =
-             scalar( grep { $j->{jobstate} eq $_ } (qw(complete ice)) )                   ? colored( $j->{jobstate}, 'bold green' )
+             scalar( grep { $j->{jobstate} eq $_ } (qw(complete ice pruned)) )            ? colored( $j->{jobstate}, 'bold green' )
            : scalar( grep { $j->{jobstate} eq $_ } (qw(failed zombie killed hold)) )      ? colored( $j->{jobstate}, 'bold red' )
            : scalar( grep { $j->{jobstate} eq $_ } (qw(running)) )                        ? colored( $j->{jobstate}, 'bold magenta' )
            : scalar( grep { $j->{jobstate} eq $_ } (qw(ready waiting looping retrying)) ) ? colored( $j->{jobstate}, 'bold yellow' )
@@ -325,7 +337,7 @@ sub find_cluster {
 
          $jstate .= "($redo)" if $redo;
 
-         my $row = [ $j->{id}, $pathname, $jstate, $j->{server_name}, join( ',', keys %{ $j->{needs} } ), $j->{pctmem}, $j->{pctcpu}, $j->{pid}, $jtplus, $duration, '', '' ];
+         my $row = [ $j->{id}, $pathname, $jstate, $j->{server_name}, join( ' ', keys %{ $j->{needs} } ), $j->{pctmem}, $j->{pctcpu}, $j->{pid}, $jtplus, $duration, '', '' ];
 
          push @{$rows}, $row;
 
@@ -417,6 +429,7 @@ sub after_dispatch {
       #update_monitor => \&create_monitor,
       new_token => \&new_token,
       read_user => \&_print_table,
+      help_commands => \&help,
    );
 
    if ( exists( $dispatch{$command} ) ) {
@@ -444,23 +457,21 @@ sub string2hash {
 
    my ($cmds) = $string =~ /(.*?)(-.*)?$/;
    my ($opts) = $string =~ /(-.*$)/;
-   my ( $verb, $noun, $name ) = ( split( /\s+/, $cmds ) )[ 0 .. 2 ];
+   my ( $verb, $noun, $name ) = &extract_command($cmds);
 
    if ($opts) {
 
       my ( $ret, $args ) = GetOptionsFromString(
-         $opts,         \%options,         "command=s",     "token=s",           "state:s",      "user:s",          "host:s",         "newname:s",
-         "password:s",  "script:s",        "email:s",       "level:i",           "cron:s",       "at:s",            "cal:s",          "cal_id:i",
-         "force",       "count:i",         "needs:i@",      "description:s",     "server_id:i",  "name:s",          "job_id:i",       "cluster_id:i",
-         "server:s",    "org_id:i",        "pid:i",         "id:s",              "match:s",      "tz:s",            "begin:s",        "expire:s",
-         "parent_id:i", "retrys:i",        "retry_delay:i", "loops:i",           "loop_delay:i", "fail_hook:i",     "max_duration:i", "max_duration_hook:i",
-         "max_cpu:f",   "max_cpu_hook:i",  "max_mem:f",     "max_mem_hook:i",    "max_disk:f",   "max_disk_hook:i", "max_load:f",     "max_load_hook:i",
-         "max_ping:f",  "max_ping_hook:i", "max_uptime:f",  "max_uptime_hook:i", "mode:i",       "forkable",        "log:i",          "json:s"
+         $opts,         \%options,  "command=s",   "token=s",      "state:s",  "user:s",   "host:s",       "newname:s", "password:s", "script:s",
+         "email:s",     "level:i",  "cron:s",      "at:s",         "cal:s",    "cal_id:i", "force",        "count:i",   "needs:i@",   "description:s",
+         "server_id:i", "name:s",   "job_id:i",    "cluster_id:i", "server:s", "org_id:i", "pid:i",        "id:s",      "match:s",    "tz:s",
+         "begin:s",     "expire:s", "parent_id:i", "retrys:i",     "delay:i",  "loops:i",  "fail_alarm:i", "mode:i",    "clonable:i",   "log:i",
+         "json:s", "needs_any:i"
       );
 
       # allow multi-value needs
 
-      if ( $opts =~ /needs/ ) {
+      if ( $opts =~ /needs\s+/ ) {
          my @needs;
          $opts =~ s/^.*?(-needs.*$)/$1/;
          $opts =~ s/(.*?needs[^-]*?)-.*/$1/;
@@ -475,27 +486,12 @@ sub string2hash {
       $cmd  = $aliases->{$verb};
       $name = $noun;
    }
-   else {   
+   else {
       $cmd = $noun ? join( '_', ( $verb, $noun ) ) : $verb;
    }
 
-
    #return { success => 0, message => 'command not found' } unless $noun && defined $verb;
    return { success => 0, message => 'command not found' } unless $cmd;
-
-#   unless ( $noun || exists $aliases->{$verb} ) {
-#      return { success => 0, message => 'command not found' };
-#   }
-
-#   my $cmd;
-
-#   if ( exists $aliases->{$verb} ) {
-#      $cmd  = $aliases->{$verb};
-#      $name = $noun;
-#   }
-#   else {
-#      $cmd = $noun ? join( '_', ( $verb, $noun ) ) : $verb;
-#   }
 
    # convert dates to epoch seconds
    foreach my $o (qw(at begin expire)) {
@@ -513,6 +509,7 @@ sub string2hash {
    $options{tz} ||= $tz;    # time zone needed for crontab
    my $res = { token => $token, command => $cmd, %options };
    $res->{name} = $name if defined $name;
+   print Dumper($res);
    return $res;
 }
 
@@ -664,6 +661,51 @@ sub less {
 
    # Restore terminal
    ReadMode('restore');
-
 }
 
+sub extract_command {
+   my $string = shift;
+   my @parts;
+   my $current   = '';
+   my $in_quotes = '';
+   my $i         = 0;
+
+   while ( $i < length($string) ) {
+      my $char = substr( $string, $i, 1 );
+
+      if ($in_quotes) {
+
+         # Inside quotes, collect until matching quote
+         $current .= $char;
+         if ( $char eq $in_quotes && ( $i == 0 || substr( $string, $i - 1, 1 ) ne '\\' ) ) {
+            $in_quotes = '';    # Exit quote mode
+         }
+      }
+      elsif ( $char eq '"' || $char eq "'" ) {
+
+         # Start of quoted string
+         $in_quotes = $char;
+         $current .= $char;
+      }
+      elsif ( $char =~ /\s/ ) {
+
+         # Whitespace outside quotes: finalize current part
+         if ( $current ne '' ) {
+            push @parts, $current;
+            $current = '';
+         }
+      }
+      else {
+         # Non-whitespace outside quotes
+         $current .= $char;
+      }
+      $i++;
+   }
+
+   push @parts, $current if $current ne '';
+
+   # Clean up quotes from the parts
+   @parts = map { s/^['"]|['"]$//g; $_ } @parts;
+
+   return @parts;
+}
