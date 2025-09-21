@@ -44,8 +44,8 @@ has 'at' => sub {
    state $timer = {};
 };
 
-has 'api_url' => sub {
-   state $api = 'http://' . &get_local_ip_address() . ':3000/api';
+has 'local_url' => sub {
+   state $url = 'http://' . &get_local_ip_address() . ':3000';
 };
 
 # This method will run once at server start
@@ -57,7 +57,7 @@ sub startup {
    $self->secrets( [ 'gu$!$#UessM%#eI36#$fYo43@#$uC^%5an', '%!#GDA$#!gfds%#@sdf' ] );
 
    # In-memory storage for emails
-   $self->attr(emails => sub { {} });
+   $self->attr( emails => sub { {} } );
 
    # Plugins
    $self->plugin( 'Minion' => { SQLite => "$Bin/../db/sqlite:minion.db" } );
@@ -99,8 +99,8 @@ sub startup {
       }
    );
 
-   $self->helper( jwt => sub { Mojo::JWT->new( secret => shift->app->secrets->[0] || die ) } );
-   $self->helper( email => sub { shift->minion->enqueue( email_task => [@_] ) } );
+   $self->helper( jwt      => sub { Mojo::JWT->new( secret => shift->app->secrets->[0] || die ) } );
+   $self->helper( email    => sub { shift->minion->enqueue( email_task => [@_] ) } );
    $self->helper( to_index => sub { shift->flash( message => shift )->redirect_to('index') } );
 
    $self->helper( request => \&request );
@@ -114,16 +114,86 @@ sub startup {
       }
    );
 
+   # TODO: move minion to separate process
    # Minion task
-   $self->minion->add_task( email_task => sub { shift->app->send_email(@_) } );
+   $self->minion->add_task(
+      email_task => sub {
+         my ( $job, @args ) = @_;
+         eval { shift->app->send_email(@args); };
+         if ($@) { $job->fail($@); }
+      }
+   );
+
+   # Start Minion worker in a forked process
+   if ( my $pid = fork ) {
+
+      # Parent process (web server)
+      $self->log->info("Minion worker started with PID $pid");
+   }
+   elsif ( defined $pid ) {
+
+      # Child process (Minion worker)
+      $self->log->info("Starting Minion worker in child process");
+      my $worker = $self->minion->worker;
+      $worker->run;
+      exit 0;
+   }
+   else {
+      # Fork failed
+      $self->log->error("Failed to fork Minion worker: $!");
+   }
 
    # Router
    my $r = $self->routes;
 
-   $r->any('/')->to('auth#index')->name('index');
-   $r->any('/logout')->to('auth#logout');
-   $r->post('/sign_up')->to('auth#sign_up');
-   $r->get('/confirm')->to('auth#confirm');
+   #$r->any('/')->to('auth#index')->name('index');
+   #$r->any('/logout')->to('auth#logout');
+   #$r->post('/sign_up')->to('auth#sign_up');
+   #$r->get('/confirm')->to('auth#confirm');
+   #$r->any('/')->name('index');
+   #$r->any('/logout')->to( controller => 'auth', action => 'logout' );
+   #$r->any('/sign_up')->to( controller => 'auth', action => 'sign_up' );
+
+   $r->get(
+      '/' => sub {
+         my $c  = shift;
+         $c->render('confirmed') if $c->session('email');
+      }
+   )->name('index');
+
+   $r->get(
+      '/logout' => sub {
+         my $c  = shift;
+         $c->session(expires => 1)->to_index;
+      }
+   );
+
+   $r->get(
+      '/sign_up' => sub {
+         my $c  = shift;
+         my $email = $c->param('email');
+         return $c->to_index('Email cannot be blank') unless $email;
+         my $user = ordo::Model::User->new;
+         my $rv = $self->register($self, $user, { email => $email });
+         my $message = $rv->{success} ? 'Registration complete, please check your email to confirm' : 'failed'; 
+         $c->to_index($message);
+      }
+   );
+
+   $r->get(
+      '/confirm' => sub {
+         my $c  = shift;
+         my $email = $self->jwt->decode( $c->param('jwt') )->{email};
+
+         my $u = $self->sqlite->db->select( 'user', ['*'], { email => $email } )->hash;
+         unless ( $u->{id} ) {
+            return $c->to_index("Email $email not found");
+         }
+         $self->sqlite->db->update( 'user', { level => 1 }, { id => $u->{id} } )->hash;
+         $c->session( token => $u->{token}, id => $u->{id} );
+         $c->to_index('Email confirmed, you are now logged in');
+      }
+   );
 
    # Normal route to controller
    # $r->get('/')->to( controller => 'landing', action => 'welcome' );
@@ -136,15 +206,11 @@ sub startup {
    # 401 Unauthorized: Authentication is required and has failed or has not yet been provided.
    # 404 Not Found: The requested resource could not be found.
    # 500 Internal Server Error: The server encountered an unexpected condition.
-
-   # TODO: use SSH keys for authentication .. Mojo get_public_key method?
-   # authenticate with Mojo::JWT ?
-   # backend DBM::Deep
    # https://www.perl.com/article/193/2015/9/18/How-to-send-verification-emails-using-Mojolicious/
 
    $r->any(
       '/api' => sub {
-         my $c    = shift;
+         my $c = shift;
          my $body = $c->req->json;
          print "API\n";
          if ( ref $body ne 'HASH' || ( !$body->{token} && $body->{command} ne 'register' ) ) {
@@ -545,12 +611,6 @@ sub _start_cluster {
    my $hold     = $self->job_states->{hold};
    my $ice      = $self->job_states->{ice};
 
-   # hard stop if any of these are true
-   #if ( $cluster->{state_id} == $self->job_states->{running} ) {
-   #   return { success => 0, message => 'cluster already running' };
-   # TODO: clone if clonable
-   #}
-
    if ( $cluster->{id} == $user->root_cluster_id ) {
       return { success => 0, message => 'root cluster cannot be started' };
    }
@@ -574,8 +634,6 @@ sub _start_cluster {
    }
    elsif ( $cluster->{state_id} == $self->job_states->{running} ) {
       return { success => 0, message => 'cluster already running' };
-
-      # TODO: clone if clonable
    }
 
    unless ( $d->{force} ) {
@@ -1136,15 +1194,45 @@ sub login_user {
 
 sub register {
    my ( $self, $user, $d ) = @_;
-   $d->{level} = 0;
-   unless ( $d->{email} && Email::Valid->address( $d->{email} ) ) {
+   my $valid = Email::Valid->new;
+
+   # Uncomment the next line to enable MX record checking (requires network access)
+   # $valid->mxcheck(1);
+
+   unless ( $d->{email} && $valid->address( $d->{email} ) ) {
       return { success => 0, message => 'invalid email' };
    }
-   my $new_user = $self->create_user( $user, $d );
-   return $new_user unless $new_user->{success};
 
-   my $login = $self->login_user( $user, { token => $new_user->{token} } );
-   return $login->{success} ? { success => 1, message => 'registered' } : { success => 0 };
+   my $login_token;
+
+   my $existing_user = $self->sqlite->db->select( 'user', ['*'], { email => $d->{email} } )->hash;
+   if ( $existing_user && $existing_user->{email} ) {
+      $login_token = $existing_user->{token};
+
+      #return { success => 0, message => 'email already taken' };
+   }
+   else {
+      # create new user
+      $d->{level} = 0;
+      my $new_user = $self->create_user( $user, $d );
+      if ( $new_user->{success} ) {
+         $login_token = $new_user->{token};
+      }
+      else {
+         return $new_user;
+      }
+   }
+
+   # send email
+   my $jwt = $self->jwt->claims( { email => $d->{email} } )->encode;
+
+   #my $url = $self->url_for('confirm')->to_abs->query(jwt => $jwt);
+   my $url = $self->local_url . $self->url_for('confirm')->query( jwt => $jwt );
+   $self->email( $d->{email}, 'Confirm Your Email', "Please click the following link to confirm your email: $url" );
+
+   # login new user
+   my $login = $self->login_user( $user, { token => $login_token } );
+   return $login->{success} ? { success => 1, message => 'registered' } : { success => 0, message => 'register failed' };
 }
 
 sub create_user {
@@ -1421,7 +1509,11 @@ sub _clone_cluster {
    $cluster->{parent_id}        = $d->{parent_id} || $cluster->{parent_id};
    $cluster->{clone_cluster_id} = delete $cluster->{id};
    $cluster->{clonable}         = undef;
-   $cluster->{state_id}         = $self->job_states->{ready};
+   unless ( scalar( grep { $cluster->{state_id} == $self->job_states->{$_} } (qw(hold ice)) ) ) {
+      $cluster->{state_id} = $self->job_states->{ready};
+   }
+
+   #$cluster->{state_id}         = $self->job_states->{ready};
 
    # cluster needs
    my $cn = $self->_read_cluster_needs( $user, { id => $cluster->{clone_cluster_id} } );
@@ -2533,7 +2625,7 @@ sub _start_job {
    return { success => 0, skipped => 1, message => 'job not found' } unless $job->{id};
 
    #if ( scalar grep { $self->job_states->{$_} == $job->{state_id} } (qw(starting running)) ) {
-   if ( ($job->{pid} || $job->{ppid}) && scalar grep { $self->job_states->{$_} == $job->{state_id} } (qw(starting running))) {
+   if ( ( $job->{pid} || $job->{ppid} ) && scalar grep { $self->job_states->{$_} == $job->{state_id} } (qw(starting running)) ) {
       return { success => 0, skipped => 1, message => 'job is already running' };
    }
 
@@ -2607,7 +2699,7 @@ sub _start_job {
       cluster_id => $job->{cluster_id},
       server_id  => $job->{server_id},
       script     => $job->{script},
-      api        => $self->api_url,
+      api        => $self->local_url . '/api',
    };
    $opts->{origin}            = $d->{origin}            if $d->{origin};
    $opts->{origin_job_id}     = $d->{origin_job_id}     if $d->{origin_job_id};

@@ -15,4 +15,5 @@ CREATE TABLE user (
 );
 
 CREATE UNIQUE INDEX user_idx1 ON user (token);
+CREATE UNIQUE INDEX user_idx2 ON user (email);
 COMMIT;
