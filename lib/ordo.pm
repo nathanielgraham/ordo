@@ -57,7 +57,7 @@ sub startup {
    $self->secrets( [ 'gu$!$#UessM%#eI36#$fYo43@#$uC^%5an', '%!#GDA$#!gfds%#@sdf' ] );
 
    # In-memory storage for emails
-   $self->attr( emails => sub { {} } );
+   #$self->attr( emails => sub { {} } );
 
    # Plugins
    $self->plugin( 'Minion' => { SQLite => "$Bin/../db/sqlite:minion.db" } );
@@ -101,7 +101,7 @@ sub startup {
 
    $self->helper( jwt      => sub { Mojo::JWT->new( secret => shift->app->secrets->[0] || die ) } );
    $self->helper( email    => sub { shift->minion->enqueue( email_task => [@_] ) } );
-   $self->helper( to_index => sub { shift->flash( message => shift )->redirect_to('index') } );
+   # $self->helper( to_index => sub { shift->flash( message => shift )->redirect_to('index') } );
 
    $self->helper( request => \&request );
    $self->helper( routing => \&routing );
@@ -114,7 +114,6 @@ sub startup {
       }
    );
 
-   # TODO: move minion to separate process
    # Minion task
    $self->minion->add_task(
       email_task => sub {
@@ -124,61 +123,8 @@ sub startup {
       }
    );
 
-   # Start Minion worker in a forked process
-   if ( my $pid = fork ) {
-
-      # Parent process (web server)
-      $self->log->info("Minion worker started with PID $pid");
-   }
-   elsif ( defined $pid ) {
-
-      # Child process (Minion worker)
-      $self->log->info("Starting Minion worker in child process");
-      my $worker = $self->minion->worker;
-      $worker->run;
-      exit 0;
-   }
-   else {
-      # Fork failed
-      $self->log->error("Failed to fork Minion worker: $!");
-   }
-
    # Router
    my $r = $self->routes;
-
-   #$r->any('/')->to('auth#index')->name('index');
-   #$r->any('/logout')->to('auth#logout');
-   #$r->post('/sign_up')->to('auth#sign_up');
-   #$r->get('/confirm')->to('auth#confirm');
-   #$r->any('/')->name('index');
-   #$r->any('/logout')->to( controller => 'auth', action => 'logout' );
-   #$r->any('/sign_up')->to( controller => 'auth', action => 'sign_up' );
-
-   $r->get(
-      '/' => sub {
-         my $c  = shift;
-         $c->render('confirmed') if $c->session('email');
-      }
-   )->name('index');
-
-   $r->get(
-      '/logout' => sub {
-         my $c  = shift;
-         $c->session(expires => 1)->to_index;
-      }
-   );
-
-   $r->get(
-      '/sign_up' => sub {
-         my $c  = shift;
-         my $email = $c->param('email');
-         return $c->to_index('Email cannot be blank') unless $email;
-         my $user = ordo::Model::User->new;
-         my $rv = $self->register($self, $user, { email => $email });
-         my $message = $rv->{success} ? 'Registration complete, please check your email to confirm' : 'failed'; 
-         $c->to_index($message);
-      }
-   );
 
    $r->get(
       '/confirm' => sub {
@@ -187,11 +133,13 @@ sub startup {
 
          my $u = $self->sqlite->db->select( 'user', ['*'], { email => $email } )->hash;
          unless ( $u->{id} ) {
-            return $c->to_index("Email $email not found");
+            $c->render(text => 'Email Not Found', status => 404);
+            return;
          }
          $self->sqlite->db->update( 'user', { level => 1 }, { id => $u->{id} } )->hash;
-         $c->session( token => $u->{token}, id => $u->{id} );
-         $c->to_index('Email confirmed, you are now logged in');
+         $c->session( expiration => 0, token => $u->{token}, email => $email, id => $u->{id} );
+         $c->render('confirmed');
+         #$c->to_index('Email confirmed, you are now logged in');
       }
    );
 
@@ -202,7 +150,7 @@ sub startup {
    # HTTP status codes
    # 200 OK: The request was successful.
    # 201 Created: A new resource has been created.
-   # 400 Bad Request: The request was invalid or cannot be fulfilled.
+   # 400 BadRequest: The request was invalid or cannot be fulfilled.
    # 401 Unauthorized: Authentication is required and has failed or has not yet been provided.
    # 404 Not Found: The requested resource could not be found.
    # 500 Internal Server Error: The server encountered an unexpected condition.
@@ -212,14 +160,15 @@ sub startup {
       '/api' => sub {
          my $c = shift;
          my $body = $c->req->json;
-         print "API\n";
-         if ( ref $body ne 'HASH' || ( !$body->{token} && $body->{command} ne 'register' ) ) {
+         #print "API\n";
+         #print Dumper($body);
+         if ( ref $body ne 'HASH' || ( !$body->{token} && $body->{command} ne 'register_user' ) ) {
             $c->render( json => { success => 0, message => 'missing login token' }, status => 400 );
          }
          else {
             state $user = ordo::Model::User->new( remote_address => $c->tx->remote_address );
-            if ( $body->{command} eq 'register' ) {
-               my $reg = $self->request( $user, { command => 'register' } );
+            if ( $body->{command} eq 'register_user' ) {
+               my $reg = $self->request( $user, $body );
                $c->render( json => $reg );
                return;
             }
@@ -307,7 +256,7 @@ sub request {
 
    die unless ref $decoded eq 'HASH';
 
-   my ( $command, $params ) = ( delete $decoded->{command}, $decoded );
+   my ( $command, $params ) = ( delete $decoded->{command}, { map { $_, $decoded->{$_} } grep { defined $decoded->{$_} } keys %{ $decoded } } );
    if ( exists $self->routing->{$command} ) {
       my $level = $user->level || 0;
       my ( $sub, $min_level, $legal_options ) = @{ $self->routing->{$command} };
@@ -1192,12 +1141,12 @@ sub login_user {
    return { message => $message, success => $success, user_id => $user->id, token => $user->token, host => $host, path => $path, level => $user->level };
 }
 
-sub register {
+sub register_user {
    my ( $self, $user, $d ) = @_;
    my $valid = Email::Valid->new;
 
-   # Uncomment the next line to enable MX record checking (requires network access)
-   # $valid->mxcheck(1);
+   # Comment out the next line to disable MX record checking (requires network access)
+   $valid->mxcheck(1);
 
    unless ( $d->{email} && $valid->address( $d->{email} ) ) {
       return { success => 0, message => 'invalid email' };
@@ -1208,8 +1157,8 @@ sub register {
    my $existing_user = $self->sqlite->db->select( 'user', ['*'], { email => $d->{email} } )->hash;
    if ( $existing_user && $existing_user->{email} ) {
       $login_token = $existing_user->{token};
-
-      #return { success => 0, message => 'email already taken' };
+      my $rows = $self->sqlite->db->update( 'user', { level => 0 }, { email => $d->{email} } )->rows;
+      return { success => 0, message => 'email update error' } unless $rows;
    }
    else {
       # create new user
@@ -1228,11 +1177,24 @@ sub register {
 
    #my $url = $self->url_for('confirm')->to_abs->query(jwt => $jwt);
    my $url = $self->local_url . $self->url_for('confirm')->query( jwt => $jwt );
-   $self->email( $d->{email}, 'Confirm Your Email', "Please click the following link to confirm your email: $url" );
+
+   my $confirm_message = <<~"MSG";
+   Welcome to the Ordo job scheduler!
+
+   Please click the following link to activate your account:
+   $url
+   MSG
+
+   $self->email( $d->{email}, 'Ordo Registration', $confirm_message );
+
+   my $register_message = <<~"MSG";
+   A confirmation email has been sent to $d->{email}
+   Click the link in the email to confirm and then run this script again.
+   MSG
 
    # login new user
    my $login = $self->login_user( $user, { token => $login_token } );
-   return $login->{success} ? { success => 1, message => 'registered' } : { success => 0, message => 'register failed' };
+   return $login->{success} ? { success => 1, token => $login_token, message => $register_message } : { success => 0, message => 'registration failed' };
 }
 
 sub create_user {
@@ -2146,7 +2108,8 @@ sub _update_job {
    return { success => 0, message => 'job not found' } unless $job->{id};
 
    my $success = 0;
-   my @fields  = qw(needs_any clonable retrys loops delay pctcpu pid start priority rss pctmem ppid fname signal exit_code state_id description started ended server_id script);
+   my @fields  = qw(needs_any clonable retrys loops delay pctcpu pid start priority rss pctmem fname signal exit_code state_id description started ended server_id script);
+   push (@fields, 'ppid') if $d->{state} && $d->{state} eq 'running';
 
    my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } @fields };
 
@@ -2187,7 +2150,7 @@ sub _update_job {
             # delete oldest log
             if ($rows) {
                my $count = $self->sqlite->db->query("select count(*) as count from job_log where job_id = $d->{id}")->hash->{count};
-               if ( $count > 10 ) {
+               if ( $count > 12 ) {
                   my $dl = $self->sqlite->db->select( 'job_log', ['*'], { job_id => $job->{id} }, { order_by => 'id', limit => 1 } )->hash;
                   $self->sqlite->db->delete( 'job_log', { id => $dl->{id} } );
 
@@ -2205,6 +2168,7 @@ sub _update_job {
          else {
             my $update_hash = { map { $_ => $d->{$_} } grep { defined $d->{$_} } (qw(log_id ppid pid exit_code signal ended)) };
             $update_hash->{job_id} = $d->{id};
+            #print Dumper($d);
             $self->sqlite->db->update( 'job_log', $update_hash, { job_id => $job->{id}, log_id => $d->{log_id}, ppid => $d->{ppid} } );
          }
       }
@@ -3834,7 +3798,7 @@ sub routing {
       'delete_user'   => [ \&delete_user, 3, [ { id => $i }, {} ] ],
       'login_user'    => [ \&login_user,  0, [ { token => $w }, {} ] ],
       'new_token'     => [ \&new_token,   1, [ {}, {} ] ],
-      'register_user' => [ \&register,    0, [ { email => $e }, {} ] ],
+      'register_user' => [ \&register_user, 0, [ { email => $e }, {} ] ],
 
       # job related
       'create_job' => [

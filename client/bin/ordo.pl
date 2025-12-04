@@ -15,12 +15,27 @@ use Text::Table::Tiny 1.02 qw/ generate_table /;
 use Date::Parse;
 use Time::Local;
 use DateTime::TimeZone;
-
-#use MIME::Base64;
+use Email::Valid;
+use IO::Socket::INET;
 use Term::ReadKey;
 use POSIX qw(ceil);
 
 use feature qw(say);
+
+# Try connecting to Google's DNS server (8.8.8.8) on port 53
+my $socket = IO::Socket::INET->new(
+   PeerAddr => '8.8.8.8',
+   PeerPort => 53,
+   Proto    => 'tcp',
+   Timeout  => 5
+);
+
+unless ($socket) {
+   print "No internet connection\n";
+   exit;
+}
+
+$socket->close();
 
 my $config = &read_config;
 
@@ -29,9 +44,6 @@ my $token   = $config->{token};
 my $aliases = $config->{aliases};
 my $api     = $config->{api};
 
-#$api = "http://localhost:3000/api";
-#$api = "https://192.168.68.56/api";
-#my $api     = "https://127.0.0.1/api";
 my $host    = '';
 my $cluster = '';
 
@@ -46,21 +58,30 @@ my $ua   = Mojo::UserAgent->new(
 );
 
 $ua->inactivity_timeout(10);
-$ua->max_redirects(0)->connect_timeout(4)->request_timeout(7);
+$ua->max_redirects(0)->connect_timeout(4)->request_timeout(5);
 
+print "\nWelcome to the Ordo job scheduler!\n";
 my $login = &request("login user");
 
 if ( $login->{success} ) {
    if ( $login->{level} == 0 ) {
-      say "Already registered and awaiting confirmation. Try again later.";
+      say "Already registered. Please check your email to confirm";
       exit;
    }
    &request("find cluster");
 }
 else {
-   say $login->{message} if $login->{message};
 
-   #exit;
+   # register as a new user
+   my $email;
+   do {
+      print "Please enter a valid email address: ";
+      chomp($email = <STDIN>);
+   } while (!Email::Valid->address( -address => $email, -mxcheck => 1));
+
+   my $register = &request("register user -email $email");
+   say $register->{message};
+   exit;
 }
 
 # main loop
@@ -88,8 +109,7 @@ sub login_user {
    my $json = shift;
    return unless $json && $json->{token};
 
-   #print Dumper($json);
-   &new_token($json);
+   #&new_token($json);
    $host    = $json->{host} || '';
    $cluster = $json->{path} || '';
 }
@@ -132,7 +152,7 @@ sub new_token {
    my $success = &write_config($config);
 
    if ($success) {
-      say "Using token: $json->{token}";
+      say "Using token $json->{token}";
    }
 }
 
@@ -191,7 +211,7 @@ sub find_monitor {
          my $seconds = time - $s->{update_time};
          $update = sprintf( "%is ago", $seconds );
       }
-      if ( exists $s->{cpu} ) {
+      if ( defined $s->{cpu} ) {
          my $cores = $s->{cores} || 1;
          $cpu = sprintf( "%.2f (%i)", $s->{cpu}, $cores );
       }
@@ -414,6 +434,7 @@ sub after_dispatch {
    my %dispatch = (
       change_cluster => \&change_cluster,
       login_user     => \&login_user,
+      register_user  => \&new_token,
       find_cluster   => \&find_cluster,
       read_job       => \&_print_table,
       read_cluster   => \&_print_table,
@@ -509,7 +530,6 @@ sub string2hash {
    $options{tz} ||= $tz;    # time zone needed for crontab
    my $res = { token => $token, command => $cmd, %options };
    $res->{name} = $name if defined $name;
-   print Dumper($res);
    return $res;
 }
 

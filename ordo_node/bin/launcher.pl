@@ -8,7 +8,6 @@ use File::Spec;
 #my $home_dir = $ENV{HOME} || $ENV{USERPROFILE} || die "Home directory not found.\n";
 #my $perl5lib = File::Spec->catdir($home_dir, 'perl5', 'lib', 'perl5');
 #$ENV{PERL5LIB} = $perl5lib;
-
 use LWP::UserAgent;
 use JSON::PP;
 use FindBin qw($Bin);
@@ -140,7 +139,8 @@ else {
          my $exit_code = $? >> 8;
          my $signal    = $? & 127;
          my $state     = $signal ? 'killed' : $exit_code ? 'failed' : 'complete';
-         &post( { command => 'update_job', ended => time, token => $token, id => $id, log_id => $time, state => $state, signal => $signal, exit_code => $exit_code } );
+         &post( { command => 'update_job', ended => time, token => $token, id => $id, ppid => $$, log_id => $time, state => $state, signal => $signal, exit_code => $exit_code } );
+         #&post( { command => 'update_job', ended => time, token => $token, id => $id, log_id => $time, state => $state, signal => $signal, exit_code => $exit_code } );
 
          my $ended    = scalar localtime(time);
          my $log_tail = <<~"TAIL";

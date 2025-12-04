@@ -8,9 +8,8 @@
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
   <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full text-center">
-    <h1 class="text-2xl font-bold text-gray-800 mb-4">Welcome!</h1>
+    <h1 class="text-2xl font-bold text-gray-800 mb-4">Welcome to Ordo!</h1>
     <p class="text-gray-600 mb-6">Your email <strong><%= session 'email' %></strong> has been verified.</p>
-    <p><%= link_to 'Log out' => 'logout', class => 'text-blue-600 hover:underline' %></p>
   </div>
 </body>
 </html>

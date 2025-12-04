@@ -3,14 +3,13 @@ BEGIN TRANSACTION;
 DROP TABLE IF EXISTS org;
 CREATE TABLE org (
         id INTEGER PRIMARY KEY NOT NULL,
-	user_id integer,
+	user_id integer REFERENCES user(id) ON DELETE SET NULL,
         root_cluster_id integer,
         name varchar,
         token varchar,
         tz varchar,
         description varchar,
-        creation_time integer DEFAULT (strftime('%s', 'now')),
-        FOREIGN KEY(user_id) REFERENCES user(id)
+        creation_time integer DEFAULT (strftime('%s', 'now'))
 );
 
 COMMIT;

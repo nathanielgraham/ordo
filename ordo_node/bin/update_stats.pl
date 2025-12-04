@@ -12,7 +12,6 @@ use Data::Dumper;
 my $api   = $ENV{ORDO_API}       or die "API missing";
 my $token = $ENV{ORDO_TOKEN}     or die "TOKEN missing";
 my $id    = $ENV{ORDO_SERVER_ID} or die "SERVER_ID missing";
-#my $pids  = [];
 my $json  = JSON::PP->new->ascii->pretty->allow_nonref;
 
 my $sysinfo = &system_info;
