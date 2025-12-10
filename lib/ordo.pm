@@ -10,7 +10,8 @@ use Sys::Hostname;
 use POSIX ":sys_wait_h";
 use EV;
 use DateTime;
-use DateTime::Event::Cron::Quartz;
+#use DateTime::Event::Cron::Quartz;
+use Cron::Toolkit;
 use MIME::Base64;
 use UUID::Tiny ':std';
 use IO::Socket::INET;
@@ -3293,49 +3294,59 @@ sub _create_cron_row {
    my $cal_row = $self->sqlite->db->select( 'cal', ['tz'], { id => $d->{cal_id} } )->hash;
    my $tz      = $cal_row->{tz} || 'UTC';
 
-   my @units = split( /\s+/, $d->{name} );
-   return if scalar @units < 5 || scalar @units > 7;
+   #my @units = split( /\s+/, $d->{name} );
+   #return if scalar @units < 5 || scalar @units > 7;
 
    # convert unix cron to quartz cron
-   unshift( @units, '0' ) if scalar @units == 5;
-   if ( $units[3] =~ /\?/ ) {
-      return if $units[5] =~ /\?/;
-   }
-   else {
-      $units[5] = '?';
-   }
+   #unshift( @units, '0' ) if scalar @units == 5;
+   #if ( $units[3] =~ /\?/ ) {
+   #   return if $units[5] =~ /\?/;
+   #}
+   #else {
+   #   $units[5] = '?';
+   #}
 
-   my $crontab = join( ' ', @units );
+   #my $crontab = join( ' ', @units );
 
-   my $next;
+   my ($cron_string, $begin, $expire, $english, $next);
    eval {
-      my $cron = DateTime::Event::Cron::Quartz->new($crontab);
-      $next = $cron->get_next_valid_time_after( DateTime->from_epoch( epoch => time, time_zone => $tz ) )->epoch;
+      my $cron = Cron::Toolkit->new(
+         expression => $d->{name},
+         time_zone => $tz,
+      );
+      $cron->begin_epoch($d->{begin}) if $d->{begin};
+      $cron->end_epoch($d->{expire}) if $d->{expire};
+      $cron_string = $cron->as_string;
+      $begin = $cron->begin_epoch;
+      $expire = $cron->end_epoch;
+      $english = $cron->describe;
+      $next = $cron->next;
    };
 
    return if $@;
-   return unless $next && $next > time;
+   return unless $next;
 
-   my $start = $d->{begin} && $d->{begin} > $next ? $d->{begin} : $next;
-   my $end   = $d->{expire};
+   #my $start = $d->{begin} && $d->{begin} > $next ? $d->{begin} : $next;
+   #my $end   = $d->{expire};
 
-   return if $start >= 4102466400;    # max year 2099
+   #return if $start >= 4102466400;    # max year 2099
 
    # sanity check
-   if ( $start && $end ) {
-      return if $start > $end;
-   }
+   #if ( $start && $end ) {
+   #   return if $start > $end;
+   #}
 
    my $id;
    eval {
       $id = $self->sqlite->db->insert(
          'cron',
          {
-            name        => $crontab,
+            name        => $cron_string,
             cal_id      => $d->{cal_id},
-            begin       => $start,
-            expire      => $end,
+            begin       => $begin,
+            expire      => $expire,
             description => $d->{description},
+            english     => $english,
             org_id      => $user->org_id
          }
       )->last_insert_id;
@@ -3562,16 +3573,17 @@ sub _cron_next_start {
    my $name = $c->{name};
    return unless $name && $tz;
 
-   my ( $cron, $next );
+   my $next;
    eval {
-      $cron = DateTime::Event::Cron::Quartz->new( $c->{name} );
-      $next = $cron->get_next_valid_time_after( DateTime->from_epoch( epoch => time, time_zone => $tz ) )->epoch;
+      my $cron = Cron::Toolkit->new(
+         expression => $c->{name},
+         time_zone => $tz,
+      );
+      $cron->begin_epoch($c->{begin}) if $c->{begin};
+      $cron->end_epoch($c->{expire}) if $c->{expire};
+      $next = $cron->next;
    };
-   return if $@ || !$next;
-
-   $next = $cron->get_next_valid_time_after( DateTime->from_epoch( epoch => $c->{begin}, time_zone => $tz ) )->epoch if $c->{begin} && $next < $c->{begin};
-
-   $next = undef if $c->{expire} && $next > $c->{expire};
+   return if $@;
 
    return $next;
 }
@@ -3668,7 +3680,6 @@ sub _add_cron {
    my $id;
    eval { $id = $self->_create_cron_row( $user, { name => $d->{name}, begin => $d->{begin}, expire => $d->{expire}, description => $d->{description}, cal_id => $cal_info->{id}, } ); };
 
-   print "ER: $@\n";
    return { success => 0, message => 'an identical cron already exists in that calendar' } unless $id;
 
    # only start when subscribers exist

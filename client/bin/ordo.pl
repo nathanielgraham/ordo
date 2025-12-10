@@ -541,6 +541,7 @@ sub request {
    &before_dispatch( $command->{command}, $command );
 
    my $json = &send_request($command);
+   print Dumper($json);
 
    &after_dispatch( $json->{command_reply}, $json );
 
