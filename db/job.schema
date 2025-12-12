@@ -8,7 +8,6 @@ CREATE TABLE job (
         server_id INTEGER REFERENCES server(id) ON DELETE SET NULL ON UPDATE CASCADE,
         script varchar,
         state_id INTEGER NOT NULL DEFAULT 2,
-	needs_any integer not null default 0,
         name varchar,
         clone_job_id varchar,
         delay integer not null default 0,

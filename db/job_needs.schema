@@ -4,7 +4,8 @@ DROP TABLE IF EXISTS job_needs;
 CREATE TABLE job_needs (
         id INTEGER PRIMARY KEY NOT NULL,
         job_id INTEGER REFERENCES job(id) ON DELETE CASCADE,
-        needs_job_id INTEGER REFERENCES job(id) ON DELETE CASCADE
+        needs_job_id INTEGER REFERENCES job(id) ON DELETE CASCADE,
+        needs_any_mode INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE UNIQUE INDEX job_needs_idx1 ON job_needs (job_id, needs_job_id);
