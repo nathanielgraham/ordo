@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50 dark:bg-gray-900" x-data="dashboard()">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ordo Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>[x-cloak] { display: none !important; }</style>
+</head>
+<body class="h-full flex flex-col">
+  <%== include 'partials/header' %>
+
+  <div class="flex-1 overflow-y-auto">
+    <div class="max-w-7xl mx-auto p-6">
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-8">Dashboard</h1>
+
+      <!-- Summary Stats -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-gray-600 dark:text-gray-400">Total Clusters</p>
+              <p class="text-2xl font-bold" x-text="stats.clusters"></p>
+            </div>
+            <div class="text-blue-600">📁</div>
+          </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-gray-600 dark:text-gray-400">Running Jobs</p>
+              <p class="text-2xl font-bold text-green-600" x-text="stats.running"></p>
+            </div>
+            <div class="text-green-600">▶️</div>
+          </div>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-gray-600 dark:text-gray-400">Next Scheduled</p>
+              <p class="text-xl font-medium" x-text="stats.nextRun || '—'"></p>
+            </div>
+            <div class="text-purple-600">⏰</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Links -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <a href="/monitor" class="block bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition p-8 text-center">
+          <div class="text-4xl mb-4">🌳</div>
+          <h3 class="text-xl font-semibold">Jobs & Clusters</h3>
+          <p class="text-gray-600 dark:text-gray-400 mt-2">View hierarchy and status</p>
+        </a>
+
+        <a href="/calendars" class="block bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition p-8 text-center">
+          <div class="text-4xl mb-4">📅</div>
+          <h3 class="text-xl font-semibold">Calendars</h3>
+          <p class="text-gray-600 dark:text-gray-400 mt-2">Manage schedules and crons</p>
+        </a>
+
+        <a href="/servers" class="block bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition p-8 text-center">
+          <div class="text-4xl mb-4">🖥️</div>
+          <h3 class="text-xl font-semibold">Servers</h3>
+          <p class="text-gray-600 dark:text-gray-400 mt-2">Monitor worker nodes</p>
+        </a>
+
+        <a href="/logs" class="block bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition p-8 text-center opacity-50">
+          <div class="text-4xl mb-4">📜</div>
+          <h3 class="text-xl font-semibold">Logs</h3>
+          <p class="text-gray-600 dark:text-gray-400 mt-2">Job execution history (soon)</p>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function dashboard() {
+      return {
+        stats: { clusters: 0, running: 0, nextRun: '' },
+        ws: null,
+        init() {
+          this.connect();
+          this.refresh();
+        },
+        connect() {
+          const token = getToken();
+          if (!token) return (location.href = '/login');
+          const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+          this.ws = new WebSocket(`${proto}//${location.host}/websocket`);
+          this.ws.onopen = () => {
+            this.ws.send(JSON.stringify({ command: "login_user", token }));
+            this.ws.send(JSON.stringify({ command: "find_cluster" }));
+            this.ws.send(JSON.stringify({ command: "find_cal" }));
+          };
+          this.ws.onmessage = (e) => {
+            const data = JSON.parse(e.data);
+            if (data.command_reply === 'find_cluster') this.updateStats(data);
+            if (data.command_reply === 'find_cal') this.updateNextRun(data);
+          };
+        },
+        updateStats(data) {
+          let running = 0;
+          let totalClusters = data.clusters.length;
+          data.clusters.forEach(c => {
+            (c.jobs || []).forEach(j => { if (j.jobstate === 'running') running++; });
+          });
+          this.stats = { clusters: totalClusters, running };
+        },
+        updateNextRun(data) {
+          const times = data.cals
+            .flatMap(cal => (cal.crons || []).map(c => c.next_start).filter(t => t))
+            .sort((a, b) => a - b);
+          if (times.length) {
+            const next = new Date(times[0] * 1000);
+            this.stats.nextRun = next.toLocaleString();
+          }
+        },
+        refresh() {
+          if (this.ws?.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({ command: "find_cluster" }));
+            this.ws.send(JSON.stringify({ command: "find_cal" }));
+          }
+        }
+      }
+    }
+  </script>
+</body>
+</html>

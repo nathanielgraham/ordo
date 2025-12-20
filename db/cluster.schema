@@ -16,7 +16,7 @@ CREATE TABLE cluster (
 	started INTEGER,
 	ended INTEGER,
 	json text,
-        fail_alarm integer REFERENCES cluster(id) ON DELETE SET NULL, 
+        on_fail integer REFERENCES cluster(id) ON DELETE SET NULL, 
         clonable integer, 
         clone_cluster_id integer REFERENCES cluster(id) ON DELETE CASCADE,
         loops integer integer not null default 0,

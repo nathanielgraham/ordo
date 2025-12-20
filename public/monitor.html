@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50 dark:bg-gray-900" x-data="monitorApp()">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ordo • Jobs & Clusters</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .tree-row:hover { background-color: rgba(99, 102, 241, 0.05); }
+  </style>
+</head>
+<body class="h-full flex flex-col">
+  <!-- Header -->
+  <div class="bg-indigo-700 text-white shadow-lg">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+      <h1 class="text-2xl font-bold">Ordo</h1>
+      <div class="text-sm">
+        <span x-text="userEmail || 'Guest'"></span>
+        <span class="text-gray-300 mx-2">•</span>
+        <span x-text="userIP || '—'"></span>
+        <span class="ml-6">Local time: <span x-text="now"></span></span>
+      </div>
+    </div>
+    <div class="border-t border-indigo-600">
+      <div class="max-w-7xl mx-auto px-6 py-2">
+        <nav class="flex space-x-8 text-sm">
+          <a href="/dashboard" class="text-indigo-200 hover:text-white">Dashboard</a>
+          <a href="/monitor" class="text-white font-medium border-b-2 border-white pb-1">Jobs & Clusters</a>
+          <a href="/calendars" class="text-indigo-200 hover:text-white">Calendars</a>
+          <a href="/servers" class="text-indigo-200 hover:text-white">Servers</a>
+          <a href="/logout" class="ml-auto text-indigo-200 hover:text-white">Logout</a>
+        </nav>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex-1 overflow-hidden">
+    <div class="max-w-7xl mx-auto p-6" x-data="monitorApp()" x-init="init()">
+      <!-- Controls -->
+      <div class="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div class="flex items-center space-x-4">
+          <input type="text" placeholder="Search..." class="px-4 py-2 border rounded-lg dark:bg-gray-800"
+                 @input.debounce.500ms="filter = $event.target.value">
+          <select class="px-4 py-2 border rounded-lg dark:bg-gray-800" @change="stateFilter = $event.target.value">
+            <option value="">All states</option>
+            <option value="running">Running</option>
+            <option value="complete">Complete</option>
+            <option value="failed">Failed</option>
+            <option value="waiting">Waiting</option>
+            <option value="ready">Ready</option>
+            <option value="hold">Hold</option>
+            <option value="ice">Ice</option>
+          </select>
+        </div>
+
+        <div class="flex items-center space-x-4">
+          <label class="text-sm flex items-center">
+            <input type="checkbox" x-model="autoRefreshEnabled" class="mr-2">
+            Auto-refresh
+          </label>
+          <select x-show="autoRefreshEnabled" x-model="autoRefreshInterval" class="px-3 py-1 border rounded dark:bg-gray-800 text-sm">
+            <option value="10000">10s</option>
+            <option value="30000">30s</option>
+            <option value="60000">60s</option>
+          </select>
+          <button @click="refresh()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg">Refresh</button>
+        </div>
+      </div>
+
+      <!-- Status -->
+      <div class="mb-4 text-sm text-gray-600 dark:text-gray-400 flex items-center space-x-4">
+        <span x-show="connected" class="text-green-600">● Connected</span>
+        <span x-show="!connected" class="text-red-600">● Reconnecting...</span>
+        <span x-text="visibleItems.length + ' items'"></span>
+        <span x-show="!tree.length" class="text-yellow-600">Loading...</span>
+      </div>
+
+      <!-- Tree Table -->
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <table class="w-full">
+          <thead class="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">State</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Server</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Last Run</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Duration</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Next Run</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Calendar</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+            <template x-for="item in visibleItems" :key="item.key">
+              <tr class="tree-row cursor-pointer" @click="selected = item">
+                <td class="py-3" :style="{ paddingLeft: (item.depth * 32 + 16) + 'px' }">
+                  <div class="flex items-center">
+                    <!-- Toggle Arrow - now toggles original node -->
+                    <template x-if="item.is_cluster && item.has_children">
+                      <button @click.stop="toggleNode(item.originalNode)" class="mr-2">
+                        <svg x-show="!item.originalNode.open" class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                        <svg x-show="item.originalNode.open" class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                      </button>
+                    </template>
+                    <template x-if="!item.is_cluster || !item.has_children">
+                      <span class="w-6 inline-block"></span>
+                    </template>
+
+                    <span class="mr-2 text-lg">
+                      <span x-show="item.is_cluster">📁</span>
+                      <span x-show="!item.is_cluster">📄</span>
+                    </span>
+
+                    <span x-text="item.name"
+                          :class="item.is_cluster ? 'font-medium text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'"></span>
+                    <span x-show="item.is_cluster" class="text-blue-600 dark:text-blue-400 ml-1">/</span>
+                  </div>
+                </td>
+                <td class="px-6 py-3">
+                  <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                        :class="stateBadgeClass(item.jobstate)"
+                        x-text="item.jobstate || '—'"></span>
+                </td>
+                <td class="px-6 py-3 text-sm text-gray-900 dark:text-gray-300" x-text="item.server_name || '—'"></td>
+                <td class="px-6 py-3 text-sm text-gray-900 dark:text-gray-300" x-text="item.last_start || '—'"></td>
+                <td class="px-6 py-3 text-sm text-gray-900 dark:text-gray-300" x-text="item.duration || '—'"></td>
+                <td class="px-6 py-3 text-sm text-gray-900 dark:text-gray-300" x-text="item.next_start || '—'"></td>
+                <td class="px-6 py-3 text-sm text-gray-900 dark:text-gray-300" x-text="item.cal_name || '—'"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Details Modal -->
+      <div x-show="selected" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" @click="selected = null">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6 overflow-y-auto max-h-screen" @click.stop>
+          <h2 class="text-2xl font-bold mb-4" x-text="selected ? (selected.name + (selected.is_cluster ? '/' : '')) : ''"></h2>
+          <div class="grid grid-cols-2 gap-4 text-sm">
+            <div><strong>ID:</strong> <span x-text="selected?.id || ''"></span></div>
+            <div><strong>Type:</strong> <span x-text="selected?.is_cluster ? 'Cluster' : 'Job'"></span></div>
+            <div><strong>State:</strong> <span x-text="selected?.jobstate || '—'"></span></div>
+            <div><strong>Server:</strong> <span x-text="selected?.server_name || '—'"></span></div>
+            <div x-show="!selected?.is_cluster"><strong>Script:</strong> <span x-text="selected?.script || '—'"></span></div>
+            <div><strong>Last Run:</strong> <span x-text="selected?.last_start || 'never'"></span></div>
+            <div><strong>Duration:</strong> <span x-text="selected?.duration || '—'"></span></div>
+            <div><strong>Next Run:</strong> <span x-text="selected?.next_start || '—'"></span></div>
+            <div><strong>Calendar:</strong> <span x-text="selected?.cal_name || '—'"></span></div>
+            <div x-show="selected?.description"><strong>Description:</strong> <span x-text="selected?.description || '—'"></span></div>
+          </div>
+          <div class="mt-6 flex justify-end">
+            <button @click="selected = null" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 dark:bg-gray-700 rounded">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function monitorApp() {
+      const getToken = () => {
+        const match = document.cookie.match(/ordo_token=([^;]+)/);
+        if (match) return decodeURIComponent(match[1]);
+        return new URLSearchParams(window.location.search).get('token');
+      };
+
+      return {
+        tree: [],
+        visibleItems: [],
+        currentPath: '/',
+        filter: '',
+        stateFilter: '',
+        connected: false,
+        selected: null,
+        userEmail: '',
+        userIP: '',
+        now: new Date().toLocaleString(),
+        ws: null,
+        autoRefreshEnabled: true,
+        autoRefreshInterval: 30000,
+        autoRefreshTimer: null,
+
+        init() {
+          setInterval(() => this.now = new Date().toLocaleString(), 1000);
+          this.connectWebSocket();
+        },
+
+        connectWebSocket() {
+          const token = getToken();
+          if (!token) {
+            location.href = '/login';
+            return;
+          }
+
+          const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+          this.ws = new WebSocket(`${proto}//${location.host}/websocket`);
+
+          this.ws.onopen = () => {
+            this.connected = true;
+            this.ws.send(JSON.stringify({ command: "login_user", token }));
+            setTimeout(() => this.refresh(), 100);
+            this.setupAutoRefresh();
+          };
+
+          this.ws.onmessage = (e) => {
+            const data = JSON.parse(e.data);
+            if (data.command_reply === 'login_user' && data.success) {
+              this.userEmail = data.email || 'Guest';
+              this.userIP = data.remote_address || '';
+            }
+            if (data.command_reply === 'find_cluster' && data.success) {
+              this.buildTree(data);
+            }
+          };
+
+          this.ws.onclose = () => {
+            this.connected = false;
+            if (this.autoRefreshTimer) clearInterval(this.autoRefreshTimer);
+            setTimeout(() => this.connectWebSocket(), 3000);
+          };
+        },
+
+        setupAutoRefresh() {
+          if (this.autoRefreshTimer) clearInterval(this.autoRefreshTimer);
+          if (this.autoRefreshEnabled && this.autoRefreshInterval > 0) {
+            this.autoRefreshTimer = setInterval(() => this.refresh(), this.autoRefreshInterval);
+          }
+        },
+
+        refresh() {
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({ command: "find_cluster" }));
+          }
+        },
+
+        toggleNode(node) {
+          node.open = !node.open;
+          this.applyFilter();
+        },
+
+        buildTree(data) {
+          this.currentPath = data.path || '/';
+
+          const nodes = new Map();
+          const root = { id: null, children: [], open: true };
+
+          data.clusters.forEach(cluster => {
+            const node = {
+              ...cluster,
+              is_cluster: true,
+              children: [],
+              open: true, // default open
+              has_children: false
+            };
+            nodes.set(cluster.id, node);
+          });
+
+          data.clusters.forEach(cluster => {
+            const node = nodes.get(cluster.id);
+            node.cal_name = cluster.cal_name;
+            node.jobstate = cluster.jobstate;
+
+            const parent = nodes.get(cluster.parent_id) || root;
+            parent.children.push(node);
+            if (parent !== root) parent.has_children = true;
+
+            if (cluster.jobs) {
+              cluster.jobs.forEach(job => {
+                const jobNode = {
+                  ...job,
+                  is_cluster: false,
+                  name: job.name,
+                  jobstate: job.jobstate,
+                  server_name: job.server_name,
+                  script: job.script,
+                  open: false,
+                  has_children: false
+                };
+                node.children.push(jobNode);
+                node.has_children = true;
+              });
+            }
+          });
+
+          this.tree = root.children;
+          this.applyFilter();
+        },
+
+        applyFilter() {
+          const filterLower = this.filter.toLowerCase();
+          const stateLower = this.stateFilter.toLowerCase();
+
+          const visible = [];
+
+          const walk = (nodes, depth = 0) => {
+            nodes.forEach(node => {
+              const matchesFilter = !this.filter ||
+                node.name.toLowerCase().includes(filterLower) ||
+                (node.server_name && node.server_name.toLowerCase().includes(filterLower));
+
+              const matchesState = !this.stateFilter || (node.jobstate && node.jobstate.toLowerCase() === stateLower);
+
+              const shouldShow = matchesFilter && matchesState;
+
+              if (shouldShow || node.is_cluster) {
+                visible.push({
+                  ...node,
+                  depth,
+                  key: node.id + (node.is_cluster ? '-c' : '-j'),
+                  originalNode: node, // reference to original for toggle
+                  last_start: this.formatRelative(node.started),
+                  duration: this.formatDuration(node.ended ? node.ended - node.started : 0),
+                  next_start: this.formatRelative(node.next_start)
+                });
+              }
+
+              if (node.is_cluster && node.open && node.children.length) {
+                walk(node.children, depth + 1);
+              }
+            });
+          };
+
+          walk(this.tree);
+          this.visibleItems = visible;
+        },
+
+        stateBadgeClass(state) {
+          if (!state) return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+          const s = state.toLowerCase();
+          if (s === 'complete') return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+          if (s === 'running') return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
+          if (s === 'failed') return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+          if (['waiting', 'ready'].includes(s)) return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+          if (s === 'hold') return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
+          if (s === 'ice') return 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200';
+          return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+        },
+
+        formatRelative(epoch) {
+          if (!epoch) return '';
+          const diff = epoch - Math.floor(Date.now() / 1000);
+          const abs = Math.abs(diff);
+          const h = String(Math.floor(abs / 3600)).padStart(2, '0');
+          const m = String(Math.floor((abs % 3600) / 60)).padStart(2, '0');
+          const s = String(abs % 60).padStart(2, '0');
+          return `T${diff < 0 ? '+' : '-'} ${h}:${m}:${s}`;
+        },
+
+        formatDuration(seconds) {
+          if (!seconds) return '';
+          const h = String(Math.floor(seconds / 3600)).padStart(2, '0');
+          const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+          const s = String(seconds % 60).padStart(2, '0');
+          return `${h}:${m}:${s}`;
+        }
+      };
+    }
+  </script>
+</body>
+</html>

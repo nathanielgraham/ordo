@@ -26,7 +26,7 @@ CREATE TABLE job (
 	signal integer,
 	watcher integer,
 	json text,
-        fail_alarm INTEGER REFERENCES cluster(id) ON DELETE SET NULL ON UPDATE CASCADE, 
+        on_fail INTEGER REFERENCES cluster(id) ON DELETE SET NULL ON UPDATE CASCADE, 
         retrys integer integer not null default 0,
         retry_count integer not null default 0,
         loops integer integer not null default 0,

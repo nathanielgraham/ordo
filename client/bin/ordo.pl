@@ -486,7 +486,7 @@ sub string2hash {
          $opts,         \%options,  "command=s",   "token=s",      "state:s",  "user:s",   "host:s",       "newname:s", "password:s", "script:s",
          "email:s",     "level:i",  "cron:s",      "at:s",         "cal:s",    "cal_id:i", "force",        "count:i",   "needs:i@",   "description:s",
          "server_id:i", "name:s",   "job_id:i",    "cluster_id:i", "server:s", "org_id:i", "pid:i",        "id:s",      "match:s",    "tz:s",
-         "begin:s",     "expire:s", "parent_id:i", "retrys:i",     "delay:i",  "loops:i",  "fail_alarm:i", "mode:i",    "clonable:i",   "log:i",
+         "begin:s",     "expire:s", "parent_id:i", "retrys:i",     "delay:i",  "loops:i",  "on_fail:i", "mode:i",    "clonable:i",   "log:i",
          "json:s", "needs_any:i"
       );
 

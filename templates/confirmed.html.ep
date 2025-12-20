@@ -1,15 +1,35 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full bg-gray-100 dark:bg-gray-900">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome</title>
+  <title>Ordo — Welcome</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
-  <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full text-center">
-    <h1 class="text-2xl font-bold text-gray-800 mb-4">Welcome to Ordo!</h1>
-    <p class="text-gray-600 mb-6">Your email <strong><%= session 'email' %></strong> has been verified.</p>
+<body class="h-full flex items-center justify-center">
+  <div class="max-w-lg w-full bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-10 text-center">
+    <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-6">Welcome to Ordo!</h1>
+    
+    <p class="text-lg text-gray-700 dark:text-gray-300 mb-8">
+      Your account <strong><%= stash 'email' %></strong> is now active.
+    </p>
+
+    <div class="space-y-6">
+      <a href="/dashboard" 
+         class="block w-full py-5 px-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xl rounded-lg shadow-lg transition">
+        Open Dashboard
+      </a>
+
+      <div class="text-sm text-gray-600 dark:text-gray-400">
+        <p>Or use the CLI: <code class="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">ordo</code></p>
+      </div>
+
+      <div class="pt-8">
+        <a href="/logout" class="text-sm text-gray-500 dark:text-gray-400 hover:underline">
+          Logout
+        </a>
+      </div>
+    </div>
   </div>
 </body>
 </html>
