@@ -11,6 +11,7 @@ CREATE TABLE user (
         remote_address varchar,
         name varchar,
         email varchar,
+        update_time integer,
         creation_time integer DEFAULT (strftime('%s', 'now'))
 );
 

@@ -23,7 +23,7 @@ $ua->websocket(
       exit 0;
     }
 
-    my $request_number = 0;
+    #my $request_number = 0;
     $tx->send('{ "command":"login_user", "token":"f42c017548aa56a607c6718fbb71ee386f9d2cb6" }');
 
     my $rl = new AnyEvent::ReadLine::Gnu
@@ -35,7 +35,7 @@ $ua->websocket(
       my $json;
       eval {
          my $request = decode_json($i);
-         $request->{request_id} = ++$request_number;
+         #$request->{request_id} = ++$request_number;
          $json = encode_json($request);
       };
       if ($@) {
@@ -44,8 +44,8 @@ $ua->websocket(
       }
       if ( $json && !$tx->is_finished ) {
         $tx->send($json);
-        $request_number++;
-        AnyEvent::ReadLine::Gnu->print("Sent with request_id: $request_number\n");
+        #$request_number++;
+        #AnyEvent::ReadLine::Gnu->print("Sent with request_id: $request_number\n");
       }
     };
 

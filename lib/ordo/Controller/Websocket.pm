@@ -5,62 +5,83 @@ use JSON;
 
 sub default {
    my $self = shift;
-
    $self->inactivity_timeout(2);
    $self->tx->with_compression;
 
-   my $connection_id = $self->tx->connection;
+   my $tx = $self->tx;
+   my $connection_id = $tx->connection;
 
    my $user = ordo::Model::User->new(
-      tx => $self->tx,
-      username => 'guest',
-      remote_address => $self->tx->remote_address,
+      tx             => $tx,
+      username       => 'guest',
+      remote_address => $tx->remote_address,
    );
 
    $self->app->user->{$connection_id} = $user;
-    
+
    $self->on(
       message => sub {
-         my ( $self, $msg ) = @_;
-         $self->tx->finish if length($msg) > 2048;
+         my ($self, $msg) = @_;
+         my $tx = $self->tx;
+
+         $tx->finish if length($msg) > 2048;
+
          my $decoded = eval { decode_json($msg) };
          if ($@) {
-            $self->tx->send(encode_json( { response => 'invalid json' }));
+            $tx->send(encode_json({ response => 'invalid json' }));
+            return;
          }
-         else {
-            if ( ref $decoded eq 'HASH' && defined $decoded->{command} ) {
-               my $cmd = $decoded->{command};
-               if ($self->app->user->{$connection_id}->id || $cmd eq 'login_user') {
-                  my $response = $self->app->request( $user, $decoded );
 
-                  # never timeout if logged in
-                  $self->inactivity_timeout(0) if $cmd eq 'login_user' && $response->{success};
-                  $self->tx->send( encode_json( $response ) );
-               }
-               else {
-                  $self->tx->finish;
-               }
-            }
-            else {
-               $self->tx->send( encode_json( { error => 'command not found' } ) );
-               $self->tx->finish;
-            }
+         unless (ref $decoded eq 'HASH' && defined $decoded->{command}) {
+            $tx->send(encode_json({ error => 'command not found' }));
+            $tx->finish;
+            return;
          }
+
+         my $cmd = $decoded->{command};
+
+         unless ($user->id || $cmd eq 'login_user') {
+            $tx->finish;
+            return;
+         }
+
+         my $response = $self->app->request($user, $decoded);
+
+         # Register for broadcasts on successful login
+         if ($cmd eq 'login_user' && $response->{success}) {
+            my $org_id = $user->org_id;
+            if ($org_id) {
+               push @{$self->app->clients_by_org->{$org_id} //= []}, $tx;
+               $self->app->log->debug("WS client registered for org $org_id");
+            }
+            $self->inactivity_timeout(0);
+         }
+
+         $tx->send(encode_json($response));
       }
    );
 
-   # Disconnected
    $self->on(
       finish => sub {
-         my $self = shift;
+         my ($self) = shift;
+         my $tx = $self->tx;
+         my $connection_id = $tx->connection;
 
-         # cleanup
+         my $user = $self->app->user->{$connection_id};
+         if ($user && $user->org_id) {
+            my $org_id = $user->org_id;
+            $self->app->clients_by_org->{$org_id} = [
+               grep { $_ != $tx } @{$self->app->clients_by_org->{$org_id} || []}
+            ];
+            delete $self->app->clients_by_org->{$org_id} if !@{ $self->app->clients_by_org->{$org_id} };
+         }
+
          delete $self->app->user->{$connection_id};
-         $self->app->log->info("Logout: $connection_id");
+         $self->app->log->info("WebSocket disconnected: $connection_id");
       }
    );
-   $self->app->log->info("Login: $connection_id");
+
+   $self->app->log->info("WebSocket connected: $connection_id");
 }
 
 1;
-

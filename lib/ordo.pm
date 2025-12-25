@@ -35,6 +35,10 @@ has 'user' => sub {
    state $user = {};
 };
 
+has clients_by_org => sub {
+   state $org = {};
+};    # org_id => [ $tx1, $tx2, ... ]
+
 has 'ssh_connection' => sub {
    state $ssh = {};
 };
@@ -199,7 +203,7 @@ sub startup {
             ordo_token => $u->{token},
             {
                #http_only => 1,
-               secure => $c->req->is_secure,  # auto: true on HTTPS, false on HTTP
+               secure    => $c->req->is_secure,            # auto: true on HTTPS, false on HTTP
                same_site => 'Lax',
                expires   => time + 10 * 365 * 24 * 3600,
                path      => '/',
@@ -207,8 +211,8 @@ sub startup {
          );
 
          # DEBUG: Show what we're setting
-         $c->app->log->debug("Setting cookie ordo_token = " . $u->{token});
-         $c->app->log->debug("Cookie expires: " . (time + 10 * 365 * 24 * 3600));
+         $c->app->log->debug( "Setting cookie ordo_token = " . $u->{token} );
+         $c->app->log->debug( "Cookie expires: " . ( time + 10 * 365 * 24 * 3600 ) );
 
          $c->stash( email => $email );
          $c->render( template => 'confirmed' );
@@ -220,14 +224,14 @@ sub startup {
          my $c     = shift;
          my $token = $c->cookie('ordo_token');
 
-         $c->app->log->debug("Received cookie ordo_token: " . ($token // 'MISSING'));
+         $c->app->log->debug( "Received cookie ordo_token: " . ( $token // 'MISSING' ) );
 
          unless ($token) {
             $c->redirect_to('/login');
             return undef;
          }
 
-         state $user = ordo::Model::User->new( remote_address => $c->tx->remote_address );
+         my $user = ordo::Model::User->new( remote_address => $c->tx->remote_address );
          my $res = $c->app->request( $user, { command => 'login_user', token => $token } );
 
          if ( $res && $res->{success} ) {
@@ -240,17 +244,23 @@ sub startup {
       }
    );
 
-   $auth->get(
-      '/monitor' => sub {
-         my $c = shift;
-         $c->app->log->debug("Reached /monitor — user authenticated");
-         $c->reply->static('monitor.html');
-      }
-   );
+   # Public SPA (anyone can load the HTML/JS)
+   $r->get('/app' => sub { shift->render(template => 'app'); });
 
-   $auth->get('/dashboard' => sub { shift->render(template => 'dashboard') });
-   $auth->get('/calendars' => sub { shift->reply->static('calendars.html') });
-   $auth->get('/servers' => sub { shift->reply->static('servers.html') });
+   # Root redirects to public SPA
+   $r->get('/' => sub { shift->redirect_to('/app'); });
+
+   #$auth->get(
+   #   '/monitor' => sub {
+   #      my $c = shift;
+   #      $c->app->log->debug("Reached /monitor — user authenticated");
+   #      $c->reply->static('monitor.html');
+   #   }
+   #);
+
+   #$auth->get( '/dashboard' => sub { shift->render( template => 'dashboard' ) } );
+   #$auth->get( '/calendars' => sub { shift->reply->static('calendars.html') } );
+   #$auth->get( '/servers'   => sub { shift->reply->static('servers.html') } );
 
    $r->websocket('/websocket')->to( controller => 'websocket', action => 'default' );
 
@@ -280,181 +290,6 @@ sub startup {
          $c->render( json => $res );
       }
    );
-
-=pod
-   # Public routes
-   $r->get(
-      '/login' => sub {
-         my $c = shift;
-         $c->render( template => 'login' );
-      }
-   );
-
-   $r->post(
-      '/login' => sub {
-         my $c     = shift;
-         my $email = $c->param('email') || '';
-         return $c->render( template => 'login', error => 'Invalid email' )
-           unless $email && Email::Valid->address($email);
-
-         state $user = ordo::Model::User->new( remote_address => $c->tx->remote_address );
-         my $res = $self->request( $user, { command => 'register_user', email => $email } );
-
-         #my $res = $c->api->call( 'register_user', { email => $email } );
-
-         if ( $res->{success} ) {
-
-            # Send email (your existing code does this)
-            $c->flash( message => "Login link sent to $email" );
-            $c->redirect_to('/login');
-         }
-         else {
-            $c->render( template => 'login', error => $res->{message} || 'Failed' );
-         }
-      }
-   );
-
-   $r->get(
-      '/logout' => sub {
-         my $c = shift;
-         $c->cookie( ordo_token => '', { expires => 1, path => '/' } );    # clear cookie
-         $c->redirect_to('/login');
-      }
-   );
-
-   # Confirmation link from email
-   $r->get(
-      '/confirm' => sub {
-         my $c   = shift;
-         my $jwt = $c->param('jwt');
-
-         unless ($jwt) {
-            $c->render( text => 'Missing confirmation token', status => 400 );
-            return;
-         }
-
-         my $payload;
-         eval { $payload = $c->jwt->decode($jwt) };
-         if ( $@ || !$payload || !$payload->{email} ) {
-            $c->render( text => 'Invalid or expired link', status => 400 );
-            return;
-         }
-
-         my $email = $payload->{email};
-         my $u     = $c->sqlite->db->select( 'user', ['*'], { email => $email } )->hash;
-
-         unless ( $u && $u->{id} ) {
-            $c->render( text => 'User not found', status => 404 );
-            return;
-         }
-
-         # Confirm user
-         $c->sqlite->db->update( 'user', { level => 1 }, { id => $u->{id} } );
-
-         # Set long-lived secure cookie
-         $c->cookie(
-            ordo_token => $u->{token},
-            {
-               http_only => 1,
-               secure    => 1,                              # Enable in production
-               same_site => 'Lax',
-               expires   => time + 10 * 365 * 24 * 3600,    # 10 years
-               path      => '/',
-            }
-         );
-
-         $c->stash( email => $email );
-         $c->render( template => 'confirmed' );
-      }
-   );
-
-   # Protected routes — require valid token
-   my $auth = $r->under(
-      '/' => sub {
-         my $c = shift;
-
-         my $token = $c->cookie('ordo_token');
-         $token ||= $c->param('token');    # fallback for WS or direct access
-
-         print Dumper($token);
-         state $user = ordo::Model::User->new( remote_address => $c->tx->remote_address );
-         return 1 if $token && $self->request( $user, { command => 'login_user', token => $token } )->{success};
-
-         # Not authenticated
-         if ( $c->req->is_xhr || $c->stash('format') eq 'json' ) {
-            $c->render( json => { success => 0, message => 'Unauthorized' }, status => 401 );
-         }
-         else {
-            $c->redirect_to('/login');
-         }
-         return undef;
-      }
-   );
-
-   $auth->get(
-      '/monitor' => sub {
-         shift->reply->static('monitor.html');
-      }
-   );
-
-   $r->websocket('/websocket')->to( controller => 'websocket', action => 'default' );
-
-   $r->get(
-      '/confirm' => sub {
-         my $c  = shift;
-         my $email = $self->jwt->decode( $c->param('jwt') )->{email};
-
-         my $u = $self->sqlite->db->select( 'user', ['*'], { email => $email } )->hash;
-         unless ( $u->{id} ) {
-            $c->render(text => 'Email Not Found', status => 404);
-            return;
-         }
-         $self->sqlite->db->update( 'user', { level => 1 }, { id => $u->{id} } )->hash;
-         $c->session( expiration => 0, token => $u->{token}, email => $email, id => $u->{id} );
-         $c->render('confirmed');
-         #$c->to_index('Email confirmed, you are now logged in');
-      }
-   );
-
-   # Normal route to controller
-   # $r->get('/')->to( controller => 'landing', action => 'welcome' );
-   # $r->websocket('/websocket')->to( controller => 'websocket', action => 'default' );
-
-   # HTTP status codes
-   # 200 OK: The request was successful.
-   # 201 Created: A new resource has been created.
-   # 400 BadRequest: The request was invalid or cannot be fulfilled.
-   # 401 Unauthorized: Authentication is required and has failed or has not yet been provided.
-   # 404 Not Found: The requested resource could not be found.
-   # 500 Internal Server Error: The server encountered an unexpected condition.
-   # https://www.perl.com/article/193/2015/9/18/How-to-send-verification-emails-using-Mojolicious/
-
-   $r->any(
-      '/api' => sub {
-         my $c    = shift;
-         my $body = $c->req->json;
-         if ( ref $body ne 'HASH' || ( !$body->{token} && $body->{command} ne 'register_user' ) ) {
-            $c->render( json => { success => 0, message => 'missing login token' }, status => 400 );
-         }
-         else {
-            state $user = ordo::Model::User->new( remote_address => $c->tx->remote_address );
-            if ( $body->{command} eq 'register_user' ) {
-               my $reg = $self->request( $user, $body );
-               $c->render( json => $reg );
-               return;
-            }
-            my $auth = $self->request( $user, { token => $body->{token}, command => 'login_user' } );
-            if ( $auth->{success} ) {
-               my $result = $self->request( $user, $body );
-               $c->render( json => $result );
-            }
-            else {
-               $c->render( json => { success => 0, message => 'invalid login token' }, status => 401 );
-            }
-         }
-      }
-   );
-=cut
 
    # start monitors
    my $users_sql = <<~"SQL";
@@ -617,7 +452,18 @@ sub _cluster_info {
    my $cluster_id = $d->{id} || $self->path2id( $user, $d->{name} );
 
    return unless $cluster_id;
-   my $cluster = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id, org_id => $user->org_id } )->hash;
+   my $org_id = $user->org_id;
+
+   my $sql = <<~"SQL";
+      select c.*, js.state as jobstate
+      from cluster c 
+      join job_states js on c.state_id = js.id
+      where c.id = $cluster_id
+      and c.org_id = $org_id
+   SQL
+
+   my $cluster = $self->sqlite->db->query($sql)->hash;
+   #my $cluster = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id, org_id => $user->org_id } )->hash;
    return $cluster;
 }
 
@@ -664,14 +510,17 @@ sub _set_cluster_state {
    my ( $self, $user, $d ) = @_;
 
    # id state
+   my $cluster = $self->sqlite->db->select( 'cluster', ['*'], { id => $d->{id} } )->hash;
+   return unless $cluster && $cluster->{id};
+
+   my $cluster_id = $cluster->{id};
+
+   return if $cluster->{state_id} == $self->job_states->{immutable};
 
    my $update_hash = {};
 
-   my $cluster = $self->sqlite->db->select( 'cluster', ['*'], { id => $d->{id} } )->hash;
-   return unless $cluster->{id};
-   return if $cluster->{state_id} == $self->job_states->{immutable};
-
    if ( $d->{state} && $self->job_states->{ $d->{state} } ) {
+      return if $self->job_states->{ $d->{state} } == $cluster->{state_id};
       $update_hash->{state_id} = $self->job_states->{ $d->{state} };
    }
 
@@ -680,76 +529,59 @@ sub _set_cluster_state {
    my $zombie = $self->job_states->{zombie};
 
    if ( $d->{state} eq 'running' ) {
-      return if $cluster->{state_id} == $self->job_states->{running};
+      return 1 if $cluster->{state_id} == $self->job_states->{running};
       $update_hash->{started} = time;
       $update_hash->{ended}   = undef;
 
-      # set parent cluster to running if no failed jobs or failed clusters in parent cluster
+      # Set parent cluster to running if no failed/killed/zombie children
       my $j = $self->sqlite->db->select( 'job',     ['id'], { cluster_id => $cluster->{parent_id}, state_id => { '=', [ ( $killed, $failed, $zombie ) ] } } );
-      my $c = $self->sqlite->db->select( 'cluster', ['*'],  { parent_id  => $cluster->{parent_id}, id => { '!=', $cluster->{id} }, state_id => { '=', [ ( $killed, $failed, $zombie ) ] } } );
+      my $c = $self->sqlite->db->select( 'cluster', ['*'],  { parent_id  => $cluster->{parent_id}, id => { '!=', $cluster_id }, state_id => { '=', [ ( $killed, $failed, $zombie ) ] } } );
       unless ( $j->hash || $c->hash ) {
          $self->_set_cluster_state( $user, { state => 'running', id => $cluster->{parent_id} } ) if $cluster->{parent_id};
       }
    }
-
-   # elsif ( $d->{state} eq 'complete' || $d->{state} eq 'ice_complete' ) {
-   elsif ( scalar( grep { $d->{state} eq $_ } (qw( complete ice_complete pruned_complete)) ) ) {
-
+   elsif ( scalar( grep { $d->{state} eq $_ } (qw(complete ice_complete pruned_complete)) ) ) {
       $update_hash->{state_id} = $self->job_states->{complete} if $d->{state} eq 'pruned_complete';
 
-      #if ( $cluster->{clone_cluster_id} ) {
-      #   $self->delete_cluster($user, { id => $cluster->{id} });
-      #   return;
-      #}
       if ( $d->{state} eq 'complete' ) {
 
-         # loops
+         # Handle looping
          if ( $cluster->{loops} && $cluster->{loops} > $cluster->{loop_count} ) {
-
             my $loop_count = $cluster->{loop_count} || 0;
             $loop_count++;
-
             $self->sqlite->db->update(
                'cluster',
                {
                   loop_count => $loop_count,
                   state_id   => $self->job_states->{looping}
                },
-               { id => $cluster->{id} }
+               { id => $cluster_id }
             );
-
             $self->_start_cluster(
                $user,
                {
-                  id => $cluster->{id},
-
-                  #force     => 1,
+                  id        => $cluster_id,
                   origin    => 'loop',
-                  origin_id => $cluster->{id}
+                  origin_id => $cluster_id
                }
             );
-
-            #$self->sqlite->db->update( 'cluster', { state_id => $self->job_states->{looping} }, { id => $cluster->{id} } );
-
-            return 1;
          }
          elsif ( $cluster->{loop_count} ) {
-            $self->sqlite->db->update( 'cluster', { loop_count => 0 }, { id => $cluster->{id} } );
+            $self->sqlite->db->update( 'cluster', { loop_count => 0 }, { id => $cluster_id } );
          }
       }
 
-      #$update_hash->{json} = undef;
       $update_hash->{ended} = time;
 
-      # update cluster
-      $self->sqlite->db->update( 'cluster', $update_hash, { id => $cluster->{id} } );
+      # Update cluster with any pending changes
+      $self->sqlite->db->update( 'cluster', $update_hash, { id => $cluster_id } ) if scalar keys %$update_hash;
 
-      # complete parent cluster if possible
+      # Complete parent if possible
       if ( $cluster->{parent_id} && $self->_cluster_is_complete( $user, { id => $cluster->{parent_id} } ) ) {
          $self->_set_cluster_state( $user, { state => 'complete', id => $cluster->{parent_id} } );
       }
 
-      # start waiting clusters that just had last dependency met
+      # Trigger dependent clusters
       my $complete = $self->job_states->{complete};
       my $pruned   = $self->job_states->{pruned};
       my $waiting  = $self->job_states->{waiting};
@@ -757,52 +589,36 @@ sub _set_cluster_state {
       my $ice      = $self->job_states->{ice};
 
       my $depends_sql = <<~"SQL";
-         select cn.cluster_id as id
-         from cluster_needs cn
-         join cluster c on cn.cluster_id = c.id
-         where cn.needs_cluster_id = $cluster->{id}
-         and c.state_id in ($ready, $waiting, $ice, $pruned)
+         SELECT cn.cluster_id AS id
+         FROM cluster_needs cn
+         JOIN cluster c ON cn.cluster_id = c.id
+         WHERE cn.needs_cluster_id = $cluster_id
+           AND c.state_id IN ($ready, $waiting, $ice, $pruned)
       SQL
 
       my $cneed = $self->sqlite->db->query($depends_sql);
-
       while ( my $c = $cneed->hash ) {
-
-         # start cluster if all dependancies are complete or on ice
-
-         #my $cluster_sql = <<~"SQL";
-         #   select cn.needs_cluster_id, c.state_id
-         #   from cluster_needs cn
-         #   join cluster c on cn.needs_cluster_id = c.id
-         #   where cn.cluster_id = $c->{id}
-         #   and c.state_id not in ($complete, $ice)
-         #SQL
-
-         #unless ( $ret->hash ) {
-         #my $ret = $self->sqlite->db->query($cluster_sql);
-
          if ( $self->_cluster_needs_met( $user, { id => $c->{id} } ) ) {
-            my $rv = $self->_start_cluster( $user, { id => $c->{id}, origin => 'auto', noreset => 1 } );
+            $self->_start_cluster( $user, { id => $c->{id}, origin => 'auto', noreset => 1 } );
          }
       }
+
+      # Handle clone deletion
       if ( $cluster->{clone_cluster_id} ) {
-         $self->delete_cluster( $user, { id => $cluster->{id} } );
-         return;
+         $self->delete_cluster( $user, { id => $cluster_id } );
       }
    }
    elsif ( $d->{state} eq 'failed' || $d->{state} eq 'killed' ) {
       $update_hash->{ended} = time;
 
-      # fail parent cluster
+      # Fail parent cluster
       if ( $cluster->{parent_id} && $cluster->{parent_id} != $user->root_cluster_id ) {
          $self->_set_cluster_state( $user, { id => $cluster->{parent_id}, state => 'failed' } );
       }
 
-      #TODO: change on_fail to take cluster name
-
-      # fail alarm
+      # On-fail alarm
       if ( $cluster->{on_fail} && $d->{state} eq 'failed' ) {
-         my $fail_cluster = $self->sqlite->db->select( 'cluster', ['id'], { id => $cluster->{on_fail} } );
+         my $fail_cluster = $self->sqlite->db->select( 'cluster', ['id'], { id => $cluster->{on_fail} } )->hash;
          if ( $fail_cluster->{id} ) {
             $self->_start_cluster( $user, { id => $fail_cluster->{id}, origin => 'fail', force => 1 } );
          }
@@ -812,15 +628,67 @@ sub _set_cluster_state {
       $update_hash->{json}    = undef;
       $update_hash->{started} = undef;
       $update_hash->{ended}   = undef;
-
-      #unless ( $cluster->{ended} ) {
-      #   $update_hash->{ended} = time;
-      #}
    }
 
-   # update cluster
-   $self->sqlite->db->update( 'cluster', $update_hash, { id => $d->{id} } ) if scalar keys %{$update_hash};
+   # Final update if needed
+   if ($update_hash->{state_id}) {
+      $self->sqlite->db->update( 'cluster', $update_hash, { id => $cluster_id } );
+      $self->_broadcast_cluster($user, [ $cluster_id ]);
+   }
+
    return 1;
+}
+
+sub _broadcast {
+   my ( $self, $user, $payload ) = @_;
+   my $org_id = $user->org_id;
+   return unless $payload && $user->org_id && $self->app->clients_by_org->{$org_id};
+   for my $client_tx ( @{ $self->app->clients_by_org->{$org_id} } ) {
+      next if $client_tx->is_finished;
+      $client_tx->send( { json => $payload } );
+   }
+}
+
+sub _broadcast_cluster {
+   my ( $self, $user, $ids ) = @_;
+   $self->_broadcast_any($user, $ids, 'cluster');
+}
+
+sub _broadcast_job {
+   my ( $self, $user, $ids ) = @_;
+   $self->_broadcast_any($user, $ids, 'job');
+}
+
+sub _broadcast_server {
+   my ( $self, $user, $ids ) = @_;
+   $self->_broadcast_any($user, $ids, 'server');
+}
+
+sub _broadcast_cal {
+   my ( $self, $user, $ids ) = @_;
+   $self->_broadcast_any($user, $ids, 'cal');
+}
+
+sub _broadcast_any {
+   my ( $self, $user, $ids, $type ) = @_;
+   return unless $type && $self->app->clients_by_org->{$user->org_id} && scalar @{ $ids };
+   my $payload = {
+      broadcast => $type . 's_changed',
+      updates => [],
+      deletes => [],
+   };
+   my $method = $type eq 'cal' ? '_read_cal' : ('_' . $type . '_info');
+   for my $id ( @{ $ids } ) {
+      my $thing = $self->$method( $user, { id => $id } );
+      #my $cluster = $self->_cluster_info( $user, { id => $cluster_id } );
+      if ( $thing->{id} ) {
+         push @{ $payload->{updates} }, $thing;
+      }
+      else {
+         push @{ $payload->{deletes} }, { id => $id };
+      }
+   }
+   $self->_broadcast($user, $payload);
 }
 
 sub start_cluster {
@@ -1111,8 +979,10 @@ sub update_cluster {
    # verify that alarm clusters actually exist
    for my $alarm ( grep { exists $d->{$_} } (qw(on_fail)) ) {
       if ( $d->{$alarm} ) {
-         my $res = $self->sqlite->db->select( 'cluster', ['id'], { id => $d->{$alarm}, org_id => $user->org_id } )->hash;
-         $update_hash->{$alarm} = $d->{$alarm} if $res->{id};
+         my $cluster_id = $self->path2id( $user, $d->{$alarm} );
+         next unless $cluster_id;
+         my $res = $self->sqlite->db->select( 'cluster', ['id'], { id => $cluster_id, org_id => $user->org_id } )->hash;
+         $update_hash->{$alarm} = $cluster_id if $res->{id};
       }
       else {
          $update_hash->{$alarm} = undef;
@@ -1220,8 +1090,13 @@ sub delete_cluster {
          $self->sqlite->db->delete( 'cal', { name => undef, id => $c->{cal_id}, org_id => $user->org_id } );
       }
    }
-   return { success => 0, message => $@ } if $@;
-   return $delete_count ? { success => 1, deleted => $delete_count } : { success => 0 };
+   if ($delete_count) {
+      $self->_broadcast_cluster($user, [ map { $_->{id} } @{$clusters} ]);
+      return { success => 1, deleted => $delete_count };
+   }
+   else {
+      return { success => 0 };
+   }
 }
 
 sub create_cluster {
@@ -1263,8 +1138,10 @@ sub create_cluster {
    # verify that alarm clusters actually exist
    for my $alarm ( grep { exists $d->{$_} } (qw(on_fail)) ) {
       if ( $d->{$alarm} ) {
-         my $res = $self->sqlite->db->select( 'cluster', ['id'], { id => $d->{$alarm}, org_id => $user->org_id } )->hash;
-         $insert_hash->{$alarm} = $d->{$alarm} if $res->{id};
+         my $cluster_id = $self->path2id( $user, $d->{$alarm} );
+         next unless $cluster_id;
+         my $res = $self->sqlite->db->select( 'cluster', ['id'], { id => $cluster_id, org_id => $user->org_id } )->hash;
+         $insert_hash->{$alarm} = $cluster_id if $res->{id};
       }
       else {
          $insert_hash->{$alarm} = undef;
@@ -1287,7 +1164,13 @@ sub create_cluster {
    if ( $d->{cron} || $d->{at} ) {
       my $rv = $self->_add_cluster_cron( $user, { id => $id, tz => $d->{tz}, cron => $d->{cron}, at => $d->{at} } );
    }
-   return $id ? { success => 1, id => $id } : { success => 0 };
+   if($id) {
+      $self->_broadcast_cluster($user, [ $id ]);
+      return { success => 1, id => $id };
+   }
+   else {
+      return { success => 0 };
+   }
 }
 
 # shortcut to add a cal+cron directly to a cluster
@@ -1435,6 +1318,7 @@ sub login_user {
    my $login = $results->{email} || $results->{id};
 
    if ( $results->{id} ) {
+      $self->sqlite->db->update( 'user', { update_time => time }, { id => $results->{id} } );
       $user->id( $results->{id} );
       $user->level( $results->{level} );
       $user->org_id( $results->{org_id} );
@@ -1449,7 +1333,17 @@ sub login_user {
       $message = 'login failed';
       $success = 0;
    }
-   return { message => $message, success => $success, email => $login, user_id => $user->id, remote_address => $user->remote_address, token => $user->token, host => $host, path => $path, level => $user->level };
+   return {
+      message        => $message,
+      success        => $success,
+      email          => $login,
+      user_id        => $user->id,
+      remote_address => $user->remote_address,
+      token          => $user->token,
+      host           => $host,
+      path           => $path,
+      level          => $user->level
+   };
 }
 
 sub register_user {
@@ -1504,8 +1398,9 @@ sub register_user {
    MSG
 
    # login new user
-   my $login = $self->login_user( $user, { token => $login_token } );
-   return $login->{success} ? { success => 1, token => $login_token, message => $register_message } : { success => 0, message => 'registration failed' };
+   # my $login = $self->login_user( $user, { token => $login_token } );
+   #return $login->{success} ? { success => 1, token => $login_token, message => $register_message } : { success => 0, message => 'registration failed' };
+   return $login_token ? { success => 1, token => $login_token, message => $register_message } : { success => 0, message => 'registration failed' };
 }
 
 sub create_user {
@@ -1525,14 +1420,8 @@ sub create_user {
 
       # create org
       my $org_id;
-      if ( $d->{org_id} ) {
-         my $org = $self->sqlite->db->select( 'org', ['id'], { id => $d->{org_id} } )->hash;
-         if ( $org->{id} ) {
-            $org_id = $org->{id};
-         }
-         else {
-            die 'no such org';
-         }
+      if ( $d->{team_member} ) {
+         $org_id = $user->org_id;
       }
       else {
          $org_id = $db->query("INSERT INTO org DEFAULT VALUES")->last_insert_id;
@@ -1543,7 +1432,7 @@ sub create_user {
       # create root cluster
       my $root_id;
 
-      my $root = $db->select( 'cluster', ['id'], { org_id => $org_id, name => 'root', parent_id => undef } );
+      my $root = $db->select( 'cluster', ['id'], { org_id => $org_id, name => 'root', parent_id => undef } )->hash;
       if ( $root->{id} ) {
          $root_id = $root->{id};
       }
@@ -1594,9 +1483,20 @@ sub _new_token {
 }
 
 sub read_user {
-   my ( $self, $user, $decoded ) = @_;
+   my ( $self, $user ) = @_;
+   my $me = $self->_user_info($user, { id => $user->id } );
+   my $group = $self->sqlite->db->select( 'user', [ qw(id email org_id level remote_address update_time creation_time mode name) ], { org_id => $user->org_id, id => { '!=', $user->id } } )->hashes->to_array;
+   my $org = $self->sqlite->db->select( 'org', [ '*' ], { id => $user->org_id })->hash;
+   $me->{group} = $group;
+   $me->{org} = $org;
+   return $me;
+   #return $self->_user_info($user, { id => $user->id } );
+}
 
-   my $info = $self->sqlite->db->select( 'user', ['*'], { id => $user->id } )->hash;
+sub _user_info {
+   my ( $self, $user, $d ) = @_;
+
+   my $info = $self->sqlite->db->select( 'user', ['*'], { id => $d->{id} } )->hash;
    my $path = $self->id2path( $user, { id => $info->{base_cluster_id} } );
 
    return {
@@ -1610,23 +1510,44 @@ sub read_user {
       mode            => $info->{mode},
       remote_address  => $user->remote_address,
       path            => $path,
+      update_time     => $info->{update_time},
+      creation_time   => $info->{creation_time},
       success         => 1,
    };
 }
 
 sub update_user {
-   my ( $self, $user, $decoded ) = @_;
-   eval { $self->sqlite->db->update( 'user', $decoded, { id => $user->id } )->hash; };
+   my ( $self, $user, $d ) = @_;
+   my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } qw(mode name) };
+   eval { $self->sqlite->db->update( 'user', $update_hash, { id => $user->id } )->hash; };
+   my $success = $@ ? 0 : 1;
+   return { success => $success };
+}
+
+sub update_org {
+   my ( $self, $user, $d ) = @_;
+   return $self->_update_org( $user, $d ); 
+}
+
+sub _update_org {
+   my ( $self, $user, $d ) = @_;
+   my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } qw(name description) };
+   eval { $self->sqlite->db->update( 'org', $update_hash, { id => $user->org_id } )->hash; };
    my $success = $@ ? 0 : 1;
    return { success => $success };
 }
 
 sub delete_user {
-   my ( $self, $user, $decoded ) = @_;
+   my ( $self, $user, $d ) = @_;
    my $rows;
-   eval { $rows = $self->sqlite->db->delete( 'user', { id => $decoded->{id} } )->rows };
+   eval { $rows = $self->sqlite->db->delete( 'user', { id => $d->{id} } )->rows };
    return { success => 0, message => $@ } if $@;
-   return { success => $rows, id => $decoded->{id} };
+   return { success => $rows, id => $d->{id} };
+}
+
+sub delete_me {
+   my ( $self, $user ) = @_;
+   return $self->delete_user($user, { id => $user->id });
 }
 
 # job related subroutines
@@ -1758,7 +1679,7 @@ sub _clone_cluster {
 
    return unless $cluster->{id};
 
-   state( %job_map, %cluster_map, %cluster_needs, %job_needs );
+   state( %job_map, %cluster_map );
    my $name;
    if ( $d->{origin} ) {
       $name = delete $cluster->{name};
@@ -1770,10 +1691,6 @@ sub _clone_cluster {
    unless ( scalar( grep { $cluster->{state_id} == $self->job_states->{$_} } (qw(hold ice)) ) ) {
       $cluster->{state_id} = $self->job_states->{ready};
    }
-
-   # cluster needs
-   my $cn = $self->_read_cluster_needs( $user, { id => $cluster->{clone_cluster_id} } );
-   $cluster_needs{ $cluster->{clone_cluster_id} } = [ keys %{$cn} ];
 
    my $cluster_id;
    eval {
@@ -1791,10 +1708,6 @@ sub _clone_cluster {
          $job->{clone_job_id} = delete $job->{id};
          $job->{cluster_id}   = $cluster_id;
 
-         # job needs
-         my $jn = $self->_read_job_needs( $user, { id => $job->{clone_job_id} } );
-         $job_needs{ $job->{clone_job_id} } = [ keys %{$jn} ] if scalar keys %{$jn};
-
          my $job_id = $self->sqlite->db->insert( 'job', $job )->last_insert_id;
          $self->_reset_job_stats( $user, { id => $job_id } );
 
@@ -1807,27 +1720,6 @@ sub _clone_cluster {
       my $children = $self->sqlite->db->select( 'cluster', ['id'], { parent_id => $cluster->{clone_cluster_id} }, { order_by => 'id' } );
       while ( my $child = $children->hash ) {
          $self->_clone_cluster( $user, { id => $child->{id}, parent_id => $cluster_id } ) if $child->{id};
-      }
-
-      # update cluster needs
-      # TODO: implement needs_any for jobs and clusters
-      if ( $d->{origin} ) {
-         my %new_job_needs = map {
-            $job_map{$_},
-              [ map { exists $job_map{$_} ? $job_map{$_} : $_ } @{ $job_needs{$_} } ]
-         } keys %job_needs;
-         while ( my ( $k, $v ) = each %new_job_needs ) {
-            $self->_write_job_needs( $user, { needs_all => $v, id => $k } );
-         }
-         my %new_cluster_needs = map {
-            $cluster_map{$_},
-              [ map { exists $cluster_map{$_} ? $cluster_map{$_} : $_ } @{ $cluster_needs{$_} } ]
-         } keys %cluster_needs;
-
-         while ( my ( $k, $v ) = each %new_cluster_needs ) {
-            $self->_write_cluster_needs( $user, { needs_all => $v, id => $k } );
-         }
-         $self->_reset_cluster( $user, { id => $cluster_id } );
       }
 
       #$tx->commit;
@@ -2045,8 +1937,7 @@ sub _create_job {
    my $insert_hash = { cluster_id => $j->{parent_cluster_id}, name => $j->{name} };
    $insert_hash->{delay} = $d->{delay} if $d->{delay} && $d->{delay} <= 3600;
 
-   #my @fields = qw(clonable retrys loops delay pid id state_id description started ended);
-   my @fields = qw(clonable retrys loops delay state_id description started ended);
+   my @fields = qw(retrys loops delay state_id description started ended);
 
    for (@fields) {
       $insert_hash->{$_} = $d->{$_} if $d->{$_};
@@ -2065,8 +1956,10 @@ sub _create_job {
    # verify that alarm clusters actually exist
    for my $alarm ( grep { exists $d->{$_} } (qw(on_fail)) ) {
       if ( $d->{$alarm} ) {
-         my $res = $self->sqlite->db->select( 'cluster', ['id'], { id => $d->{$alarm}, org_id => $user->org_id } )->hash;
-         $insert_hash->{$alarm} = $d->{$alarm} if $res->{id};
+         my $cluster_id = $self->path2id( $user, $d->{$alarm} );
+         next unless $cluster_id;
+         my $res = $self->sqlite->db->select( 'cluster', ['id'], { id => $cluster_id, org_id => $user->org_id } )->hash;
+         $insert_hash->{$alarm} = $cluster_id if $res->{id};
       }
       else {
          $insert_hash->{$alarm} = undef;
@@ -2145,12 +2038,14 @@ sub melt_job {
    my $job = $self->_job_info( $user, $d );
    return { success => 0, message => 'job not found' }  unless $job->{id};
    return { success => 0, message => 'job not on ice' } unless $job->{state_id} == $self->job_states->{ice};
-   eval { $self->sqlite->db->update( 'job', { state_id => $self->job_states->{ready} }, { id => $job->{id} } ); };
-
-   if ($@) {
-      return { success => 0, message => $@ };
-   }
+   #eval { $self->sqlite->db->update( 'job', { state_id => $self->job_states->{ready} }, { id => $job->{id} } ); };
+   $self->_set_job_state( $user, { state => 'ready', id => $job->{id} } );
    return { success => 1 };
+
+   #if ($@) {
+   #   return { success => 0, message => $@ };
+   #}
+   #return { success => 1 };
 }
 
 sub ice_job {
@@ -2230,18 +2125,21 @@ sub _cluster_is_complete {
 
 sub _set_job_state {
    my ( $self, $user, $d ) = @_;
-   my $job = $self->_job_info( $user, $d );    #job info
+   my $job = $self->_job_info( $user, $d );
+   return unless $job && $job->{id};
 
-   my $failed    = $self->job_states->{failed};
-   my $killed    = $self->job_states->{killed};
-   my $ready     = $self->job_states->{ready};
-   my $waiting   = $self->job_states->{waiting};
-   my $completed = $self->job_states->{complete};
-   my $pruned    = $self->job_states->{pruned};
-   my $ice       = $self->job_states->{ice};
-   my $zombie    = $self->job_states->{zombie};
+   my $job_id = $job->{id};
 
-   my $update_hash;
+   my $failed   = $self->job_states->{failed};
+   my $killed   = $self->job_states->{killed};
+   my $ready    = $self->job_states->{ready};
+   my $waiting  = $self->job_states->{waiting};
+   my $complete = $self->job_states->{complete};
+   my $pruned   = $self->job_states->{pruned};
+   my $ice      = $self->job_states->{ice};
+   my $zombie   = $self->job_states->{zombie};
+
+   my $update_hash = {};
 
    if ( $self->job_states->{ $d->{state} } ) {
       $update_hash->{state_id} = $self->job_states->{ $d->{state} };
@@ -2250,59 +2148,44 @@ sub _set_job_state {
    my $cluster = $self->sqlite->db->select( 'cluster', ['*'], { id => $job->{cluster_id} } )->hash;
 
    if ( $d->{state} eq 'starting' ) {
-      $self->_reset_job_stats( $user, { id => $job->{id} } );
+      $self->_reset_job_stats( $user, { id => $job_id } );
    }
 
-   #if ( $d->{state} eq 'running' && scalar( grep { $d->{state} == $self->job_states->{$_} } (qw(starting running))  $cluster->{state_id} ne $self->job_states->{running} ) {
    if ( scalar( grep { $d->{state} eq $_ } (qw(sleeping running)) ) ) {
-
       $update_hash->{started} = time;
       $update_hash->{ended}   = undef;
 
-      # set cluster to running if no failed jobs or clusters in cluster
-      my $j = $self->sqlite->db->select( 'job',     ['*'], { cluster_id => $job->{cluster_id}, id => { '!=', $job->{id} },     state_id => { '=', [ ( $killed, $failed, $zombie ) ] } } );
+      my $j = $self->sqlite->db->select( 'job',     ['*'], { cluster_id => $job->{cluster_id}, id => { '!=', $job_id }, state_id => { '=', [ ( $killed, $failed, $zombie ) ] } } );
       my $c = $self->sqlite->db->select( 'cluster', ['*'], { parent_id  => $cluster->{id},     id => { '!=', $cluster->{id} }, state_id => { '=', [ ( $killed, $failed ) ] } } );
+
       unless ( $j->hash || $c->hash ) {
          $self->_set_cluster_state( $user, { state => 'running', id => $job->{cluster_id} } ) unless $cluster->{state_id} == $self->job_states->{running};
       }
    }
    elsif ( grep { $d->{state} eq $_ } (qw(failed killed zombie)) ) {
-
-      $self->sqlite->db->update( 'job', { state_id => $self->job_states->{ $d->{state} } }, { id => $job->{id} } );
+      $self->sqlite->db->update( 'job', { state_id => $self->job_states->{ $d->{state} } }, { id => $job_id } );
       $update_hash->{ended} = time;
-      $self->_reset_job_stats( $user, { id => $job->{id} } ) unless $d->{state} eq 'zombie';
+      $self->_reset_job_stats( $user, { id => $job_id } ) unless $d->{state} eq 'zombie';
       $self->_set_cluster_state( $user, { state => 'failed', id => $job->{cluster_id} } );
 
-      #if ( $d->{state} eq 'failed' || $d->{state} eq 'zombie' ) {
       if ( $d->{state} eq 'failed' ) {
-
-         #if ( $job->{retrys} && $job->{retrys} > $job->{retry_count} && $cluster->{state_id} == $self->job_states->{running} ) {
          if ( $job->{retrys} && $job->{retrys} > $job->{retry_count} ) {
             my $retry_count = $job->{retry_count} || 0;
             $retry_count++;
-            $self->sqlite->db->update( 'job', { retry_count => $retry_count }, { id => $job->{id} } );
-            $self->_set_job_state( $user, { state => 'retrying', id => $job->{id} } );
-
-            my $rv = $self->_start_job(
-               $user,
-               {
-                  id     => $job->{id},
-                  origin => 'retry',
-                  force  => 1,
-               }
-            );
+            $self->sqlite->db->update( 'job', { retry_count => $retry_count }, { id => $job_id } );
+            $self->_set_job_state( $user, { state => 'retrying', id => $job_id } );
+            $self->_start_job( $user, { id => $job_id, origin => 'retry', force => 1 } );
          }
 
-         # fail alarm
          if ( $job->{on_fail} ) {
             my $cluster_alarm = $self->sqlite->db->select( 'cluster', ['id'], { id => $job->{on_fail} } )->hash;
             if ( $cluster_alarm->{id} ) {
-               my $rv = $self->_start_cluster(
+               $self->_start_cluster(
                   $user,
                   {
                      id                => $cluster_alarm->{id},
                      origin            => 'fail',
-                     origin_job_id     => $job->{id},
+                     origin_job_id     => $job_id,
                      origin_cluster_id => $cluster->{id},
                      force             => 1,
                   }
@@ -2311,74 +2194,56 @@ sub _set_job_state {
          }
       }
    }
-
-   #elsif ( $d->{state} eq 'complete' || $d->{state} eq 'ice_complete' ) {
-   elsif ( scalar( grep { $d->{state} eq $_ } (qw( complete ice_complete pruned_complete)) ) ) {
-
+   elsif ( scalar( grep { $d->{state} eq $_ } (qw(complete ice_complete pruned_complete)) ) ) {
       $update_hash->{state_id} = $self->job_states->{complete} if $d->{state} eq 'pruned_complete';
 
       if ( $d->{state} eq 'complete' ) {
-
-         # only loop if cluster is running
-         #if ( $job->{loops} && $job->{loops} > $job->{loop_count} && $cluster->{state_id} == $self->job_states->{running} ) {
          if ( $job->{loops} && $job->{loops} > $job->{loop_count} ) {
             my $loop_count = $job->{loop_count} || 0;
             $loop_count++;
-
-            $self->sqlite->db->update( 'job', { loop_count => $loop_count, state_id => $self->job_states->{looping} }, { id => $job->{id} } );
-
-            $self->_start_job(
-               $user,
-               {
-                  id     => $job->{id},
-                  origin => 'loop',
-
-                  #force    => 1,
-               }
-            );
-            $update_hash->{state_id} = $self->job_states->{looping};
+            $self->sqlite->db->update( 'job', { loop_count => $loop_count, state_id => $self->job_states->{looping} }, { id => $job_id } );
+            $self->_start_job( $user, { id => $job_id, origin => 'loop' } );
          }
-
-         #elsif ( $job->{loop_count} ) {
          else {
-            #$self->sqlite->db->update( 'job', { loop_count => 0 }, { id => $job->{id} } );
-            $self->sqlite->db->update( 'job', { loop_count => 0, state_id => $self->job_states->{complete} }, { id => $job->{id} } );
+            $self->sqlite->db->update( 'job', { loop_count => 0, state_id => $self->job_states->{complete} }, { id => $job_id } );
          }
       }
 
-      # find jobs in ready or waiting state that just had a dependency met
+      # Trigger dependent jobs
       my $depends_sql = <<~"SQL";
-         select jn.job_id, j.state_id, jn.needs_any_mode
-         from job_needs jn
-         join job j on jn.job_id = j.id
-         where jn.needs_job_id = $job->{id}
-         and j.state_id in ($ready, $waiting, $ice, $pruned)
+         SELECT jn.job_id, j.state_id, jn.needs_any_mode
+         FROM job_needs jn
+         JOIN job j ON jn.job_id = j.id
+         WHERE jn.needs_job_id = $job_id
+           AND j.state_id IN ($ready, $waiting, $ice, $pruned)
       SQL
 
       my $need = $self->sqlite->db->query($depends_sql);
       while ( my $j = $need->hash ) {
-
          if ( $self->_job_needs_met( $user, { id => $j->{job_id} } ) ) {
-            my $rv = $self->_start_job(
+            $self->_start_job(
                $user,
                {
                   id                => $j->{job_id},
                   origin            => 'auto',
-                  origin_job_id     => $job->{id},
+                  origin_job_id     => $job_id,
                   origin_cluster_id => $cluster->{id},
                   force             => 1,
                }
             );
          }
       }
+
       $update_hash->{ended} = time;
-      $self->_reset_job_stats( $user, { id => $job->{id} } );
+      $self->_reset_job_stats( $user, { id => $job_id } );
 
       if ( $self->_cluster_is_complete( $user, { id => $job->{cluster_id} } ) ) {
          $self->_set_cluster_state( $user, { state => 'complete', id => $job->{cluster_id} } );
       }
    }
    elsif ( $d->{state} eq 'retrying' ) {
+
+      # Allow transition only if not already running
       return if scalar( grep { $job->{state_id} == $self->job_states->{$_} } (qw(starting running)) );
    }
    elsif ( $d->{state} eq 'looping' ) {
@@ -2392,7 +2257,12 @@ sub _set_job_state {
       $update_hash->{ended}       = undef;
    }
 
-   $self->sqlite->db->update( 'job', $update_hash, { id => $job->{id} } );
+   # Final DB update
+   $self->sqlite->db->update( 'job', $update_hash, { id => $job_id } ) if scalar keys %$update_hash;
+
+   # === ALWAYS BROADCAST FINAL STATE ===
+   $self->_broadcast_job($user, [ $job_id ]);
+
    return 1;
 }
 
@@ -2433,7 +2303,7 @@ sub _update_job {
    my $needs_all = $d->{needs}     ? $self->_resolve_job_ids( $user, $d->{needs} )     : [];
    my $needs_any = $d->{needs_any} ? $self->_resolve_job_ids( $user, $d->{needs_any} ) : [];
 
-   my @fields = qw(clonable retrys loops delay pctcpu pid start priority rss pctmem fname signal exit_code state_id description started ended server_id script);
+   my @fields = qw(retrys loops delay pctcpu pid start priority rss pctmem fname signal exit_code state_id description started ended server_id script);
    push( @fields, 'ppid' ) if $d->{state} && $d->{state} eq 'running';
 
    my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } @fields };
@@ -2451,8 +2321,10 @@ sub _update_job {
    # verify that alarm clusters actually exist
    for my $alarm ( grep { exists $d->{$_} } (qw(on_fail)) ) {
       if ( $d->{$alarm} ) {
-         my $res = $self->sqlite->db->select( 'cluster', ['id'], { id => $d->{$alarm}, org_id => $user->org_id } )->hash;
-         $update_hash->{$alarm} = $d->{$alarm} if $res->{id};
+         my $cluster_id = $self->path2id( $user, $d->{$alarm} );
+         next unless $cluster_id;
+         my $res = $self->sqlite->db->select( 'cluster', ['id'], { id => $cluster_id, org_id => $user->org_id } )->hash;
+         $update_hash->{$alarm} = $cluster_id if $res->{id};
       }
       else {
          $update_hash->{$alarm} = undef;
@@ -2545,25 +2417,6 @@ sub _read_job_needs {
       };
    }
 
-   return \%needs;
-}
-
-sub _read_job_needs2 {
-   my ( $self, $user, $d ) = @_;
-
-   my $need_sql = <<~"SQL";
-      select jn.job_id, jn.needs_job_id, j.state_id
-      from job_needs jn
-      join job j on jn.needs_job_id = j.id
-      where jn.job_id = $d->{id}
-   SQL
-
-   my $need = $self->sqlite->db->query($need_sql);
-   my %needs;
-
-   while ( my $jn = $need->hash ) {
-      $needs{ $jn->{needs_job_id} } = $jn->{state_id};
-   }
    return \%needs;
 }
 
@@ -2690,27 +2543,6 @@ sub _read_cluster_needs {
    return \%needs;
 }
 
-sub _read_cluster_needs2 {
-   my ( $self, $user, $d ) = @_;
-
-   return unless $d->{id};
-
-   my $need_sql = <<~"SQL";
-      select cn.cluster_id, cn.needs_cluster_id, c.state_id
-      from cluster_needs cn
-      join cluster c on cn.needs_cluster_id = c.id
-      where cn.cluster_id = $d->{id}
-   SQL
-
-   my $need = $self->sqlite->db->query($need_sql);
-   my %needs;
-
-   while ( my $cn = $need->hash ) {
-      $needs{ $cn->{needs_cluster_id} } = $cn->{state_id};
-   }
-   return \%needs;
-}
-
 sub _ping {
    my ( $self, $host ) = @_;
    return unless $host;
@@ -2740,11 +2572,13 @@ sub update_sysinfo {
    my $starting = $self->job_states->{starting};
    my $stopping = $self->job_states->{stopping};
 
+   my @job_ids = ();
    # receive pid info
    if ( $d->{pids} && ref $d->{pids} eq 'ARRAY' ) {
       foreach my $pid ( @{ $d->{pids} } ) {
          my $job = $self->sqlite->db->select( 'job', ['id'], { server_id => $server->{id}, pid => $pid->{pid} } )->hash;
          next unless $job->{id};
+         push @job_ids, $job->{id};
          my $update = { map { $_, $pid->{$_} } grep { exists $pid->{$_} } (qw(pctcpu pid start priority rss pctmem ppid fname)) };
          $update->{last_update} = time;
          $self->sqlite->db->update( 'job', $update, { id => $job->{id} } );
@@ -2781,7 +2615,15 @@ sub update_sysinfo {
    }
 
    eval { $self->sqlite->db->update( 'server', $uh, { id => $d->{id} } ) };
-   return $@ ? { success => 0 } : { success => 1, pids => \@pids };
+
+   if ($@) {
+      return { success => 0 };
+   }
+   else {
+      $self->_broadcast_server($user, [ $server->{id} ]);
+      $self->_broadcast_job($user, \@job_ids);
+      return { success => 1, pids => \@pids };
+   }
 }
 
 sub watch_job {
@@ -3308,6 +3150,8 @@ sub create_monitor {
    return { success => 0, message => "install failed" } unless $installed;
 
    $self->_start_monitor( $user, { id => $id } ) or die "start failed";
+   $self->_broadcast_server($user, [ $id ]);
+
    return { success => 1 };
 }
 
@@ -3469,7 +3313,13 @@ sub update_monitor {
       $self->_ssh_copy( $user, { user => $server->{user}, host => $server->{host}, password => $d->{password} } ) if $d->{password};
       $connection_ok = $self->_connect_ssh( $user, { id => $server->{id} } );
    }
-   return $connection_ok ? { success => 1 } : { success => 0, message => 'connection failed' };
+   if ($connection_ok) {
+      $self->_broadcast_server($user, [ $server->{id} ]);
+      return { success => 1 };
+   }
+   else {
+      return { success => 0, message => 'connection failed' };
+   }
 }
 
 sub upgrade_monitor {
@@ -3490,7 +3340,13 @@ sub delete_monitor {
       $self->_disconnect_ssh( $user, { id => $server->{id} } );
       delete $self->ssh_connection->{ $server->{id} };
    };
-   return $@ ? { success => 0, message => $@ } : { success => 1 };
+   if ($@) {
+      return { success => 0, message => $@ };
+   }
+   else {
+      $self->_broadcast_server($user, [ $server->{id} ]);
+      return { success => 1 };
+   }
 }
 
 sub active_pids {
@@ -3813,7 +3669,6 @@ sub _create_cron_object {
          my $cluster_ids = $self->_cal_cluster_ids( $user, { id => $cal_id } );
          for my $cluster_id (@$cluster_ids) {
             my $rv = $self->_start_cluster( $user, { id => $cluster_id, origin => 'cron' } );
-            print "start cluster: $cluster_id " . localtime(time) . "\n";
          }
 
          # delete cal if no next start date
@@ -3857,6 +3712,8 @@ sub _delete_cron {
    my $rv = 0;
    $self->_delete_cron_object( $user, $d ) && $rv++;
    $self->_delete_cron_row( $user, $d )    && $rv++;
+   $self->_broadcast_cal($user, [ $d->{id} ]) if $rv;
+
    return $rv;
 }
 
@@ -3867,7 +3724,12 @@ sub delete_cron {
 
    my $cal = $self->sqlite->db->query("select cal.name from cron join cal on cron.cal_id = cal.id where cron.id = $d->{id}")->hash;
    my $rv  = $self->_delete_cron( $user, { id => $d->{id} } );
-   return $rv ? { success => $rv, cal => $cal->{name} } : { success => 0, message => 'cron not found' };
+   if ($rv) {
+      return { success => 1, cal => $cal->{name} };
+   }
+   else {
+      return { success => 0, message => 'cron not found' };
+   }
 }
 
 # cal related subroutines
@@ -3889,13 +3751,14 @@ sub create_cal {
    # name id tz cron at
 
    my $id = $self->_create_cal( $user, $d );
-   if ($id) {
 
-      #$self->_add_cron( $user, $d ) if $d->{cron};
-      #$self->_add_at( $user, $d )   if $d->{at};
-      return { success => 1, id => $id };
+   if ( $id ) {
+      $self->_broadcast_cal($user, [ $id ]);
+      return { success => 1 };
    }
-   return { success => 0, message => 'a calendar by that name already exists' };
+   else {
+      return { success => 0, message => 'a calendar by that name already exists' };
+   }
 }
 
 sub _cal_info {
@@ -4110,7 +3973,12 @@ sub _add_cron {
    my $id;
    eval { $id = $self->_create_cron_row( $user, { name => $d->{name}, begin => $d->{begin}, expire => $d->{expire}, description => $d->{description}, cal_id => $cal_info->{id}, } ); };
 
-   return { success => 0, message => 'invalid or an identical cron already exists in that calendar' } unless $id;
+   if ($id) {
+      $self->_broadcast_cal($user, [ $cal_info->{id} ]);
+   }
+   else {
+      return { success => 0, message => 'invalid or an identical cron already exists in that calendar' };
+   }
 
    # only start when subscribers exist
    my $count = $self->sqlite->db->query("select count(*) as count from cluster where cal_id = $cal_info->{id}")->hash->{count};
@@ -4147,9 +4015,14 @@ sub update_cal {
    my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(description tz)) };
    $update_hash->{name} = $d->{newname} if $d->{newname};
 
-   my $success = scalar keys %$update_hash;
-   $self->sqlite->db->update( 'cal', $update_hash, { id => $cal->{id}, org_id => $user->org_id } ) if scalar $success;
-   return { success => $success };
+   if ( scalar keys %$update_hash ) {
+      $self->sqlite->db->update( 'cal', $update_hash, { id => $cal->{id}, org_id => $user->org_id } );
+      $self->_broadcast_cal($user, [ $cal->{id} ]);
+      return { success => 1 };
+   }
+   else {
+      return { success => 0 };
+   }
 }
 
 sub _delete_cal {
@@ -4205,14 +4078,18 @@ sub routing {
       'melt_path'    => [ \&melt_path,    1, [ {}, { name => $p, id => $i } ] ],
       'delete_path'  => [ \&delete_path,  1, [ {}, { name => $p, id => $i } ] ],
 
+      # org related
+      'update_org'   => [ \&update_org,   1, [ {}, { description => $d, name => $d } ] ],
+
       # user related
-      'create_user'   => [ \&create_user,   3, [ { name => $w }, { org_id => $i, email => $w, level => $i } ] ],
+      'create_user'   => [ \&create_user,   3, [ { name => $w }, { team_member => $i, email => $w, level => $i } ] ],
       'read_user'     => [ \&read_user,     0, [ {},             {} ] ],
-      'update_user'   => [ \&update_user,   1, [ {},             { email => $e, name => $w } ] ],
+      'update_user'   => [ \&update_user,   1, [ {}, { mode => $i, name => $w } ] ],
       'delete_user'   => [ \&delete_user,   3, [ { id => $i }, {} ] ],
+      'delete_me'   =>   [ \&delete_me,     1, [ { id => $i }, {} ] ],
       'login_user'    => [ \&login_user,    0, [ { token => $w }, {} ] ],
       'new_token'     => [ \&new_token,     1, [ {}, {} ] ],
-      'register_user' => [ \&register_user, 0, [ { email => $e }, {} ] ],
+      'register_user' => [ \&register_user, 0, [ { email => $e }, { team_member => $i } ] ],
 
       # job related
       'create_job' => [
@@ -4229,8 +4106,7 @@ sub routing {
                delay       => $i,
                script      => $c,
                needs_any   => 's',
-               clonable    => $i,
-               on_fail     => $i,
+               on_fail     => $p,
             }
          ]
       ],
@@ -4264,8 +4140,7 @@ sub routing {
                loops        => $i,
                delay        => $i,
                needs_any    => 's',
-               on_fail      => $i,
-               clonable     => $i,
+               on_fail      => $p,
                remove_needs => $i,
             }
          ]
@@ -4302,7 +4177,7 @@ sub routing {
                mode        => $i,
                loops       => $i,
                needs_any   => 's',
-               on_fail     => $i,
+               on_fail     => $p,
             }
          ]
       ],
@@ -4328,7 +4203,7 @@ sub routing {
                clonable     => $i,
                loops        => $i,
                needs_any    => 's',
-               on_fail      => $i,
+               on_fail      => $p,
                remove_needs => $i,
             }
          ]
