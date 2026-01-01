@@ -12,73 +12,203 @@
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     />
-    <style>
 
-.ordo-tree-table {
-  width: 100%;
-  border-collapse: collapse;
-}
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/lib/common.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/styles/atom-one-dark.min.css"
+    />
 
-.ordo-tree-table th, .ordo-tree-table td {
-  padding: 8px 12px;
-  border-bottom: 1px solid #ddd;
-  text-align: left;
-}
+<style>
+  /* Global & Layout */
+  html { scroll-behavior: smooth; }
 
-.ordo-tree-table tr {
-  --depth: 0;  /* fallback */
-}
+  .table-container { overflow: visible !important; position: relative; }
 
-.ordo-tree-table td:first-child {
-  padding-left: calc(var(--depth) * 20px + 32px) !important;
-}
+  /* Tree Table */
+  .ordo-tree-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .ordo-tree-table th,
+  .ordo-tree-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+  }
+  .ordo-tree-table tr { --depth: 0; }
+  .ordo-tree-table td:first-child {
+    padding-left: calc(var(--depth) * 20px + 32px) !important;
+  }
 
-.ordo-toggle {
-  cursor: pointer;
-  display: inline-block;
-  width: 20px;
-  margin-right: 8px;
-  text-align: center;
-  font-size: 1.1em;
-}
+  /* Toggle Arrows */
+  .ordo-toggle {
+    cursor: pointer;
+    display: inline-block;
+    width: 24px;
+    margin-right: 8px;
+    text-align: center;
+    font-size: 1em;
+    color: #363636;
+    transition: transform 0.2s ease;
+  }
+  .ordo-cluster-row:not(.collapsed) .ordo-toggle::before {
+    content: "\f078"; /* chevron-down */
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+  }
+  .ordo-cluster-row.collapsed .ordo-toggle::before {
+    content: "\f053"; /* chevron-left */
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+  }
 
-.ordo-cluster-row.collapsed .ordo-toggle::after {
-  content: '▶';
-}
+  /* Row Types */
+  .ordo-cluster-row { background: rgba(33, 150, 243, 0.04); }
+  .ordo-job-row { background: transparent; }
 
-.ordo-cluster-row:not(.collapsed) .ordo-toggle::after {
-  content: '▼';
-}
+  /* Hidden Rows */
+  tr[data-hidden="true"] { display: none !important; }
 
-/* Hide entire subtrees when collapsed */
-tr[data-hidden="true"] {
-  display: none !important;
-}
+  /* State Colors (with variables for dark mode) */
+  :root {
+    --complete: #28a745;
+    --immutable: #17a2b8;
+    --running: #6f42c1;
+    --failed: #dc3545;
+    --ready: #ffc107;
+    --default: #6c757d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --complete: #4cd964;
+      --immutable: #4dd0e1;
+      --running: #9f7aea;
+      --failed: #ff6b6b;
+      --ready: #ffdd57;
+      --default: #adb5bd;
+    }
+  }
+  .ordo-state {
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+    text-transform: capitalize;
+  }
+  .ordo-complete { color: var(--complete); background: rgba(var(--complete), 0.12); }
+  .ordo-immutable { color: var(--immutable); background: rgba(var(--immutable), 0.12); }
+  .ordo-running { color: var(--running); background: rgba(var(--running), 0.12); }
+  .ordo-failed { color: var(--failed); background: rgba(var(--failed), 0.15); font-weight: 700; }
+  .ordo-ready { color: var(--ready); background: rgba(var(--ready), 0.12); }
+  .ordo-default { color: var(--default); background: rgba(var(--default), 0.08); }
 
-.ordo-state {
-  font-weight: 600; /* Slightly bold for visibility */
-  text-transform: capitalize; /* Optional: makes "complete" look nicer */
-}
+  /* Mobile Adjustments */
+  @media (max-width: 768px) {
+    .table { font-size: 0.85rem; }
+    .table th, .table td { padding: 6px 8px; }
+    .ordo-toggle { font-size: 0.9em; width: 20px; }
+  }
 
-/* Text colors only (no background) */
-.ordo-complete { color: #28a745 !important; } /* green */
-.ordo-immutable { color: #17a2b8 !important; } /* cyan */
-.ordo-running   { color: #6f42c1 !important; } /* purple/magenta */
-.ordo-failed    { color: #dc3545 !important; } /* red */
-.ordo-ready     { color: #ffc107 !important; } /* yellow */
-.ordo-default   { color: #6c757d !important; } /* gray */
+  /* Dropdowns */
+  .dropdown {
+    position: relative;
+    display: inline-block;
+  }
+  .dropdown-trigger button {
+    padding: 8px 12px;
+    line-height: 1;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+  }
+  .dropdown-trigger button:hover {
+    background-color: rgba(0,0,0,0.1);
+  }
+  .dropdown-menu {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    left: calc(100% + 8px);
+    min-width: 160px;
+    z-index: 1000;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: none;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+  .dropdown.is-active .dropdown-menu { display: block !important; }
+  .dropdown.is-flipped .dropdown-menu { left: auto; right: calc(100% + 8px); }
+  .dropdown-item.disabled {
+    color: #999;
+    pointer-events: none;
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
 
-/* Dark mode adjustments (if you use Bulma dark theme) */
-@media (prefers-color-scheme: dark) {
-  .ordo-complete { color: #4cd964 !important; } /* lighter green */
-  .ordo-immutable { color: #4dd0e1 !important; }
-  .ordo-running   { color: #9f7aea !important; }
-  .ordo-failed    { color: #ff6b6b !important; }
-  .ordo-ready     { color: #ffdd57 !important; }
-  .ordo-default   { color: #adb5bd !important; }
-}
+  /* Modal Footer */
+  .modal-card-foot-spaced {
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+  @media (max-width: 768px) {
+    .modal-card-foot-spaced {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .modal-card-foot-spaced .button { width: 100%; }
+  }
 
-    </style>
+  /* Docs Grid Layout (Sticky Sidebar) */
+  .docs-grid {
+    display: grid;
+    grid-template-columns: 1fr 3fr;
+    height: calc(100vh - 3.5rem);
+  }
+  .docs-sidebar {
+    background: #1e1e1e;
+    height: 100%;
+    overflow-y: auto;
+    position: sticky;
+    top: 0;
+    align-self: start;
+  }
+  .docs-content-container {
+    overflow-y: auto;
+    background: #f8f8f8;
+  }
+  #docs-toc a {
+    color: #ddd !important;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: block;
+  }
+  #docs-toc a:hover {
+    background: rgba(255,255,255,0.1);
+    color: white !important;
+  }
+  #docs-toc a.is-active {
+    background: #3273dc;
+    color: white !important;
+    font-weight: bold;
+  }
+  @media (max-width: 768px) {
+    .docs-grid { grid-template-columns: 1fr; }
+    .docs-sidebar { height: auto; max-height: 300px; position: relative; }
+  }
+
+  /* Accessibility */
+  a:focus, button:focus {
+    outline: 2px solid #3273dc;
+    outline-offset: 2px;
+  }
+</style>
+
   </head>
   <body>
     <!-- Navbar -->
@@ -91,9 +221,19 @@ tr[data-hidden="true"] {
         <span class="navbar-item has-text-weight-bold is-size-4">
           <i class="fas fa-briefcase mr-2"></i> Ordo
         </span>
+        <a
+          role="button"
+          class="navbar-burger"
+          aria-label="menu"
+          aria-expanded="false"
+          data-target="navbar-menu"
+        >
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+        </a>
       </div>
-      <div class="navbar-menu">
-        <!-- Public Tabs -->
+      <div id="navbar-menu" class="navbar-menu">
         <div class="navbar-start" id="public-tabs">
           <div class="tabs is-boxed is-centered">
             <ul>
@@ -107,7 +247,6 @@ tr[data-hidden="true"] {
             </ul>
           </div>
         </div>
-        <!-- Private Tabs -->
         <div class="navbar-start" id="private-tabs" style="display: none">
           <div class="tabs is-boxed is-centered">
             <ul>
@@ -127,7 +266,6 @@ tr[data-hidden="true"] {
             </ul>
           </div>
         </div>
-        <!-- End -->
         <div class="navbar-end">
           <div id="public-end">
             <a class="navbar-item" href="/login"
@@ -145,56 +283,302 @@ tr[data-hidden="true"] {
 
     <!-- Main Content -->
     <main class="container mt-6">
-      <!-- About -->
-      <section id="about" class="tab-content">
-        <h1 class="title is-1 has-text-centered">Welcome to Ordo</h1>
-        <p class="subtitle is-3 has-text-centered mb-6">
-          The hierarchical job scheduler for teams and individuals.
-        </p>
-        <div class="columns is-multiline is-centered">
-          <div class="column is-one-third">
-            <div class="card">
-              <div class="card-content">
-                <h3 class="title is-4">
-                  <i class="fas fa-sitemap mr-2"></i> Organize Workflows
-                </h3>
-                <p>Build complex dependencies with clusters and jobs.</p>
-              </div>
-            </div>
-          </div>
-          <div class="column is-one-third">
-            <div class="card">
-              <div class="card-content">
-                <h3 class="title is-4">
-                  <i class="fas fa-calendar-check mr-2"></i> Schedule Reliably
-                </h3>
-                <p>Calendars and crons for precise timing.</p>
-              </div>
-            </div>
-          </div>
-          <div class="column is-one-third">
-            <div class="card">
-              <div class="card-content">
-                <h3 class="title is-4">
-                  <i class="fas fa-eye mr-2"></i> Monitor in Real-Time
-                </h3>
-                <p>Live status across servers and jobs.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="has-text-centered mt-6">
-          <a href="/login" class="button is-primary is-large"
-            >Get Started Free</a
-          >
-        </div>
-      </section>
 
-      <!-- Docs & Pricing (placeholders) -->
-      <section id="docs" class="tab-content" style="display: none">
-        <h1 class="title is-2 has-text-centered">Docs & Tutorials</h1>
-        <p class="subtitle">Documentation and guides coming soon.</p>
-      </section>
+      <!-- About -->
+
+
+<!-- About / Landing Page -->
+<section id="about" class="tab-content">
+  <!-- Hero -->
+  <section class="hero is-medium is-primary" style="background: linear-gradient(135deg, #00c9b1, #007a87);">
+    <div class="hero-body">
+      <div class="container has-text-centered">
+        <!-- Logo Placeholder -->
+        <h1 class="title is-1 has-text-white mb-3">
+          <i class="fas fa-briefcase mr-3"></i>Ordo
+        </h1>
+        <p class="subtitle has-text-white is-italic is-size-5 mb-5">
+          Automation that feels like your filesystem
+        </p>
+
+        <h2 class="title has-text-white is-3 mb-5">
+          The modern job scheduler<br>for teams and individuals
+        </h2>
+        <p class="subtitle has-text-white is-5 mb-6" style="max-width: 800px; margin: 0 auto;">
+          Hierarchical workflows • Real-time monitoring • Self-healing automation<br>
+          Full Quartz scheduling • Easy migration from AutoSys/cron • Open core
+        </p>
+
+        <div class="buttons is-centered">
+          <a href="/login" class="button is-large is-white is-outlined">
+            <strong>Get Started Free</strong>
+          </a>
+          <a href="#video" class="button is-large is-white is-outlined ml-4">
+            Watch Video
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section class="section">
+    <div class="container">
+      <h2 class="title has-text-centered is-3 mb-6">How It Works</h2>
+      <div class="columns is-centered">
+        <div class="column is-one-third">
+          <div class="has-text-centered">
+            <span class="icon is-large has-text-primary mb-4"><i class="fas fa-folder-plus fa-3x"></i></span>
+            <h3 class="title is-5">1. Organize</h3>
+            <p>Create clusters and jobs — just like folders and files.</p>
+          </div>
+        </div>
+        <div class="column is-one-third">
+          <div class="has-text-centered">
+            <span class="icon is-large has-text-primary mb-4"><i class="fas fa-clock fa-3x"></i></span>
+            <h3 class="title is-5">2. Schedule</h3>
+            <p>Use calendars with extended cron syntax — daily, weekly, or "last Friday of the month".</p>
+          </div>
+        </div>
+        <div class="column is-one-third">
+          <div class="has-text-centered">
+            <span class="icon is-large has-text-primary mb-4"><i class="fas fa-eye fa-3x"></i></span>
+            <h3 class="title is-5">3. Monitor & Heal</h3>
+            <p>Live updates + automatic recovery on failure.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Key Benefits -->
+  <section class="section has-background-light">
+    <div class="container">
+      <h2 class="title has-text-centered is-3 mb-6">Why Teams Love Ordo</h2>
+      <div class="columns is-multiline is-centered">
+        <div class="column is-one-third">
+          <div class="card">
+            <div class="card-content has-text-centered">
+              <span class="icon is-large has-text-primary mb-4"><i class="fas fa-sitemap fa-3x"></i></span>
+              <h3 class="title is-5">Hierarchical Workflows</h3>
+              <p>Nest jobs in clusters like files in folders. Dependencies are natural — add explicit ones for precision.</p>
+            </div>
+          </div>
+        </div>
+        <div class="column is-one-third">
+          <div class="card">
+            <div class="card-content has-text-centered">
+              <span class="icon is-large has-text-primary mb-4"><i class="fas fa-tachometer-alt fa-3x"></i></span>
+              <h3 class="title is-5">Real-Time Monitoring</h3>
+              <p>Live countdowns, performance charts, and historical trends.</p>
+            </div>
+          </div>
+        </div>
+        <div class="column is-one-third">
+          <div class="card">
+            <div class="card-content has-text-centered">
+              <span class="icon is-large has-text-primary mb-4"><i class="fas fa-shield-alt fa-3x"></i></span>
+              <h3 class="title is-5">Self-Healing Automation</h3>
+              <p>On failure, run alerts, retries, or full recovery clusters.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Coming in v1 Teaser -->
+  <section class="section">
+    <div class="container">
+      <h2 class="title has-text-centered is-3 mb-6">Coming in v1</h2>
+      <div class="columns is-multiline is-centered">
+        <div class="column is-one-third">
+          <div class="card">
+            <div class="card-content has-text-centered">
+              <span class="icon is-large has-text-info mb-4"><i class="fas fa-file-import fa-3x"></i></span>
+              <h3 class="title is-5">Easy Migration</h3>
+              <p>Import AutoSys JIL files or crontabs directly — escape legacy systems fast.</p>
+            </div>
+          </div>
+        </div>
+        <div class="column is-one-third">
+          <div class="card">
+            <div class="card-content has-text-centered">
+              <span class="icon is-large has-text-info mb-4"><i class="fas fa-chart-line fa-3x"></i></span>
+              <h3 class="title is-5">Performance Insights</h3>
+              <p>Historical CPU, memory, and duration charts for every job and server.</p>
+            </div>
+          </div>
+        </div>
+        <div class="column is-one-third">
+          <div class="card">
+            <div class="card-content has-text-centered">
+              <span class="icon is-large has-text-info mb-4"><i class="fas fa-project-diagram fa-3x"></i></span>
+              <h3 class="title is-5">Dependency Graph</h3>
+              <p>Interactive visualization of your entire workflow.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Screenshot / Video -->
+  <section class="section has-background-light" id="video">
+    <div class="container">
+      <h2 class="title has-text-centered is-3 mb-6">See Ordo in Action</h2>
+      <div class="has-text-centered">
+        <!-- Video Placeholder -->
+        <div class="box" style="max-width: 900px; margin: 0 auto; background: #f0f0f0; height: 500px; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+          <i class="fas fa-video fa-5x has-text-grey mb-4"></i>
+          <p class="title is-5">2-Minute Overview Video</p>
+          <p class="subtitle has-text-grey">Coming soon — or watch the tutorial series!</p>
+        </div>
+        <!-- Screenshot Suggestion -->
+        <p class="mt-5 subtitle has-text-grey">
+          <em>Screenshot suggestion: Jobs & Clusters view with live countdowns, running pipeline, and open dropdown</em>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Comparison Table -->
+  <section class="section">
+    <div class="container">
+      <h2 class="title has-text-centered is-3 mb-6">How Ordo Compares</h2>
+      <div class="table-container">
+        <table class="table is-fullwidth is-bordered is-striped is-hoverable">
+          <thead class="has-background-primary">
+            <tr>
+              <th class="has-text-white">Feature</th>
+              <th class="has-text-white">Legacy Tools</th>
+              <th class="has-text-white">Cloud Schedulers</th>
+              <th class="has-text-white has-background-success">Ordo</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Modern, real-time UI</td>
+              <td>Outdated</td>
+              <td>Good but complex</td>
+              <td class="has-text-success"><strong>✓ Live updates</strong></td>
+            </tr>
+            <tr>
+              <td>Hierarchical organization</td>
+              <td>Flat lists</td>
+              <td>Good</td>
+              <td class="has-text-success"><strong>✓ Native clusters</strong></td>
+            </tr>
+            <tr>
+              <td>Full Quartz scheduling</td>
+              <td>Limited</td>
+              <td>✓</td>
+              <td class="has-text-success"><strong>✓ Advanced cron</strong></td>
+            </tr>
+            <tr>
+              <td>Self-healing</td>
+              <td>Alerts only</td>
+              <td>Alerts + retry</td>
+              <td class="has-text-success"><strong>✓ Run recovery clusters</strong></td>
+            </tr>
+            <tr>
+              <td>Easy migration</td>
+              <td>Manual pain</td>
+              <td>Hard</td>
+              <td class="has-text-success"><strong>✓ Import JIL/crontab</strong></td>
+            </tr>
+            <tr>
+              <td>Performance monitoring</td>
+              <td>Limited</td>
+              <td>Extra cost</td>
+              <td class="has-text-success"><strong>✓ Historical charts</strong></td>
+            </tr>
+            <tr>
+              <td>Dependency visualization</td>
+              <td>No</td>
+              <td>Yes</td>
+              <td class="has-text-success"><strong>✓ Interactive graph</strong></td>
+            </tr>
+            <tr>
+              <td>Pricing</td>
+              <td>$50k–$500k+</td>
+              <td>SaaS subscription</td>
+              <td class="has-text-success"><strong>✓ Free tier + $39/mo</strong></td>
+            </tr>
+            <tr>
+              <td>No lock-in</td>
+              <td>Proprietary</td>
+              <td>Cloud vendor</td>
+              <td class="has-text-success"><strong>✓ Open core</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="has-text-centered mt-4">
+        <small>Pricing: Free forever self-hosted • $39/month Pro tier • Custom enterprise options</small>
+      </p>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="hero is-primary" style="background: linear-gradient(135deg, #00c9b1, #007a87);">
+    <div class="hero-body has-text-centered">
+      <h2 class="title has-text-white is-3">Ready to simplify your automation?</h2>
+      <p class="subtitle has-text-white mb-6">
+        Free tier available • $39/month Pro • Custom plans for special needs
+      </p>
+      <a href="/login" class="button is-large is-white is-outlined">
+        <strong>Get Started Free</strong>
+      </a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer has-background-dark has-text-white">
+    <div class="container has-text-centered">
+      <p>
+        <strong>Ordo</strong> — Open source job scheduler<br>
+        <a href="https://github.com/your-repo" class="has-text-white" target="_blank">
+          <i class="fab fa-github mr-2"></i>View on GitHub
+        </a>
+      </p>
+    </div>
+  </footer>
+</section>
+
+
+<!-- Docs Tab -->
+<section id="docs" class="tab-content" style="display: none">
+  <div class="docs-grid">
+    <!-- Sidebar TOC (sticky) -->
+    <aside class="docs-sidebar">
+      <div class="menu p-4">
+        <p class="menu-label has-text-white">Ordo Documentation</p>
+        <ul class="menu-list" id="docs-toc">
+          <li><a href="#" data-file="quickstart.md" class="has-text-white is-active">Quickstart</a></li>
+          <li><a href="#" data-file="web-ui.md" class="has-text-white">Web UI Guide</a></li>
+          <li><a href="#" data-file="cli.md" class="has-text-white">CLI Reference</a></li>
+          <li><a href="#" data-file="rest-api.md" class="has-text-white">REST API</a></li>
+          <li><a href="#" data-file="use-cases.md" class="has-text-white">Use Cases & Examples</a></li>
+          <li><a href="#" data-file="video-tutorials.md" class="has-text-white">Video Tutorials</a></li>
+          <li><a href="#" data-file="advanced.md" class="has-text-white">Advanced Topics</a></li>
+          <li><a href="#" data-file="troubleshooting.md" class="has-text-white">Troubleshooting</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="docs-content-container">
+      <div class="container p-6">
+        <article class="content" id="docs-content"></article>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+      <!-- Pricing -->
+
       <section id="pricing" class="tab-content" style="display: none">
         <h1 class="title is-2 has-text-centered">Pricing</h1>
         <p class="subtitle">
@@ -215,14 +599,11 @@ tr[data-hidden="true"] {
               </button>
             </div>
           </div>
-
           <div id="account-loading" class="has-text-centered">
             <i class="fas fa-spinner fa-spin"></i> Loading...
           </div>
-
           <div id="account-content" style="display: none">
             <div class="columns is-multiline">
-              <!-- User Profile -->
               <div class="column is-6">
                 <div class="card">
                   <header class="card-header">
@@ -303,8 +684,6 @@ tr[data-hidden="true"] {
                   </div>
                 </div>
               </div>
-
-              <!-- Organization -->
               <div class="column is-6">
                 <div class="card">
                   <header class="card-header">
@@ -349,8 +728,6 @@ tr[data-hidden="true"] {
                 </div>
               </div>
             </div>
-
-            <!-- Team Members -->
             <div class="card mt-6">
               <header class="card-header">
                 <p class="card-header-title">
@@ -389,24 +766,37 @@ tr[data-hidden="true"] {
           <div class="has-text-centered mb-6">
             <h1 class="title is-2">Jobs & Clusters</h1>
           </div>
-
-          <div class="level mb-5">
-            <div class="level-right">
-              <button class="button is-info is-light" id="refresh-tree">
-                <i class="fas fa-sync"></i> Refresh
-              </button>
+          <div class="has-text-centered mb-5">
+            <div class="field has-addons is-centered">
+              <div class="control">
+                <button class="button is-info is-light" id="refresh-tree">
+                  <span class="icon"><i class="fas fa-sync"></i></span>
+                  <span>Refresh</span>
+                </button>
+              </div>
+              <div class="control">
+                <div
+                  class="button is-static is-info is-light"
+                  id="current-time"
+                >
+                  Loading...
+                </div>
+              </div>
             </div>
           </div>
-
-          <div id="monitor-loading" class="has-text-centered">
-            <i class="fas fa-spinner fa-spin"></i> Loading...
+          <div id="monitor-loading" class="has-text-centered py-6">
+            <span class="icon is-large"
+              ><i class="fas fa-spinner fa-spin fa-3x"></i
+            ></span>
+            <p class="mt-2">Loading jobs & clusters...</p>
           </div>
-
           <div id="monitor-content" style="display: none">
             <div class="table-container">
               <table
                 class="table is-fullwidth is-hoverable is-striped ordo-tree-table"
                 id="tree-table"
+                role="treegrid"
+                aria-label="Jobs and Clusters Hierarchy"
               >
                 <thead>
                   <tr>
@@ -436,7 +826,6 @@ tr[data-hidden="true"] {
           <div class="has-text-centered mb-6">
             <h1 class="title is-2">Calendars</h1>
           </div>
-
           <div class="level mb-5">
             <div class="level-right">
               <button class="button is-info is-light" id="calendars-refresh">
@@ -444,11 +833,9 @@ tr[data-hidden="true"] {
               </button>
             </div>
           </div>
-
           <div id="calendars-loading" class="has-text-centered">
             <i class="fas fa-spinner fa-spin"></i> Loading...
           </div>
-
           <div id="calendars-content" style="display: none">
             <div class="table-container">
               <table
@@ -477,7 +864,6 @@ tr[data-hidden="true"] {
           <div class="has-text-centered mb-6">
             <h1 class="title is-2">Servers</h1>
           </div>
-
           <div class="level mb-5">
             <div class="level-right">
               <button class="button is-info is-light" id="servers-refresh">
@@ -485,11 +871,9 @@ tr[data-hidden="true"] {
               </button>
             </div>
           </div>
-
           <div id="servers-loading" class="has-text-centered">
             <i class="fas fa-spinner fa-spin"></i> Loading...
           </div>
-
           <div id="servers-content" style="display: none">
             <div class="table-container">
               <table
@@ -517,15 +901,54 @@ tr[data-hidden="true"] {
       <div class="modal-background"></div>
       <div class="modal-card">
         <header class="modal-card-head">
-          <p class="modal-card-title">Job Log</p>
+          <p class="modal-card-title">Latest Job Log</p>
           <button class="delete" aria-label="close"></button>
         </header>
         <section class="modal-card-body">
           <pre id="log-content"></pre>
         </section>
-        <footer class="modal-card-foot">
+
+        <footer
+          class="modal-card-foot is-justify-content-flex-end"
+          style="gap: 0.75rem"
+        >
+          <button class="button is-link" id="view-history">View History</button>
           <button class="button is-info" id="refresh-log">Refresh Log</button>
           <button class="button is-primary" id="close-log">Close</button>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Log History Modal -->
+    <div id="log-history-modal" class="modal">
+      <div class="modal-background"></div>
+      <div class="modal-card">
+        <header class="modal-card-head">
+          <p class="modal-card-title">Job Log History</p>
+          <button class="delete" aria-label="close"></button>
+        </header>
+        <section class="modal-card-body">
+          <table class="table is-fullwidth is-striped is-hoverable">
+            <thead>
+              <tr>
+                <th>Run ID</th>
+                <th>Start Time</th>
+                <th>Duration</th>
+                <th>Exit Code</th>
+              </tr>
+            </thead>
+            <tbody id="log-history-body"></tbody>
+          </table>
+          <p
+            id="no-history"
+            class="has-text-grey has-text-centered"
+            style="display: none"
+          >
+            No log history available.
+          </p>
+        </section>
+        <footer class="modal-card-foot">
+          <button class="button" id="close-log-history">Close</button>
         </footer>
       </div>
     </div>
@@ -560,6 +983,243 @@ tr[data-hidden="true"] {
       </div>
     </div>
 
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="modal">
+      <div class="modal-background"></div>
+      <div class="modal-card">
+        <header class="modal-card-head">
+          <p class="modal-card-title">Confirm Action</p>
+          <button class="delete" aria-label="close" id="close-confirm"></button>
+        </header>
+        <section class="modal-card-body">
+          <p id="confirm-message">Are you sure you want to [action] [name]?</p>
+        </section>
+        <footer class="modal-card-foot">
+          <button class="button is-danger" id="confirm-yes">Yes</button>
+          <button class="button" id="confirm-no">No</button>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Attach Calendar Modal -->
+    <div id="attach-cal-modal" class="modal">
+      <div class="modal-background"></div>
+      <div class="modal-card">
+        <header class="modal-card-head">
+          <p class="modal-card-title">
+            Schedule cluster: <span id="attach-target-name"></span>
+          </p>
+          <button class="delete" aria-label="close"></button>
+        </header>
+        <section class="modal-card-body">
+          <div class="field">
+            <label class="label">Calendar</label>
+            <div class="control">
+              <div class="select is-fullwidth">
+                <select id="attach-cal-select">
+                  <option value="">None (run manually only)</option>
+                </select>
+              </div>
+            </div>
+            <p class="help mt-4" id="attach-current-help">
+              Current: <strong id="attach-current-cal">None</strong>
+            </p>
+          </div>
+        </section>
+        <footer class="modal-card-foot">
+          <button class="button is-primary" id="save-attach-cal">Apply</button>
+          <button class="button" id="cancel-attach-cal">Cancel</button>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Create/Edit Job or Cluster Modal -->
+    <div id="entity-modal" class="modal">
+      <div class="modal-background"></div>
+      <div class="modal-card" style="width: 90%; max-width: 900px">
+        <header class="modal-card-head">
+          <p class="modal-card-title" id="entity-modal-title">New Job</p>
+          <p
+            class="ml-auto has-text-grey"
+            id="entity-context"
+            style="font-weight: normal"
+          ></p>
+          <button class="delete" aria-label="close"></button>
+        </header>
+        <section class="modal-card-body">
+          <div class="field">
+            <label class="label"
+              >Name <span class="has-text-danger">*</span></label
+            >
+            <div class="control">
+              <input
+                class="input"
+                type="text"
+                id="entity-name"
+                placeholder="e.g. db-backup"
+              />
+              <p class="help">
+                Short name only — will be created in the selected cluster
+              </p>
+            </div>
+          </div>
+
+          <div class="field" id="entity-script-field">
+            <label class="label"
+              >Script / Command <span class="has-text-danger">*</span></label
+            >
+            <div class="control">
+              <input
+                class="input"
+                type="text"
+                id="entity-script"
+                placeholder="ls -ltr"
+              />
+            </div>
+          </div>
+
+          <div class="field" id="entity-server-field">
+            <label class="label"
+              >Server <span class="has-text-danger">*</span></label
+            >
+            <div class="control">
+              <div class="select is-fullwidth">
+                <select id="entity-server"></select>
+              </div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="label">Description</label>
+            <div class="control">
+              <textarea
+                class="textarea"
+                id="entity-description"
+                rows="2"
+              ></textarea>
+            </div>
+          </div>
+
+          <div class="columns">
+            <div class="column">
+              <div class="field">
+                <label class="label">Calendar</label>
+                <div class="control">
+                  <div class="select is-fullwidth">
+                    <select id="entity-calendar">
+                      <option value="">None</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="column" id="entity-tz-field">
+              <div class="field">
+                <label class="label">Timezone</label>
+                <div class="control">
+                  <input
+                    class="input"
+                    type="text"
+                    id="entity-tz"
+                    placeholder="UTC"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="columns">
+            <div class="column">
+              <div class="field">
+                <label class="label">Needs (comma-separated names)</label>
+                <div class="control">
+                  <input
+                    class="input"
+                    type="text"
+                    id="entity-needs"
+                    placeholder="cleanup, send-report"
+                  />
+                </div>
+              </div>
+            </div>
+            <div class="column">
+              <div class="field">
+                <label class="label">Needs Any</label>
+                <div class="control">
+                  <input
+                    class="input"
+                    type="text"
+                    id="entity-needs-any"
+                    placeholder="backup-a, backup-b"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="columns">
+            <div class="column">
+              <div class="field">
+                <label class="label">On Fail (path)</label>
+                <div class="control">
+                  <input
+                    class="input"
+                    type="text"
+                    id="entity-on-fail"
+                    placeholder="alerts/send-email"
+                  />
+                </div>
+              </div>
+            </div>
+            <div class="column">
+              <div class="field">
+                <label class="label">Loops</label>
+                <div class="control">
+                  <input
+                    class="input"
+                    type="number"
+                    id="entity-loops"
+                    min="0"
+                    value="1"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="field" id="entity-retrys-field">
+            <label class="label">Retries</label>
+            <div class="control">
+              <input
+                class="input"
+                type="number"
+                id="entity-retrys"
+                min="0"
+                value="0"
+              />
+            </div>
+          </div>
+
+          <div class="field" id="entity-delay-field">
+            <label class="label">Delay (seconds)</label>
+            <div class="control">
+              <input
+                class="input"
+                type="number"
+                id="entity-delay"
+                min="0"
+                value="0"
+              />
+            </div>
+          </div>
+        </section>
+        <footer class="modal-card-foot">
+          <button class="button is-primary" id="save-entity">Save</button>
+          <button class="button" id="cancel-entity">Cancel</button>
+        </footer>
+      </div>
+    </div>
+
     <!-- Tab Switching -->
     <script>
       document.querySelectorAll(".tabs li").forEach((tab) => {
@@ -578,43 +1238,331 @@ tr[data-hidden="true"] {
 
     <script>
       let ws = null;
-      let monitorData = { tree: [], visibleItems: [], filter: "", expandedClusters: new Set() };
+      let monitorData = { tree: [] };
       let accountData = null;
       let orgData = null;
       let calendarsData = [];
       let serversData = [];
+      let currentEditItem = null; // null or the full node object (job/cluster)
+      let currentParentId = null; // for create: the clicked cluster's ID
+      let currentParentName = null; // for display
+      let currentAttachClusterId = null;
+
+      const COLLAPSE_KEY = "ordo_collapsed_clusters";
+
+      function getCollapsedIds() {
+        try {
+          const stored = localStorage.getItem(COLLAPSE_KEY);
+          return stored ? new Set(JSON.parse(stored)) : new Set();
+        } catch {
+          return new Set();
+        }
+      }
+
+      function saveCollapsedIds(set) {
+        try {
+          localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...set]));
+        } catch {}
+      }
 
       document.addEventListener("DOMContentLoaded", () => {
         checkLoginAndConnect();
-
-document.getElementById('tree-body').addEventListener('click', e => {
-  const toggle = e.target.closest('.ordo-toggle');
-  if (!toggle) return;
-
-  const row = toggle.closest('tr');
-  const isCollapsed = row.classList.toggle('collapsed');
-  const parentId = row.dataset.id;
-
-  // Toggle the entire subtree visibility
-  toggleSubtree(parentId, isCollapsed);
-
-  // If we're EXPANDING (isCollapsed === false), force-expand all descendant clusters
-  // (reset their .collapsed class so arrows match the visible state)
-  if (!isCollapsed) {
-    function forceExpandDescendants(startParentId) {
-      const directChildren = document.querySelectorAll(`tr[data-parent="${startParentId}"]`);
-      directChildren.forEach(childRow => {
-        if (childRow.classList.contains('ordo-cluster-row')) {
-          childRow.classList.remove('collapsed');
-          forceExpandDescendants(childRow.dataset.id);
+        const logoutLink = document.querySelector(
+          '#private-end a[href="/logout"]',
+        );
+        if (logoutLink) {
+          logoutLink.addEventListener("click", () =>
+            localStorage.removeItem(COLLAPSE_KEY),
+          );
         }
-      });
-    }
-    forceExpandDescendants(parentId);
-  }
-});
+        document.querySelectorAll(".navbar-burger").forEach((burger) => {
+          burger.addEventListener("click", () => {
+            const target = document.getElementById(burger.dataset.target);
+            burger.classList.toggle("is-active");
+            target.classList.toggle("is-active");
+          });
+        });
 
+        document.getElementById("tree-body").addEventListener("click", (e) => {
+          // 1. Collapse toggle
+          const toggle = e.target.closest(".ordo-toggle");
+          if (toggle) {
+            const row = toggle.closest("tr");
+            const clusterId = row.dataset.id;
+            const isCollapsed = row.classList.toggle("collapsed");
+            const currentCollapsed = getCollapsedIds();
+            if (isCollapsed) {
+              currentCollapsed.add(clusterId);
+            } else {
+              currentCollapsed.delete(clusterId);
+            }
+            saveCollapsedIds(currentCollapsed);
+            toggleSubtree(clusterId, isCollapsed);
+            row.setAttribute("aria-expanded", (!isCollapsed).toString());
+            if (!isCollapsed) {
+              forceExpandDescendants(clusterId);
+            }
+            return;
+          }
+
+          // 2. Dropdown open/close + close others + flip
+          const trigger = e.target.closest(".dropdown-trigger button");
+          if (trigger) {
+            e.stopPropagation();
+
+            const dropdown = trigger.closest(".dropdown");
+
+            // Close all OTHER open dropdowns
+            document
+              .querySelectorAll("#tree-body .dropdown.is-active")
+              .forEach((other) => {
+                if (other !== dropdown) {
+                  other.classList.remove("is-active");
+                }
+              });
+
+            // Toggle the clicked one
+            const isOpening = !dropdown.classList.contains("is-active");
+            dropdown.classList.toggle("is-active");
+
+            if (isOpening) {
+              const rect = trigger.getBoundingClientRect();
+              const menu = dropdown.querySelector(".dropdown-menu");
+              const menuWidth = menu.offsetWidth || 160;
+              const spaceRight = window.innerWidth - rect.right;
+
+              // Flip to left if not enough space on right
+              if (spaceRight < menuWidth) {
+                dropdown.classList.add("is-flipped");
+              } else {
+                dropdown.classList.remove("is-flipped");
+              }
+            }
+            return;
+          }
+
+          // 3. Dropdown item clicks (actions)
+          const item = e.target.closest(".dropdown-item");
+
+          if (item) {
+            const action = item.textContent.trim().toLowerCase();
+            const row = item.closest("tr");
+            const id = row.dataset.id;
+            const name = row
+              .querySelector("td:first-child")
+              .textContent.trim()
+              .replace(/[▶▼ ]/g, "")
+              .trim();
+            const isCluster = row.classList.contains("ordo-cluster-row");
+            const type = isCluster ? "cluster" : "job";
+
+            if (action === "attach calendar") {
+              const row = item.closest("tr");
+              const clusterId = Number(row.dataset.id);
+              const clusterName = row
+                .querySelector("td:first-child")
+                .textContent.trim()
+                .replace(/\/$/, "");
+              const node = findClusterById(monitorData.tree, clusterId);
+              openAttachCalendarModal(
+                clusterId,
+                clusterName,
+                node.cal_name || "",
+                node.cal_id || null,
+              );
+              return;
+            }
+
+            if (action === "edit") {
+              const row = item.closest("tr");
+              const id = Number(row.dataset.id);
+              const isCluster = row.classList.contains("ordo-cluster-row");
+              const node = isCluster
+                ? findClusterById(monitorData.tree, id)
+                : findJobById(monitorData.tree, id);
+              if (node) {
+                openEntityModal("edit", isCluster ? "cluster" : "job", node);
+              }
+              return;
+            }
+
+            if (action === "new cluster" || action === "new job") {
+              const row = item.closest("tr");
+              const parentId = Number(row.dataset.id);
+              const parentName = row
+                .querySelector("td:first-child")
+                .textContent.trim()
+                .replace(/[^\w\-\/].*/g, "")
+                .replace(/\/$/, "");
+              const type = action === "new job" ? "job" : "cluster";
+              openEntityModal("create", type, null, parentId, parentName);
+              return;
+            }
+
+            if (action === "view log" && isCluster) return;
+
+            if (["kill", "delete"].includes(action)) {
+              document.getElementById("confirm-message").textContent =
+                `Are you sure you want to ${action} ${type} "${name}"?`;
+              document
+                .getElementById("confirm-modal")
+                .classList.add("is-active");
+
+              const yesBtn = document.getElementById("confirm-yes");
+              const noBtn = document.getElementById("confirm-no");
+              const closeBtn = document.getElementById("close-confirm");
+
+              const handleConfirm = () => {
+                sendCommand(action, id, type);
+                document
+                  .getElementById("confirm-modal")
+                  .classList.remove("is-active");
+                yesBtn.removeEventListener("click", handleConfirm);
+              };
+
+              yesBtn.addEventListener("click", handleConfirm);
+              noBtn.addEventListener("click", () =>
+                document
+                  .getElementById("confirm-modal")
+                  .classList.remove("is-active"),
+              );
+              closeBtn.addEventListener("click", () =>
+                document
+                  .getElementById("confirm-modal")
+                  .classList.remove("is-active"),
+              );
+              return;
+            }
+
+            sendCommand(action, id, type);
+            return;
+          }
+        });
+
+        // Global outside click close
+        document.addEventListener("click", (e) => {
+          if (!e.target.closest(".dropdown")) {
+            document
+              .querySelectorAll(".dropdown.is-active")
+              .forEach((d) => d.classList.remove("is-active"));
+          }
+        });
+
+        // Close log modal
+        document.getElementById("close-log").addEventListener("click", () => {
+          document.getElementById("log-modal").classList.remove("is-active");
+        });
+        document
+          .querySelector("#log-modal .modal-background")
+          .addEventListener("click", () => {
+            document.getElementById("log-modal").classList.remove("is-active");
+          });
+
+        // Refresh log (latest)
+        document.getElementById("refresh-log").addEventListener("click", () => {
+          const jobId = document.getElementById("log-modal").dataset.jobId;
+          if (jobId) {
+            ws.send(JSON.stringify({ command: "read_log", id: jobId }));
+          }
+        });
+
+        // Open history modal and fetch logs
+        document
+          .getElementById("view-history")
+          .addEventListener("click", () => {
+            const jobId = document.getElementById("log-modal").dataset.jobId;
+            if (jobId) {
+              ws.send(JSON.stringify({ command: "find_log", id: jobId }));
+              document
+                .getElementById("log-history-modal")
+                .classList.add("is-active");
+            }
+          });
+
+        // Close history modal
+        document
+          .querySelector("#log-history-modal .delete")
+          .addEventListener("click", () => {
+            document
+              .getElementById("log-history-modal")
+              .classList.remove("is-active");
+          });
+        document
+          .getElementById("close-log-history")
+          .addEventListener("click", () => {
+            document
+              .getElementById("log-history-modal")
+              .classList.remove("is-active");
+          });
+        document
+          .querySelector("#log-history-modal .modal-background")
+          .addEventListener("click", () => {
+            document
+              .getElementById("log-history-modal")
+              .classList.remove("is-active");
+          });
+
+        // Confirmation modal close
+        document
+          .getElementById("close-confirm")
+          .addEventListener("click", () => {
+            document
+              .getElementById("confirm-modal")
+              .classList.remove("is-active");
+          });
+        document
+          .querySelector("#confirm-modal .modal-background")
+          .addEventListener("click", () => {
+            document
+              .getElementById("confirm-modal")
+              .classList.remove("is-active");
+          });
       });
+
+      // Helper to send command
+      function sendCommand(action, id, type) {
+        let command;
+        switch (action) {
+          case "run":
+            command = `start_${type}`;
+            break;
+          case "kill":
+            command = `kill_${type}`;
+            break;
+          case "hold":
+            command = `hold_${type}`;
+            break;
+          case "release":
+            command = `release_${type}`;
+            break;
+          case "ice":
+            command = `ice_${type}`;
+            break;
+          case "melt":
+            command = `melt_${type}`;
+            break;
+          case "complete":
+            command = `complete_${type}`;
+            break; // both job and cluster
+          case "reset":
+            command = `reset_${type}`;
+            break; // cluster only
+          case "delete":
+            command = `delete_${type}`;
+            break;
+          case "view log":
+            ws.send(JSON.stringify({ command: "read_log", id: id }));
+            document.getElementById("log-modal").classList.add("is-active");
+            document.querySelector("#log-modal .modal-card-title").textContent =
+              "Latest Job Log";
+            document.getElementById("log-modal").dataset.jobId = id;
+            return;
+          default:
+            return;
+        }
+
+        ws.send(JSON.stringify({ command, id }));
+      }
 
       function checkLoginAndConnect() {
         const token = document.cookie.match(/ordo_token=([^;]+)/)?.[1];
@@ -637,108 +1585,291 @@ document.getElementById('tree-body').addEventListener('click', e => {
       function connectWS(token) {
         const proto = location.protocol === "https:" ? "wss:" : "ws:";
         ws = new WebSocket(`${proto}//${location.host}/websocket`);
-
         ws.addEventListener("open", () => {
           console.log("WS connected");
           ws.send(JSON.stringify({ command: "login_user", token }));
         });
-
         ws.onmessage = (e) => {
           console.log("WS message:", e.data);
           try {
             const data = JSON.parse(e.data);
-
             if (data.command_reply === "login_user" && data.success) {
               console.log("Login success - requesting initial loads");
               ws.send(JSON.stringify({ command: "read_user" }));
               ws.send(JSON.stringify({ command: "read_org" }));
-              ws.send(JSON.stringify({ command: "find_cluster" }));
+              ws.send(
+                JSON.stringify({ command: "find_cluster", name: "/root" }),
+              );
               ws.send(JSON.stringify({ command: "find_cal" }));
               ws.send(JSON.stringify({ command: "find_monitor" }));
             }
-
-            if (data.command_reply === "read_user") {
-              updateAccount(data);
+            if (data.command_reply === "read_user") updateAccount(data);
+            if (data.command_reply === "read_org") updateOrgAndTeam(data);
+            if (data.command_reply === "read_log") updateLog(data);
+            if (data.command_reply === "find_log") {
+              updateLogHistory(data);
             }
-
-            if (data.command_reply === "read_org") {
-              updateOrgAndTeam(data);
-            }
-
-            if (data.command_reply === "find_cluster") {
-              updateJobsClusters(data);
-            }
-
-            if (data.command_reply === "find_cal") {
-              updateCalendars(data);
-            }
-
-            if (data.command_reply === "find_monitor") {
-              updateServers(data);
-            }
-
-            // Broadcast handling
-            if (data.broadcast === "clusters_changed") {
+            if (data.command_reply === "find_cluster") updateJobsClusters(data);
+            if (data.command_reply === "find_cal") updateCalendars(data);
+            if (data.command_reply === "find_monitor") updateServers(data);
+            if (data.broadcast === "clusters_changed")
               applyClusterBroadcast(data);
-            }
-
-            if (data.broadcast === "jobs_changed") {
-              applyJobBroadcast(data);
-            }
-
-            if (data.broadcast === "cals_changed") {
-              applyCalBroadcast(data);
-            }
-
-            if (data.broadcast === "servers_changed") {
+            if (data.broadcast === "jobs_changed") applyJobBroadcast(data);
+            if (data.broadcast === "cals_changed") applyCalBroadcast(data);
+            if (data.broadcast === "servers_changed")
               applyServerBroadcast(data);
-            }
-
-            if (data.broadcast === "org_changed") {
-              console.log("Org updated broadcast:", data);
-              updateOrgAndTeam(data);
-            }
-
-            // Command replies (toasts)
-            if (data.command_reply === "update_user") {
-              showToast(
-                data.success
-                  ? "Profile updated"
-                  : "Update failed: " + (data.message || "Unknown error"),
-                data.success ? "success" : "danger",
-              );
-            }
-
-            if (data.command_reply === "update_org") {
-              showToast(
-                data.success
-                  ? "Organization updated"
-                  : "Update failed: " + (data.message || "Unknown error"),
-                data.success ? "success" : "danger",
-              );
-            }
-
-            if (data.command_reply === "register_user") {
-              showToast(
-                data.success
-                  ? "Invitation sent"
-                  : "Invite failed: " + (data.message || "Unknown error"),
-                data.success ? "success" : "danger",
-              );
-              const inviteModal = document.getElementById("invite-modal");
-              if (inviteModal.classList.contains("is-active")) {
-                inviteModal.classList.remove("is-active");
-              }
+            if (data.broadcast === "org_changed") updateOrgAndTeam(data);
+            if (data.command_reply && data.message) {
+              showToast(data.message, data.success ? "success" : "danger");
             }
           } catch (err) {
             console.error("Parse error:", err);
           }
         };
-
         ws.onclose = () => {
           console.log("WS closed");
           setTimeout(checkLoginAndConnect, 5000);
         };
+      }
+
+      // populate create/edit dropdown
+      function populateServerSelect() {
+        const select = document.getElementById("entity-server");
+        select.innerHTML = "";
+        serversData.forEach((server) => {
+          const opt = document.createElement("option");
+          opt.value = server.name;
+          opt.textContent = server.name;
+          select.appendChild(opt);
+        });
+      }
+
+      function populateCalendarSelect() {
+        const select = document.getElementById("entity-calendar");
+        const current = select.value;
+        select.innerHTML = '<option value="">None</option>';
+        calendarsData.forEach((cal) => {
+          const opt = document.createElement("option");
+          opt.value = cal.id;
+          opt.textContent = cal.name;
+          select.appendChild(opt);
+        });
+        select.value = current;
+      }
+
+      // main modal logic
+      function openEntityModal(
+        mode = "create",
+        type = "job",
+        item = null,
+        parentId = null,
+        parentName = null,
+      ) {
+        currentEditItem = item;
+        currentParentId = parentId;
+        currentParentName = parentName;
+
+        const isEdit = mode === "edit";
+        const isJob = type === "job";
+        const isCluster = type === "cluster";
+
+        document.getElementById("entity-modal-title").textContent = isEdit
+          ? `Edit ${isJob ? "Job" : "Cluster"}`
+          : `New ${isJob ? "Job" : "Cluster"}`;
+
+        // Context line
+        const contextEl = document.getElementById("entity-context");
+        if (isEdit) {
+          contextEl.textContent = `ID: ${item.id}`;
+        } else if (parentName) {
+          contextEl.textContent = `In cluster: ${parentName} (ID: ${parentId})`;
+        } else {
+          contextEl.textContent = "In root";
+        }
+
+        // Show/hide fields
+        document.getElementById("entity-script-field").style.display = isJob
+          ? "block"
+          : "none";
+        document.getElementById("entity-server-field").style.display = isJob
+          ? "block"
+          : "none";
+        document.getElementById("entity-tz-field").style.display = isCluster
+          ? "block"
+          : "none";
+        document.getElementById("entity-retrys-field").style.display = isJob
+          ? "block"
+          : "none";
+        document.getElementById("entity-delay-field").style.display = isJob
+          ? "block"
+          : "none";
+
+        // Populate values
+        if (isEdit && item) {
+          document.getElementById("entity-name").value = item.name || "";
+          document.getElementById("entity-description").value =
+            item.description || "";
+          document.getElementById("entity-script").value = item.script || "";
+          document.getElementById("entity-server").value =
+            item.server_name || "";
+          document.getElementById("entity-calendar").value = item.cal_id || "";
+          document.getElementById("entity-tz").value = item.tz || "";
+          document.getElementById("entity-needs").value = Object.keys(
+            item.needs || {},
+          ).join(", ");
+          document.getElementById("entity-needs-any").value =
+            item.needs_any || "";
+          document.getElementById("entity-on-fail").value = item.on_fail || "";
+          document.getElementById("entity-loops").value = item.loops || 1;
+          document.getElementById("entity-retrys").value = item.retrys || 0;
+          document.getElementById("entity-delay").value = item.delay || 0;
+        } else {
+          document.getElementById("entity-name").value = isJob
+            ? "new-job"
+            : "new-cluster";
+          document.getElementById("entity-description").value = "";
+          document.getElementById("entity-script").value = "";
+          document.getElementById("entity-server").value =
+            serversData[0]?.name || "";
+          document.getElementById("entity-calendar").value = "";
+          document.getElementById("entity-tz").value = "UTC";
+          document.getElementById("entity-needs").value = "";
+          document.getElementById("entity-needs-any").value = "";
+          document.getElementById("entity-on-fail").value = "";
+          document.getElementById("entity-loops").value = "1";
+          document.getElementById("entity-retrys").value = "0";
+          document.getElementById("entity-delay").value = "0";
+        }
+
+        populateServerSelect();
+        populateCalendarSelect();
+
+        document.getElementById("entity-modal").classList.add("is-active");
+      }
+
+      // Close handlers
+      document
+        .querySelector("#entity-modal .delete")
+        .addEventListener("click", () => {
+          document.getElementById("entity-modal").classList.remove("is-active");
+        });
+      document.getElementById("cancel-entity").addEventListener("click", () => {
+        document.getElementById("entity-modal").classList.remove("is-active");
+      });
+      document
+        .querySelector("#entity-modal .modal-background")
+        .addEventListener("click", () => {
+          document.getElementById("entity-modal").classList.remove("is-active");
+        });
+
+      // Save
+      document.getElementById("save-entity").addEventListener("click", () => {
+        const name = document.getElementById("entity-name").value.trim();
+        if (!name) {
+          showToast("Name is required", "danger");
+          return;
+        }
+
+        const isEdit = currentEditItem !== null;
+        const isJob = !currentEditItem
+          ? document.getElementById("entity-script-field").style.display !==
+            "none"
+          : !currentEditItem.is_cluster;
+
+        const payload = {
+          command: isEdit
+            ? isJob
+              ? "update_job"
+              : "update_cluster"
+            : isJob
+              ? "create_job"
+              : "create_cluster",
+          name,
+        };
+
+        if (isEdit) {
+          payload.id = currentEditItem.id;
+        } else {
+          payload.parent_id = currentParentId;
+        }
+
+        if (isJob) {
+          const script = document.getElementById("entity-script").value.trim();
+          const server = document.getElementById("entity-server").value;
+          if (!script || !server) {
+            showToast("Script and Server are required for jobs", "danger");
+            return;
+          }
+          payload.script = script;
+          payload.server = server;
+          const retrys = document.getElementById("entity-retrys").value;
+          if (retrys) payload.retrys = Number(retrys);
+          const delay = document.getElementById("entity-delay").value;
+          if (delay) payload.delay = Number(delay);
+        } else {
+          const tz = document.getElementById("entity-tz").value.trim();
+          if (tz) payload.tz = tz;
+        }
+
+        const description = document
+          .getElementById("entity-description")
+          .value.trim();
+        if (description) payload.description = description;
+
+        const calId = document.getElementById("entity-calendar").value;
+        if (calId) payload.cal_id = Number(calId);
+
+        const needs = document.getElementById("entity-needs").value.trim();
+        if (needs) payload.needs = needs;
+
+        const needsAny = document
+          .getElementById("entity-needs-any")
+          .value.trim();
+        if (needsAny) payload.needs_any = needsAny;
+
+        const onFail = document.getElementById("entity-on-fail").value.trim();
+        if (onFail) payload.on_fail = onFail;
+
+        const loops = document.getElementById("entity-loops").value;
+        if (loops && loops !== "1") payload.loops = Number(loops);
+
+        ws.send(JSON.stringify(payload));
+        showToast(isEdit ? "Update sent" : "Creation requested", "info");
+        document.getElementById("entity-modal").classList.remove("is-active");
+      });
+
+      function openAttachCalendarModal(
+        clusterId,
+        clusterName,
+        currentCalName = "",
+        currentCalId = null,
+      ) {
+        currentAttachClusterId = clusterId;
+
+        document.getElementById("attach-target-name").textContent = clusterName;
+
+        const select = document.getElementById("attach-cal-select");
+        select.innerHTML = '<option value="">None (run manually only)</option>';
+
+        if (calendarsData.length === 0) {
+          select.innerHTML +=
+            "<option disabled>(No calendars defined)</option>";
+        } else {
+          calendarsData.forEach((cal) => {
+            const opt = document.createElement("option");
+            opt.value = cal.id;
+            opt.textContent = cal.name;
+            if (Number(cal.id) === Number(currentCalId)) {
+              opt.selected = true;
+            }
+            select.appendChild(opt);
+          });
+        }
+
+        document.getElementById("attach-current-cal").textContent =
+          currentCalName || "None";
+
+        document.getElementById("attach-cal-modal").classList.add("is-active");
       }
 
       // Shared utilities
@@ -747,39 +1878,47 @@ document.getElementById('tree-body').addEventListener('click', e => {
         toast.className = `notification is-${type}`;
         toast.innerHTML = `<button class="delete"></button><span>${message}</span>`;
         document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
+        setTimeout(() => toast.remove(), 5000);
       }
 
       function showLoading(containerId) {
         const loading = document.getElementById(containerId);
         if (loading) loading.style.display = "block";
       }
-
       function hideLoading(containerId) {
         const loading = document.getElementById(containerId);
         if (loading) loading.style.display = "none";
       }
-
       function formatDate(epoch) {
         if (!epoch) return "—";
         return new Date(epoch * 1000).toLocaleString();
       }
-
+      function formatTplus(epoch) {
+        if (!epoch || isNaN(epoch)) return "—";
+        const diff = Math.floor(Date.now() / 1000) - epoch;
+        if (diff <= 0) return "T+0";
+        const h = Math.floor(diff / 3600)
+          .toString()
+          .padStart(2, "0");
+        const m = Math.floor((diff % 3600) / 60)
+          .toString()
+          .padStart(2, "0");
+        const s = (diff % 60).toString().padStart(2, "0");
+        return `T+${h}:${m}:${s}`;
+      }
       function formatTminus(epoch) {
         if (!epoch || isNaN(epoch)) return "—";
         const diff = epoch - Math.floor(Date.now() / 1000);
-        const abs = Math.abs(diff);
-        const sign = diff >= 0 ? "+" : "-";
-        const h = Math.floor(abs / 3600)
+        if (diff <= 0) return "Overdue";
+        const h = Math.floor(diff / 3600)
           .toString()
           .padStart(2, "0");
-        const m = Math.floor((abs % 3600) / 60)
+        const m = Math.floor((diff % 3600) / 60)
           .toString()
           .padStart(2, "0");
-        const s = (abs % 60).toString().padStart(2, "0");
-        return `T${sign}${h}:${m}:${s}`;
+        const s = (diff % 60).toString().padStart(2, "0");
+        return `T-${h}:${m}:${s}`;
       }
-
       function formatDuration(start, end) {
         if (!start) return "—";
         const endTime = end || Math.floor(Date.now() / 1000);
@@ -795,39 +1934,19 @@ document.getElementById('tree-body').addEventListener('click', e => {
         return `${h}:${m}:${s}`;
       }
 
-function stateClass(state) {
-  if (!state) return 'ordo-default';
-
-  const lowerState = state.toLowerCase();
-
-  // Green family
-  if (['complete', 'pruned', 'ice'].includes(lowerState)) {
-    return 'ordo-complete';
-  }
-
-  // Cyan/Blue family
-  if (['immutable', 'ice'].includes(lowerState)) {
-    return 'ordo-immutable';
-  }
-
-  // Magenta/Purple family (running)
-  if (lowerState === 'running') {
-    return 'ordo-running';
-  }
-
-  // Red family
-  if (['failed', 'hold', 'zombie', 'killed'].includes(lowerState)) {
-    return 'ordo-failed';
-  }
-
-  // Yellow family
-  if (['ready', 'waiting', 'looping', 'retrying'].includes(lowerState)) {
-    return 'ordo-ready';
-  }
-
-  // Default
-  return 'ordo-default';
-}
+      function stateClass(state) {
+        if (!state) return "ordo-default";
+        const lowerState = state.toLowerCase();
+        if (["complete"].includes(lowerState)) return "ordo-complete";
+        if (["immutable", "ice", "pruned"].includes(lowerState))
+          return "ordo-immutable";
+        if (lowerState === "running") return "ordo-running";
+        if (["failed", "hold", "zombie", "killed"].includes(lowerState))
+          return "ordo-failed";
+        if (["ready", "waiting", "looping", "retrying"].includes(lowerState))
+          return "ordo-ready";
+        return "ordo-default";
+      }
 
       // Render user profile
       function renderUserProfile() {
@@ -873,17 +1992,63 @@ function stateClass(state) {
           orgData.members.forEach((member) => {
             const row = document.createElement("tr");
             row.innerHTML = `
-                      <td>${member.email || "—"}</td>
-                      <td>${member.id || "—"}</td>
-                      <td>${member.level || "—"}</td>
-                      <td>${formatDate(member.creation_time) || "—"}</td>
-                    `;
+              <td>${member.email || "—"}</td>
+              <td>${member.id || "—"}</td>
+              <td>${member.level || "—"}</td>
+              <td>${formatDate(member.creation_time) || "—"}</td>
+            `;
             teamBody.appendChild(row);
           });
           document.getElementById("no-team").style.display = "none";
         } else {
           document.getElementById("no-team").style.display = "block";
         }
+      }
+
+      function updateLog(data) {
+        document.getElementById("log-content").textContent = data.out;
+      }
+
+      function updateLogHistory(data) {
+        const tbody = document.getElementById("log-history-body");
+        const noHistory = document.getElementById("no-history");
+        tbody.innerHTML = "";
+
+        if (!data.logs || data.logs.length === 0) {
+          noHistory.style.display = "block";
+          return;
+        }
+
+        noHistory.style.display = "none";
+
+        data.logs.forEach((log) => {
+          const row = document.createElement("tr");
+          row.style.cursor = "pointer";
+          row.innerHTML = `
+      <td>${log.id}</td>
+      <td>${formatDate(log.started) || "—"}</td>
+      <td>${formatDuration(log.started, log.ended) || "—"}</td>
+      <td>${log.exit_code === 0 ? "Success" : (log.exit_code ?? "—")}</td>
+    `;
+
+          row.addEventListener("click", () => {
+            const jobId = document.getElementById("log-modal").dataset.jobId;
+            ws.send(
+              JSON.stringify({
+                command: "read_log",
+                id: jobId,
+                log_id: log.id,
+              }),
+            );
+            document
+              .getElementById("log-history-modal")
+              .classList.remove("is-active");
+            document.querySelector("#log-modal .modal-card-title").textContent =
+              `Job Log - Run #${log.id}`;
+          });
+
+          tbody.appendChild(row);
+        });
       }
 
       // Update org and team
@@ -931,7 +2096,6 @@ function stateClass(state) {
             removeClusterById(monitorData.tree, id),
           );
         }
-        applyFilter();
         renderJobsTable();
       }
 
@@ -968,7 +2132,6 @@ function stateClass(state) {
           ];
           uniqueDeletes.forEach((id) => removeJobById(monitorData.tree, id));
         }
-        applyFilter();
         renderJobsTable();
       }
 
@@ -1024,7 +2187,7 @@ function stateClass(state) {
         renderServersTable();
       }
 
-      // Find/Remove helpers
+      // Find helpers
       function findClusterById(items, id) {
         id = Number(id);
         for (let item of items) {
@@ -1079,62 +2242,35 @@ function stateClass(state) {
 
       // Jobs & Clusters
       function updateJobsClusters(data) {
-        console.log("updateJobsClusters called, success:", data.success);
         hideLoading("monitor-loading");
         document.getElementById("monitor-content").style.display = "block";
         if (data.success) {
-          console.log("Building tree...");
           monitorData.tree = buildTree(data);
-          //console.log(JSON.stringify(monitorData.tree));
-
-          console.log("Tree built, root children:", monitorData.tree.length);
-          applyFilter();
-          console.log(
-            "Filter applied, visibleItems:",
-            monitorData.visibleItems.length,
-          );
           renderJobsTable();
-          console.log("renderJobsTable called");
-        } else {
-          console.log("Data not success:", data);
         }
       }
 
       function buildTree(data) {
-        console.log("buildTree called, clusters:", data.clusters?.length);
         const nodes = new Map();
         const root = { id: "root", children: [], depth: 0 };
-
         data.clusters.forEach((c) => {
-          console.log(
-            "Processing cluster:",
-            c.id,
-            c.name,
-            "has jobs:",
-            c.jobs?.length || 0,
-          );
           const node = {
             ...c,
             id: Number(c.id),
             type: "cluster",
             is_cluster: true,
             children:
-              c.jobs?.map((j) => {
-                const job = {
-                  ...j,
-                  id: Number(j.id),
-                  type: "job",
-                  is_cluster: false,
-                  depth: 0,
-                };
-                console.log("Added job:", job.id, job.name, "to cluster", c.id);
-                return job;
-              }) || [],
+              c.jobs?.map((j) => ({
+                ...j,
+                id: Number(j.id),
+                type: "job",
+                is_cluster: false,
+                depth: 0,
+              })) || [],
             depth: 0,
           };
           nodes.set(node.id, node);
         });
-
         data.clusters.forEach((c) => {
           const node = nodes.get(Number(c.id));
           if (c.parent_id == null) {
@@ -1146,169 +2282,14 @@ function stateClass(state) {
               parent.children.push(node);
               node.depth = parent.depth + 1;
             } else {
-              console.warn(
-                "Orphan cluster:",
-                node.id,
-                "parent_id:",
-                c.parent_id,
-              );
               root.children.push(node);
               node.depth = 0;
             }
           }
-
-          // Set depth for jobs
-          node.children.forEach((job) => {
-            job.depth = node.depth + 1;
-          });
+          node.children.forEach((job) => (job.depth = node.depth + 1));
         });
-
-        console.log("buildTree complete, root children:", root.children.length);
-        console.log("Full tree:", JSON.stringify(root.children, null, 2));
         return root.children;
       }
-
-      function applyFilter() {
-        const filterLower = monitorData.filter.toLowerCase();
-        const visible = [];
-        //console.log("applyFilter started, Items:", monitorData.tree.length);
-        //console.log("stringify:", JSON.stringify(monitorData.tree));
-
-        const walk = (items, depth = 0) => {
-          items.forEach((item) => {
-            //console.log("Item:", item);
-            const matches =
-              !monitorData.filter ||
-              item.name.toLowerCase().includes(filterLower) ||
-              (item.server_name &&
-                item.server_name.toLowerCase().includes(filterLower)) ||
-              (item.jobstate &&
-                item.jobstate.toLowerCase().includes(filterLower));
-
-            // Always add the item if it's a cluster or a job
-            visible.push({
-              ...item,
-              depth,
-              last_start: formatTminus(item.started),
-              duration: formatDuration(item.started, item.ended),
-              next_start: formatTminus(item.next_start),
-              needs: Object.keys(item.needs || {}),
-            });
-
-            if (item.is_cluster && item.children.length) {
-              walk(item.children, depth + 1);
-            }
-          });
-        };
-        walk(monitorData.tree);
-        monitorData.visibleItems = visible;
-        console.log("applyFilter complete, visibleItems:", visible.length);
-      }
-
-function renderJobsTable() {
-  const tbody = document.getElementById('tree-body');
-  tbody.innerHTML = ''; // Clear previous rows
-
-  function buildRows(items, depth = 0, parentId = null) {
-    items.forEach(item => {
-      const isCluster = item.is_cluster;
-      const hasChildren = isCluster && item.children?.length > 0;
-
-      const row = document.createElement('tr');
-      row.className = isCluster ? 'ordo-cluster-row' : 'ordo-job-row';
-      row.dataset.id = item.id;
-      row.dataset.depth = depth;
-      row.dataset.parent = parentId || '';
-      row.dataset.hidden = 'false';
-      row.style.setProperty('--depth', depth);
-
-      // No pre-collapsed class — always fully expanded on render
-      // (User can still collapse manually during the session)
-
-      const toggleHtml = hasChildren
-        ? `<span class="ordo-toggle"></span>`
-        : '';
-
-      const nameHtml = isCluster ? `${item.name}/` : item.name;
-
-      row.innerHTML = `
-        <td>
-          ${toggleHtml}
-          ${nameHtml}
-        </td>
-        <td>${item.id || '—'}</td>
-        <td><span class="ordo-state ${stateClass(item.jobstate)}">${item.jobstate || '—'}</span></td>
-        <td>${item.server_name || '—'}</td>
-        <td>${item.pid || '—'}</td>
-        <td>${formatTminus(item.started) || '—'}</td>
-        <td>${formatDuration(item.started, item.ended) || '—'}</td>
-        <td>${formatTminus(item.next_start) || '—'}</td>
-        <td>${item.cal_name || '—'}</td>
-        <td>${Object.keys(item.needs || {}).join(', ') || '—'}</td>
-        <td>
-          <div class="dropdown is-right is-up">
-            <div class="dropdown-trigger">
-              <button class="button is-small is-light" aria-haspopup="true" aria-controls="dropdown-menu">
-                <i class="fas fa-ellipsis-v"></i>
-              </button>
-            </div>
-            <div class="dropdown-menu" role="menu">
-              <div class="dropdown-content">
-                <a href="#" class="dropdown-item">Run</a>
-                <a href="#" class="dropdown-item">Kill</a>
-                <a href="#" class="dropdown-item">Hold</a>
-                <hr class="dropdown-divider">
-                <a href="#" class="dropdown-item is-danger">Delete</a>
-              </div>
-            </div>
-          </div>
-        </td>
-      `;
-
-      tbody.appendChild(row);
-
-      if (hasChildren) {
-        buildRows(item.children, depth + 1, item.id);
-      }
-    });
-  }
-
-  buildRows(monitorData.tree);
-}
-
-function toggleSubtree(parentId, hide) {
-  const directChildren = document.querySelectorAll(`tr[data-parent="${parentId}"]`);
-  directChildren.forEach(childRow => {
-    childRow.dataset.hidden = hide ? 'true' : 'false';
-    if (childRow.classList.contains('ordo-cluster-row')) {
-      toggleSubtree(childRow.dataset.id, hide);
-    }
-  });
-}
-      /*
-
-            // In-place time updates
-            setInterval(() => {
-              monitorData.visibleItems.forEach((item) => {
-                const rows = document.querySelectorAll(`tr[data-id="${item.id}"]`);
-                if (rows.length === 0) return;
-                const row = rows[0];
-
-                const lastStart = row.querySelector("td:nth-child(6)");
-                if (lastStart)
-                  lastStart.textContent = formatTminus(item.started) || "—";
-
-                const duration = row.querySelector("td:nth-child(7)");
-                if (duration)
-                  duration.textContent =
-                    formatDuration(item.started, item.ended) || "—";
-
-                const nextStart = row.querySelector("td:nth-child(8)");
-                if (nextStart)
-                  nextStart.textContent = formatTminus(item.next_start) || "—";
-              });
-            }, 1000);
-      */
 
       // Calendars
       function updateCalendars(data) {
@@ -1331,7 +2312,7 @@ function toggleSubtree(parentId, hide) {
                     <td>${cal.cron || "—"}</td>
                     <td><span class="tag is-light">${cal.state || "—"}</span></td>
                     <td>
-                      <div class="dropdown is-right is-up">
+                      <div class="dropdown">
                         <div class="dropdown-trigger">
                           <button class="button is-small is-light" aria-haspopup="true" aria-controls="dropdown-menu">
                             <i class="fas fa-ellipsis-v"></i>
@@ -1371,7 +2352,7 @@ function toggleSubtree(parentId, hide) {
                     <td><span class="tag ${server.status === "online" ? "is-success" : "is-danger"}">${server.status || "—"}</span></td>
                     <td>${server.load || "—"}</td>
                     <td>
-                      <div class="dropdown is-right is-up">
+                      <div class="dropdown">
                         <div class="dropdown-trigger">
                           <button class="button is-small is-light" aria-haspopup="true" aria-controls="dropdown-menu">
                             <i class="fas fa-ellipsis-v"></i>
@@ -1391,6 +2372,309 @@ function toggleSubtree(parentId, hide) {
         });
       }
 
+      function renderJobsTable() {
+        const tbody = document.getElementById("tree-body");
+        tbody.innerHTML = "";
+        buildRows(monitorData.tree);
+
+        // Hide subtrees for collapsed clusters
+        document
+          .querySelectorAll(".ordo-cluster-row.collapsed")
+          .forEach((row) => {
+            toggleSubtree(row.dataset.id, true);
+          });
+      }
+
+      function buildRows(items, depth = 0, parentId = null) {
+        const collapsedSet = getCollapsedIds(); // fresh read from localStorage
+
+        items.forEach((item) => {
+          const isCluster = item.is_cluster;
+          const hasChildren = isCluster && item.children?.length > 0;
+          const state = item.jobstate?.toLowerCase() || "";
+
+          // Context-sensitive enabling (more permissive)
+
+          // Context-sensitive enabling (allow hold/ice on complete/ready/waiting/etc.)
+          const runDisabled =
+            state === "running" ||
+            state === "immutable" ||
+            state === "ice" ||
+            state === "hold"
+              ? "disabled"
+              : "";
+          const killDisabled = state === "running" ? "" : "disabled";
+          const holdDisabled =
+            state === "hold" || state === "immutable" || state === "ice"
+              ? "disabled"
+              : ""; // allow on complete/ready/waiting
+          const releaseDisabled = state === "hold" ? "" : "disabled";
+          const iceDisabled =
+            state === "ice" || state === "immutable" ? "disabled" : ""; // allow on complete/ready/waiting
+          const meltDisabled = state === "ice" ? "" : "disabled";
+          const completeDisabled = ""; // always enabled
+          const resetDisabled = isCluster ? "" : "disabled";
+          const viewLogDisabled = isCluster ? "disabled" : "";
+          const isRoot = item.name === "root" && item.parent_id == null;
+          const newJobDisabled = isCluster && !isRoot ? "" : "disabled";
+          const newClusterDisabled = isCluster ? "" : "disabled";
+
+          const row = document.createElement("tr");
+          row.className = isCluster ? "ordo-cluster-row" : "ordo-job-row";
+          row.dataset.id = item.id;
+          row.dataset.depth = depth;
+          row.dataset.parent = parentId || "";
+          row.dataset.hidden = "false";
+          row.style.setProperty("--depth", depth);
+
+          // ARIA attributes
+          row.setAttribute("role", "row");
+          row.setAttribute("aria-level", (depth + 1).toString());
+          if (isCluster) {
+            const isCollapsed = collapsedSet.has(String(item.id));
+            if (isCollapsed) row.classList.add("collapsed");
+            row.setAttribute("aria-expanded", (!isCollapsed).toString());
+          }
+
+          // Toggle arrow (chevron icons)
+          const toggleHtml = hasChildren
+            ? `<span class="ordo-toggle"></span>`
+            : "";
+
+          // Icon + name
+          const icon = isCluster
+            ? '<i class="fas fa-folder mr-2 has-text-info"></i>'
+            : '<i class="fas fa-cog mr-2 has-text-grey"></i>';
+          const nameHtml = `${icon}${isCluster ? item.name + "/" : item.name}`;
+
+          row.innerHTML = `
+  <td>
+    ${toggleHtml}
+    ${nameHtml}
+  </td>
+  <td>${item.id || "—"}</td>
+  <td><span class="ordo-state ${stateClass(item.jobstate)}">${item.jobstate || "—"}</span></td>
+  <td>${item.server_name || "—"}</td>
+  <td>${item.pid || "—"}</td>
+  <td>${formatTplus(item.started) || "—"}</td>
+  <td>${formatDuration(item.started, item.ended) || "—"}</td>
+  <td>${formatTminus(item.next_start) || "—"}</td>
+  <td>${item.cal_name || "—"}</td>
+  <td>${Object.keys(item.needs || {}).join(", ") || "—"}</td>
+  <td>
+    <div class="dropdown">
+      <div class="dropdown-trigger">
+        <button class="button is-small is-light" aria-haspopup="true" aria-controls="dropdown-menu">
+          <i class="fas fa-ellipsis-v"></i>
+        </button>
+      </div>
+      <div class="dropdown-menu" role="menu">
+        <div class="dropdown-content">
+          <a href="#" class="dropdown-item">Edit</a>
+          <hr class="dropdown-divider">
+          ${
+            isCluster
+              ? `
+            <a href="#" class="dropdown-item ${newClusterDisabled}">New Cluster</a>
+            <a href="#" class="dropdown-item ${newJobDisabled}">New Job</a>
+            <a href="#" class="dropdown-item">Attach Calendar</a>
+            <hr class="dropdown-divider">
+          `
+              : ""
+          }
+          <a href="#" class="dropdown-item ${runDisabled}">Run</a>
+          <a href="#" class="dropdown-item ${killDisabled}">Kill</a>
+          <a href="#" class="dropdown-item ${holdDisabled}">Hold</a>
+          <a href="#" class="dropdown-item ${releaseDisabled}">Release</a>
+          <a href="#" class="dropdown-item ${iceDisabled}">Ice</a>
+          <a href="#" class="dropdown-item ${meltDisabled}">Melt</a>
+          <a href="#" class="dropdown-item ${completeDisabled}">Complete</a>
+          ${
+            isCluster
+              ? `<hr class="dropdown-divider">
+          <a href="#" class="dropdown-item ${resetDisabled}">Reset</a>`
+              : ""
+          }
+          <hr class="dropdown-divider">
+          <a href="#" class="dropdown-item is-danger">Delete</a>
+          <hr class="dropdown-divider">
+          <a href="#" class="dropdown-item ${viewLogDisabled}">View Log</a>
+        </div>
+      </div>
+    </div>
+  </td>
+`;
+
+          document.getElementById("tree-body").appendChild(row);
+
+          if (hasChildren) {
+            buildRows(item.children, depth + 1, item.id);
+          }
+        });
+      }
+
+      function toggleSubtree(parentId, hide) {
+        const directChildren = document.querySelectorAll(
+          `tr[data-parent="${parentId}"]`,
+        );
+        directChildren.forEach((childRow) => {
+          childRow.dataset.hidden = hide ? "true" : "false";
+          if (childRow.classList.contains("ordo-cluster-row")) {
+            toggleSubtree(childRow.dataset.id, hide);
+          }
+        });
+      }
+
+      function forceExpandDescendants(startId) {
+        const children = document.querySelectorAll(
+          `tr[data-parent="${startId}"]`,
+        );
+        children.forEach((childRow) => {
+          if (childRow.classList.contains("ordo-cluster-row")) {
+            childRow.classList.remove("collapsed");
+            forceExpandDescendants(childRow.dataset.id);
+          }
+        });
+      }
+
+      // Docs loading
+      function loadDoc(file) {
+        fetch(`/docs/${file}`)
+          .then((response) => {
+            if (!response.ok) throw new Error(`Failed to load ${file}`);
+            return response.text();
+          })
+          .then((md) => {
+            const html = marked.parse(md);
+            document.getElementById("docs-content").innerHTML = html;
+
+            // Highlight code blocks — safe even if hljs not loaded yet
+            if (typeof hljs !== "undefined") {
+              hljs.highlightAll();
+            } else {
+              // Wait for hljs to load
+              const checkHljs = setInterval(() => {
+                if (typeof hljs !== "undefined") {
+                  clearInterval(checkHljs);
+                  hljs.highlightAll();
+                }
+              }, 100);
+            }
+
+            // Update active TOC link
+            document
+              .querySelectorAll("#docs-toc a")
+              .forEach((a) => a.classList.remove("is-active"));
+            const activeLink = document.querySelector(
+              `#docs-toc a[data-file="${file}"]`,
+            );
+            if (activeLink) activeLink.classList.add("is-active");
+          })
+          .catch((err) => {
+            document.getElementById("docs-content").innerHTML =
+              `<p class="has-text-danger has-text-centered">Error loading documentation: ${err.message}</p>`;
+          });
+      }
+
+      // listeners
+      document
+        .querySelector("#attach-cal-modal .delete")
+        .addEventListener("click", () => {
+          document
+            .getElementById("attach-cal-modal")
+            .classList.remove("is-active");
+        });
+      document
+        .getElementById("cancel-attach-cal")
+        .addEventListener("click", () => {
+          document
+            .getElementById("attach-cal-modal")
+            .classList.remove("is-active");
+        });
+      document
+        .querySelector("#attach-cal-modal .modal-background")
+        .addEventListener("click", () => {
+          document
+            .getElementById("attach-cal-modal")
+            .classList.remove("is-active");
+        });
+
+      document
+        .getElementById("save-attach-cal")
+        .addEventListener("click", () => {
+          const calId = document.getElementById("attach-cal-select").value;
+
+          const payload = {
+            command: "update_cluster",
+            id: currentAttachClusterId,
+          };
+
+          if (calId) {
+            payload.cal_id = Number(calId);
+          } // else: omit → detaches
+
+          console.log("attachcal:", payload);
+
+           
+
+          ws.send(JSON.stringify(payload));
+          showToast("Calendar updated", "info");
+
+          document
+            .getElementById("attach-cal-modal")
+            .classList.remove("is-active");
+        });
+
+// Mobile TOC toggle
+document.getElementById('docs-toc-toggle')?.addEventListener('click', () => {
+  document.getElementById('docs-toc').classList.toggle('is-open');
+});
+
+      // TOC click handler
+      document.getElementById("docs-toc")?.addEventListener("click", (e) => {
+        const link = e.target.closest("a");
+        if (link && link.dataset.file) {
+          e.preventDefault();
+          loadDoc(link.dataset.file);
+        }
+      });
+
+      // Load Quickstart by default when Docs tab is opened
+      document
+        .querySelector('[data-target="docs"]')
+        ?.addEventListener("click", () => {
+          if (document.getElementById("docs-content").innerHTML === "") {
+            loadDoc("quickstart.md");
+          }
+        });
+
+      // Live updater (simple selectors)
+      setInterval(() => {
+        document.getElementById("current-time").textContent =
+          new Date().toLocaleString();
+
+        document.querySelectorAll("tr[data-id]").forEach((row) => {
+          const id = row.dataset.id;
+          let item = null;
+
+          if (row.classList.contains("ordo-cluster-row")) {
+            item = findClusterById(monitorData.tree, id);
+          } else {
+            item = findJobById(monitorData.tree, id);
+          }
+
+          if (!item) return;
+
+          // Update cells
+          row.querySelector("td:nth-child(6)").textContent =
+            formatTplus(item.started) || "—";
+          row.querySelector("td:nth-child(7)").textContent =
+            formatDuration(item.started, item.ended) || "—";
+          row.querySelector("td:nth-child(8)").textContent =
+            formatTminus(item.next_start) || "—";
+        });
+      }, 1000);
+
       // Refresh buttons
       document
         .getElementById("account-refresh")
@@ -1400,13 +2684,12 @@ function toggleSubtree(parentId, hide) {
             ws.send(JSON.stringify({ command: "read_org" }));
           }
         });
-
       document.getElementById("refresh-tree").addEventListener("click", () => {
         if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ command: "find_cluster" }));
+          document.getElementById("monitor-loading").style.display = "block";
+          ws.send(JSON.stringify({ command: "find_cluster", name: "/root" }));
         }
       });
-
       document
         .getElementById("calendars-refresh")
         .addEventListener("click", () => {
@@ -1414,7 +2697,6 @@ function toggleSubtree(parentId, hide) {
             ws.send(JSON.stringify({ command: "find_cal" }));
           }
         });
-
       document
         .getElementById("servers-refresh")
         .addEventListener("click", () => {
@@ -1486,15 +2768,12 @@ function toggleSubtree(parentId, hide) {
         document.getElementById("invite-modal").classList.add("is-active");
         document.getElementById("invite-email").value = "";
       });
-
       document.getElementById("cancel-invite").addEventListener("click", () => {
         document.getElementById("invite-modal").classList.remove("is-active");
       });
-
       document.getElementById("close-invite").addEventListener("click", () => {
         document.getElementById("invite-modal").classList.remove("is-active");
       });
-
       document.getElementById("send-invite").addEventListener("click", () => {
         const email = document.getElementById("invite-email").value.trim();
         if (!email) {
