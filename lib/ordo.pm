@@ -761,10 +761,9 @@ sub _start_cluster {
       }
 
       # prevent cluster from running if needs not met
-      if ( !$self->_cluster_needs_met( $user, { id => $cluster->{id} } ) ) {
-         return { success => 0, waiting => 1, message => "dependency not met. use --force to start anyway" };
-
-      }
+      #if ( !$self->_cluster_needs_met( $user, { id => $cluster->{id} } ) ) {
+         #return { success => 0, waiting => 1, message => "dependency not met. use --force to start anyway" };
+      #}
    }
 
    unless ( $d->{origin} && $d->{origin} eq 'loop' ) {
@@ -1009,7 +1008,7 @@ sub update_cluster {
 
    my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(mode description loops clonable)) };
    $update_hash->{name} = $d->{newname} if $d->{newname};
-   $update_hash->{on_fail} = $on_fail_id if $on_fail_id;
+   $update_hash->{on_fail} = $on_fail_id if $on_fail_id && $on_fail_id != $cluster_id;
 
    if ( $d->{json} ) {
       eval { my $data = decode_json( $d->{json} ); };
@@ -1023,35 +1022,24 @@ sub update_cluster {
 
    # add cal_id
    my $cal;
-   my $success = 0;
 
    eval {
       #my $tx = $self->sqlite->db->begin;
       if ( scalar keys %{$update_hash} ) {
          $self->sqlite->db->update( 'cluster', $update_hash, { id => $cluster_id } );
-         $success++;
       }
       if ( $needs_ids || $needs_any_ids ) {
          $self->_write_cluster_needs( $user, { needs_all => $needs_ids, needs_any => $needs_any_ids, id => $cluster_id, } );
-         $success++;
       }
-
-      #$self->_write_cluster_needs( $user, { id => $cluster_id, needs => $d->{needs} } ) if $d->{needs};
-      #if ( $d->{needs} ) {
-      #   $self->_write_cluster_needs( $user, { id => $cluster_id, needs => $d->{needs} } );
-      #   $success++;
-      #}
 
       if ( $d->{remove_needs} ) {
          $self->sqlite->db->delete( 'cluster_needs', { cluster_id => $cluster_id } ) if $d->{remove_needs};
-         $success++;
       }
 
       if ( exists $d->{cal_id} || exists $d->{cal} ) {
          my $new_cal    = $self->_cal_info( $user, { id => $d->{cal_id}, name => $d->{cal} } );
          my $new_cal_id = $new_cal->{id} if $new_cal;
          die unless $self->_set_cluster_cal_id( $user, { cluster_id => $cluster_id, cal_id => $new_cal_id } );
-         $success++;
       }
       elsif ( exists $d->{cron} || exists $d->{at} ) {
          if ( $d->{cron} ) {
@@ -1063,14 +1051,18 @@ sub update_cluster {
          else {
             $self->_set_cluster_cal_id( $user, { cluster_id => $cluster_id, cal_id => undef } ) or die;
          }
-
-         $success++;
       }
 
       #$tx->commit;
    };
-   return { success => 0, message => $@ } if $@;
-   return { success => $success };
+
+   if($@) {
+      return { success => 0, message => $@ } if $@;
+   }
+   else {
+      $self->_broadcast_cluster($user, [ $cluster_id ]);
+      return { success => 1 };
+   }
 }
 
 sub delete_cluster {
@@ -1660,8 +1652,12 @@ sub _job_info {
 
    return unless $job->{id};
 
+   my $needs_ids = $self->sqlite->db->query( "SELECT needs_job_id FROM job_needs WHERE job_id = ? AND needs_any_mode = 0", $d->{id} )->hashes->to_array;
+   my $needs_any_ids = $self->sqlite->db->query( "SELECT needs_job_id FROM job_needs WHERE job_id = ? AND needs_any_mode = 1", $d->{id} )->hashes->to_array;
+   $job->{needs_ids} = map { $_->{id} } @$needs_ids;
+   $job->{needs_any_ids} = map { $_->{id} } @$needs_any_ids;
    $job->{needs}  = $self->_read_job_needs( $user, { id => $job_id } );
-   $job->{needed} = $self->sqlite->db->query("select job_id as id from job_needs where needs_job_id = $job->{id}")->hashes->to_array;
+   #$job->{needed} = $self->sqlite->db->query("select job_id as id from job_needs where needs_job_id = $job->{id}")->hashes->to_array;
 
    return $job;
 }
@@ -2058,10 +2054,6 @@ sub _create_job {
       return { success => 0, message => $@ };
    }
    $self->_write_job_needs( $user, { needs_all => $needs_ids, needs_any => $needs_any_ids, id => $id, cluster_id => $parent_id } );
-
-   #elsif ( $d->{needs} ) {
-   #   $self->_write_job_needs( $user, { needs => $d->{needs}, id => $id, cluster_id => $j->{cluster_id} } );
-   #}
 
    $self->_broadcast_job($user, [ $id ]);
    return { success => 1, id => $id, cluster_id => $parent_id };
@@ -2476,6 +2468,8 @@ sub _update_job {
    $self->sqlite->db->update( 'job', $update_hash, { id => $job->{id} } );
    $self->sqlite->db->delete( 'job_needs', { job_id => $job->{id} } ) if $d->{remove_needs};
 
+   $self->_broadcast_job($user, [ $job->{id} ]);
+
    return { success => 1 };
 }
 
@@ -2809,21 +2803,11 @@ sub _start_job {
    # don't start if dependencies not satisfied
 
    unless ( $d->{force} ) {
-      if ( $job->{state_id} == $self->job_states->{waiting} && !$self->_job_needs_met( $user, { id => $job->{id} } ) ) {
-         return { success => 0, waiting => 1, message => 'dependency not met. use --force to start anyway' };
-      }
-
-      #   while ( my ( $id, $state_id ) = each %{ $job->{needs} } ) {
-      #      unless ( ($job->{needs_any} && grep { $state_id == $self->job_states->{$_} } (qw(complete ice)))  ) {
-
-      #      if ( !grep { $state_id == $self->job_states->{$_} } (qw(complete ice)) ) {
-
-      # dependency not met
-      #         return { success => 0, waiting => 1, message => 'dependency not met. use --force to start anyway' };
-      #      }
-      #   }
+      #if ( $job->{state_id} == $self->job_states->{waiting} && !$self->_job_needs_met( $user, { id => $job->{id} } ) ) {
+      #   return { success => 0, waiting => 1, message => 'dependency not met. use --force to start anyway' };
       #}
-      elsif ( !scalar( grep { $job->{state_id} == $self->job_states->{$_} } (qw(ready looping retrying)) ) ) {
+
+      if ( !scalar( grep { $job->{state_id} == $self->job_states->{$_} } (qw(ready looping retrying)) ) ) {
          unless ( $d->{origin} eq 'user' ) {
             return { success => 0, message => 'job not ready. use --force to start anyway' };
          }
@@ -3984,7 +3968,7 @@ sub routing {
    state $w    = qr/^\w{1,50}$/;                                                 # word
    state $d    = qr/^[A-Za-z\-\s\d].*?$/;                                        # description
    state $f    = qr/^[\d\.]{1,20}$/;                                             # float
-   state $p    = qr/^[\w\/\@\:\.]{1,50}$/;                                       # path
+   state $p    = qr/^[\w\/\@\:\.\-]{1,50}$/;                                   # path
    state $e    = qr/^[\w\.\@]{1,50}$/;                                           # email
                                                                                  # state $c  = qr/^[\w\/\@\:\.\s\-\(\)\"\']{1,50}$/;    # shell command
    state $c    = qr/.{1,60}/;                                                    # shell command
