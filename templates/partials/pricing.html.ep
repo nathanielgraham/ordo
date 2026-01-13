@@ -1,0 +1,28 @@
+<!-- partials/pricing.html.ep -->
+<section id="pricing" class="tab-content" data-public="true">
+  <div class="container has-text-centered py-6">
+    <h1 class="title is-2">Pricing</h1>
+    <p class="subtitle is-4 mt-4">
+      Pricing details coming soon. Free tier available!
+    </p>
+    <!-- Optional: Add placeholder cards or table later -->
+    <div class="columns is-centered mt-6">
+      <div class="column is-4">
+        <div class="card">
+          <div class="card-content has-text-centered">
+            <h3 class="title is-4">Free Tier</h3>
+            <p class="subtitle">Self-hosted forever</p>
+          </div>
+        </div>
+      </div>
+      <div class="column is-4">
+        <div class="card">
+          <div class="card-content has-text-centered">
+            <h3 class="title is-4">Pro Tier</h3>
+            <p class="subtitle">$39/month</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

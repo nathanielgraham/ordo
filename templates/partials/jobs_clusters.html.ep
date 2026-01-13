@@ -1,0 +1,29 @@
+<section id="monitor" class="tab-content" data-private="true">
+  <div class="container">
+    <div id="monitor-loading" class="has-text-centered py-6">
+      <span class="icon is-large"><i class="fas fa-spinner fa-spin fa-3x"></i></span>
+      <p class="mt-2">Loading jobs & clusters...</p>
+    </div>
+    <div id="monitor-content" style="display: none">
+      <div class="table-container">
+        <table class="table is-fullwidth is-hoverable is-striped ordo-tree-table" id="tree-table" role="treegrid" aria-label="Jobs and Clusters Hierarchy">
+          <thead>
+            <tr>
+              <th>Path</th>
+              <th>State</th>
+              <th>Server</th>
+              <th>Deps</th>
+              <th>Stats</th>
+              <th>Last Run</th>
+              <th>Duration</th>
+              <th>Next Run</th>
+              <th>Calendar</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tree-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>

@@ -8,6 +8,6 @@ CREATE TABLE job_needs (
         needs_any_mode INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX job_needs_idx1 ON job_needs (job_id, needs_job_id);
+CREATE UNIQUE INDEX job_needs_idx1 ON job_needs (job_id, needs_job_id, needs_any_mode);
 
 COMMIT;

@@ -1,0 +1,24 @@
+<!-- partials/calendars.html.ep -->
+<section id="calendars" class="tab-content" data-private="true">
+  <div class="container">
+    <div id="calendars-loading" class="has-text-centered">
+      <i class="fas fa-spinner fa-spin"></i> Loading...
+    </div>
+    <div id="calendars-content" style="display: none">
+      <div class="table-container">
+        <table class="table is-fullwidth is-hoverable is-striped" id="calendars-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Cron</th>
+              <th>State</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="calendars-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>

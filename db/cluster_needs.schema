@@ -8,6 +8,6 @@ CREATE TABLE cluster_needs (
         needs_any_mode INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX cluster_needs_idx1 ON cluster_needs (cluster_id, needs_cluster_id);
+CREATE UNIQUE INDEX cluster_needs_idx1 ON cluster_needs (cluster_id, needs_cluster_id, needs_any_mode);
 
 COMMIT;

@@ -1,0 +1,345 @@
+/* === Root & Global === */
+:root {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #1a1a1a;
+  --metal-dark: #1e293b;
+  --chrome-light: #e0e0e0;
+  --chrome-mid: #a0a0a0;
+  --glow-blue: #00ffff;
+  --rocket-orange: #ff6b35;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  background: var(--bg-primary);
+  color: var(--chrome-light);
+  font-family: 'Montserrat', sans-serif;
+  min-height: 100vh;
+}
+
+/* === Layout === */
+.container {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.columns {
+  display: flex;
+  flex-wrap: wrap;
+  margin-left: -0.75rem;
+  margin-right: -0.75rem;
+}
+
+.column {
+  flex: 1;
+  padding: 0 0.75rem;
+  min-width: 0;
+}
+
+.is-fullwidth {
+  width: 100%;
+}
+
+
+/* === Tabs === */
+.tabs {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.tabs ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.tabs a {
+  display: block;
+  padding: 0.5rem 1.25rem;
+  border: 1px solid #444;
+  border-radius: 6px 6px 0 0;
+  background: #1a1a1a;
+  color: #e0e0e0;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.tabs li.is-active a {
+  background: var(--glow-blue);
+  color: #000;
+  border-color: var(--glow-blue);
+}
+
+/* === Restore horizontal tabs + basic look === */
+.tabs {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.tabs ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tabs a {
+  padding: 0.6rem 1.2rem;
+  background: #1e1e1e;
+  color: #d0d0d0;
+  border: 1px solid #444;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.tabs li.is-active a {
+  background: #00d1b2;
+  color: #000;
+  box-shadow: 0 0 10px rgba(0, 209, 178, 0.4);
+}
+
+.tabs a:hover {
+  background: rgba(0, 209, 178, 0.15);
+  color: white;
+}
+
+/* === Buttons === */
+.button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--glow-blue);
+  background: transparent;
+  color: var(--glow-blue);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.button.is-primary {
+  background: var(--glow-blue);
+  color: #000;
+}
+
+.button:hover {
+  box-shadow: 0 0 15px rgba(0, 255, 255, 0.4);
+}
+
+.button.is-small {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+/* === Cards === */
+.card {
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 255, 255, 0.1);
+}
+
+.card-header {
+  background: #222;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #444;
+}
+
+.card-content {
+  padding: 1rem;
+}
+
+/* === Tables === */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #e0e0e0;
+}
+
+.table th,
+.table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #333;
+}
+
+.table.is-striped tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.table.is-hoverable tbody tr:hover {
+  background: rgba(0, 255, 255, 0.1);
+}
+
+/* === Modals === */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal.is-active {
+  display: flex;
+}
+
+.modal-card {
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 12px;
+  max-width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* === Hero & Sections === */
+.hero {
+  background: linear-gradient(135deg, #00c9b1, #007a87);
+  color: white;
+  padding: 3rem 1.5rem;
+}
+
+.section {
+  padding: 3rem 1.5rem;
+}
+
+/* === Typography & Utilities === */
+.title {
+  color: white;
+  font-weight: 600;
+}
+
+.subtitle {
+  color: #e0e0e0;
+}
+
+.has-text-centered { text-align: center; }
+.has-text-grey-light { color: #b0b0b0; }
+.mt-6 { margin-top: 3rem; }
+.mt-4 { margin-top: 1.5rem; }
+.py-6 { padding-top: 3rem; padding-bottom: 3rem; }
+
+.topnav {
+  background: linear-gradient(to bottom, #1e293b, #0a0a0a);
+  border-bottom: 1px solid #00ffff22;
+  padding: 0.8rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+}
+
+.nav-brand {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #00ffff;
+}
+
+.nav-links {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.nav-link {
+  color: #d0d0d0;
+  text-decoration: none;
+  padding: 0.5rem 0.9rem;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.nav-link:hover {
+  color: #00ffff;
+  background: #00ffff11;
+}
+
+.nav-link.is-active {
+  background: #00ffff44;
+  color: #ffffff;
+  font-weight: 500;
+}
+
+/* Right side */
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.time-display {
+  color: #888;
+  font-size: 0.9rem;
+}
+
+/* Login state visibility */
+.public-tabs,
+.login-link {
+  display: none;
+}
+
+.private-tabs,
+.logout-link {
+  display: none;
+}
+
+body:not(.is-logged-in) .public-tabs,
+body:not(.is-logged-in) .login-link {
+  display: flex;
+}
+
+body.is-logged-in .private-tabs,
+body.is-logged-in .logout-link {
+  display: flex;
+}
+
+
+/* In app.css - replace any existing .tab-content rules */
+
+.tab-content {
+  display: none;
+  padding-top: 5rem;           /* give space below fixed navbar */
+  min-height: 100vh;
+  background: #0a0a0a;
+}
+
+.tab-content.active {
+  display: block !important;   /* !important is ok here to override anything else */
+}
+.nav-link {
+  color: #d0d0d0;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  transition: all 0.25s ease;
+  background: transparent;          /* make sure default is no bg */
+}
+
+.nav-link:hover {
+  color: #00ffff;
+  background: rgba(0, 255, 255, 0.08);
+}
+
+.nav-link.is-active {
+  color: #ffffff !important;
+  background: rgba(0, 209, 178, 0.35) !important;   /* teal-ish active bg */
+  font-weight: 600;
+  box-shadow: 0 0 12px rgba(0, 209, 178, 0.25);
+}
+

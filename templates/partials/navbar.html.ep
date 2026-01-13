@@ -1,0 +1,31 @@
+<nav class="topnav">
+  <div class="nav-brand">
+    <span class="brand-logo"><i class="fas fa-briefcase mr-2"></i>Ordo</span>
+  </div>
+
+  <!-- Public tabs (shown when logged out) -->
+  <div class="nav-links public-tabs" data-group="public">
+    <a href="#" class="nav-link" data-tab="about">About</a>
+    <a href="#" class="nav-link" data-tab="docs">Docs</a>
+    <a href="#" class="nav-link" data-tab="pricing">Pricing</a>
+  </div>
+
+  <!-- Private tabs (shown when logged in) -->
+  <div class="nav-links private-tabs" data-group="private">
+    <a href="#" class="nav-link" data-tab="account">Account</a>
+    <a href="#" class="nav-link is-active" data-tab="monitor">Jobs & Clusters</a>
+    <a href="#" class="nav-link" data-tab="docs">Docs</a>
+    <a href="#" class="nav-link" data-tab="calendars">Calendars</a>
+    <a href="#" class="nav-link" data-tab="servers">Servers</a>
+  </div>
+
+  <!-- Right side actions -->
+  <div class="nav-right">
+    <span id="current-time" class="time-display"></span>
+    <button class="btn btn-sm btn-ghost" id="global-refresh">
+      <i class="fas fa-sync"></i> Refresh
+    </button>
+    <a href="/logout" class="nav-link logout-link">Logout</a>
+    <a href="/login" class="nav-link login-link">Sign In</a>
+  </div>
+</nav>

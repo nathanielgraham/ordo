@@ -1,0 +1,69 @@
+<!-- partials/docs.html.ep -->
+<section id="docs" class="tab-content" data-public="true">
+  <div class="docs-grid">
+    <!-- Sidebar TOC (sticky) -->
+    <aside class="docs-sidebar">
+      <div class="menu p-4">
+        <p class="menu-label has-text-white">Ordo Documentation</p>
+        <ul class="menu-list" id="docs-toc">
+          <li>
+            <a
+              href="#"
+              data-file="quickstart.md"
+              class="has-text-white is-active"
+              >Quickstart</a
+            >
+          </li>
+          <li>
+            <a href="#" data-file="web-ui.md" class="has-text-white"
+              >Web UI Guide</a
+            >
+          </li>
+          <li>
+            <a href="#" data-file="cli.md" class="has-text-white"
+              >CLI Reference</a
+            >
+          </li>
+          <li>
+            <a href="#" data-file="rest-api.md" class="has-text-white"
+              >REST API</a
+            >
+          </li>
+          <li>
+            <a href="#" data-file="use-cases.md" class="has-text-white"
+              >Use Cases & Examples</a
+            >
+          </li>
+          <li>
+            <a
+              href="#"
+              data-file="video-tutorials.md"
+              class="has-text-white"
+              >Video Tutorials</a
+            >
+          </li>
+          <li>
+            <a href="#" data-file="advanced.md" class="has-text-white"
+              >Advanced Topics</a
+            >
+          </li>
+          <li>
+            <a
+              href="#"
+              data-file="troubleshooting.md"
+              class="has-text-white"
+              >Troubleshooting</a
+            >
+          </li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="column docs-content-container" tabindex="0">
+      <div class="container p-6">
+        <article class="content" id="docs-content"></article>
+      </div>
+    </div>
+  </div>
+</section>

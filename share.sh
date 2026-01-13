@@ -2,7 +2,8 @@
 
 # Loop through each file in each directory
 #for file in "db"/*schema "script"/* "public"/* "templates"/* "lib"/* ; do
-for file in "lib"/*pm "lib/ordo/Model"/* "lib/ordo/Controller"/* "templates"/* ; do
+#for file in "lib"/*pm "lib/ordo/Model"/* "lib/ordo/Controller"/* "templates"/* ; do
+for file in "templates"/*app.html.ep "templates/partials"/*ep "public/css"/*css "public/js"/*js; do
     # Check if it is a file
     if [[ -f "$file" ]]; then
         # Echo the filename
