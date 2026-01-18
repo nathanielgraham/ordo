@@ -44,7 +44,7 @@
 
   <%= include 'partials/modals' %>
 
-  <script src="/js/app.js?v=<%= time %>"></script>
+  <script type="module" src="/js/app.js?v=<%= time %>"></script>
 </body>
 
 </html>

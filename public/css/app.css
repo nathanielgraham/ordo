@@ -7,6 +7,99 @@
   --chrome-mid: #a0a0a0;
   --glow-blue: #00ffff;
   --rocket-orange: #ff6b35;
+  font-size: clamp(12px, 2.2vw, 16px);
+}
+
+/* Fixed navbar + reserved space */
+.topnav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: #0f0f1f;
+  border-bottom: 1px solid #00ffff33;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap; /* allow wrap on narrow screens */
+}
+
+/* Spacer to push content down */
+.navbar-spacer {
+  height: var(--navbar-height, 60px); /* adjust based on your navbar */
+  min-height: var(--navbar-height, 60px);
+}
+
+/* Content below navbar */
+main.content, .table-container {
+  margin-top: var(--navbar-height, 60px);
+}
+
+/* Responsive font scaling (global, as before) */
+:root {
+  font-size: clamp(12px, 2.2vw, 16px);
+}
+
+/* Narrow screen adjustments */
+@media (max-width: 768px) {
+  :root {
+    --navbar-height: 100px; /* taller when tabs wrap */
+  }
+
+  .topnav {
+    flex-direction: column;
+    padding: 0.5rem;
+  }
+
+  .nav-links {
+    flex-wrap: wrap;
+    justify-content: center;
+    margin: 0.5rem 0;
+  }
+
+  .nav-right {
+    width: 100%;
+    justify-content: center;
+    margin-top: 0.5rem;
+  }
+}
+
+/* Base navbar font size */
+.topnav,
+.topnav a.nav-link,
+.topnav .btn {
+  font-size: clamp(14px, 2.1vw, 16px); /* min 14px, preferred ~2.1% of viewport, max 16px */
+}
+
+/* Reduce padding/gaps proportionally */
+.topnav {
+  padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1rem);
+  gap: clamp(0.5rem, 1.5vw, 1rem);
+}
+
+.nav-links {
+  gap: clamp(0.75rem, 2vw, 1.25rem);
+}
+
+/* Extra squeeze on very narrow screens */
+@media (max-width: 768px) {
+  .topnav,
+  .topnav a.nav-link,
+  .topnav .btn {
+    font-size: clamp(13px, 1.9vw, 15px);
+  }
+  .nav-right .time-display {
+    font-size: clamp(12px, 1.8vw, 14px);
+  }
+}
+
+/* Absolute minimum readability floor */
+@media (max-width: 480px) {
+  :root {
+    font-size: clamp(12px, 2vw, 14px); /* global floor */
+  }
 }
 
 * {
@@ -181,6 +274,104 @@ html, body {
   background: rgba(0, 255, 255, 0.1);
 }
 
+/* Jobs & Clusters Table Layout Fixes */
+
+/* Restore spacing between rows */
+.ordo-tree-table tbody tr {
+  height: 2.5rem;                     /* or 40px – adjust to your preference */
+  line-height: 1.5;
+}
+
+/* Add subtle row separation (like Bulma is-striped) */
+.ordo-tree-table tbody tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.03); /* very light white overlay */
+}
+
+.table-container {
+  position: relative;
+  max-height: calc(100vh - 120px); /* adjust to your top nav height */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.ordo-tree-table {
+  width: 100%;
+  table-layout: auto;
+  border-collapse: collapse;
+}
+
+.ordo-tree-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #0f0f1f;                /* dark bg */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Table header fixes */
+.ordo-tree-table thead th {
+  padding: 0.75rem 0.75rem;
+  border-bottom: 2px solid #00ffff33;
+  text-align: center;
+  vertical-align: middle;
+  line-height: 1.4;
+  height: 3rem;                        /* consistent vertical space */
+  background: #0f0f1f;
+  color: #00ffff;                     /* cyan text for cyberpunk feel */
+  font-weight: 600;
+}
+
+.ordo-tree-table thead th:first-child {
+  text-align: left;
+}
+
+.ordo-tree-table td,
+.ordo-tree-table th {
+  padding: 0.4rem 0.75rem;
+  text-align: left;
+}
+
+/* Optional: Hover effect on header cells */
+.ordo-tree-table thead th:hover {
+  background: rgba(0, 255, 255, 0.1);
+}
+
+.ordo-tree-table tbody tr {
+  height: 2rem;
+  line-height: 1.3;
+}
+
+.ordo-tree-table tbody tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.ordo-tree-table tbody tr:hover {
+  background-color: rgba(0, 255, 255, 0.08);
+}
+
+
+/* 
+.table-container {
+  position: relative;
+  max-height: 80vh; 
+  overflow: auto; 
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  background: #0f0f1f;          
+  color: #00ffff;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.table thead th {
+  border-bottom: 2px solid #00ffff44;
+}
+
+*/
+
 /* === Modals === */
 .modal {
   position: fixed;
@@ -204,6 +395,36 @@ html, body {
   max-height: 90vh;
   overflow-y: auto;
 }
+
+/* Modal close button - Bulma-style X */
+.modal-card-head .delete {
+  background: transparent;
+  border: none;
+  color: #00ffff;
+  font-size: 1.5rem;
+  width: 2rem;
+  height: 2rem;
+  line-height: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: absolute;
+  right: 1rem;
+  top: 0.75rem;
+}
+
+.modal-card-head .delete:hover,
+.modal-card-head .delete:focus {
+  color: #ff00aa;
+  transform: scale(1.2);
+  text-shadow: 0 0 8px #ff00aa;
+}
+
+/* Optional: Make background clickable to close (already in your JS) */
+.modal-background {
+  cursor: pointer;
+}
+
 
 /* === Hero & Sections === */
 .hero {
@@ -341,5 +562,528 @@ body.is-logged-in .logout-link {
   background: rgba(0, 209, 178, 0.35) !important;   /* teal-ish active bg */
   font-weight: 600;
   box-shadow: 0 0 12px rgba(0, 209, 178, 0.25);
+}
+
+/* Tree table collapse */
+.ordo-cluster-row.collapsed + tr[data-parent] {
+  display: none; /* hide direct children when collapsed */
+}
+
+/* Recursive hide for deeper levels */
+tr[data-hidden="true"] {
+  display: none;
+}
+
+/* Toggle arrow rotation */
+.ordo-toggle {
+  cursor: pointer;
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.5em;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="%23fff" d="M4 6l4 4 4-4z"/></svg>') no-repeat center;
+  background-size: contain;
+  transition: transform 0.2s;
+}
+
+.ordo-cluster-row.collapsed .ordo-toggle {
+  transform: rotate(-90deg);
+}
+
+/* Visual feedback for collapsed rows */
+.ordo-cluster-row.collapsed {
+  /* opacity: 0.7; */
+  background-color: rgba(0, 0, 0, 0.15) !important; /* very dark tint */
+  border-left: 3px solid #00ffff33; /* subtle cyan edge */
+}
+
+/* Dropdowns (cyberpunk style) */
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-trigger button {
+  background: transparent;
+  border: none;
+  color: #00ffff;
+  cursor: pointer;
+  padding: 0.5rem;
+  transition: all 0.2s;
+}
+
+.dropdown-trigger button:hover {
+  color: #00ffffaa;
+  text-shadow: 0 0 8px #00ffff;
+}
+
+/* Default: open downward (natural, most common) */
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 100%;                    /* down */
+  right: 0;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 6px;
+  box-shadow: 0 4px 15px rgba(0, 255, 255, 0.1);
+  min-width: 180px;
+  z-index: 1000;
+  overflow: hidden;
+  opacity: 1 !important;                   /* no inherited transparency */
+}
+
+/* Upward flip (only when JS adds .is-up) */
+.dropdown.is-up .dropdown-menu {
+  top: auto;
+  bottom: 100%;
+  margin-bottom: 0.5rem;        /* space from trigger */
+  margin-top: 0;
+}
+
+/* Prevent clipping in table cells */
+.table td {
+  overflow: visible !important;
+  position: relative;
+}
+
+.dropdown.is-active .dropdown-menu {
+  display: block;
+  opacity: 1 !important;
+  visibility: visible !important;
+  background-color: #1a1a1a !important;  /* solid black - override any rgba */
+  filter: none !important;               /* remove any blur/filter from parent */
+  backdrop-filter: none !important;
+}
+
+/* Optional: Extra z-index boost for table dropdowns */
+.table .dropdown-menu {
+  z-index: 1001 !important;     /* Above table rows/borders */
+  box-shadow: 0 8px 30px rgba(0, 255, 255, 0.4) !important;
+}
+
+/* Content and items (unchanged) */
+.dropdown-content {
+  padding: 0.5rem 0;
+}
+
+.dropdown-item {
+  display: block;
+  padding: 0.5rem 1rem;
+  color: #e0e0e0;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.dropdown-item:hover {
+  background: #00ffff22;
+  color: #00ffff;
+}
+
+.dropdown-item.is-danger {
+  color: #f14668;
+}
+
+.dropdown-item.is-danger:hover {
+  background: #f1466822;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: #444;
+  margin: 0.25rem 0;
+}
+
+
+/* Tree table hierarchy & connectors */
+.ordo-tree-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.ordo-tree-table tr {
+  position: relative;
+}
+
+.ordo-tree-table td:first-child {
+  position: relative;
+  padding-left: calc(var(--depth) * 1.8rem + 1.5rem) !important; /* indent based on depth */
+}
+
+/* Vertical connector line */
+.ordo-tree-table td:first-child::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--depth) * 1.8rem - 0.9rem);
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #444; /* subtle gray line */
+}
+
+/* Horizontal connector to child */
+
+.ordo-tree-table td:first-child::after {
+  content: "";
+  position: absolute;
+  left: calc(var(--depth) * 1.8rem - 0.9rem);
+  top: 50%;
+  width: 1.2rem;
+  height: 2px;
+  background: #444;
+}
+
+/* Hide last connector in subtree (optional polish) */
+.ordo-cluster-row.collapsed + tr[data-parent] td:first-child::before,
+.ordo-cluster-row.collapsed ~ tr:not([data-parent="${clusterId}"]) td:first-child::before {
+  display: none;
+}
+
+/* Toggle arrow styling (better look) */
+.ordo-toggle {
+  cursor: pointer;
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.5em;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="%23666" d="M4 6l4 4 4-4z"/></svg>') no-repeat center/contain;
+  transition: transform 0.2s ease;
+}
+
+.ordo-cluster-row.collapsed .ordo-toggle {
+  transform: rotate(-90deg);
+}
+
+/* Optional: hover feedback for rows */
+.ordo-tree-table tr:hover {
+  background: rgba(0, 255, 255, 0.05);
+}
+
+.ordo-tree-table td:first-child::before,
+.ordo-tree-table td:first-child::after {
+  background: #4448; /* semi-transparent for glow */
+  box-shadow: 0 0 4px #00ffff22; /* subtle cyan glow */
+}
+
+tr:last-child td:first-child::before {
+  bottom: 50%;
+}
+
+.ordo-tree-table tr:active,
+.ordo-tree-table tr:focus {
+  background: rgba(0, 255, 255, 0.15);
+}
+
+.modal-card-head {
+  position: relative;
+  padding: 1rem 5rem 1rem 1rem; /* space for zoom + X on right */
+  display: flex;
+  align-items: center;
+  justify-content: center; /* center title horizontally */
+  min-height: 3.5rem; /* give header a bit more height for breathing room */
+}
+
+/* Title: centered + slightly lower */
+.modal-card-title {
+  margin: 0;
+  text-align: center;
+  padding-top: 0.25rem; /* very slight drop (4–6px feel) */
+  font-size: 1.25rem; /* optional: keep readable */
+  flex: 1; /* allow it to take center space */
+}
+
+/* Close X: smaller size + further into corner */
+.modal-card-head .delete {
+  position: absolute;
+  right: 1.25rem; /* further in from edge (was probably closer) */
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.8rem;        /* smaller */
+  height: 1.8rem;
+  font-size: 1.4rem;    /* smaller X character */
+  line-height: 1;
+  background: transparent;
+  border: none;
+  color: #e0e0e0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.modal-card-head .delete:hover {
+  color: #ff3366;
+  background: rgba(255, 51, 102, 0.15);
+  transform: translateY(-50%) scale(1.15);
+}
+
+.modal-card-head .delete::before,
+.modal-card-head .delete::after {
+  content: '';
+  position: absolute;
+  width: 1.5rem;
+  height: 3px;
+  background-color: currentColor;
+  border-radius: 2px;
+}
+
+.modal-card-head .delete::before {
+  transform: rotate(45deg);
+}
+
+.modal-card-head .delete::after {
+  transform: rotate(-45deg);
+}
+
+/* Ensure modal body is positioned & expands fully */
+.modal-card-body {
+  position: relative;          /* ← Key for absolute legend */
+  flex: 1 1 auto;              /* Grow to fill modal */
+  overflow: hidden;            /* ← Prevent scrollbar */
+  padding: 0;                  /* No padding to maximize graph */
+}
+
+/* Graph container fills body completely */
+#graph-container {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;            /* Safety */
+}
+
+/* Legend: bottom-right in rem */
+#graph-legend {
+  position: absolute;
+  bottom: 1.25rem;             /* ~20px */
+  right: 1.25rem;              /* ~20px from right edge */
+  background: rgba(0, 0, 0, 0.85);
+  color: #e0ffff;
+  padding: 0.75rem 1rem;       /* ~12px top/bottom, ~16px sides */
+  border-radius: 0.375rem;
+  border: 1px solid #00ffff44;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  max-width: 20rem;
+  z-index: 10;
+  box-shadow: 0 0.25rem 0.9375rem rgba(0, 255, 255, 0.15);
+}
+
+/* Optional: Hide any overflow scrollbar from body */
+.modal-card-body::-webkit-scrollbar {
+  display: none;
+}
+
+
+#graph-legend strong {
+  color: #00ffff;
+  font-weight: bold;
+}
+
+/* Optional: Make legend slightly movable if user pans graph a lot */
+#graph-legend:hover {
+  opacity: 1;
+  transform: scale(1.02);
+}
+
+.legend-item {
+  margin: 6px 0;
+  display: flex;
+  align-items: center;
+}
+
+.legend-item span.legend-line {
+  display: inline-block;
+  width: 30px;
+  height: 2px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+/* Specific line colors in legend */
+.legend-needs .legend-line { background: #ff3366; }
+.legend-needs-any .legend-line { background: #00ffff; border-style: dashed; }
+.legend-on-fail .legend-line { background: #ffaa00; }
+
+/* Zoom buttons: slightly lower, right-aligned */
+.buttons.has-addons {
+  position: absolute;
+  top: 50%;
+  right: 3.5rem; /* space from right edge before X */
+  transform: translateY(-45%); /* slightly lower than title baseline */
+}
+
+/* Deps and Stats */
+
+/* Only cells with actual tooltip content get the pointer + hint */
+.deps-td.has-tooltip,
+.stats-td.has-tooltip {
+  cursor: help;
+  text-decoration: underline dotted #00ffff66;
+  text-underline-offset: 4px; /* avoids overlap with number */
+  transition: all 0.15s ease;
+}
+
+.deps-td.has-tooltip:hover,
+.stats-td.has-tooltip:hover {
+  text-decoration-color: #00ffff;
+  background: rgba(0, 255, 255, 0.08);
+}
+
+.dropdown-item.disabled,
+.dropdown-item[aria-disabled="true"],
+.dropdown-item:disabled,
+.dropdown-item.is-disabled {
+  display: none !important;
+}
+
+/* Base state badge */
+.state-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;                     /* space between icon and text */
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 500;
+  color: white;
+  white-space: nowrap;
+}
+
+/* Icon styling (common) */
+.state-badge::before {
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;             /* solid icons */
+  font-size: 1.1em;
+}
+
+/* Individual states - color + icon */
+.state-badge.complete::before,
+.state-badge.success::before {
+  content: "\f058";             /* fa-check-circle */
+}
+.state-badge.complete,
+.state-badge.success {
+  background-color: #66BB6A;
+}
+
+.state-badge.pruned::before {
+  content: "\f0c4";             /* fa-cut */
+}
+.state-badge.pruned {
+  background-color: #A5D6A7;
+}
+
+.state-badge.running::before {
+  content: "\f04b";             /* fa-play-circle */
+}
+.state-badge.running {
+  background-color: #42A5F5;
+}
+.state-badge.running::before {
+  animation: spin 1.5s linear infinite;
+}
+
+.state-badge.starting::before {
+  content: "\f110";             /* fa-spinner */
+  animation: spin 1.2s linear infinite;
+}
+.state-badge.starting {
+  background-color: #64B5F6;
+}
+
+.state-badge.stopping::before {
+  content: "\f28e";             /* fa-stop-circle */
+}
+.state-badge.stopping {
+  background-color: #4FC3F7;
+}
+
+.state-badge.looping::before {
+  content: "\f01e";             /* fa-redo */
+}
+.state-badge.looping {
+  background-color: #29B6F6;
+}
+
+.state-badge.retrying::before {
+  content: "\f021";             /* fa-sync */
+}
+.state-badge.retrying {
+  background-color: #039BE5;
+}
+
+.state-badge.watching::before {
+  content: "\f06e";             /* fa-eye */
+}
+.state-badge.watching {
+  background-color: #26C6DA;
+}
+
+.state-badge.sleeping::before {
+  content: "\f186";             /* fa-moon */
+}
+.state-badge.sleeping {
+  background-color: #4DD0E1;
+}
+
+.state-badge.waiting::before {
+  content: "\f017";             /* fa-clock */
+}
+.state-badge.waiting {
+  background-color: #80DEEA;
+}
+
+.state-badge.ready::before {
+  content: "\f252";             /* fa-hourglass-half */
+}
+.state-badge.ready {
+  background-color: #FFD54F;
+  color: #000;                  /* black text for yellow contrast */
+}
+
+.state-badge.hold::before {
+  content: "\f28c";             /* fa-pause-circle */
+}
+.state-badge.hold {
+  background-color: #FFB74D;
+}
+
+.state-badge.ice::before {
+  content: "\f2dc";             /* fa-snowflake */
+}
+.state-badge.ice {
+  background-color: #FF8A65;
+}
+
+.state-badge.immutable::before {
+  content: "\f023";             /* fa-lock */
+}
+.state-badge.immutable {
+  background-color: #AB47BC;
+}
+
+.state-badge.failed::before,
+.state-badge.killed::before,
+.state-badge.zombie::before {
+  content: "\f071";             /* fa-exclamation-triangle */
+}
+.state-badge.failed,
+.state-badge.killed,
+.state-badge.zombie {
+  background-color: #EF5350;
+}
+
+/* Fallback / unknown */
+.state-badge.unknown::before {
+  content: "\f128";             /* fa-question-circle */
+}
+.state-badge.unknown {
+  background-color: #B0BEC5;
+}
+
+/* Spinning animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 

@@ -1,12 +1,21 @@
-<section id="monitor" class="tab-content" data-private="true">
-  <div class="container">
-    <div id="monitor-loading" class="has-text-centered py-6">
-      <span class="icon is-large"><i class="fas fa-spinner fa-spin fa-3x"></i></span>
+<section id="monitor" data-private="true">
+  <!-- Removed: class="tab-content" -->
+
+  <div class="monitor-wrapper"> <!-- optional custom wrapper; can be just a plain div -->
+    <div id="monitor-loading" class="text-center py-6">
+      <!-- Replaced: has-text-centered → text-center (Tailwind) -->
+      <span><i class="fas fa-spinner fa-spin fa-3x"></i></span>
+      <!-- Removed: icon is-large -->
+
       <p class="mt-2">Loading jobs & clusters...</p>
+      <!-- mt-2 is fine if you use Tailwind; otherwise use custom margin -->
     </div>
+
     <div id="monitor-content" style="display: none">
       <div class="table-container">
-        <table class="table is-fullwidth is-hoverable is-striped ordo-tree-table" id="tree-table" role="treegrid" aria-label="Jobs and Clusters Hierarchy">
+        <table class="ordo-tree-table" id="tree-table" role="treegrid" aria-label="Jobs and Clusters Hierarchy">
+          <!-- Removed: table is-fullwidth is-hoverable is-striped -->
+
           <thead>
             <tr>
               <th>Path</th>

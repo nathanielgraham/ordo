@@ -1,10 +1,10 @@
-<nav class="topnav">
+<nav class="topnav" role="navigation" aria-label="Main navigation">
   <div class="nav-brand">
     <span class="brand-logo"><i class="fas fa-briefcase mr-2"></i>Ordo</span>
   </div>
 
-  <!-- Public tabs (shown when logged out) -->
-  <div class="nav-links public-tabs" data-group="public">
+  <!-- Public tabs (hidden when logged in) -->
+  <div class="nav-links public-tabs" data-group="public" hidden>
     <a href="#" class="nav-link" data-tab="about">About</a>
     <a href="#" class="nav-link" data-tab="docs">Docs</a>
     <a href="#" class="nav-link" data-tab="pricing">Pricing</a>
@@ -25,7 +25,7 @@
     <button class="btn btn-sm btn-ghost" id="global-refresh">
       <i class="fas fa-sync"></i> Refresh
     </button>
-    <a href="/logout" class="nav-link logout-link">Logout</a>
+    <a href="/logout" class="nav-link logout-link" hidden>Logout</a>
     <a href="/login" class="nav-link login-link">Sign In</a>
   </div>
 </nav>
