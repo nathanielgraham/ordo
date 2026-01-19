@@ -1,9 +1,8 @@
 <!-- partials/about.html.ep -->
-<section id="about" data-public="true">
+<section id="about" class="tab-content" data-public="true">
   <!-- Hero -->
   <section class="hero-section" style="background: linear-gradient(135deg, #00c9b1, #007a87)">
-    <div class="hero-content">
-      <!-- Logo Placeholder -->
+    <div class="hero-content text-center">
       <h1 class="title-large">
         <i class="fas fa-briefcase mr-3"></i>Ordo
       </h1>
@@ -27,17 +26,20 @@
     <div class="content-center">
       <h2 class="title-medium">How It Works</h2>
       <div class="grid-3">
-        <div class="card-simple">
+        <div class="card-simple text-center">
           <span class="icon-large"><i class="fas fa-folder-plus"></i></span>
           <h3>1. Organize</h3>
           <p>Create clusters and jobs — just like folders and files.</p>
         </div>
-        <div class="card-simple">
+        <div class="card-simple text-center">
           <span class="icon-large"><i class="fas fa-clock"></i></span>
           <h3>2. Schedule</h3>
-          <p>Use calendars with extended cron syntax — daily, weekly, or "last Friday of the month".</p>
+          <p>
+            Use calendars with extended cron syntax — daily, weekly, or
+            "last Friday of the month".
+          </p>
         </div>
-        <div class="card-simple">
+        <div class="card-simple text-center">
           <span class="icon-large"><i class="fas fa-eye"></i></span>
           <h3>3. Monitor & Heal</h3>
           <p>Live updates + automatic recovery on failure.</p>
@@ -47,24 +49,33 @@
   </section>
 
   <!-- Key Benefits -->
-  <section class="section has-dark-bg">
+  <section class="section bg-dark">
     <div class="content-center">
       <h2 class="title-medium">Why Teams Love Ordo</h2>
       <div class="grid-3">
-        <div class="card-simple">
+        <div class="card-simple text-center">
           <span class="icon-large"><i class="fas fa-sitemap"></i></span>
           <h3>Hierarchical Workflows</h3>
-          <p>Nest jobs in clusters like files in folders. Dependencies are natural — add explicit ones for precision.</p>
+          <p>
+            Nest jobs in clusters like files in folders. Dependencies
+            are natural — add explicit ones for precision.
+          </p>
         </div>
-        <div class="card-simple">
+        <div class="card-simple text-center">
           <span class="icon-large"><i class="fas fa-tachometer-alt"></i></span>
           <h3>Real-Time Monitoring</h3>
-          <p>Live countdowns, performance charts, and historical trends.</p>
+          <p>
+            Live countdowns, performance charts, and historical
+            trends.
+          </p>
         </div>
-        <div class="card-simple">
+        <div class="card-simple text-center">
           <span class="icon-large"><i class="fas fa-shield-alt"></i></span>
           <h3>Self-Healing Automation</h3>
-          <p>On failure, run alerts, retries, or full recovery clusters.</p>
+          <p>
+            On failure, run alerts, retries, or full recovery
+            clusters.
+          </p>
         </div>
       </div>
     </div>
@@ -75,17 +86,23 @@
     <div class="content-center">
       <h2 class="title-medium">Coming in v1</h2>
       <div class="grid-3">
-        <div class="card-simple">
+        <div class="card-simple text-center">
           <span class="icon-large"><i class="fas fa-file-import"></i></span>
           <h3>Easy Migration</h3>
-          <p>Import AutoSys JIL files or crontabs directly — escape legacy systems fast.</p>
+          <p>
+            Import AutoSys JIL files or crontabs directly — escape
+            legacy systems fast.
+          </p>
         </div>
-        <div class="card-simple">
+        <div class="card-simple text-center">
           <span class="icon-large"><i class="fas fa-chart-line"></i></span>
           <h3>Performance Insights</h3>
-          <p>Historical CPU, memory, and duration charts for every job and server.</p>
+          <p>
+            Historical CPU, memory, and duration charts for every job
+            and server.
+          </p>
         </div>
-        <div class="card-simple">
+        <div class="card-simple text-center">
           <span class="icon-large"><i class="fas fa-project-diagram"></i></span>
           <h3>Dependency Graph</h3>
           <p>Interactive visualization of your entire workflow.</p>
@@ -95,7 +112,7 @@
   </section>
 
   <!-- Screenshot / Video -->
-  <section class="section has-dark-bg" id="video">
+  <section class="section bg-dark" id="video">
     <div class="content-center">
       <h2 class="title-medium">See Ordo in Action</h2>
       <div class="video-placeholder">
@@ -121,7 +138,60 @@
             </tr>
           </thead>
           <tbody>
-            <!-- rows unchanged -->
+            <tr>
+              <td>Modern, real-time UI</td>
+              <td>Outdated</td>
+              <td>Good but complex</td>
+              <td class="success">✓ Live updates</td>
+            </tr>
+            <tr>
+              <td>Hierarchical organization</td>
+              <td>Flat lists</td>
+              <td>Good</td>
+              <td class="success">✓ Native clusters</td>
+            </tr>
+            <tr>
+              <td>Full Quartz scheduling</td>
+              <td>Limited</td>
+              <td>✓</td>
+              <td class="success">✓ Advanced cron</td>
+            </tr>
+            <tr>
+              <td>Self-healing</td>
+              <td>Alerts only</td>
+              <td>Alerts + retry</td>
+              <td class="success">✓ Run recovery clusters</td>
+            </tr>
+            <tr>
+              <td>Easy migration</td>
+              <td>Manual pain</td>
+              <td>Hard</td>
+              <td class="success">✓ Import JIL/crontab</td>
+            </tr>
+            <tr>
+              <td>Performance monitoring</td>
+              <td>Limited</td>
+              <td>Extra cost</td>
+              <td class="success">✓ Historical charts</td>
+            </tr>
+            <tr>
+              <td>Dependency visualization</td>
+              <td>No</td>
+              <td>Yes</td>
+              <td class="success">✓ Interactive graph</td>
+            </tr>
+            <tr>
+              <td>Pricing</td>
+              <td>$50k–$500k+</td>
+              <td>SaaS subscription</td>
+              <td class="success">✓ Free tier + $39/mo</td>
+            </tr>
+            <tr>
+              <td>No lock-in</td>
+              <td>Proprietary</td>
+              <td>Cloud vendor</td>
+              <td class="success">✓ Open core</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -130,7 +200,7 @@
 
   <!-- Final CTA -->
   <section class="hero-section" style="background: linear-gradient(135deg, #00c9b1, #007a87)">
-    <div class="hero-content">
+    <div class="hero-content text-center">
       <h2 class="title-medium">Ready to simplify your automation?</h2>
       <p>Free tier available • $39/month Pro • Custom plans for special needs</p>
       <a href="/login" class="btn btn-large btn-white">Get Started Free</a>
@@ -139,7 +209,7 @@
 
   <!-- Footer -->
   <footer class="footer">
-    <div class="content-center">
+    <div class="content-center text-center">
       <p>
         <strong>Ordo</strong> — Open source job scheduler<br />
         <a href="https://github.com/your-repo" target="_blank">

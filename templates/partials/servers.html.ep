@@ -1,12 +1,13 @@
 <!-- partials/servers.html.ep -->
 <section id="servers" class="tab-content" data-private="true">
-  <div class="container">
-    <div id="servers-loading" class="has-text-centered">
+  <div class="content-center">
+    <div id="servers-loading" class="text-center">
       <i class="fas fa-spinner fa-spin"></i> Loading...
     </div>
+
     <div id="servers-content" style="display: none">
       <div class="table-container">
-        <table class="table is-fullwidth is-hoverable is-striped" id="servers-table">
+        <table class="data-table" id="servers-table">
           <thead>
             <tr>
               <th>Name</th>

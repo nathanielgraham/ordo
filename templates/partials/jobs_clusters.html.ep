@@ -1,4 +1,4 @@
-<section id="monitor" data-private="true">
+<section id="monitor" class="tab-content" data-private="true">
   <!-- Removed: class="tab-content" -->
 
   <div class="monitor-wrapper"> <!-- optional custom wrapper; can be just a plain div -->

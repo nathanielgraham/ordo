@@ -1,12 +1,13 @@
 <!-- partials/calendars.html.ep -->
 <section id="calendars" class="tab-content" data-private="true">
-  <div class="container">
-    <div id="calendars-loading" class="has-text-centered">
+  <div class="content-center">
+    <div id="calendars-loading" class="text-center">
       <i class="fas fa-spinner fa-spin"></i> Loading...
     </div>
+
     <div id="calendars-content" style="display: none">
       <div class="table-container">
-        <table class="table is-fullwidth is-hoverable is-striped" id="calendars-table">
+        <table class="data-table" id="calendars-table">
           <thead>
             <tr>
               <th>Name</th>

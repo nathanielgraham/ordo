@@ -1,323 +1,249 @@
+<!-- partials/modals.html.ep -->
+
 <!-- Log Modal -->
-<div id="log-modal" class="modal">
+<div id="log-modal" class="app-modal">
   <div class="modal-background"></div>
-  <div class="modal-card">
-    <header class="modal-card-head">
-      <p class="modal-card-title">Latest Job Log</p>
-      <button class="delete" aria-label="close"></button>
+  <div class="modal-dialog">
+    <header class="modal-header">
+      <p class="modal-title">Latest Job Log</p>
+      <button class="close-btn" aria-label="close"></button>
     </header>
-    <section class="modal-card-body">
+    <section class="modal-body">
       <pre id="log-content"></pre>
     </section>
-    <footer class="modal-card-foot is-justify-content-flex-end">
-      <button class="button" id="view-history">View History</button>
-      <button class="button" id="refresh-log">Refresh Log</button>
-      <button class="button is-primary" id="close-log">Close</button>
+    <footer class="modal-footer">
+      <button class="btn btn-secondary" id="view-history">View History</button>
+      <button class="btn btn-secondary" id="refresh-log">Refresh Log</button>
+      <button class="btn btn-primary" id="close-log">Close</button>
     </footer>
   </div>
 </div>
 
 <!-- Log History Modal -->
-<div id="log-history-modal" class="modal">
+<div id="log-history-modal" class="app-modal">
   <div class="modal-background"></div>
-  <div class="modal-card">
-    <header class="modal-card-head">
-      <p class="modal-card-title">Job Log History</p>
-      <button class="delete" aria-label="close"></button>
+  <div class="modal-dialog">
+    <header class="modal-header">
+      <p class="modal-title">Job Log History</p>
+      <button class="close-btn" aria-label="close"></button>
     </header>
-    <section class="modal-card-body">
-      <table class="table is-fullwidth is-striped is-hoverable">
-        <thead>
-          <tr>
-            <th>Run ID</th>
-            <th>Start Time</th>
-            <th>Duration</th>
-            <th>Exit Code</th>
-          </tr>
-        </thead>
-        <tbody id="log-history-body"></tbody>
-      </table>
-      <p id="no-history" class="has-text-grey has-text-centered" style="display: none">
+    <section class="modal-body">
+      <div class="table-container">
+        <table class="data-table" id="log-history-table">
+          <thead>
+            <tr>
+              <th>Run ID</th>
+              <th>Start Time</th>
+              <th>Duration</th>
+              <th>Exit Code</th>
+            </tr>
+          </thead>
+          <tbody id="log-history-body"></tbody>
+        </table>
+      </div>
+      <p id="no-history" class="text-grey text-center" style="display: none">
         No log history available.
       </p>
     </section>
-    <footer class="modal-card-foot">
-      <button class="button" id="close-log-history">Close</button>
+    <footer class="modal-footer">
+      <button class="btn btn-secondary" id="close-log-history">Close</button>
     </footer>
   </div>
 </div>
 
 <!-- Invite Team Member Modal -->
-<div id="invite-modal" class="modal">
+<div id="invite-modal" class="app-modal">
   <div class="modal-background"></div>
-  <div class="modal-card">
-    <header class="modal-card-head">
-      <p class="modal-card-title">Invite Team Member</p>
-      <button class="delete" aria-label="close" id="close-invite"></button>
+  <div class="modal-dialog">
+    <header class="modal-header">
+      <p class="modal-title">Invite Team Member</p>
+      <button class="close-btn" aria-label="close" id="close-invite"></button>
     </header>
-    <section class="modal-card-body">
-      <div class="field">
-        <label class="label">Email Address</label>
-        <div class="control">
-          <input
-            class="input"
-            type="email"
-            id="invite-email"
-            placeholder="Enter email to invite"
-          />
-        </div>
+    <section class="modal-body">
+      <div class="form-group">
+        <label class="label" for="invite-email">Email Address</label>
+        <input
+          class="input"
+          type="email"
+          id="invite-email"
+          placeholder="Enter email to invite"
+        />
       </div>
     </section>
-    <footer class="modal-card-foot">
-      <button class="button is-primary" id="send-invite">
-        Send Invite
-      </button>
-      <button class="button" id="cancel-invite">Cancel</button>
+    <footer class="modal-footer">
+      <button class="btn btn-primary" id="send-invite">Send Invite</button>
+      <button class="btn btn-secondary" id="cancel-invite">Cancel</button>
     </footer>
   </div>
 </div>
 
 <!-- Confirmation Modal -->
-<div id="confirm-modal" class="modal">
+<div id="confirm-modal" class="app-modal">
   <div class="modal-background"></div>
-  <div class="modal-card">
-    <header class="modal-card-head">
-      <p class="modal-card-title">Confirm Action</p>
-      <button class="delete" aria-label="close" id="close-confirm"></button>
+  <div class="modal-dialog">
+    <header class="modal-header">
+      <p class="modal-title">Confirm Action</p>
+      <button class="close-btn" aria-label="close" id="close-confirm"></button>
     </header>
-    <section class="modal-card-body">
+    <section class="modal-body">
       <p id="confirm-message">Are you sure you want to [action] [name]?</p>
     </section>
-    <footer class="modal-card-foot">
-      <button class="button is-danger" id="confirm-yes">Yes</button>
-      <button class="button" id="confirm-no">No</button>
+    <footer class="modal-footer">
+      <button class="btn btn-danger" id="confirm-yes">Yes</button>
+      <button class="btn btn-secondary" id="confirm-no">No</button>
     </footer>
   </div>
 </div>
 
 <!-- Attach Calendar Modal -->
-<div id="attach-cal-modal" class="modal">
+<div id="attach-cal-modal" class="app-modal">
   <div class="modal-background"></div>
-  <div class="modal-card">
-    <header class="modal-card-head">
-      <p class="modal-card-title">
+  <div class="modal-dialog">
+    <header class="modal-header">
+      <p class="modal-title">
         Schedule cluster: <span id="attach-target-name"></span>
       </p>
-      <button class="delete" aria-label="close"></button>
+      <button class="close-btn" aria-label="close"></button>
     </header>
-    <section class="modal-card-body">
-      <div class="field">
-        <label class="label">Calendar</label>
-        <div class="control">
-          <div class="select is-fullwidth">
-            <select id="attach-cal-select">
-              <option value="">None (run manually only)</option>
-            </select>
-          </div>
+    <section class="modal-body">
+      <div class="form-group">
+        <label class="label" for="attach-cal-select">Calendar</label>
+        <div class="select-wrapper">
+          <select id="attach-cal-select">
+            <option value="">None (run manually only)</option>
+          </select>
         </div>
-        <p class="help mt-4">
+        <p class="help-text">
           Current: <strong id="attach-current-cal">None</strong>
         </p>
       </div>
     </section>
-    <footer class="modal-card-foot">
-      <button class="button is-primary" id="save-attach-cal">Apply</button>
-      <button class="button" id="cancel-attach-cal">Cancel</button>
+    <footer class="modal-footer">
+      <button class="btn btn-primary" id="save-attach-cal">Apply</button>
+      <button class="btn btn-secondary" id="cancel-attach-cal">Cancel</button>
     </footer>
   </div>
 </div>
 
 <!-- Create/Edit Entity Modal -->
-<div id="entity-modal" class="modal">
+<div id="entity-modal" class="app-modal">
   <div class="modal-background"></div>
-  <div class="modal-card" style="width: 90%; max-width: 960px">
-    <header class="modal-card-head">
-      <p class="modal-card-title" id="entity-modal-title">New Job</p>
-      <p class="ml-auto has-text-grey" id="entity-context"></p>
-      <button class="delete" aria-label="close"></button>
+  <div class="modal-dialog large">
+    <header class="modal-header">
+      <p class="modal-title" id="entity-modal-title">New Job</p>
+      <p class="modal-subtitle" id="entity-context"></p>
+      <button class="close-btn" aria-label="close"></button>
     </header>
-    <section class="modal-card-body">
-      <div class="field">
-        <label class="label">
-          Name <span class="has-text-danger">*</span>
-        </label>
-        <div class="control">
-          <input
-            class="input"
-            type="text"
-            id="entity-name"
-            placeholder="e.g. nightly-backup"
-          />
-          <p class="help">
-            Short name — will be created in the selected cluster
-          </p>
+    <section class="modal-body">
+      <div class="form-group">
+        <label class="label required" for="entity-name">Name</label>
+        <input
+          class="input"
+          type="text"
+          id="entity-name"
+          placeholder="e.g. nightly-backup"
+        />
+        <p class="help-text">Short name — will be created in the selected cluster</p>
+      </div>
+
+      <div class="form-group">
+        <label class="label" for="entity-description">Description</label>
+        <textarea class="textarea" id="entity-description" rows="2"></textarea>
+      </div>
+
+      <div class="form-group" id="entity-script-field">
+        <label class="label required" for="entity-script">Script / Command</label>
+        <input
+          class="input"
+          type="text"
+          id="entity-script"
+          placeholder="perl backup.pl --full"
+        />
+      </div>
+
+      <div class="form-group" id="entity-server-field">
+        <label class="label required" for="entity-server">Server</label>
+        <div class="select-wrapper">
+          <select id="entity-server"></select>
         </div>
       </div>
-      <div class="field">
-        <label class="label">Description</label>
-        <div class="control">
-          <textarea
-            class="textarea"
-            id="entity-description"
-            rows="2"
-          ></textarea>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="label" for="entity-needs">Needs</label>
+          <select class="select-multi" id="entity-needs" multiple></select>
+          <p class="help-text">Hold Ctrl/Cmd to select multiple. "None" clears all.</p>
+        </div>
+        <div class="form-group">
+          <label class="label" for="entity-needs-any">Needs Any</label>
+          <select class="select-multi" id="entity-needs-any" multiple></select>
+          <p class="help-text">Hold Ctrl/Cmd to select multiple. "None" clears all.</p>
         </div>
       </div>
-      <div class="field" id="entity-script-field">
-        <label class="label">
-          Script / Command <span class="has-text-danger">*</span>
-        </label>
-        <div class="control">
-          <input
-            class="input"
-            type="text"
-            id="entity-script"
-            placeholder="perl backup.pl --full"
-          />
+
+      <div class="form-group">
+        <label class="label" for="entity-on-fail">On Fail</label>
+        <div class="select-wrapper">
+          <select id="entity-on-fail">
+            <option value="">None</option>
+          </select>
         </div>
       </div>
-      <div class="field" id="entity-server-field">
-        <label class="label">
-          Server <span class="has-text-danger">*</span>
-        </label>
-        <div class="control">
-          <div class="select is-fullwidth">
-            <select id="entity-server"></select>
-          </div>
+
+      <div class="grid-3">
+        <div class="form-group">
+          <label class="label">Loops <span class="text-grey">(0 = run once)</span></label>
+          <input class="input" type="number" id="entity-loops" min="0" value="0" />
         </div>
-      </div>
-      <div class="columns">
-        <div class="column">
-          <div class="field">
-            <label class="label">Needs</label>
-            <div class="control">
-              <select
-                class="is-fullwidth"
-                id="entity-needs"
-                multiple
-              ></select>
-              <p class="help">
-                Hold Ctrl/Cmd to select multiple. "None" clears all.
-              </p>
-            </div>
-          </div>
+        <div class="form-group" id="entity-retrys-field">
+          <label class="label">Retries</label>
+          <input class="input" type="number" id="entity-retrys" min="0" value="0" />
         </div>
-        <div class="column">
-          <div class="field">
-            <label class="label">Needs Any</label>
-            <div class="control">
-              <select
-                class="is-fullwidth"
-                id="entity-needs-any"
-                multiple
-              ></select>
-              <p class="help">
-                Hold Ctrl/Cmd to select multiple. "None" clears all.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="field">
-        <label class="label">On Fail</label>
-        <div class="control">
-          <div class="select is-fullwidth">
-            <select id="entity-on-fail">
-              <option value="">None</option>
-            </select>
-          </div>
-        </div>
-      </div>
-      <div class="columns">
-        <div class="column is-one-third">
-          <div class="field">
-            <label class="label">
-              Loops
-              <span class="has-text-grey">(0 = run once)</span>
-            </label>
-            <div class="control">
-              <input
-                class="input"
-                type="number"
-                id="entity-loops"
-                min="0"
-                value="0"
-              />
-            </div>
-          </div>
-        </div>
-        <div class="column is-one-third" id="entity-retrys-field">
-          <div class="field">
-            <label class="label">Retries</label>
-            <div class="control">
-              <input
-                class="input"
-                type="number"
-                id="entity-retrys"
-                min="0"
-                value="0"
-              />
-            </div>
-          </div>
-        </div>
-        <div class="column is-one-third" id="entity-delay-field">
-          <div class="field">
-            <label class="label">Delay (seconds)</label>
-            <div class="control">
-              <input
-                class="input"
-                type="number"
-                id="entity-delay"
-                min="0"
-                value="0"
-              />
-            </div>
-          </div>
+        <div class="form-group" id="entity-delay-field">
+          <label class="label">Delay (seconds)</label>
+          <input class="input" type="number" id="entity-delay" min="0" value="0" />
         </div>
       </div>
     </section>
-    <footer class="modal-card-foot">
-      <button class="button is-primary" id="save-entity">Save</button>
-      <button class="button" id="cancel-entity">Cancel</button>
+    <footer class="modal-footer">
+      <button class="btn btn-primary" id="save-entity">Save</button>
+      <button class="btn btn-secondary" id="cancel-entity">Cancel</button>
     </footer>
   </div>
 </div>
 
 <!-- Dependency Graph Modal -->
-<div id="graph-modal" class="modal">
+<div id="graph-modal" class="app-modal">
   <div class="modal-background"></div>
-  <div class="modal-card" style="width: 95%; height: 95%">
-    <header class="modal-card-head">
-      <p class="modal-card-title">
+  <div class="modal-dialog full">
+    <header class="modal-header">
+      <p class="modal-title">
         Dependency Graph: <span id="graph-title"></span>
       </p>
-      <!-- Static Zoom Buttons -->
-      <div class="buttons has-addons ml-auto mr-3">
-        <button class="button is-small" id="zoom-out">−</button>
-        <button class="button is-small" id="zoom-fit">Fit</button>
-        <button class="button is-small" id="zoom-in">+</button>
+      <div class="zoom-controls">
+        <button class="btn btn-sm" id="zoom-out">−</button>
+        <button class="btn btn-sm" id="zoom-fit">Fit</button>
+        <button class="btn btn-sm" id="zoom-in">+</button>
       </div>
-      <button class="delete" aria-label="close"></button>
+      <button class="close-btn" aria-label="close"></button>
     </header>
-    <section class="modal-card-body" style="padding: 0; position: relative">
-      <div id="graph-container" style="width: 100%; height: 100%"></div>
-      <!-- Static Legend -->
+    <section class="modal-body graph-body">
+      <div id="graph-container"></div>
       <div id="graph-legend">
         <strong>Dependency Legend</strong>
-        <div class="legend-item legend-needs">
-          <span class="legend-line"></span>
-          <span class="legend-text">needs (blocking AND)</span>
+        <div class="legend-item">
+          <span class="legend-line needs"></span>
+          needs (blocking AND)
         </div>
-        <div class="legend-item legend-needs-any">
-          <span class="legend-line"></span>
-          <span class="legend-text">needs any (OR)</span>
+        <div class="legend-item">
+          <span class="legend-line needs-any"></span>
+          needs any (OR)
         </div>
-        <div class="legend-item legend-on-fail">
-          <span class="legend-line"></span>
-          <span class="legend-text">on fail (recovery)</span>
+        <div class="legend-item">
+          <span class="legend-line on-fail"></span>
+          on fail (recovery)
         </div>
       </div>
     </section>
   </div>
 </div>
-

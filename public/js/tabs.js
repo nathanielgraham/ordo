@@ -1,7 +1,6 @@
 // tabs.js – tab navigation + default activation
-
 export function attachTabListeners() {
-  const tabLinks = document.querySelectorAll(".nav-link[data-tab]");
+  const tabLinks = document.querySelectorAll(".nav-tab[data-tab]");
   console.log(`Found ${tabLinks.length} tab links`);
 
   tabLinks.forEach((link) => {
@@ -9,6 +8,7 @@ export function attachTabListeners() {
       e.preventDefault();
       const tabId = link.dataset.tab;
 
+      // Dynamic import for tree timings
       if (tabId === "monitor") {
         import("./tree-table.js").then((m) => m.startTreeTimings());
       } else {
@@ -16,8 +16,8 @@ export function attachTabListeners() {
       }
 
       // Update active tab style
-      tabLinks.forEach((l) => l.classList.remove("is-active"));
-      link.classList.add("is-active");
+      tabLinks.forEach((l) => l.classList.remove("active")); // use "active" (not "is-active")
+      link.classList.add("active");
 
       // Switch content visibility
       document.querySelectorAll(".tab-content").forEach((s) => {
@@ -39,11 +39,13 @@ export function activateDefaultTab() {
   const isLoggedIn = document.body.classList.contains("is-logged-in");
   const defaultTab = isLoggedIn ? "monitor" : "about";
 
-  const link = document.querySelector(`.nav-link[data-tab="${defaultTab}"]`);
+  console.log("Default tab content visible?", document.getElementById(defaultTab)?.style.display);
+  const link = document.querySelector(`.nav-tab[data-tab="${defaultTab}"]`);
   if (link) {
     console.log(`Activating default tab: ${defaultTab}`);
-    link.click();
+    link.click(); // Triggers the listener above
   } else {
     console.warn(`Default tab link not found: ${defaultTab}`);
   }
 }
+
