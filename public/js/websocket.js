@@ -1,4 +1,5 @@
 import { appState, updateCollapsedClusters } from "./state.js";
+//import { checkLoginAndConnect } from "./app.js";  
 
 import {
   updateAccount,
@@ -19,6 +20,19 @@ import {
   renderCalendarsTable,
   loadDoc
 } from './ui-handlers.js';
+
+export function checkLoginAndConnect() {
+  const token = document.cookie.match(/ordo_token=([^;]+)/)?.[1];
+  if (token) {
+    document.body.classList.add("is-logged-in");
+    console.log("DEBUG: Logged IN");
+    connectWS(token);
+  } else {
+    document.body.classList.remove("is-logged-in");
+    console.log("DEBUG: Logged OUT");
+  }
+  //activateDefaultTab();
+}
 
 export function connectWS(token) {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -44,6 +58,7 @@ export function connectWS(token) {
       if (data.command_reply === "read_user") updateAccount(data);
       if (data.command_reply === "read_org") updateOrgAndTeam(data);
       if (data.command_reply === "read_log") updateLog(data);
+
       if (data.command_reply === "find_log") updateLogHistory(data);
       if (data.command_reply === "find_cluster") updateJobsClusters(data);
 
@@ -63,6 +78,7 @@ export function connectWS(token) {
   };
   appState.ws.onclose = () => {
     console.log("WS closed");
+    showToast("Disconnected", "danger");
     setTimeout(checkLoginAndConnect, 5000);
   };
 }

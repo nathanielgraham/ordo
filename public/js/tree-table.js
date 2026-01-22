@@ -96,16 +96,16 @@ export function attachTreeTableListeners() {
 
       const dropdown = trigger.closest(".dropdown");
       const menu = dropdown.querySelector(".dropdown-menu");
-      const willOpen = !dropdown.classList.contains("is-active");
+      const willOpen = !dropdown.classList.contains("active");
 
       // Close all other dropdowns
-      document.querySelectorAll(".dropdown.is-active").forEach((d) => {
+      document.querySelectorAll(".dropdown.active").forEach((d) => {
         if (d !== dropdown) {
-          d.classList.remove("is-active", "is-up");
+          d.classList.remove("active", "is-up");
         }
       });
 
-      dropdown.classList.toggle("is-active", willOpen);
+      dropdown.classList.toggle("active", willOpen);
 
       if (willOpen) {
         menu.style.display = "block";
@@ -154,6 +154,8 @@ export function attachTreeTableListeners() {
         .replace(/\/$/, "");
 
       if (text === "edit") {
+        console.log(JSON.stringify(appState.monitorData, null, 2));
+
         const node = isCluster
           ? findClusterById(appState.monitorData.tree, id)
           : findJobById(appState.monitorData.tree, id);
@@ -191,7 +193,7 @@ export function attachTreeTableListeners() {
       if (["kill", "delete"].includes(text)) {
         document.getElementById("confirm-message").textContent =
           `Are you sure you want to ${text} ${type} "${name}"?`;
-        document.getElementById("confirm-modal").classList.add("is-active");
+        document.getElementById("confirm-modal").classList.add("active");
 
         const yesBtn = document.getElementById("confirm-yes");
         const noBtn = document.getElementById("confirm-no");
@@ -199,23 +201,85 @@ export function attachTreeTableListeners() {
 
         const handleConfirm = () => {
           sendCommand(text, id, type);
-          document
-            .getElementById("confirm-modal")
-            .classList.remove("is-active");
+          document.getElementById("confirm-modal").classList.remove("active");
           yesBtn.removeEventListener("click", handleConfirm);
         };
 
         yesBtn.addEventListener("click", handleConfirm);
         noBtn.addEventListener("click", () =>
-          document
-            .getElementById("confirm-modal")
-            .classList.remove("is-active"),
+          document.getElementById("confirm-modal").classList.remove("active"),
         );
         closeBtn.addEventListener("click", () =>
-          document
-            .getElementById("confirm-modal")
-            .classList.remove("is-active"),
+          document.getElementById("confirm-modal").classList.remove("active"),
         );
+        return;
+      }
+
+      /*
+      if (text === "view log" && !isCluster) {
+        if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+          appState.ws.send(JSON.stringify({ command: "read_log", id }));
+        }
+        const logModal = document.getElementById("log-modal");
+        logModal.classList.add("active");
+        document.querySelector("#log-modal .modal-title").textContent =
+          "Latest Job Log";
+         
+        // More robust ID retrieval
+        let jobId = null;
+        let currentRow = item.closest("tr");
+        if (currentRow && currentRow.dataset.id) {
+          jobId = currentRow.dataset.id;
+        } else {
+          console.warn("Could not find job ID from row");
+        }
+       
+        logModal.dataset.jobId = jobId;
+        // Attach history listeners
+        attachLogHistoryListeners();
+         
+        return;
+      }
+
+      if (text === "view log" && !isCluster) {
+        if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+          appState.ws.send(JSON.stringify({ command: "read_log", id }));
+        }
+
+        const logModal = document.getElementById("log-modal");
+        logModal.classList.add("active");
+
+        // Get job name from the row (same cell as nameHtml)
+        const nameCell = currentRow.querySelector("td:first-child");
+        let jobName = "Unnamed Job";
+        if (nameCell) {
+          // Clean up name: remove toggle arrow, icon, and trailing / if any
+          jobName = nameCell.textContent
+            .replace(/[▶▼ ]/g, "") // remove toggle arrows/spaces
+            .replace(/<[^>]*>/g, "") // remove any HTML (icons)
+            .trim()
+            .replace(/\/$/, ""); // remove trailing /
+        }
+
+        // Set dynamic title
+        document.querySelector("#log-modal .modal-title").textContent =
+          `Latest Job Log: ${jobName} (ID: ${id})`;
+
+        // More robust ID retrieval (already good, keeping it)
+        let jobId = null;
+        let currentRow = item.closest("tr");
+        if (currentRow && currentRow.dataset.id) {
+          jobId = currentRow.dataset.id;
+        } else {
+          console.warn("Could not find job ID from row");
+          showToast("Job ID not found", "warning");
+        }
+
+        logModal.dataset.jobId = jobId;
+
+        // Attach history listeners
+        attachLogHistoryListeners();
+
         return;
       }
 
@@ -223,11 +287,42 @@ export function attachTreeTableListeners() {
         if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
           appState.ws.send(JSON.stringify({ command: "read_log", id }));
         }
-        document.getElementById("log-modal").classList.add("is-active");
-        document.querySelector("#log-modal .modal-card-title").textContent =
-          "Latest Job Log";
-        document.getElementById("log-modal").dataset.jobId = id;
+
+        const logModal = document.getElementById("log-modal");
+        logModal.classList.add("active");
+
+        // Robust jobId retrieval with debug
+        let jobId = null;
+        const currentRow = item.closest("tr");
+        jobId = currentRow.dataset.id;
+
+        logModal.dataset.jobId = jobId || "unknown";
+
+        // Attach history listeners (local function in tree-table.js)
+        attachLogHistoryListeners();
+
         return;
+      }
+
+*/
+
+      if (text === "view log" && !isCluster) {
+        const row = item.closest("tr");
+        const jobId = row.dataset.id;
+
+        const modal = document.getElementById("log-modal");
+        modal.dataset.jobId = jobId;
+
+        // Immediate placeholder using job ID (name will come from reply)
+        document.getElementById("log-modal-title").textContent =
+          `Job ID: ${jobId} — Loading log...`;
+        document.getElementById("log-modal-subtitle").textContent = "";
+
+        if (appState.ws?.readyState === WebSocket.OPEN) {
+          appState.ws.send(JSON.stringify({ command: "read_log", id: jobId }));
+        }
+
+        modal.classList.add("active");
       }
 
       sendCommand(text, id, type);
@@ -349,29 +444,57 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
     let statsDisplay = "—";
     let statsTooltipLines = [];
 
-    if (item.pid || item.pctcpu != null || item.pctmem != null) {
-      const cpu = item.pctcpu ?? 0;
-      let cpuClass = "is-cpu-low";
-      if (cpu > 80) cpuClass = "is-cpu-high";
-      else if (cpu > 50) cpuClass = "is-cpu-medium";
+    // Only compute stats for jobs (not clusters)
+    if (!item.is_cluster) {
+      // CPU badge - only show if pctcpu was actually collected
+      if (item.pctcpu !== null && item.pctcpu !== undefined) {
+        const cpu = item.pctcpu;
+        let cpuClass = "cpu-low";
+        if (cpu > 80) cpuClass = "cpu-high";
+        else if (cpu > 50) cpuClass = "cpu-medium";
 
-      statsDisplay = `<span class="tag ${cpuClass}">${cpu.toFixed(1)}%</span>`;
+        statsDisplay = `<span class="stats-badge ${cpuClass}">${cpu.toFixed(1)}%</span>`;
+        statsTooltipLines.push(`• CPU: ${cpu.toFixed(1)}%`);
+      }
 
-      statsTooltipLines.push(`Process (PID ${item.pid || "—"}):`);
-      statsTooltipLines.push(`• CPU: ${cpu.toFixed(1)}%`);
-      if (item.pctmem != null)
+      // Memory % line - only show if collected
+      if (item.pctmem !== null && item.pctmem !== undefined) {
         statsTooltipLines.push(`• Memory: ${item.pctmem.toFixed(1)}%`);
-      if (item.rss != null) {
+      }
+
+      // RSS line - only show if collected
+      if (item.rss !== null && item.rss !== undefined) {
         const rssMB = Math.round(item.rss / 1024 / 1024);
         statsTooltipLines.push(`• RSS: ${rssMB} MB`);
       }
-      if (item.ppid) statsTooltipLines.push(`• Parent PID: ${item.ppid}`);
-      if (item.fname) statsTooltipLines.push(`• Command: ${item.fname}`);
-    } else if (item.jobstate === "running") {
-      statsTooltipLines.push("Stats collection not enabled.");
-      statsTooltipLines.push(
-        "Run update_stats.pl periodically to see real-time stats.",
-      );
+
+      // Always add PID if present
+      if (item.pid !== null && item.pid !== undefined) {
+        statsTooltipLines.push(`Process (PID ${item.pid}):`);
+      }
+
+      // Parent PID and command (if present)
+      if (item.ppid !== null && item.ppid !== undefined) {
+        statsTooltipLines.push(`• Parent PID: ${item.ppid}`);
+      }
+      if (item.fname) {
+        statsTooltipLines.push(`• Command: ${item.fname}`);
+      }
+
+      // In the hint block
+      if (
+        item.jobstate === "running" &&
+        item.pid !== null &&
+        item.pid !== undefined &&
+        item.pctcpu == null &&
+        item.pctmem == null &&
+        item.rss == null
+      ) {
+        statsTooltipLines.push(""); // empty line for spacing
+        statsTooltipLines.push(
+          "Full stats not collected – run update_stats.pl",
+        );
+      }
     }
 
     const statsTitle = statsTooltipLines.length
@@ -481,10 +604,10 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
   `;
     }
 
-  // In buildRows, inside the state <td>
-  // <td><span class="ordo-state ${stateClass(item.jobstate)}">${item.jobstate || "—"}</span></td>
-  const stateLower = (item.jobstate || "").toLowerCase().trim();
-  const stateClass = `state-badge ${stateLower || "unknown"}`;
+    // In buildRows, inside the state <td>
+    // <td><span class="ordo-state ${stateClass(item.jobstate)}">${item.jobstate || "—"}</span></td>
+    const stateLower = (item.jobstate || "").toLowerCase().trim();
+    const stateClass = `state-badge ${stateLower || "unknown"}`;
 
     row.innerHTML = `
   <td>${nameHtml}</td>
@@ -517,64 +640,64 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
 // Or after any full table rebuild
 function setupDropdownFlip() {
   // Remove any existing listeners first (prevents duplicates)
-  document.querySelectorAll('.table .dropdown').forEach(dropdown => {
+  document.querySelectorAll(".table .dropdown").forEach((dropdown) => {
     // Optional: remove previous listeners if you stored them
     // But simplest: use named function or data attribute to avoid dupes
   });
 
-  const dropdowns = document.querySelectorAll('.table .dropdown');
+  const dropdowns = document.querySelectorAll(".table .dropdown");
 
-  dropdowns.forEach(dropdown => {
-    const trigger = dropdown.querySelector('.dropdown-trigger button');
+  dropdowns.forEach((dropdown) => {
+    const trigger = dropdown.querySelector(".dropdown-trigger button");
     if (!trigger) return;
 
     const flipHandler = () => {
-      if (!dropdown.classList.contains('is-active')) {
+      if (!dropdown.classList.contains("active")) {
         // Reset when closing
-        dropdown.classList.remove('is-up');
+        dropdown.classList.remove("is-up");
         return;
       }
 
       // Get trigger position
       const rect = trigger.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
-      const menu = dropdown.querySelector('.dropdown-menu');
+      const menu = dropdown.querySelector(".dropdown-menu");
       const menuHeight = menu?.offsetHeight || 200; // fallback
 
       if (spaceBelow < menuHeight + 30) {
-        dropdown.classList.add('is-up');
+        dropdown.classList.add("is-up");
       } else {
-        dropdown.classList.remove('is-up');
+        dropdown.classList.remove("is-up");
       }
     };
 
     // Add listener (use once to avoid dupes if function called multiple times)
-    trigger.removeEventListener('click', flipHandler); // cleanup first
-    trigger.addEventListener('click', flipHandler);
+    trigger.removeEventListener("click", flipHandler); // cleanup first
+    trigger.addEventListener("click", flipHandler);
   });
 
   // Optional: Handle window resize/scroll while menu is open
   const updateFlipOnResize = () => {
-    document.querySelectorAll('.table .dropdown.is-active').forEach(dropdown => {
+    document.querySelectorAll(".table .dropdown.active").forEach((dropdown) => {
       // Re-run flip logic for open dropdowns
-      const trigger = dropdown.querySelector('.dropdown-trigger button');
+      const trigger = dropdown.querySelector(".dropdown-trigger button");
       if (trigger) {
         const rect = trigger.getBoundingClientRect();
         const spaceBelow = window.innerHeight - rect.bottom;
-        const menu = dropdown.querySelector('.dropdown-menu');
+        const menu = dropdown.querySelector(".dropdown-menu");
         const menuHeight = menu?.offsetHeight || 200;
 
         if (spaceBelow < menuHeight + 30) {
-          dropdown.classList.add('is-up');
+          dropdown.classList.add("is-up");
         } else {
-          dropdown.classList.remove('is-up');
+          dropdown.classList.remove("is-up");
         }
       }
     });
   };
 
-  window.removeEventListener('resize', updateFlipOnResize);
-  window.addEventListener('resize', updateFlipOnResize);
+  window.removeEventListener("resize", updateFlipOnResize);
+  window.addEventListener("resize", updateFlipOnResize);
 }
 
 // Collapse/expand subtree
@@ -664,6 +787,32 @@ function resolveDepName(id, tree, isCluster = false) {
   }
 
   return node ? getFullPath(node) : `ID:${id} (missing or type mismatch)`;
+}
+
+function attachLogHistoryListeners() {
+  const viewHistoryBtn = document.getElementById("view-history");
+  const closeHistoryBtn = document.getElementById("close-log-history");
+
+  if (viewHistoryBtn && !viewHistoryBtn.dataset.listenerAdded) {
+    viewHistoryBtn.addEventListener("click", () => {
+      console.log("View History clicked!"); // remove after testing
+      const jobId = document.getElementById("log-modal").dataset.jobId;
+      if (jobId && appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+        appState.ws.send(JSON.stringify({ command: "find_log", id: jobId }));
+        document.getElementById("log-history-modal").classList.add("active");
+      } else {
+        showToast("Not connected or no job ID", "danger");
+      }
+    });
+    viewHistoryBtn.dataset.listenerAdded = "true";
+  }
+
+  if (closeHistoryBtn && !closeHistoryBtn.dataset.listenerAdded) {
+    closeHistoryBtn.addEventListener("click", () => {
+      document.getElementById("log-history-modal").classList.remove("active");
+    });
+    closeHistoryBtn.dataset.listenerAdded = "true";
+  }
 }
 
 // In tree-table.js (top level or init function)

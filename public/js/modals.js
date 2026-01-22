@@ -1,8 +1,7 @@
 // modals.js – all modal open/close/save/interaction logic
-
 import { appState } from "./state.js";
-import { showToast } from "./ui-handlers.js"; // needs showToast 
-import { getFullPath } from "./utils.js"; 
+import { showToast } from "./ui-handlers.js";
+import { getFullPath } from "./utils.js";
 
 // Save entity (create/edit job/cluster)
 document.getElementById("save-entity")?.addEventListener("click", () => {
@@ -11,11 +10,9 @@ document.getElementById("save-entity")?.addEventListener("click", () => {
     showToast("Name is required", "danger");
     return;
   }
-
   const isEdit = appState.currentEditItem !== null;
   const isJob =
     document.getElementById("entity-script-field").style.display !== "none";
-
   const payload = {
     command: isEdit
       ? isJob
@@ -26,10 +23,8 @@ document.getElementById("save-entity")?.addEventListener("click", () => {
         : "create_cluster",
     name,
   };
-
   if (isEdit) payload.id = appState.currentEditItem.id;
   else payload.parent_id = appState.currentParentId;
-
   if (isJob) {
     const script = document.getElementById("entity-script").value.trim();
     const server = document.getElementById("entity-server").value;
@@ -39,22 +34,18 @@ document.getElementById("save-entity")?.addEventListener("click", () => {
     }
     payload.script = script;
     payload.server = server;
-
     const retrys = document.getElementById("entity-retrys").value;
     if (retrys) payload.retrys = Number(retrys);
-
     const delay = document.getElementById("entity-delay").value;
     if (delay) payload.delay = Number(delay);
   }
-
   const description = document
     .getElementById("entity-description")
     .value.trim();
-  if (description) payload.description = description;
-
+  //if (description) payload.description = description;
+  payload.description = description;
   const loops = document.getElementById("entity-loops").value;
   if (loops) payload.loops = Number(loops);
-
   // Dependencies
   const needsSelect = document.getElementById("entity-needs");
   const needsIds = Array.from(needsSelect.selectedOptions)
@@ -66,7 +57,6 @@ document.getElementById("save-entity")?.addEventListener("click", () => {
   ) {
     payload.needs_ids = needsIds.length > 0 ? needsIds : [];
   }
-
   const needsAnySelect = document.getElementById("entity-needs-any");
   const needsAnyIds = Array.from(needsAnySelect.selectedOptions)
     .map((opt) => Number(opt.value))
@@ -77,7 +67,6 @@ document.getElementById("save-entity")?.addEventListener("click", () => {
   ) {
     payload.needs_any_ids = needsAnyIds.length > 0 ? needsAnyIds : [];
   }
-
   const onFailSelect = document.getElementById("entity-on-fail");
   const onFailId = onFailSelect.value;
   if (onFailId) {
@@ -85,15 +74,13 @@ document.getElementById("save-entity")?.addEventListener("click", () => {
   } else if (onFailSelect.querySelector('option[value=""]').selected) {
     payload.on_fail_id = null;
   }
-
   if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
     appState.ws.send(JSON.stringify(payload));
     showToast(isEdit ? "Update sent" : "Creation requested", "info");
   } else {
     showToast("Not connected", "danger");
   }
-
-  document.getElementById("entity-modal").classList.remove("is-active");
+  document.getElementById("entity-modal").classList.remove("active");
 });
 
 // Save attach calendar
@@ -104,25 +91,27 @@ document.getElementById("save-attach-cal")?.addEventListener("click", () => {
     id: appState.currentAttachClusterId,
     cal_id: calId ? Number(calId) : null,
   };
-
   if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
     appState.ws.send(JSON.stringify(payload));
     showToast("Calendar updated", "info");
   } else {
     showToast("Not connected", "danger");
   }
-
-  document.getElementById("attach-cal-modal").classList.remove("is-active");
+  document.getElementById("attach-cal-modal").classList.remove("active");
 });
 
 // Log modal buttons
 document.getElementById("close-log")?.addEventListener("click", () => {
-  document.getElementById("log-modal").classList.remove("is-active");
+  document.getElementById("log-modal").classList.remove("active");
 });
 
 document.getElementById("refresh-log")?.addEventListener("click", () => {
-  const jobId = document.getElementById("log-modal").dataset.jobId;
-  if (jobId && appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+  const modal = document.getElementById("log-modal");
+  const jobId = modal.dataset.jobId;
+
+  if (jobId && appState.ws?.readyState === WebSocket.OPEN) {
+    document.getElementById("log-modal-title").textContent = `Job ID: ${jobId} — Refreshing...`;
+    document.getElementById("log-modal-subtitle").textContent = "";
     appState.ws.send(JSON.stringify({ command: "read_log", id: jobId }));
   }
 });
@@ -131,26 +120,38 @@ document.getElementById("view-history")?.addEventListener("click", () => {
   const jobId = document.getElementById("log-modal").dataset.jobId;
   if (jobId && appState.ws && appState.ws.readyState === WebSocket.OPEN) {
     appState.ws.send(JSON.stringify({ command: "find_log", id: jobId }));
-    document.getElementById("log-history-modal").classList.add("is-active");
+
+    const historyModal = document.getElementById("log-history-modal");
+    historyModal.classList.add("active");
+
+    // Get job name from latest log title (already set when opening log modal)
+    //const latestTitle = document.querySelector("#log-modal .modal-title").textContent || "";
+    //const jobPart = latestTitle.replace("Latest Log: ", "").replace(/ \(Job ID: .*\)/, "") || "Unnamed Job";
+
+    // Set history title
+    document.querySelector("#log-history-modal .modal-title").textContent =
+      `Log History for Job ID ${jobId}`;
+  } else {
+    showToast("Not connected or no job ID", "danger");
   }
 });
 
 document.getElementById("close-log-history")?.addEventListener("click", () => {
-  document.getElementById("log-history-modal").classList.remove("is-active");
+  document.getElementById("log-history-modal").classList.remove("active");
 });
 
 // Invite team modal
 document.getElementById("invite-team")?.addEventListener("click", () => {
-  document.getElementById("invite-modal").classList.add("is-active");
+  document.getElementById("invite-modal").classList.add("active");
   document.getElementById("invite-email").value = "";
 });
 
 document.getElementById("cancel-invite")?.addEventListener("click", () => {
-  document.getElementById("invite-modal").classList.remove("is-active");
+  document.getElementById("invite-modal").classList.remove("active");
 });
 
 document.getElementById("close-invite")?.addEventListener("click", () => {
-  document.getElementById("invite-modal").classList.remove("is-active");
+  document.getElementById("invite-modal").classList.remove("active");
 });
 
 document.getElementById("send-invite")?.addEventListener("click", () => {
@@ -159,7 +160,6 @@ document.getElementById("send-invite")?.addEventListener("click", () => {
     showToast("Enter email", "danger");
     return;
   }
-
   if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
     appState.ws.send(
       JSON.stringify({
@@ -169,7 +169,7 @@ document.getElementById("send-invite")?.addEventListener("click", () => {
       }),
     );
     showToast("Invitation sent", "success");
-    document.getElementById("invite-modal").classList.remove("is-active");
+    document.getElementById("invite-modal").classList.remove("active");
   } else {
     showToast("Not connected", "danger");
   }
@@ -178,40 +178,36 @@ document.getElementById("send-invite")?.addEventListener("click", () => {
 // Global cancel button handler (for all cancel buttons in modals)
 document.addEventListener("click", (e) => {
   const cancelBtn = e.target.closest(
-    '[id^="cancel-"], .button[data-action="cancel"]',
+    '[id^="cancel-"], .btn[data-action="cancel"]',
   );
   if (cancelBtn) {
-    const modal = cancelBtn.closest(".modal");
+    const modal = cancelBtn.closest(".app-modal");
     if (modal) {
-      modal.classList.remove("is-active");
+      modal.classList.remove("active");
     }
   }
 });
 
+// Populate dependency selects (unchanged, but included for completeness)
 function populateDependencySelects(selectId, selectedIds = [], includeNone = true) {
   const select = document.getElementById(selectId);
   select.innerHTML = "";
-
   if (includeNone) {
     const noneOpt = document.createElement("option");
     noneOpt.value = "";
     noneOpt.textContent = "None";
     select.appendChild(noneOpt);
   }
-
   console.log(`[DEBUG] populateDependencySelects called for ${selectId}`);
   console.log(`[DEBUG] selectedIds:`, selectedIds);
   console.log(`[DEBUG] appState.monitorData.tree:`, appState.monitorData.tree);
-
   function addClusters(items) {
     console.log(`[DEBUG] addClusters called with items:`, items);
     console.log(`[DEBUG] items is array?`, Array.isArray(items));
-
     if (!Array.isArray(items)) {
       console.warn("[DEBUG] addClusters: items is NOT an array - skipping");
       return;
     }
-
     items.forEach((item) => {
       if (item.is_cluster) {
         if (appState.currentEditItem && Number(item.id) === Number(appState.currentEditItem.id)) return;
@@ -228,10 +224,10 @@ function populateDependencySelects(selectId, selectedIds = [], includeNone = tru
       }
     });
   }
-
   addClusters(appState.monitorData.tree || []);
 }
 
+// Open Attach Calendar Modal
 export function openAttachCalendarModal(
   clusterId,
   clusterName,
@@ -242,7 +238,6 @@ export function openAttachCalendarModal(
   document.getElementById("attach-target-name").textContent = clusterName;
   document.getElementById("attach-current-cal").textContent =
     currentCalName || "None";
-
   const select = document.getElementById("attach-cal-select");
   select.innerHTML = '<option value="">None (run manually only)</option>';
   appState.calendarsData.forEach((cal) => {
@@ -252,10 +247,10 @@ export function openAttachCalendarModal(
     if (Number(cal.id) === Number(currentCalId)) opt.selected = true;
     select.appendChild(opt);
   });
-
-  document.getElementById("attach-cal-modal").classList.add("is-active");
+  document.getElementById("attach-cal-modal").classList.add("active");
 }
 
+// Open Create/Edit Entity Modal
 export function openEntityModal(
   mode = "create",
   type = "job",
@@ -266,19 +261,15 @@ export function openEntityModal(
   appState.currentEditItem = item;
   appState.currentParentId = parentId;
   appState.currentParentName = parentName;
-
   const isEdit = mode === "edit";
   const isJob = type === "job";
-
   document.getElementById("entity-modal-title").textContent = isEdit
     ? `Edit ${isJob ? "Job" : "Cluster"}`
     : `New ${isJob ? "Job" : "Cluster"}`;
-
   const contextEl = document.getElementById("entity-context");
   if (isEdit) contextEl.textContent = `ID: ${item.id}`;
   else if (parentName) contextEl.textContent = `In cluster: ${parentName}`;
   else contextEl.textContent = "In root";
-
   document.getElementById("entity-script-field").style.display = isJob
     ? "block"
     : "none";
@@ -291,7 +282,6 @@ export function openEntityModal(
   document.getElementById("entity-delay-field").style.display = isJob
     ? "block"
     : "none";
-
   if (isEdit && item) {
     document.getElementById("entity-name").value = item.name || "";
     document.getElementById("entity-description").value =
@@ -301,7 +291,6 @@ export function openEntityModal(
     document.getElementById("entity-loops").value = item.loops ?? 0;
     document.getElementById("entity-retrys").value = item.retrys ?? 0;
     document.getElementById("entity-delay").value = item.delay ?? 0;
-
     populateDependencySelects("entity-needs", item.needs_ids || [], true);
     populateDependencySelects(
       "entity-needs-any",
@@ -322,12 +311,10 @@ export function openEntityModal(
     document.getElementById("entity-loops").value = "0";
     document.getElementById("entity-retrys").value = "0";
     document.getElementById("entity-delay").value = "0";
-
     populateDependencySelects("entity-needs", [], true);
     populateDependencySelects("entity-needs-any", [], true);
     populateDependencySelects("entity-on-fail", [], true);
   }
-
   const serverSelect = document.getElementById("entity-server");
   serverSelect.innerHTML = "";
   appState.serversData.forEach((s) => {
@@ -338,65 +325,63 @@ export function openEntityModal(
     if (isEdit && s.name === item.server_name) opt.selected = true;
     serverSelect.appendChild(opt);
   });
-
-  document.getElementById("entity-modal").classList.add("is-active");
+  document.getElementById("entity-modal").classList.add("active");
 }
 
-  // Copy token
-  document.getElementById("copy-token").addEventListener("click", () => {
-    const tokenInput = document.getElementById("account-token");
-    if (!tokenInput.value) {
-      showToast("No token to copy", "warning");
-      return;
-    }
-    tokenInput.select();
-    tokenInput.setSelectionRange(0, 99999);
-    try {
-      document.execCommand("copy");
-      showToast("Token copied!", "success");
-    } catch (err) {
-      showToast("Failed to copy", "danger");
-    }
-  });
+// Copy token
+document.getElementById("copy-token")?.addEventListener("click", () => {
+  const tokenInput = document.getElementById("account-token");
+  if (!tokenInput.value) {
+    showToast("No token to copy", "warning");
+    return;
+  }
+  tokenInput.select();
+  tokenInput.setSelectionRange(0, 99999);
+  try {
+    document.execCommand("copy");
+    showToast("Token copied!", "success");
+  } catch (err) {
+    showToast("Failed to copy", "danger");
+  }
+});
 
-  // Save profile
-  document.getElementById("save-profile").addEventListener("click", () => {
-    const name = document.getElementById("edit-name").value.trim();
-    const mode = document.getElementById("edit-mode").value.trim();
-    if (!name && !mode) {
-      showToast("No changes", "info");
-      return;
-    }
-    if (ws && appState.ws.readyState === WebSocket.OPEN) {
-      appState.ws.send(
-        JSON.stringify({
-          command: "update_user",
-          name: name || undefined,
-          mode: mode || undefined,
-        }),
-      );
-      showToast("Profile update requested", "info");
-    } else {
-      showToast("Not connected", "danger");
-    }
-  });
+// Save profile
+document.getElementById("save-profile")?.addEventListener("click", () => {
+  const name = document.getElementById("edit-name").value.trim();
+  const mode = document.getElementById("edit-mode").value.trim();
+  if (!name && !mode) {
+    showToast("No changes", "info");
+    return;
+  }
+  if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+    appState.ws.send(
+      JSON.stringify({
+        command: "update_user",
+        name: name || undefined,
+        mode: mode || undefined,
+      }),
+    );
+    showToast("Profile update requested", "info");
+  } else {
+    showToast("Not connected", "danger");
+  }
+});
 
-  // Save org
-  document.getElementById("save-org").addEventListener("click", () => {
-    const payload = { command: "update_org" };
-    const name = document.getElementById("edit-org-name").value.trim();
-    const desc = document.getElementById("edit-org-desc").value.trim();
-    if (name) payload.name = name;
-    if (desc) payload.description = desc;
-    if (Object.keys(payload).length === 1) {
-      showToast("No changes", "info");
-      return;
-    }
-    if (ws && appState.ws.readyState === WebSocket.OPEN) {
-      appState.ws.send(JSON.stringify(payload));
-      showToast("Organization update requested", "info");
-    } else {
-      showToast("Not connected", "danger");
-    }
-  });
-
+// Save org
+document.getElementById("save-org")?.addEventListener("click", () => {
+  const payload = { command: "update_org" };
+  const name = document.getElementById("edit-org-name").value.trim();
+  const desc = document.getElementById("edit-org-desc").value.trim();
+  if (name) payload.name = name;
+  if (desc) payload.description = desc;
+  if (Object.keys(payload).length === 1) {
+    showToast("No changes", "info");
+    return;
+  }
+  if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+    appState.ws.send(JSON.stringify(payload));
+    showToast("Organization update requested", "info");
+  } else {
+    showToast("Not connected", "danger");
+  }
+});

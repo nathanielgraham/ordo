@@ -1,6 +1,6 @@
-// ui-handlers.js 
+// ui-handlers.js
 import { appState, updateCollapsedClusters } from "./state.js";
-import { renderJobsTable } from './tree-table.js';
+import { renderJobsTable } from "./tree-table.js";
 
 import {
   formatDate,
@@ -8,8 +8,8 @@ import {
   buildTree,
   findClusterById,
   findJobById,
-  getFullPath
-} from './utils.js';
+  getFullPath,
+} from "./utils.js";
 
 export function showLoading(containerId) {
   const loading = document.getElementById(containerId);
@@ -22,11 +22,46 @@ export function hideLoading(containerId) {
 }
 
 export function showToast(message, type = "info") {
+  let container = document.getElementById("toast-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "toast-container";
+    document.body.appendChild(container);
+  }
+
   const toast = document.createElement("div");
-  toast.className = `notification is-${type}`;
-  toast.innerHTML = `<button class="delete"></button><span>${message}</span>`;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 4000);
+  toast.className = `toast ${type} show`;
+  toast.setAttribute("role", "alert");
+  toast.setAttribute("aria-live", "polite");
+
+  const iconClass =
+    {
+      success: "check-circle",
+      info: "info-circle",
+      warning: "exclamation-triangle",
+      danger: "times-circle",
+    }[type] || "info-circle";
+
+  toast.innerHTML = `
+    <i class="fas fa-${iconClass}"></i>
+    <span>${message}</span>
+    <button class="close-btn" aria-label="Close">×</button>
+  `;
+
+  container.appendChild(toast);
+
+  // Auto-dismiss
+  const duration = type === "danger" ? 8000 : type === "warning" ? 6000 : 4000;
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => toast.remove(), 400); // fade-out duration
+  }, duration);
+
+  // Manual close
+  toast.querySelector(".close-btn").onclick = () => {
+    toast.classList.remove("show");
+    setTimeout(() => toast.remove(), 400);
+  };
 }
 
 export function updateAccount(data) {
@@ -91,8 +126,62 @@ export function renderOrgTeam() {
   }
 }
 
+/*
 export function updateLog(data) {
   document.getElementById("log-content").textContent = data.out;
+  const jobId = data.job_id;
+  const runId = data.id || "unknown";
+  document.querySelector("#log-modal .modal-title").textContent =
+    `Job ${jobId} (Run ${runId})`;
+}
+*/
+
+export function updateLog(data) {
+  const pre = document.getElementById("log-content");
+  pre.textContent = data.out || "(no output)";
+
+  // Auto-scroll to bottom
+  pre.scrollTop = pre.scrollHeight;
+
+  const jobName = data.job_name || "Unnamed Job";
+  const jobId = data.job_id || "—";
+  const runId = data.id || "latest"; // prefer log_id, fallback to id
+  const serverName = data.server_name || "—";
+
+// Replace the current status calculation with this:
+
+let status = "Success";
+let statusClass = "success";  // for optional coloring later
+
+if (data.signal != null && data.signal !== 0) {
+  status = `Terminated (signal ${data.signal})`;
+  statusClass = "warning";  // or "danger" if you want red
+} else if (data.exit_code != null && data.exit_code !== 0) {
+  status = `Failed (exit ${data.exit_code})`;
+  statusClass = "danger";
+} else if (data.exit_code === 0) {
+  status = "Success";
+  statusClass = "success";
+} else {
+  status = "—";
+  statusClass = "unknown";
+}
+
+// Then in title:
+document.getElementById("log-modal-title").textContent =
+  `Job: ${jobName} • ID: ${jobId} • Run: ${runId} (${status})`;
+
+// Optional: add a CSS class to the title for color
+document.getElementById("log-modal-title").className = `modal-title ${statusClass}`;
+
+  // Two-line subtitle
+  const startDate = data.started ? formatDate(data.started) : "—";
+  const duration = formatDuration(data.started, data.ended);
+  const pid = data.pid || "—";
+
+  document.getElementById("log-modal-subtitle").innerHTML =
+    `Path: ${data.job_path || "—"} • Server: ${serverName}<br>` +
+    `Started: ${startDate} • Duration: ${duration} • PID: ${pid}`;
 }
 
 export function updateLogHistory(data) {
@@ -122,11 +211,8 @@ export function updateLogHistory(data) {
           log_id: log.id,
         }),
       );
-      document
-        .getElementById("log-history-modal")
-        .classList.remove("is-active");
-      document.querySelector("#log-modal .modal-card-title").textContent =
-        `Job Log - Run #${log.id}`;
+      document.getElementById("log-history-modal").classList.remove("active");
+      //document.querySelector("#log-modal .modal-title").textContent = `Run: ${id} (Job ID: ${id})`;
     });
     tbody.appendChild(row);
   });
@@ -378,11 +464,11 @@ export function loadDoc(file) {
       // Update active TOC link
       document
         .querySelectorAll("#docs-toc a")
-        .forEach((a) => a.classList.remove("is-active"));
+        .forEach((a) => a.classList.remove("active"));
       const activeLink = document.querySelector(
         `#docs-toc a[data-file="${file}"]`,
       );
-      if (activeLink) activeLink.classList.add("is-active");
+      if (activeLink) activeLink.classList.add("active");
     })
     .catch((err) => {
       document.getElementById("docs-content").innerHTML =
@@ -390,36 +476,23 @@ export function loadDoc(file) {
     });
 }
 
-  // Load Quickstart on first open
-  const quickstartLink = document.querySelector(
-    '#docs-toc a[data-file="quickstart.md"]',
-  ); 
-  if (quickstartLink) {
-    quickstartLink.click(); // Triggers your existing TOC handler → loads Quickstart
-  } 
+// Mobile TOC toggle
+document.getElementById("docs-toc-toggle")?.addEventListener("click", () => {
+  document.getElementById("docs-toc").classList.toggle("is-open");
+});
 
-  // Mobile TOC toggle
-  document.getElementById("docs-toc-toggle")?.addEventListener("click", () => {
-    document.getElementById("docs-toc").classList.toggle("is-open");
-  });
+// TOC click handler
+// Inside your TOC click handler
+document.getElementById("docs-toc").addEventListener("click", (e) => {
+  const link = e.target.closest("a");
+  if (link && link.dataset.file) {
+    e.preventDefault();
+    loadDoc(link.dataset.file);
 
-  // TOC click handler
-  // Inside your TOC click handler
-  document.getElementById("docs-toc").addEventListener("click", (e) => {
-    const link = e.target.closest("a");
-    if (link && link.dataset.file) {
-      e.preventDefault();
-      loadDoc(link.dataset.file);
-
-      const contentContainer = document.querySelector(
-        ".docs-content-container",
-      );
-      if (contentContainer) {
-        contentContainer.focus();
-        contentContainer.scrollTop = 0; // Optional: scroll to top on new page
-      }
+    const contentContainer = document.querySelector(".docs-content-container");
+    if (contentContainer) {
+      contentContainer.focus();
+      contentContainer.scrollTop = 0; // Optional: scroll to top on new page
     }
-  });
-
-
-
+  }
+});
