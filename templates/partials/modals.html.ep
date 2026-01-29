@@ -5,12 +5,20 @@
   <div class="modal-background"></div>
   <div class="modal-dialog">
     <header class="modal-header">
-      <p class="modal-title">Latest Job Log</p>
+      <p class="modal-title" id="log-modal-title">Latest Job Log</p>
+      <p class="modal-subtitle" id="log-modal-subtitle"></p>
+      <!-- empty initially -->
       <button class="close-btn" aria-label="close"></button>
     </header>
+
     <section class="modal-body">
-      <pre id="log-content"></pre>
+      <div id="log-loading" class="text-center py-6" style="display: none">
+        <i class="fas fa-spinner fa-spin fa-2x"></i>
+        <p class="mt-2">Fetching latest log...</p>
+      </div>
+      <pre id="log-content" style="display: none"></pre>
     </section>
+
     <footer class="modal-footer">
       <button class="btn btn-secondary" id="view-history">View History</button>
       <button class="btn btn-secondary" id="refresh-log">Refresh Log</button>
@@ -125,89 +133,220 @@
   </div>
 </div>
 
-<!-- Create/Edit Entity Modal -->
-<div id="entity-modal" class="app-modal">
-  <div class="modal-background"></div>
+<!-- ==================== JOB MODAL ==================== -->
+<div id="job-modal" class="app-modal">
+  <div class="modal-backdrop"></div>
   <div class="modal-dialog large">
     <header class="modal-header">
-      <p class="modal-title" id="entity-modal-title">New Job</p>
-      <p class="modal-subtitle" id="entity-context"></p>
-      <button class="close-btn" aria-label="close"></button>
+      <p class="modal-title" id="job-modal-title">New Job</p>
+      <p class="modal-subtitle" id="job-context"></p>
+      <button
+        class="close-btn"
+        aria-label="close"
+        data-dismiss="job-modal"
+      ></button>
     </header>
     <section class="modal-body">
       <div class="form-group">
-        <label class="label required" for="entity-name">Name</label>
+        <label class="label required" for="job-name">Name</label>
         <input
           class="input"
           type="text"
-          id="entity-name"
+          id="job-name"
           placeholder="e.g. nightly-backup"
         />
-        <p class="help-text">Short name — will be created in the selected cluster</p>
+        <p class="help-text">
+          Short name — will be created in the selected cluster
+        </p>
       </div>
-
       <div class="form-group">
-        <label class="label" for="entity-description">Description</label>
-        <textarea class="textarea" id="entity-description" rows="2"></textarea>
+        <label class="label" for="job-description">Description</label>
+        <textarea class="textarea" id="job-description" rows="2"></textarea>
       </div>
-
-      <div class="form-group" id="entity-script-field">
-        <label class="label required" for="entity-script">Script / Command</label>
+      <div class="form-group">
+        <label class="label required" for="job-script">Script / Command</label>
         <input
           class="input"
           type="text"
-          id="entity-script"
+          id="job-script"
           placeholder="perl backup.pl --full"
         />
       </div>
 
-      <div class="form-group" id="entity-server-field">
-        <label class="label required" for="entity-server">Server</label>
-        <div class="select-wrapper">
-          <select id="entity-server"></select>
-        </div>
+      <div class="form-group">
+        <label class="label required" for="job-server">Server</label>
+        <select id="job-server" placeholder="Select server..."></select>
       </div>
 
       <div class="grid-2">
         <div class="form-group">
-          <label class="label" for="entity-needs">Needs</label>
-          <select class="select-multi" id="entity-needs" multiple></select>
-          <p class="help-text">Hold Ctrl/Cmd to select multiple. "None" clears all.</p>
+          <label class="label" for="job-needs">Needs (blocking AND)</label>
+          <select id="job-needs" placeholder="Select dependencies..."></select>
+          <button
+            type="button"
+            class="btn btn-sm btn-secondary mt-1"
+            id="clear-job-needs"
+          >
+            Clear
+          </button>
+          <p class="help-text">Dependencies that must all complete first.</p>
         </div>
         <div class="form-group">
-          <label class="label" for="entity-needs-any">Needs Any</label>
-          <select class="select-multi" id="entity-needs-any" multiple></select>
-          <p class="help-text">Hold Ctrl/Cmd to select multiple. "None" clears all.</p>
+          <label class="label" for="job-needs-any">Needs Any (OR)</label>
+          <select
+            id="job-needs-any"
+            placeholder="Select dependencies..."
+          ></select>
+          <button
+            type="button"
+            class="btn btn-sm btn-secondary mt-1"
+            id="clear-job-needs-any"
+          >
+            Clear
+          </button>
+          <p class="help-text">
+            Any one of these completing satisfies the dependency.
+          </p>
         </div>
       </div>
-
       <div class="form-group">
-        <label class="label" for="entity-on-fail">On Fail</label>
+        <label class="label" for="job-on-fail">On Fail</label>
         <div class="select-wrapper">
-          <select id="entity-on-fail">
+          <select id="job-on-fail">
             <option value="">None</option>
           </select>
         </div>
       </div>
-
       <div class="grid-3">
         <div class="form-group">
-          <label class="label">Loops <span class="text-grey">(0 = run once)</span></label>
-          <input class="input" type="number" id="entity-loops" min="0" value="0" />
+          <label class="label"
+            >Loops <span class="text-grey">(0 = run once)</span></label
+          >
+          <input class="input" type="number" id="job-loops" min="0" value="0" />
         </div>
-        <div class="form-group" id="entity-retrys-field">
+        <div class="form-group">
           <label class="label">Retries</label>
-          <input class="input" type="number" id="entity-retrys" min="0" value="0" />
+          <input
+            class="input"
+            type="number"
+            id="job-retrys"
+            min="0"
+            value="0"
+          />
         </div>
-        <div class="form-group" id="entity-delay-field">
+        <div class="form-group">
           <label class="label">Delay (seconds)</label>
-          <input class="input" type="number" id="entity-delay" min="0" value="0" />
+          <input class="input" type="number" id="job-delay" min="0" value="0" />
         </div>
       </div>
     </section>
     <footer class="modal-footer">
-      <button class="btn btn-primary" id="save-entity">Save</button>
-      <button class="btn btn-secondary" id="cancel-entity">Cancel</button>
+      <button class="btn btn-primary" id="save-job">Save</button>
+      <button class="btn btn-secondary" id="cancel-job">Cancel</button>
+    </footer>
+  </div>
+</div>
+
+<!-- ==================== CLUSTER MODAL ==================== -->
+<div id="cluster-modal" class="app-modal">
+  <div class="modal-backdrop"></div>
+  <div class="modal-dialog large">
+    <header class="modal-header">
+      <p class="modal-title" id="cluster-modal-title">New Cluster</p>
+      <p class="modal-subtitle" id="cluster-context"></p>
+      <button
+        class="close-btn"
+        aria-label="close"
+        data-dismiss="cluster-modal"
+      ></button>
+    </header>
+    <section class="modal-body">
+      <div class="form-group">
+        <label class="label required" for="cluster-name">Name</label>
+        <input
+          class="input"
+          type="text"
+          id="cluster-name"
+          placeholder="e.g. nightly-backups"
+        />
+        <p class="help-text">
+          Short name — will be created in the selected parent cluster
+        </p>
+      </div>
+      <div class="form-group">
+        <label class="label" for="cluster-description">Description</label>
+        <textarea class="textarea" id="cluster-description" rows="2"></textarea>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="label" for="cluster-needs">Needs (blocking AND)</label>
+          <select
+            id="cluster-needs"
+            placeholder="Select dependencies..."
+          ></select>
+          <button
+            type="button"
+            class="btn btn-sm btn-secondary mt-1"
+            id="clear-cluster-needs"
+          >
+            Clear
+          </button>
+          <p class="help-text">Dependencies that must all complete first.</p>
+        </div>
+        <div class="form-group">
+          <label class="label" for="cluster-needs-any">Needs Any (OR)</label>
+          <select
+            id="cluster-needs-any"
+            placeholder="Select dependencies..."
+          ></select>
+          <button
+            type="button"
+            class="btn btn-sm btn-secondary mt-1"
+            id="clear-cluster-needs-any"
+          >
+            Clear
+          </button>
+          <p class="help-text">
+            Any one of these completing satisfies the dependency.
+          </p>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="label" for="cluster-on-fail">On Fail</label>
+        <div class="select-wrapper">
+          <select id="cluster-on-fail">
+            <option value="">None</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="label"
+          >Loops <span class="text-grey">(0 = run once)</span></label
+        >
+        <input
+          class="input"
+          type="number"
+          id="cluster-loops"
+          min="0"
+          value="0"
+        />
+      </div>
+
+<div class="form-group">
+  <label class="label">
+    <input type="checkbox" id="cluster-clonable" />
+    Clonable
+  </label>
+  <p class="help-text">
+    If checked, starting a running cluster creates & starts an exact clone instead of erroring. Useful for recovery workflows.
+  </p>
+</div>
+
+      <!-- Add cluster-specific fields here later, e.g. calendar, clonable -->
+    </section>
+    <footer class="modal-footer">
+      <button class="btn btn-primary" id="save-cluster">Save</button>
+      <button class="btn btn-secondary" id="cancel-cluster">Cancel</button>
     </footer>
   </div>
 </div>

@@ -14,7 +14,11 @@ import {
 } from "./utils.js";
 
 // Import modal/graph openers (create these when ready)
-import { openEntityModal, openAttachCalendarModal } from "./modals.js";
+import {
+  openJobModal,
+  openClusterModal,
+  openAttachCalendarModal,
+} from "./modals.js";
 import { openDependencyGraph } from "./graph.js"; // or keep in this file temporarily
 
 import { showToast } from "./ui-handlers.js";
@@ -154,12 +158,13 @@ export function attachTreeTableListeners() {
         .replace(/\/$/, "");
 
       if (text === "edit") {
-        console.log(JSON.stringify(appState.monitorData, null, 2));
-
-        const node = isCluster
-          ? findClusterById(appState.monitorData.tree, id)
-          : findJobById(appState.monitorData.tree, id);
-        if (node) openEntityModal("edit", isCluster ? "cluster" : "job", node);
+        const nodeId = row.dataset.id;
+        const isCluster = row.classList.contains("ordo-cluster-row");
+        if (isCluster) {
+          openClusterModal("edit", nodeId);
+        } else {
+          openJobModal("edit", nodeId);
+        }
         return;
       }
 
@@ -175,7 +180,11 @@ export function attachTreeTableListeners() {
           .textContent.trim()
           .replace(/\/$/, "");
         const type = text === "new job" ? "job" : "cluster";
-        openEntityModal("create", type, null, parentId, parentName);
+        if (type === "job") {
+          openJobModal("create", null, parentId, parentName);
+        } else {
+          openClusterModal("create", null, parentId, parentName);
+        }
         return;
       }
 
@@ -314,9 +323,13 @@ export function attachTreeTableListeners() {
         modal.dataset.jobId = jobId;
 
         // Immediate placeholder using job ID (name will come from reply)
-        document.getElementById("log-modal-title").textContent =
-          `Job ID: ${jobId} — Loading log...`;
-        document.getElementById("log-modal-subtitle").textContent = "";
+        //document.getElementById("log-modal-title").textContent =
+        //  `Job ID: ${jobId} — Loading log...`;
+        //document.getElementById("log-modal-subtitle").textContent = "";
+
+        // in tree-table.js, view log handler
+        document.getElementById("log-loading").style.display = "block";
+        document.getElementById("log-content").style.display = "none";
 
         if (appState.ws?.readyState === WebSocket.OPEN) {
           appState.ws.send(JSON.stringify({ command: "read_log", id: jobId }));
@@ -332,36 +345,101 @@ export function attachTreeTableListeners() {
 
 // Tree rendering
 
+/*
+function sortTreeNodes(nodes) {
+  nodes.sort((a, b) => Number(a.id) - Number(b.id));
+  nodes.forEach(node => {
+    if (node.children && node.children.length > 0) {
+      sortTreeNodes(node.children);
+    }
+  });
+}
+*/
+
+function sortTreeNodes(nodes) {
+  nodes.sort((a, b) => {
+    // Jobs (not clusters) come before clusters
+    if (!a.is_cluster && b.is_cluster) return -1; // a is job, b is cluster → a first
+    if (a.is_cluster && !b.is_cluster) return 1;  // a is cluster, b is job → b first
+
+    // For same type, sort by ID (or name if preferred)
+    return Number(a.id) - Number(b.id);
+  });
+
+  nodes.forEach(node => {
+    if (node.children && node.children.length > 0) {
+      sortTreeNodes(node.children);
+    }
+  });
+}
+
 export function renderJobsTable() {
   const tbody = document.getElementById("tree-body");
   if (!tbody) return;
-
   tbody.innerHTML = "";
+
+  // Step 1: Collect ALL current valid cluster IDs (as strings)
+  const currentClusterIds = new Set();
+  function collectIds(nodes) {
+    nodes.forEach((node) => {
+      if (node.is_cluster) {
+        currentClusterIds.add(String(node.id)); // Force string comparison
+        if (node.children) collectIds(node.children);
+      }
+    });
+  }
+  collectIds(appState.monitorData.tree);
+
+  // Step 2: Aggressive cleanup of localStorage + in-memory set
+  let cleaned = false;
+  const before = [...appState.collapsedClusters];
+  appState.collapsedClusters.forEach((id) => {
+    const idStr = String(id);
+    if (!currentClusterIds.has(idStr)) {
+      appState.collapsedClusters.delete(id);
+      cleaned = true;
+    }
+  });
+
+  if (cleaned) {
+    updateCollapsedClusters(); // Save cleaned set back to localStorage
+    console.log(
+      `Cleaned ${before.length - appState.collapsedClusters.size} stale collapsed cluster ID(s):`,
+      before.filter((id) => !currentClusterIds.has(String(id))),
+    );
+  }
+
+  // Step 3: Now render the tree with clean collapsed state
+  sortTreeNodes(appState.monitorData.tree); 
   buildRows(appState.monitorData.tree, tbody);
 
-  // Apply collapsed state
-  document.querySelectorAll(".ordo-cluster-row.collapsed").forEach((row) => {
-    toggleSubtree(row.dataset.id, true);
-  });
+  // Optional: Force a quick reflow (helps with any lingering paint glitches)
+  //requestAnimationFrame(() => {
+  //  void tbody.offsetHeight;
+  //});
 
   updateTreeTimings();
   startTreeTimings();
 }
 
 // Build table rows recursively
+
 export function buildRows(items, tbody, depth = 0, parentId = null) {
   const collapsedSet = appState.collapsedClusters;
 
-  items.forEach((item) => {
+  items.forEach((item, index) => {
     const isCluster = item.is_cluster;
     const hasChildren = isCluster && item.children?.length > 0;
     const state = item.jobstate?.toLowerCase() || "";
     const isRoot = item.name === "root" && item.parent_id == null;
-
     // Action button disabling logic
-    const runDisabled = ["running", "immutable", "ice", "hold"].includes(state)
-      ? "disabled"
-      : "";
+
+    const runDisabled =
+      ["immutable", "ice", "hold"].includes(state) ||
+      (state === "running" && !item.clonable)
+        ? "disabled"
+        : "";
+
     const killDisabled = state === "running" ? "" : "disabled";
     const holdDisabled = ["hold", "immutable", "ice"].includes(state)
       ? "disabled"
@@ -374,7 +452,6 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
     const viewLogDisabled = isCluster ? "disabled" : "";
     const newJobDisabled = isCluster && !isRoot ? "" : "disabled";
     const newClusterDisabled = isCluster ? "" : "disabled";
-
     const row = document.createElement("tr");
     row.className = isCluster ? "ordo-cluster-row" : "ordo-job-row";
     row.dataset.id = item.id;
@@ -384,29 +461,34 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
     row.style.setProperty("--depth", depth);
     row.setAttribute("role", "row");
     row.setAttribute("aria-level", (depth + 1).toString());
-
     if (isCluster) {
       const isCollapsed = collapsedSet.has(String(item.id));
       if (isCollapsed) row.classList.add("collapsed");
       row.setAttribute("aria-expanded", (!isCollapsed).toString());
     }
 
-    const toggleHtml = hasChildren ? `<span class="ordo-toggle"></span>` : "";
+    const isLastInSiblings = index === items.length - 1;
+    if (isLastInSiblings && parentId !== null) {
+      row.dataset.lastChild = "true";
+      console.log(
+        `Last child: ${item.name} (id ${item.id}) depth ${depth} → data-last-child set`,
+      );
+    }
+
+    //const toggleHtml = hasChildren ? `<span class="ordo-toggle"></span>` : "";
+    const toggleHtml = item.is_cluster 
+      ? `<span class="ordo-toggle ${hasChildren ? '' : 'empty'}"></span>` 
+      : "";
+
     const icon = isCluster
       ? '<i class="fas fa-folder mr-2 has-text-info"></i>'
       : '<i class="fas fa-cog mr-2 has-text-grey"></i>';
     const nameHtml = `${toggleHtml}${icon}${isCluster ? item.name + "/" : item.name}`;
-
-    // Inside the row creation loop (for each item)
-
     // Dependencies badge + tooltip
     let depsCount = 0;
     let depsTooltipLines = [];
-
-    // Use item.is_cluster directly (force boolean)
     const isThisCluster = !!item.is_cluster; // true for clusters, false for jobs
     console.log("Tooltip for", item.name, "isCluster:", isThisCluster);
-
     // Needs (blocking)
     if (item.needs_ids?.length) {
       depsCount += item.needs_ids.length;
@@ -416,7 +498,6 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
       );
       depsTooltipLines.push(`Needs (blocking):\n${lines.join("\n")}`);
     }
-
     // Needs Any (flexible)
     if (item.needs_any_ids?.length) {
       depsCount += item.needs_any_ids.length;
@@ -426,7 +507,6 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
       );
       depsTooltipLines.push(`Needs Any (flexible):\n${lines.join("\n")}`);
     }
-
     // On Fail - always cluster (force true)
     if (item.on_fail_id) {
       depsCount += 1;
@@ -434,16 +514,13 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
       const path = node ? getFullPath(node) : `ID:${item.on_fail_id} (missing)`;
       depsTooltipLines.push(`On Fail:\n• ${path}`);
     }
-
     const depsDisplay = depsCount > 0 ? depsCount : "—";
     const depsTitle = depsTooltipLines.length
       ? depsTooltipLines.join("\n\n")
       : "";
-
     // Stats badge + tooltip
     let statsDisplay = "—";
     let statsTooltipLines = [];
-
     // Only compute stats for jobs (not clusters)
     if (!item.is_cluster) {
       // CPU badge - only show if pctcpu was actually collected
@@ -452,27 +529,22 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
         let cpuClass = "cpu-low";
         if (cpu > 80) cpuClass = "cpu-high";
         else if (cpu > 50) cpuClass = "cpu-medium";
-
         statsDisplay = `<span class="stats-badge ${cpuClass}">${cpu.toFixed(1)}%</span>`;
         statsTooltipLines.push(`• CPU: ${cpu.toFixed(1)}%`);
       }
-
       // Memory % line - only show if collected
       if (item.pctmem !== null && item.pctmem !== undefined) {
         statsTooltipLines.push(`• Memory: ${item.pctmem.toFixed(1)}%`);
       }
-
       // RSS line - only show if collected
       if (item.rss !== null && item.rss !== undefined) {
         const rssMB = Math.round(item.rss / 1024 / 1024);
         statsTooltipLines.push(`• RSS: ${rssMB} MB`);
       }
-
       // Always add PID if present
       if (item.pid !== null && item.pid !== undefined) {
         statsTooltipLines.push(`Process (PID ${item.pid}):`);
       }
-
       // Parent PID and command (if present)
       if (item.ppid !== null && item.ppid !== undefined) {
         statsTooltipLines.push(`• Parent PID: ${item.ppid}`);
@@ -480,7 +552,6 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
       if (item.fname) {
         statsTooltipLines.push(`• Command: ${item.fname}`);
       }
-
       // In the hint block
       if (
         item.jobstate === "running" &&
@@ -496,11 +567,9 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
         );
       }
     }
-
     const statsTitle = statsTooltipLines.length
       ? statsTooltipLines.join("\n")
       : "";
-
     if (statsTitle && statsDisplay.includes("tag")) {
       const tempDiv = document.createElement("div");
       tempDiv.innerHTML = statsDisplay;
@@ -508,9 +577,7 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
       if (tag) tag.setAttribute("title", statsTitle);
       statsDisplay = tempDiv.innerHTML;
     }
-
     // Actions dropdown
-
     // Helper: create a menu item with disabled state
     function menuItem(text, disabled = false, action = null) {
       const cls = disabled ? "dropdown-item disabled" : "dropdown-item";
@@ -518,13 +585,10 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
       const dataAction = action ? `data-action="${action}"` : "";
       return `<a href="javascript:void(0)" class="${cls}" ${attrs} ${dataAction}>${text}</a>`;
     }
-
     // Helper: divider
     const divider = '<hr class="dropdown-divider">';
-
     // Build actions dropdown
     let actionsHtml = "";
-
     if (isRoot) {
       actionsHtml = `
     <div class="dropdown is-right">
@@ -603,41 +667,58 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
     </div>
   `;
     }
-
     // In buildRows, inside the state <td>
     // <td><span class="ordo-state ${stateClass(item.jobstate)}">${item.jobstate || "—"}</span></td>
     const stateLower = (item.jobstate || "").toLowerCase().trim();
     const stateClass = `state-badge ${stateLower || "unknown"}`;
-
     row.innerHTML = `
-  <td>${nameHtml}</td>
-
-  <td>
-    <span class="${stateClass}">
-      ${item.jobstate || "—"}
-    </span>
-  </td>
-  <td>${item.server_name || "—"}</td>
-  <td class="deps-td ${depsCount > 0 ? "has-tooltip" : ""}" title="${depsTitle}">${depsDisplay}</td>
-  <td class="stats-td ${statsTitle && statsTitle !== "—" ? "has-tooltip" : ""}" title="${statsTitle}">${statsDisplay}</td>
-  <td>${formatTplus(item.started) || "—"}</td>
-  <td>${formatDuration(item.started, item.ended) || "—"}</td>
-  <td>${formatTminus(item.next_start) || "—"}</td>
-  <td>${item.cal_name || "—"}</td>
-  <td>${actionsHtml}</td>
-`;
+      <td>${nameHtml}</td>
+      <td>
+        <span class="${stateClass}">
+          ${item.jobstate || "—"}
+        </span>
+      </td>
+      <td>${item.server_name || "—"}</td>
+      <td class="deps-td ${depsCount > 0 ? "has-tooltip" : ""}" title="${depsTitle}">${depsDisplay}</td>
+      <td class="stats-td ${statsTitle && statsTitle !== "—" ? "has-tooltip" : ""}" title="${statsTitle}">${statsDisplay}</td>
+      <td>${formatTplus(item.started) || "—"}</td>
+      <td>${formatDuration(item.started, item.ended) || "—"}</td>
+      <td>${formatTminus(item.next_start) || "—"}</td>
+      <td>${item.cal_name || "—"}</td>
+      <td>${actionsHtml}</td>
+    `;
+    console.log(
+      `Rendering ${isCluster ? "cluster" : "job"}: ${item.name} ` +
+        `(id ${item.id}, depth ${depth}, parent ${parentId}), ` +
+        `hidden=${row.dataset.hidden}, lastChild=${row.dataset.lastChild}`,
+    );
 
     tbody.appendChild(row);
+    console.log(
+      `→ Appended ${isCluster ? "cluster" : "job"} "${item.name}" (id ${item.id}), depth ${depth}, rows now: ${tbody.children.length}`,
+    );
 
     if (hasChildren) {
       buildRows(item.children, tbody, depth + 1, item.id);
+    }
+
+    // Enforce collapse **only after** children exist
+    if (isCluster) {
+      const clusterIdStr = String(item.id);
+      if (collapsedSet.has(clusterIdStr)) {
+        console.log(`→ Auto-collapsing cluster ${item.name} (id ${item.id})`);
+        row.classList.add("collapsed");
+        row.setAttribute("aria-expanded", "false");
+        toggleSubtree(item.id, true);
+      } else {
+        row.classList.remove("collapsed");
+        row.setAttribute("aria-expanded", "true");
+      }
     }
   });
   setupDropdownFlip();
 }
 
-// Call this ONCE after initial table build (e.g., at end of buildRows)
-// Or after any full table rebuild
 function setupDropdownFlip() {
   // Remove any existing listeners first (prevents duplicates)
   document.querySelectorAll(".table .dropdown").forEach((dropdown) => {
@@ -700,6 +781,7 @@ function setupDropdownFlip() {
   window.addEventListener("resize", updateFlipOnResize);
 }
 
+/*
 // Collapse/expand subtree
 export function toggleSubtree(parentId, hide) {
   const directChildren = document.querySelectorAll(
@@ -709,6 +791,21 @@ export function toggleSubtree(parentId, hide) {
     childRow.dataset.hidden = hide ? "true" : "false";
     if (childRow.classList.contains("ordo-cluster-row")) {
       toggleSubtree(childRow.dataset.id, hide);
+    }
+  });
+}
+*/
+
+// Collapse/expand subtree
+export function toggleSubtree(parentId, hide) {
+  const children = document.querySelectorAll(`tr[data-parent="${parentId}"]`);
+  children.forEach((child) => {
+    child.dataset.hidden = hide ? "true" : "false";
+    child.style.display = hide ? "none" : ""; // inline fallback
+
+    // Recurse for nested clusters
+    if (child.classList.contains("ordo-cluster-row")) {
+      toggleSubtree(child.dataset.id, hide);
     }
   });
 }

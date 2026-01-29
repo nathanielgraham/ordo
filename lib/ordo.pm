@@ -465,6 +465,13 @@ sub _cluster_info {
 
    my $cluster = $self->sqlite->db->query($sql)->hash;
 
+   my $needs_ids = $self->sqlite->db->query( "SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 0", $cluster->{id} )->hashes->to_array;
+   my $needs_any_ids = $self->sqlite->db->query( "SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 1", $cluster->{id} )->hashes->to_array;
+
+   $cluster->{needs_ids} = [ map { $_->{needs_cluster_id} } @$needs_ids ];
+   $cluster->{needs_any_ids} = [ map { $_->{needs_cluster_id} } @$needs_any_ids ];
+   $cluster->{next_start} = $self->_cal_next_start( $user, { id => $cluster->{cal_id} } ) if $cluster->{cal_id};
+
    #my $needs_ids = $self->sqlite->db->query( "SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 0", $d->{id} )->hashes->to_array;
    #my $needs_any_ids = $self->sqlite->db->query( "SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 1", $d->{id} )->hashes->to_array;
    #$cluster->{needs_ids} = map { $_->{id} } @$needs_ids;
@@ -490,17 +497,15 @@ sub _read_cluster {
    my $cluster = $self->_cluster_info( $user, $d );
    return { success => 0, message => 'cluster not found' } unless $cluster->{id};
 
-   my $needs_ids = $self->sqlite->db->query( "SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 0", $cluster->{id} )->hashes->to_array;
-   my $needs_any_ids = $self->sqlite->db->query( "SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 1", $cluster->{id} )->hashes->to_array;
+   #my $needs_ids = $self->sqlite->db->query( "SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 0", $cluster->{id} )->hashes->to_array;
+   #my $needs_any_ids = $self->sqlite->db->query( "SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 1", $cluster->{id} )->hashes->to_array;
 
-   $cluster->{needs_ids} = [ map { $_->{needs_cluster_id} } @$needs_ids ];
-   $cluster->{needs_any_ids} = [ map { $_->{needs_cluster_id} } @$needs_any_ids ];
+   #$cluster->{needs_ids} = [ map { $_->{needs_cluster_id} } @$needs_ids ];
+   #$cluster->{needs_any_ids} = [ map { $_->{needs_cluster_id} } @$needs_any_ids ];
    $cluster->{jobs} = $self->_find_jobs( $user, { cluster_id => $cluster->{id} } );
-   $cluster->{next_start} = $self->_cal_next_start( $user, { id => $cluster->{cal_id} } ) if $cluster->{cal_id};
+   #$cluster->{next_start} = $self->_cal_next_start( $user, { id => $cluster->{cal_id} } ) if $cluster->{cal_id};
 
    return $cluster;
-
-   return { success => 1, %{ $cluster } };
 }
 
 sub _set_cluster_state {
@@ -681,7 +686,9 @@ sub _broadcast_any {
       updates => [],
       deletes => [],
    };
-   my $method = $type eq 'cal' ? '_read_cal' : ('_' . $type . '_info');
+   my $method = $type eq 'cal' ? '_read_cal' 
+              : $type eq 'cluster' ? '_read_cluster' 
+              : ('_' . $type . '_info');
    for my $id ( @{ $ids } ) {
       my $thing = $self->$method( $user, { id => $id } );
       #my $cluster = $self->_cluster_info( $user, { id => $cluster_id } );
@@ -739,6 +746,7 @@ sub _start_cluster {
    elsif ( $cluster->{clonable} && $cluster->{state_id} == $self->job_states->{running} ) {
       my $response = $self->clone_cluster( $user, { id => $cluster_id } );
       return $response unless $response->{success} && $response->{clone_id};
+      $self->_broadcast_cluster($user, [ $response->{clone_id} ]);
       return $self->_start_cluster( $user, { id => $response->{clone_id}, force => 1 } );
    }
    elsif ( $cluster->{state_id} == $self->job_states->{running} ) {
@@ -978,12 +986,13 @@ sub update_cluster {
       $on_fail_id = shift @{ $self->_resolve_cluster_ids( $user, [ $d->{on_fail} ]) };
    }
 
-   #my $needs_all = $self->_resolve_cluster_ids( $user, $d->{needs} );
-   #my $needs_any = $self->_resolve_cluster_ids( $user, $d->{needs_any} );
-
    my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(mode description loops clonable)) };
+
+   print Dumper($d);
+   print Dumper($update_hash);
    $update_hash->{name} = $d->{newname} if $d->{newname};
-   $update_hash->{on_fail_id} = $on_fail_id if $on_fail_id && $on_fail_id != $cluster_id;
+   $update_hash->{on_fail_id} = $on_fail_id && $on_fail_id != $cluster_id ? $on_fail_id
+                              : undef;
 
    if ( $d->{json} ) {
       eval { my $data = decode_json( $d->{json} ); };
@@ -1657,6 +1666,7 @@ sub clone_cluster {
    my $parent_id = $d->{parent_id} || $cluster->{parent_id};
 
    my $clone_id = $self->_clone_cluster( $user, { id => $cluster->{id}, parent_id => $parent_id, origin => 1 } );
+
    return $clone_id ? { success => 1, clone_id => $clone_id } : { success => 0 };
 }
 
@@ -1698,6 +1708,10 @@ sub _clone_cluster {
       while ( my $job = $jobs->hash ) {
          $job->{clone_job_id} = delete $job->{id};
          $job->{cluster_id}   = $cluster_id;
+
+         unless ( scalar( grep { $job->{state_id} == $self->job_states->{$_} } (qw(hold ice)) ) ) {
+            $job->{state_id} = $self->job_states->{ready};
+         }
 
          my $job_id = $self->sqlite->db->insert( 'job', $job )->last_insert_id;
          $self->_reset_job_stats( $user, { id => $job_id } );
@@ -2356,7 +2370,8 @@ sub _update_job {
    }
 
    $update_hash->{delay} = $d->{delay} if $d->{delay} && $d->{delay} <= 3600;
-   $update_hash->{on_fail_id} = $on_fail_id if $on_fail_id;
+   $update_hash->{on_fail_id} = $on_fail_id ? $on_fail_id
+                              : undef;
 
    if ( $d->{state} ) {
       my $rv = $self->_set_job_state( $user, { id => $job->{id}, state => $d->{state} } );
@@ -3387,6 +3402,9 @@ sub _log_info {
    return if $ssh->error || !$out;
    $log->{out} = $out;
 
+   $log->{job_name} = $job->{name};
+   $log->{server_name} = $job->{server_name};
+   $log->{job_path} = $self->id2path( $user, { id => $job->{cluster_id} } ); 
    return $log;
 }
 
@@ -3937,9 +3955,9 @@ sub delete_cal {
 sub routing {
    state $i    = qr/^\d{1,20}$/;                                                 # integer
    state $w    = qr/^\w{1,50}$/;                                                 # word
-   state $d    = qr/^[A-Za-z\-\s\d].*?$/;                                        # description
+   state $d    = qr/^[A-Za-z0-9\s.,;'\"()!?-]*$/;                                # description
    state $f    = qr/^[\d\.]{1,20}$/;                                             # float
-   state $p    = qr/^[\w\/\@\:\.\-]{1,50}$/;                                   # path
+   state $p    = qr/^[\w\/\@\:\.\-]{1,50}$/;                                     # path
    state $e    = qr/^[\w\.\@]{1,50}$/;                                           # email
                                                                                  # state $c  = qr/^[\w\/\@\:\.\s\-\(\)\"\']{1,50}$/;    # shell command
    state $c    = qr/.{1,60}/;                                                    # shell command

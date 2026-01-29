@@ -1,86 +1,336 @@
 // modals.js – all modal open/close/save/interaction logic
 import { appState } from "./state.js";
 import { showToast } from "./ui-handlers.js";
-import { getFullPath } from "./utils.js";
+import { getFullPath, findJobById, findClusterById } from "./utils.js";
 
-// Save entity (create/edit job/cluster)
-document.getElementById("save-entity")?.addEventListener("click", () => {
-  const name = document.getElementById("entity-name").value.trim();
-  if (!name) {
-    showToast("Name is required", "danger");
-    return;
-  }
-  const isEdit = appState.currentEditItem !== null;
-  const isJob =
-    document.getElementById("entity-script-field").style.display !== "none";
-  const payload = {
-    command: isEdit
-      ? isJob
-        ? "update_job"
-        : "update_cluster"
-      : isJob
-        ? "create_job"
-        : "create_cluster",
-    name,
-  };
-  if (isEdit) payload.id = appState.currentEditItem.id;
-  else payload.parent_id = appState.currentParentId;
-  if (isJob) {
-    const script = document.getElementById("entity-script").value.trim();
-    const server = document.getElementById("entity-server").value;
-    if (!script || !server) {
-      showToast("Script and Server are required for jobs", "danger");
-      return;
+// ==================== SHARED HELPERS ====================
+
+function resetAllModals() {
+  // Reset job modal
+  document.getElementById("job-modal")?.classList.remove("active");
+  document.getElementById("job-modal")?.classList.remove("mode-job");
+
+  // Reset cluster modal
+  document.getElementById("cluster-modal")?.classList.remove("active");
+  document.getElementById("cluster-modal")?.classList.remove("mode-cluster");
+
+  // Reset form fields (both modals)
+  [
+    "job-name",
+    "job-description",
+    "job-script",
+    "job-server",
+    "job-loops",
+    "job-retrys",
+    "job-delay",
+    "cluster-name",
+    "cluster-description",
+    "cluster-loops",
+    "modal-needs",
+    "modal-needs-any",
+    "modal-on-fail",
+    "job-needs",
+    "job-needs-any",
+    "job-on-fail",
+    "cluster-needs",
+    "cluster-needs-any",
+    "cluster-on-fail",
+    "cluster-clonable",
+  ].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      if (el.type === "number") el.value = "0";
+      else if (el.tagName === "SELECT") el.value = "";
+      else if (el.tagName === "TEXTAREA" || el.tagName === "INPUT")
+        el.value = "";
     }
-    payload.script = script;
-    payload.server = server;
-    const retrys = document.getElementById("entity-retrys").value;
-    if (retrys) payload.retrys = Number(retrys);
-    const delay = document.getElementById("entity-delay").value;
-    if (delay) payload.delay = Number(delay);
+  });
+
+  // Destroy all Tom Select instances
+  [
+    "job-needs",
+    "job-needs-any",
+    "job-on-fail",
+    "cluster-needs",
+    "cluster-needs-any",
+    "cluster-on-fail",
+  ].forEach((id) => {
+    const sel = document.getElementById(id);
+    if (sel?.tomselect) {
+      sel.tomselect.destroy();
+      sel.tomselect = null;
+    }
+  });
+}
+
+// ==================== JOB MODAL ====================
+
+export function openJobModal(
+  mode = "create",
+  itemId = null,
+  parentId = null,
+  parentName = null,
+) {
+  let item = null;
+  if (mode === "edit" && itemId) {
+    item = findJobById(appState.monitorData.tree, itemId);
   }
-  const description = document
-    .getElementById("entity-description")
-    .value.trim();
-  //if (description) payload.description = description;
-  payload.description = description;
-  const loops = document.getElementById("entity-loops").value;
-  if (loops) payload.loops = Number(loops);
-  // Dependencies
-  const needsSelect = document.getElementById("entity-needs");
-  const needsIds = Array.from(needsSelect.selectedOptions)
-    .map((opt) => Number(opt.value))
-    .filter((id) => id > 0);
-  if (
-    needsIds.length > 0 ||
-    needsSelect.querySelector('option[value=""]').selected
-  ) {
-    payload.needs_ids = needsIds.length > 0 ? needsIds : [];
+
+  appState.currentEditItem = item;
+  appState.currentParentId = parentId;
+  appState.currentParentName = parentName;
+
+  const isEdit = mode === "edit";
+
+  // Title & context
+  //document.getElementById("job-modal-title").textContent = isEdit ? "Edit Job" : "New Job";
+  document.getElementById("job-modal-title").innerHTML = isEdit
+    ? "Edit Job"
+    : "New Job <i class='fas fa-cog ml-2'></i>";
+  const contextEl = document.getElementById("job-context");
+  contextEl.textContent = isEdit
+    ? `ID: ${item?.id || "—"}`
+    : parentName
+      ? `In cluster: ${parentName}`
+      : "In root";
+
+  // Pre-fill
+  document.getElementById("job-name").value = isEdit
+    ? item?.name || ""
+    : "new-job";
+  document.getElementById("job-description").value = isEdit
+    ? item?.description || ""
+    : "";
+  document.getElementById("job-script").value = isEdit
+    ? item?.script || ""
+    : "";
+  document.getElementById("job-loops").value = isEdit
+    ? (item?.loops ?? 0)
+    : "0";
+  document.getElementById("job-retrys").value = isEdit
+    ? (item?.retrys ?? 0)
+    : "0";
+  document.getElementById("job-delay").value = isEdit
+    ? (item?.delay ?? 0)
+    : "0";
+
+  // Populate server list (single select)
+  const serverSelect = document.getElementById("job-server");
+  serverSelect.innerHTML = '<option value="">None / Clear</option>';
+
+  appState.serversData.forEach((s) => {
+    const opt = document.createElement("option");
+    opt.value = s.name;
+    opt.textContent = s.name;
+    if (isEdit && s.name === item?.server_name) opt.selected = true;
+    if (!isEdit && appState.serversData[0]) opt.selected = true;
+    serverSelect.appendChild(opt);
+  });
+
+  // Initialize as single-select (no clear button unless added)
+  initSingleSelect("job-server", item?.server_name ? [item.server_name] : []);
+
+  // Dependencies (jobs only)
+  populateJobDependencies("job-needs", item?.needs_ids || []);
+  populateJobDependencies("job-needs-any", item?.needs_any_ids || []);
+
+  // On Fail (clusters only)
+  populateClusterDependencies(
+    "job-on-fail",
+    item?.on_fail_id ? [item.on_fail_id] : [],
+  );
+
+  // Init Tom Select
+  initDependencySelect("job-needs", "clear-job-needs", item?.needs_ids || []);
+  initDependencySelect(
+    "job-needs-any",
+    "clear-job-needs-any",
+    item?.needs_any_ids || [],
+  );
+  initSingleSelect("job-on-fail", item?.on_fail_id ? [item.on_fail_id] : []);
+
+  document.getElementById("job-modal").classList.add("active");
+}
+
+// ==================== CLUSTER MODAL ====================
+
+export function openClusterModal(
+  mode = "create",
+  itemId = null,
+  parentId = null,
+  parentName = null,
+) {
+  let item = null;
+  if (mode === "edit" && itemId) {
+    item = findClusterById(appState.monitorData.tree, itemId);
   }
-  const needsAnySelect = document.getElementById("entity-needs-any");
-  const needsAnyIds = Array.from(needsAnySelect.selectedOptions)
-    .map((opt) => Number(opt.value))
-    .filter((id) => id > 0);
-  if (
-    needsAnyIds.length > 0 ||
-    needsAnySelect.querySelector('option[value=""]').selected
-  ) {
-    payload.needs_any_ids = needsAnyIds.length > 0 ? needsAnyIds : [];
-  }
-  const onFailSelect = document.getElementById("entity-on-fail");
-  const onFailId = onFailSelect.value;
-  if (onFailId) {
-    payload.on_fail_id = Number(onFailId);
-  } else if (onFailSelect.querySelector('option[value=""]').selected) {
-    payload.on_fail_id = null;
-  }
-  if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+
+  appState.currentEditItem = item;
+  appState.currentParentId = parentId;
+  appState.currentParentName = parentName;
+
+  const isEdit = mode === "edit";
+
+  // Title & context
+  // document.getElementById("cluster-modal-title").textContent = isEdit ? "Edit Cluster" : "New Cluster";
+  document.getElementById("cluster-modal-title").innerHTML = isEdit
+    ? "Edit Cluster"
+    : "New Cluster <i class='fas fa-folder ml-2'></i>";
+  const contextEl = document.getElementById("cluster-context");
+  contextEl.textContent = isEdit
+    ? `ID: ${item?.id || "—"}`
+    : parentName
+      ? `In cluster: ${parentName}`
+      : "In root";
+
+  // Pre-fill
+  document.getElementById("cluster-name").value = isEdit
+    ? item?.name || ""
+    : "new-cluster";
+  document.getElementById("cluster-description").value = isEdit
+    ? item?.description || ""
+    : "";
+  document.getElementById("cluster-loops").value = isEdit
+    ? (item?.loops ?? 0)
+    : "0";
+
+  document.getElementById("cluster-clonable").checked =
+    mode === "edit" && !!item?.clonable;
+
+  // Dependencies (clusters only)
+  populateClusterDependencies("cluster-needs", item?.needs_ids || []);
+  populateClusterDependencies("cluster-needs-any", item?.needs_any_ids || []);
+
+  // On Fail (clusters only)
+  populateClusterDependencies(
+    "cluster-on-fail",
+    item?.on_fail_id ? [item.on_fail_id] : [],
+  );
+
+  // Init Tom Select
+  initDependencySelect(
+    "cluster-needs",
+    "clear-cluster-needs",
+    item?.needs_ids || [],
+  );
+  initDependencySelect(
+    "cluster-needs-any",
+    "clear-cluster-needs-any",
+    item?.needs_any_ids || [],
+  );
+  initSingleSelect(
+    "cluster-on-fail",
+    item?.on_fail_id ? [item.on_fail_id] : [],
+  );
+
+  document.getElementById("cluster-modal").classList.add("active");
+}
+
+// ==================== SAVE FUNCTIONS ====================
+
+function saveJob() {
+  const isEdit = !!appState.currentEditItem;
+  const payload = {
+    command: isEdit ? "update_job" : "create_job",
+    id: isEdit ? Number(appState.currentEditItem.id) : undefined,
+    parent_id: !isEdit ? appState.currentParentId : undefined,
+    name: document.getElementById("job-name").value.trim() || undefined,
+    description:
+      document.getElementById("job-description").value.trim() || undefined,
+    script: document.getElementById("job-script").value.trim() || undefined,
+    server: document.getElementById("job-server").value || undefined,
+    loops: Number(document.getElementById("job-loops").value) || 0,
+    retrys: Number(document.getElementById("job-retrys").value) || 0,
+    delay: Number(document.getElementById("job-delay").value) || 0,
+    needs_ids:
+      document.getElementById("job-needs").tomselect?.getValue().map(Number) ||
+      [],
+    needs_any_ids:
+      document
+        .getElementById("job-needs-any")
+        .tomselect?.getValue()
+        .map(Number) || [],
+    on_fail_id: document.getElementById("job-on-fail").tomselect?.getValue()
+      ? Number(document.getElementById("job-on-fail").tomselect.getValue())
+      : null,
+  };
+
+  console.log("Sending job payload:", payload);
+
+  if (appState.ws?.readyState === WebSocket.OPEN) {
     appState.ws.send(JSON.stringify(payload));
-    showToast(isEdit ? "Update sent" : "Creation requested", "info");
+    showToast(isEdit ? "Job updated" : "Job created", "success");
   } else {
     showToast("Not connected", "danger");
   }
-  document.getElementById("entity-modal").classList.remove("active");
+
+  document.getElementById("job-modal").classList.remove("active");
+  resetAllModals();
+}
+
+function saveCluster() {
+  const isEdit = !!appState.currentEditItem;
+  const payload = {
+    command: isEdit ? "update_cluster" : "create_cluster",
+    id: isEdit ? Number(appState.currentEditItem.id) : undefined,
+    parent_id: !isEdit ? appState.currentParentId : undefined,
+    name: document.getElementById("cluster-name").value.trim() || undefined,
+    description:
+      document.getElementById("cluster-description").value.trim() || undefined,
+    loops: Number(document.getElementById("cluster-loops").value) || 0,
+    needs_ids:
+      document
+        .getElementById("cluster-needs")
+        .tomselect?.getValue()
+        .map(Number) || [],
+    needs_any_ids:
+      document
+        .getElementById("cluster-needs-any")
+        .tomselect?.getValue()
+        .map(Number) || [],
+    clonable: document.getElementById("cluster-clonable").checked,
+    on_fail_id: document.getElementById("cluster-on-fail").tomselect?.getValue()
+      ? Number(document.getElementById("cluster-on-fail").tomselect.getValue())
+      : null,
+  };
+
+  console.log("Sending cluster payload:", payload);
+
+  if (appState.ws?.readyState === WebSocket.OPEN) {
+    appState.ws.send(JSON.stringify(payload));
+    showToast(isEdit ? "Cluster updated" : "Cluster created", "success");
+  } else {
+    showToast("Not connected", "danger");
+  }
+
+  document.getElementById("cluster-modal").classList.remove("active");
+  resetAllModals();
+}
+
+// ==================== BUTTON LISTENERS ====================
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("save-job")?.addEventListener("click", saveJob);
+  document
+    .getElementById("save-cluster")
+    ?.addEventListener("click", saveCluster);
+  document.getElementById("cancel-job")?.addEventListener("click", () => {
+    document.getElementById("job-modal").classList.remove("active");
+    resetAllModals();
+  });
+  document.getElementById("cancel-cluster")?.addEventListener("click", () => {
+    document.getElementById("cluster-modal").classList.remove("active");
+    resetAllModals();
+  });
+
+  // Close buttons
+  document.querySelectorAll(".close-btn[data-dismiss]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const modalId = btn.dataset.dismiss;
+      document.getElementById(modalId).classList.remove("active");
+      resetAllModals();
+    });
+  });
 });
 
 // Save attach calendar
@@ -110,7 +360,8 @@ document.getElementById("refresh-log")?.addEventListener("click", () => {
   const jobId = modal.dataset.jobId;
 
   if (jobId && appState.ws?.readyState === WebSocket.OPEN) {
-    document.getElementById("log-modal-title").textContent = `Job ID: ${jobId} — Refreshing...`;
+    document.getElementById("log-modal-title").textContent =
+      `Job ID: ${jobId} — Refreshing...`;
     document.getElementById("log-modal-subtitle").textContent = "";
     appState.ws.send(JSON.stringify({ command: "read_log", id: jobId }));
   }
@@ -188,42 +439,297 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// Populate dependency selects (unchanged, but included for completeness)
-function populateDependencySelects(selectId, selectedIds = [], includeNone = true) {
+function initSingleSelect(selectId, preSelectedIds = []) {
   const select = document.getElementById(selectId);
-  select.innerHTML = "";
-  if (includeNone) {
-    const noneOpt = document.createElement("option");
-    noneOpt.value = "";
-    noneOpt.textContent = "None";
-    select.appendChild(noneOpt);
-  }
-  console.log(`[DEBUG] populateDependencySelects called for ${selectId}`);
-  console.log(`[DEBUG] selectedIds:`, selectedIds);
-  console.log(`[DEBUG] appState.monitorData.tree:`, appState.monitorData.tree);
-  function addClusters(items) {
-    console.log(`[DEBUG] addClusters called with items:`, items);
-    console.log(`[DEBUG] items is array?`, Array.isArray(items));
-    if (!Array.isArray(items)) {
-      console.warn("[DEBUG] addClusters: items is NOT an array - skipping");
-      return;
+  if (!select) return;
+
+  if (select.tomselect) select.tomselect.destroy();
+
+  const ts = new TomSelect(select, {
+    plugins: ["remove_button"], // ← enable × for single-select
+    persist: false,
+    maxItems: 1, // enforce single only
+    create: false,
+    sortField: "text",
+    valueField: "value",
+    labelField: "text",
+    render: {
+      option: (data) =>
+        `<div class="py-1 px-2 text-gray-200">${data.text}</div>`,
+      item: (
+        data,
+      ) => `<div class="item bg-gray-800 text-cyan-200 border border-cyan-800 rounded px-2 py-1 m-1 flex items-center justify-between shadow-sm">
+                        ${data.text}
+                        <span class="custom-remove ml-2 cursor-pointer text-red-400 hover:text-red-300 font-bold">×</span>
+                      </div>`,
+    },
+    onInitialize: function () {
+      this.control.classList.add(
+        "bg-gray-900",
+        "border-cyan-700",
+        "focus-within:ring-2",
+        "focus-within:ring-cyan-500",
+      );
+    },
+  });
+
+  // Add click handler for custom ×
+  ts.control.addEventListener("click", (e) => {
+    if (e.target.classList.contains("custom-remove")) {
+      ts.clear(true);
+      ts.refreshOptions();
+      e.stopPropagation();
     }
+  });
+
+  select.tomselect = ts;
+
+  if (preSelectedIds.length > 0) {
+    ts.addItems(preSelectedIds.map(String), true);
+    ts.refreshState();
+    ts.refreshOptions(false);
+  }
+}
+
+function initDependencySelect(selectId, clearBtnId, preSelectedIds = []) {
+  const select = document.getElementById(selectId);
+  if (!select) {
+    console.warn(`Select element not found for ID: ${selectId}`);
+    return;
+  }
+
+  // Destroy previous instance safely
+  if (select.tomselect) {
+    select.tomselect.destroy();
+    select.tomselect = null;
+  }
+
+  // Clear native selected state
+  Array.from(select.options).forEach((opt) => (opt.selected = false));
+
+  const ts = new TomSelect(select, {
+    plugins: ["remove_button"],
+    persist: false,
+    maxItems: null,
+    create: false,
+    sortField: "text",
+    valueField: "value",
+    labelField: "text",
+    render: {
+      option: (data) =>
+        `<div class="py-1 px-2 text-gray-200">${data.text}</div>`,
+      item: (
+        data,
+      ) => `<div class="item bg-gray-800 text-cyan-200 border border-cyan-800 rounded px-2 py-1 m-1 flex items-center justify-between shadow-sm">
+                        ${data.text}
+                      </div>`,
+    },
+    onInitialize: function () {
+      this.control.classList.add(
+        "bg-gray-900",
+        "border-cyan-700",
+        "focus-within:ring-2",
+        "focus-within:ring-cyan-500",
+      );
+    },
+    onItemRemove: function (value) {
+      // Force refresh after manual × removal
+      this.refreshState();
+      this.refreshOptions(false);
+    },
+  });
+
+  select.tomselect = ts;
+
+  // Force-add pre-selected values
+  console.log(`Forcing add items to ${selectId}:`, preSelectedIds);
+  if (preSelectedIds.length > 0) {
+    const stringIds = preSelectedIds.map((id) => String(id));
+    ts.addItems(stringIds, true);
+    ts.refreshState();
+    ts.refreshOptions(false);
+  }
+
+  // Clear button: robust clear
+  const clearBtn = document.getElementById(clearBtnId);
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      ts.clear(true); // clear internal state
+      ts.setText(""); // clear input text
+      ts.refreshState(); // update UI
+      ts.refreshOptions(false); // close dropdown
+      ts.blur(); // remove focus
+      console.log(`Cleared ${selectId} - current values:`, ts.getValue());
+    });
+  }
+
+  // Optional: log changes for debug
+  ts.on("change", () => {
+    console.log(`${selectId} changed to:`, ts.getValue());
+  });
+}
+
+/*
+// Initialize Tom Select for dependency selects
+function initDependencySelect(selectId, clearBtnId, preSelectedIds = []) {
+  const select = document.getElementById(selectId);
+  if (!select) {
+    console.warn(`Select element not found for ID: ${selectId}`);
+    return;
+  }
+
+  // Destroy any previous Tom Select instance to prevent memory leaks/duplicates
+  if (select.tomselect) {
+    select.tomselect.destroy();
+    select.tomselect = null;
+  }
+
+  // Clear any lingering native selected state (safety)
+  Array.from(select.options).forEach(opt => {
+    opt.selected = false;
+  });
+
+  // Initialize Tom Select
+  const ts = new TomSelect(select, {
+    plugins: ['remove_button'],           // enables × on each tag
+    persist: false,
+    maxItems: null,                       // allow any number of selections
+    create: false,                        // no custom creation
+    sortField: 'text',                    // alphabetical sorting
+    valueField: 'value',
+    labelField: 'text',
+    render: {
+      option: function(data, escape) {
+        // Dropdown option (clean, minimal)
+        return `<div class="py-1 px-2 text-gray-200 hover:bg-cyan-900/30">${escape(data.text)}</div>`;
+      },
+      item: function(data, escape) {
+        // Selected tag/pill
+        return `<div class="item bg-gray-800 text-cyan-200 border border-cyan-800 rounded px-2 py-1 m-1 flex items-center justify-between shadow-sm">
+                  ${escape(data.text)}
+                  <span class="remove ml-2 cursor-pointer text-red-400 hover:text-red-300 font-bold">×</span>
+                </div>`;
+      }
+    },
+    onInitialize: function() {
+      // Cyberpunk focus glow
+      this.control.classList.add(
+        'bg-gray-900',
+        'border-cyan-700',
+        'focus-within:ring-2',
+        'focus-within:ring-cyan-500',
+        'focus-within:border-cyan-500',
+        'transition-all',
+        'duration-150'
+      );
+    }
+  });
+
+  // Store the instance
+  select.tomselect = ts;
+
+  // Force-add pre-selected values AFTER initialization
+  console.log(`Forcing add items to ${selectId}:`, preSelectedIds);
+
+  if (preSelectedIds.length > 0) {
+    // Ensure values are strings (Tom Select expects string values by default)
+    const stringIds = preSelectedIds.map(id => String(id));
+    ts.addItems(stringIds, true);  // true = silent (no events)
+    ts.refreshState();             // force UI refresh
+    ts.refreshOptions(false);      // close dropdown if open
+  }
+
+  // Clear button handler
+  const clearBtn = document.getElementById(clearBtnId);
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      ts.clear(true);
+      ts.refreshOptions();
+      console.log(`Cleared ${selectId}`);
+    });
+  }
+
+  // Optional: log current values after init for debugging
+  console.log(`Tom Select ${selectId} initialized with values:`, ts.getValue());
+}
+
+*/
+
+// For job dependencies
+function populateJobDependencies(selectId, selectedIds = []) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+
+  select.innerHTML = '<option value="">None / Clear all</option>';
+
+  function addJobs(items) {
     items.forEach((item) => {
-      if (item.is_cluster) {
-        if (appState.currentEditItem && Number(item.id) === Number(appState.currentEditItem.id)) return;
-        console.log(`[DEBUG] Adding cluster option for id:`, item.id, "name:", item.name);
-        const opt = document.createElement("option");
-        opt.value = item.id;
-        opt.textContent = getFullPath(item);
-        if (selectedIds.includes(Number(item.id))) opt.selected = true;
-        select.appendChild(opt);
-        if (item.children) {
-          console.log(`[DEBUG] Recursing into children of cluster ${item.id}`);
-          addClusters(item.children);
+      // Skip adding root as an option, but still recurse
+      if (item.parent_id === null) {
+        // Root - don't add option, but process children/jobs
+      } else {
+        // Normal node - add if it's a job
+        if (!item.is_cluster) {
+          const opt = document.createElement("option");
+          opt.value = item.id;
+          opt.textContent = getFullPath(item);
+          if (selectedIds.includes(Number(item.id))) opt.selected = true;
+          select.appendChild(opt);
         }
+      }
+
+      // Always recurse deeper
+      if (item.children) addJobs(item.children);
+
+      if (item.jobs && Array.isArray(item.jobs)) {
+        item.jobs.forEach((job) => {
+          if (
+            appState.currentEditItem &&
+            Number(job.id) === Number(appState.currentEditItem.id)
+          )
+            return;
+
+          const opt = document.createElement("option");
+          opt.value = job.id;
+          opt.textContent = getFullPath(job);
+          if (selectedIds.includes(Number(job.id))) opt.selected = true;
+          select.appendChild(opt);
+        });
       }
     });
   }
+
+  addJobs(appState.monitorData.tree || []);
+}
+
+// For cluster dependencies (needs, needs_any, on_fail)
+function populateClusterDependencies(selectId, selectedIds = []) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+
+  select.innerHTML = '<option value="">None / Clear all</option>';
+
+  function addClusters(items) {
+    items.forEach((item) => {
+      // Skip adding root as an option, but still recurse
+      if (item.parent_id === null) {
+        // Root - don't add option
+      } else {
+        // Normal cluster - add it
+        if (item.is_cluster) {
+          const opt = document.createElement("option");
+          opt.value = item.id;
+          opt.textContent = getFullPath(item);
+          if (selectedIds.includes(Number(item.id))) opt.selected = true;
+          select.appendChild(opt);
+        }
+      }
+
+      // Always recurse deeper
+      if (item.children) addClusters(item.children);
+    });
+  }
+
   addClusters(appState.monitorData.tree || []);
 }
 
@@ -248,84 +754,6 @@ export function openAttachCalendarModal(
     select.appendChild(opt);
   });
   document.getElementById("attach-cal-modal").classList.add("active");
-}
-
-// Open Create/Edit Entity Modal
-export function openEntityModal(
-  mode = "create",
-  type = "job",
-  item = null,
-  parentId = null,
-  parentName = null,
-) {
-  appState.currentEditItem = item;
-  appState.currentParentId = parentId;
-  appState.currentParentName = parentName;
-  const isEdit = mode === "edit";
-  const isJob = type === "job";
-  document.getElementById("entity-modal-title").textContent = isEdit
-    ? `Edit ${isJob ? "Job" : "Cluster"}`
-    : `New ${isJob ? "Job" : "Cluster"}`;
-  const contextEl = document.getElementById("entity-context");
-  if (isEdit) contextEl.textContent = `ID: ${item.id}`;
-  else if (parentName) contextEl.textContent = `In cluster: ${parentName}`;
-  else contextEl.textContent = "In root";
-  document.getElementById("entity-script-field").style.display = isJob
-    ? "block"
-    : "none";
-  document.getElementById("entity-server-field").style.display = isJob
-    ? "block"
-    : "none";
-  document.getElementById("entity-retrys-field").style.display = isJob
-    ? "block"
-    : "none";
-  document.getElementById("entity-delay-field").style.display = isJob
-    ? "block"
-    : "none";
-  if (isEdit && item) {
-    document.getElementById("entity-name").value = item.name || "";
-    document.getElementById("entity-description").value =
-      item.description || "";
-    document.getElementById("entity-script").value = item.script || "";
-    document.getElementById("entity-server").value = item.server_name || "";
-    document.getElementById("entity-loops").value = item.loops ?? 0;
-    document.getElementById("entity-retrys").value = item.retrys ?? 0;
-    document.getElementById("entity-delay").value = item.delay ?? 0;
-    populateDependencySelects("entity-needs", item.needs_ids || [], true);
-    populateDependencySelects(
-      "entity-needs-any",
-      item.needs_any_ids || [],
-      true,
-    );
-    populateDependencySelects(
-      "entity-on-fail",
-      item.on_fail_id ? [item.on_fail_id] : [],
-      true,
-    );
-  } else {
-    document.getElementById("entity-name").value = isJob
-      ? "new-job"
-      : "new-cluster";
-    document.getElementById("entity-description").value = "";
-    document.getElementById("entity-script").value = "";
-    document.getElementById("entity-loops").value = "0";
-    document.getElementById("entity-retrys").value = "0";
-    document.getElementById("entity-delay").value = "0";
-    populateDependencySelects("entity-needs", [], true);
-    populateDependencySelects("entity-needs-any", [], true);
-    populateDependencySelects("entity-on-fail", [], true);
-  }
-  const serverSelect = document.getElementById("entity-server");
-  serverSelect.innerHTML = "";
-  appState.serversData.forEach((s) => {
-    const opt = document.createElement("option");
-    opt.value = s.name;
-    opt.textContent = s.name;
-    if (!isEdit && appState.serversData[0]) opt.selected = true;
-    if (isEdit && s.name === item.server_name) opt.selected = true;
-    serverSelect.appendChild(opt);
-  });
-  document.getElementById("entity-modal").classList.add("active");
 }
 
 // Copy token

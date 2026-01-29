@@ -1,5 +1,5 @@
 // app.js – minimal entry point & orchestration
-import { appState, updateCollapsedClusters } from "./state.js";
+import { appState, updateCollapsedClusters, validateCollapsedStorage } from "./state.js";
 import { attachTabListeners, activateDefaultTab } from "./tabs.js";
 import { checkLoginAndConnect } from "./websocket.js";
 import { attachTreeTableListeners, startTreeTimings } from "./tree-table.js";
@@ -10,23 +10,10 @@ function closeAllDropdowns() {
   });
 }
 
-/*
-export function checkLoginAndConnect() {
-  const token = document.cookie.match(/ordo_token=([^;]+)/)?.[1];
-  if (token) {
-    document.body.classList.add("is-logged-in");
-    console.log("DEBUG: Logged IN");
-    connectWS(token);
-  } else {
-    document.body.classList.remove("is-logged-in");
-    console.log("DEBUG: Logged OUT");
-  }
-  activateDefaultTab();
-}
-*/
-
 document.addEventListener("DOMContentLoaded", () => {
   console.log("DOM ready");
+
+  validateCollapsedStorage();
 
   // 1. Attach feature listeners
   attachTabListeners();

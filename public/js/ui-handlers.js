@@ -1,6 +1,7 @@
 // ui-handlers.js
 import { appState, updateCollapsedClusters } from "./state.js";
 import { renderJobsTable } from "./tree-table.js";
+import { removeJobById, removeClusterById } from "./utils.js";
 
 import {
   formatDate,
@@ -137,10 +138,13 @@ export function updateLog(data) {
 */
 
 export function updateLog(data) {
+  const loading = document.getElementById("log-loading");
   const pre = document.getElementById("log-content");
-  pre.textContent = data.out || "(no output)";
 
-  // Auto-scroll to bottom
+  loading.style.display = "none";
+  pre.style.display = "block";
+
+  pre.textContent = data.out || "(no output captured)";
   pre.scrollTop = pre.scrollHeight;
 
   const jobName = data.job_name || "Unnamed Job";
@@ -148,31 +152,32 @@ export function updateLog(data) {
   const runId = data.id || "latest"; // prefer log_id, fallback to id
   const serverName = data.server_name || "—";
 
-// Replace the current status calculation with this:
+  // Replace the current status calculation with this:
 
-let status = "Success";
-let statusClass = "success";  // for optional coloring later
+  let status = "Success";
+  let statusClass = "success"; // for optional coloring later
 
-if (data.signal != null && data.signal !== 0) {
-  status = `Terminated (signal ${data.signal})`;
-  statusClass = "warning";  // or "danger" if you want red
-} else if (data.exit_code != null && data.exit_code !== 0) {
-  status = `Failed (exit ${data.exit_code})`;
-  statusClass = "danger";
-} else if (data.exit_code === 0) {
-  status = "Success";
-  statusClass = "success";
-} else {
-  status = "—";
-  statusClass = "unknown";
-}
+  if (data.signal != null && data.signal !== 0) {
+    status = `Terminated (signal ${data.signal})`;
+    statusClass = "warning"; // or "danger" if you want red
+  } else if (data.exit_code != null && data.exit_code !== 0) {
+    status = `Failed (exit ${data.exit_code})`;
+    statusClass = "danger";
+  } else if (data.exit_code === 0) {
+    status = "Success";
+    statusClass = "success";
+  } else {
+    status = "—";
+    statusClass = "unknown";
+  }
 
-// Then in title:
-document.getElementById("log-modal-title").textContent =
-  `Job: ${jobName} • ID: ${jobId} • Run: ${runId} (${status})`;
+  // Then in title:
+  document.getElementById("log-modal-title").textContent =
+    `Job: ${jobName} • ID: ${jobId} • Run: ${runId} (${status})`;
 
-// Optional: add a CSS class to the title for color
-document.getElementById("log-modal-title").className = `modal-title ${statusClass}`;
+  // Optional: add a CSS class to the title for color
+  document.getElementById("log-modal-title").className =
+    `modal-title ${statusClass}`;
 
   // Two-line subtitle
   const startDate = data.started ? formatDate(data.started) : "—";
@@ -218,11 +223,56 @@ export function updateLogHistory(data) {
   });
 }
 
+/*
 export function updateJobsClusters(data) {
   hideLoading("monitor-loading");
   document.getElementById("monitor-content").style.display = "block";
   if (data.success) {
     appState.monitorData.tree = buildTree(data);
+    renderJobsTable();
+  }
+}
+*/
+
+export function updateJobsClusters(data) {
+  hideLoading("monitor-loading");
+  document.getElementById("monitor-content").style.display = "block";
+
+  if (data.success) {
+    appState.monitorData.tree = buildTree(data);
+
+    // ────────────────────────────────────────────────
+    // Clean up any collapsed IDs that no longer exist in the current tree
+    const currentClusterIds = new Set();
+    function collectClusterIds(nodes) {
+      nodes.forEach((node) => {
+        if (node.is_cluster) {
+          currentClusterIds.add(String(node.id));
+          if (node.children) collectClusterIds(node.children);
+        }
+      });
+    }
+    collectClusterIds(appState.monitorData.tree);
+
+    let cleanedCount = 0;
+    const before = [...appState.collapsedClusters];
+    appState.collapsedClusters.forEach((id) => {
+      if (!currentClusterIds.has(id)) {
+        appState.collapsedClusters.delete(id);
+        cleanedCount++;
+      }
+    });
+
+    if (cleanedCount > 0) {
+      updateCollapsedClusters(); // save cleaned set to localStorage
+      console.log(
+        `Cleaned ${cleanedCount} stale collapsed cluster ID(s):`,
+        before.filter((id) => !currentClusterIds.has(id)),
+      );
+      // Optional: showToast(`View refreshed — removed collapsed state for ${cleanedCount} deleted cluster(s)`, "info");
+    }
+    // ────────────────────────────────────────────────
+
     renderJobsTable();
   }
 }
@@ -306,78 +356,178 @@ export function renderServersTable() {
   });
 }
 
+/*
 export function applyClusterBroadcast(data) {
   if (data.updates) {
-    data.updates.forEach((update) => {
-      let node = findClusterById(appState.monitorData.tree, update.id);
-      if (node) {
-        Object.assign(node, update);
+    data.updates.forEach((clusterUpdate) => {
+      const clusterId = Number(clusterUpdate.id);
+      let clusterNode = findClusterById(appState.monitorData.tree, clusterId);
+
+      if (clusterNode) {
+        // Update existing cluster
+        Object.assign(clusterNode, clusterUpdate);
       } else {
-        const newNode = {
-          ...update,
-          id: Number(update.id),
-          type: "cluster",
+        // Create new cluster (cloned or new)
+        const newCluster = {
+          ...clusterUpdate,
+          id: clusterId,
           is_cluster: true,
-          children: [],
-          depth: 0,
+          children: [], // populate below
+          depth: clusterUpdate.parent_id 
+            ? (findClusterById(appState.monitorData.tree, Number(clusterUpdate.parent_id))?.depth || 0) + 1 
+            : 0,
         };
-        if (update.parent_id != null) {
-          const parent = findClusterById(
-            appState.monitorData.tree,
-            update.parent_id,
-          );
-          if (parent) parent.children.push(newNode);
-          else appState.monitorData.tree.push(newNode);
+
+        // Add to parent or root
+        if (clusterUpdate.parent_id != null) {
+          const parent = findClusterById(appState.monitorData.tree, Number(clusterUpdate.parent_id));
+          if (parent) parent.children.push(newCluster);
+          else appState.monitorData.tree.push(newCluster);
         } else {
-          appState.monitorData.tree.push(newNode);
+          appState.monitorData.tree.push(newCluster);
         }
+
+        clusterNode = newCluster;
+      }
+
+      // Process jobs included in this cluster update (critical for clones)
+      if (clusterUpdate.jobs && Array.isArray(clusterUpdate.jobs)) {
+        clusterUpdate.jobs.forEach((jobUpdate) => {
+          const jobId = Number(jobUpdate.id);
+          let jobNode = findJobById(appState.monitorData.tree, jobId);
+
+          if (jobNode) {
+            // Update existing job (e.g. state change)
+            Object.assign(jobNode, jobUpdate);
+          } else {
+            // Add new/cloned job to this cluster
+            const newJob = {
+              ...jobUpdate,
+              id: jobId,
+              is_cluster: false,
+              depth: clusterNode.depth + 1,
+            };
+            clusterNode.children.push(newJob);
+            console.log("Adding job", jobId, "to cluster", clusterId, "parent found?", !!clusterNode);
+          }
+        });
       }
     });
   }
+
   if (data.deletes) {
-    const uniqueDeletes = [
-      ...new Set(data.deletes.map((d) => Number(d.id || d))),
-    ];
-    uniqueDeletes.forEach((id) =>
-      removeClusterById(appState.monitorData.tree, id),
-    );
+    const uniqueDeletes = [...new Set(data.deletes.map(d => Number(d.id || d)))];
+    uniqueDeletes.forEach(id => removeClusterById(appState.monitorData.tree, id));
   }
+
   renderJobsTable();
 }
+*/
+
+export function applyClusterBroadcast(data) {
+  if (data.updates) {
+    data.updates.forEach((clusterUpdate) => {
+      const clusterId = Number(clusterUpdate.id);
+      let clusterNode = findClusterById(appState.monitorData.tree, clusterId);
+
+      if (clusterNode) {
+        Object.assign(clusterNode, clusterUpdate);
+      } else {
+        const newCluster = {
+          ...clusterUpdate,
+          id: clusterId,
+          is_cluster: true,
+          children: [],
+          depth: clusterUpdate.parent_id 
+            ? (findClusterById(appState.monitorData.tree, Number(clusterUpdate.parent_id))?.depth || 0) + 1 
+            : 0,
+        };
+
+        if (clusterUpdate.parent_id != null) {
+          const parent = findClusterById(appState.monitorData.tree, Number(clusterUpdate.parent_id));
+          if (parent) parent.children.push(newCluster);
+          else appState.monitorData.tree.push(newCluster);
+        } else {
+          appState.monitorData.tree.push(newCluster);
+        }
+
+        clusterNode = newCluster;
+      }
+
+      // === MOVE THIS BLOCK HERE (after if/else) ===
+      if (clusterUpdate.jobs && Array.isArray(clusterUpdate.jobs)) {
+        clusterUpdate.jobs.forEach((jobUpdate) => {
+          const jobId = Number(jobUpdate.id);
+          let jobNode = findJobById(appState.monitorData.tree, jobId);
+
+          if (jobNode) {
+            Object.assign(jobNode, jobUpdate);
+          } else {
+            const newJob = {
+              ...jobUpdate,
+              id: jobId,
+              is_cluster: false,
+              depth: clusterNode.depth + 1,
+            };
+            clusterNode.children.push(newJob);
+            console.log(`Added job ${jobId} to cluster ${clusterId} from broadcast`);
+          }
+        });
+
+        clusterNode.children.sort((a, b) => Number(a.id) - Number(b.id));
+      }
+      // === END ===
+    });
+  }
+
+  if (data.deletes) {
+    const uniqueDeletes = [...new Set(data.deletes.map(d => Number(d.id || d)))];
+    uniqueDeletes.forEach(id => removeClusterById(appState.monitorData.tree, id));
+  }
+
+  renderJobsTable();
+}
+
 
 export function applyJobBroadcast(data) {
   if (data.updates) {
     data.updates.forEach((update) => {
-      let node = findJobById(appState.monitorData.tree, update.id);
+      const id = Number(update.id);
+      let node = findJobById(appState.monitorData.tree, id);
+
       if (node) {
+        // Update existing job
         Object.assign(node, update);
       } else {
-        const newNode = {
+        // Create new job
+        const parentCluster = update.cluster_id != null 
+          ? findClusterById(appState.monitorData.tree, Number(update.cluster_id)) 
+          : null;
+
+        const newJob = {
           ...update,
-          id: Number(update.id),
-          type: "job",
+          id,
           is_cluster: false,
-          depth: 0,
+          depth: parentCluster ? parentCluster.depth + 1 : 0,
         };
-        if (update.cluster_id != null) {
-          const parent = findClusterById(
-            appState.monitorData.tree,
-            update.cluster_id,
-          );
-          if (parent) parent.children.push(newNode);
-          else appState.monitorData.tree.push(newNode);
+
+        if (parentCluster) {
+          parentCluster.children.push(newJob);
+          // Optional: sort children by id or name after insert
+          // parentCluster.children.sort((a, b) => a.id - b.id);
         } else {
-          appState.monitorData.tree.push(newNode);
+          // Fallback: add to root
+          appState.monitorData.tree.push(newJob);
         }
       }
     });
   }
+
   if (data.deletes) {
-    const uniqueDeletes = [
-      ...new Set(data.deletes.map((d) => Number(d.id || d))),
-    ];
-    uniqueDeletes.forEach((id) => removeJobById(appState.monitorData.tree, id));
+    const uniqueDeletes = [...new Set(data.deletes.map(d => Number(d.id || d)))];
+    uniqueDeletes.forEach(id => removeJobById(appState.monitorData.tree, id));
   }
+
   renderJobsTable();
 }
 

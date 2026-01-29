@@ -18,6 +18,20 @@ export const appState = {
 
 // Persistence helpers for collapsed clusters
 const COLLAPSE_KEY = "ordo_collapsed_clusters";
+// Version key for collapsed clusters
+const COLLAPSE_VERSION_KEY = "ordo_collapsed_version";
+const CURRENT_COLLAPSE_VERSION = "1"; // ← Increment this (e.g. "2") when you change tree structure or data format
+
+// Validate / reset on load
+export function validateCollapsedStorage() {
+  const storedVersion = localStorage.getItem(COLLAPSE_VERSION_KEY);
+  if (storedVersion !== CURRENT_COLLAPSE_VERSION) {
+    console.log(`Collapsed storage version mismatch (was ${storedVersion}, expected ${CURRENT_COLLAPSE_VERSION}). Resetting.`);
+    localStorage.removeItem("ordo_collapsed_clusters");
+    localStorage.setItem(COLLAPSE_VERSION_KEY, CURRENT_COLLAPSE_VERSION);
+    appState.collapsedClusters.clear();
+  }
+}
 
 export function getCollapsedIds() {
   try {
