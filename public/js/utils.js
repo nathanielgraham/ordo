@@ -212,3 +212,55 @@ export function removeJobById(items, id) {
   }
   return false;
 }
+
+// utils.js – add this function at the end (if it's not already there)
+export function resolveDepName(id, tree, isCluster = false) {
+  id = Number(id);
+  let node = null;
+  if (isCluster) {
+    node = findClusterById(tree, id);
+  } else {
+    node = findJobById(tree, id);
+  }
+  if (node) {
+    return getFullPath(node);
+  } else {
+    return `ID:${id} (missing or type mismatch)`;
+  }
+}
+
+// utils.js or new const in ui-handlers.js
+export const commonTimezones = [
+  "UTC",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Phoenix",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Europe/Moscow",
+  "Asia/Tokyo",
+  "Asia/Shanghai",
+  "Asia/Singapore",
+  "Asia/Kolkata",
+  "Australia/Sydney",
+  "Pacific/Auckland",
+  "America/Toronto",
+  "America/Vancouver",
+  "Europe/Amsterdam",
+  "Europe/Stockholm",
+  "Asia/Dubai",
+  "Asia/Hong_Kong",
+  "Asia/Seoul",
+  "Europe/Madrid",
+  "Europe/Rome",
+  "America/Sao_Paulo",
+  "Africa/Johannesburg",
+  "America/Mexico_City",
+  "Asia/Bangkok",
+  "Pacific/Honolulu",
+  // Add more as needed
+];
+

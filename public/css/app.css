@@ -1176,50 +1176,144 @@ body.is-logged-in .public-tabs {
   width: 100%;
   height: 100%;
 }
-.ts-wrapper.multi .ts-control {
-  background: #1a1a1a;
-  border: 1px solid #444;
-  color: #e0e0e0;
-  padding: 0.4rem 0.6rem;
-  border-radius: 4px;
+
+/* Tom Select - Global Cyberpunk Dark Theme */
+/* Tom Select - Consolidated Cyberpunk Dark Theme */
+.ts-wrapper {
+  /* Control (input area) */
+  .ts-control {
+    background: #1e1e1e !important;
+    border: 1px solid #444 !important;
+    color: #b0e0ff !important;
+    border-radius: 6px !important;
+    padding: 0.4rem 0.8rem !important;
+    min-height: 38px !important;
+    box-shadow: none !important;
+    transition: all 0.2s ease !important;
+
+    /* Focus / active state (strong cyan glow) */
+    &:focus-within,
+    &.focus {
+      border-color: #0ff !important;
+      box-shadow: 0 0 12px rgba(0, 255, 255, 0.35) !important;
+      background: #222226 !important;
+    }
+
+    /* Placeholder text */
+    .placeholder {
+      color: #888 !important;
+    }
+  }
+
+  /* Selected items / tags */
+  .item {
+    background: #2a2a3a !important;
+    border: 1px solid #555 !important;
+    color: #b0e0ff !important;
+    border-radius: 6px !important;
+    padding: 0.4rem 0.8rem !important;
+    margin: 0.3rem 0.5rem 0.3rem 0 !important;
+    font-size: 0.95rem !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    max-width: 100% !important;
+
+    /* Remove button (X) */
+    .remove {
+      color: #f55 !important;
+      font-size: 1.2rem !important;
+      margin-left: 0.6rem !important;
+      cursor: pointer !important;
+      line-height: 1 !important;
+      opacity: 0.8 !important;
+      transition: opacity 0.2s !important;
+
+      &:hover {
+        opacity: 1 !important;
+        color: #f77 !important;
+      }
+    }
+  }
+
+  /* Force show remove button on single-select (override default hide) */
+  &:not(.multi) .item .remove {
+    display: inline-block !important;
+  }
+
+  /* Dropdown menu */
+  .ts-dropdown {
+    background: #1e1e1e !important;
+    border: 1px solid #444 !important;
+    border-radius: 6px !important;
+    box-shadow: 0 4px 15px rgba(0, 255, 255, 0.15) !important;
+    color: #e0e0e0 !important;
+
+    .option {
+      background: #1e1e1e !important;
+      padding: 0.5rem 1rem !important;
+      color: #f0f0f0 !important;
+
+      /* Active / selected / hover */
+      &.active,
+      &.selected,
+      &:hover {
+        background: rgba(0, 255, 255, 0.18) !important;
+        color: #0ff !important;
+      }
+    }
+  }
+
+  /* Disabled state */
+  &.disabled .ts-control {
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+  }
 }
-.ts-wrapper.multi .ts-control:focus,
-.ts-wrapper.multi.focus .ts-control {
-  border-color: #0ff;
-  box-shadow: 0 0 12px rgba(0, 255, 255, 0.35);
-  background: #222;
+
+/* Scrollbar for long dropdowns */
+.ts-dropdown .ts-dropdown-content {
+  scrollbar-width: thin;
+  scrollbar-color: #555 #1e1e1e;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: #1e1e1e;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: #777;
+  }
 }
-.ts-dropdown {
-  background: #1a1a1a;
-  color: #e0e0e0;
-}
-.ts-wrapper.multi .item {
-  background: #2a2a3a;
-  color: #b0e0ff;
-  border: 1px solid #444;
-  border-radius: 4px;
-  padding: 0.25rem 0.5rem;
-  margin: 0.25rem 0.5rem 0.25rem 0;
-}
-.ts-wrapper.multi .item .remove {
-  color: #f55;
-  margin-left: 0.5rem;
-  cursor: pointer;
-  font-weight: 700;
-}
-.ts-wrapper.multi .item .remove:hover {
-  color: #f77;
-}
+
+/* Custom Clear buttons for dependency selects */
 .clear-needs,
 .clear-needs-any {
   background: #333;
   color: #f77;
   border: 1px solid #555;
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
 }
-.clear-needs-any:hover,
-.clear-needs:hover {
+
+.clear-needs:hover,
+.clear-needs-any:hover {
   background: #444;
+  border-color: #f77;
+  color: #fff;
+  box-shadow: 0 0 8px rgba(255, 119, 119, 0.3);
 }
+
 .app-modal {
   position: fixed;
   inset: 0;
@@ -1296,28 +1390,6 @@ body.is-logged-in .public-tabs {
 #cluster-modal .modal-title {
   color: #f9f;
 }
-#cluster-modal #cluster-on-fail .ts-control,
-#job-modal #job-on-fail .ts-control,
-#job-modal #job-server .ts-control {
-  background: #1e1e1e !important;
-  border: 1px solid #444 !important;
-  color: #b0e0ff !important;
-  padding: 0.6rem 1rem;
-  border-radius: 6px;
-  min-height: 40px;
-  font-size: 1rem;
-  box-shadow: none !important;
-}
-#cluster-modal #cluster-on-fail .ts-control.active,
-#cluster-modal #cluster-on-fail:focus-within .ts-control,
-#job-modal #job-on-fail .ts-control.active,
-#job-modal #job-on-fail:focus-within .ts-control,
-#job-modal #job-server .ts-control.active,
-#job-modal #job-server:focus-within .ts-control {
-  background: #222226 !important;
-  border-color: #0ff !important;
-  box-shadow: 0 0 12px rgba(0, 255, 255, 0.35) !important;
-}
 #cluster-modal #cluster-on-fail .item,
 #job-modal #job-on-fail .item,
 #job-modal #job-server .item {
@@ -1334,91 +1406,7 @@ body.is-logged-in .public-tabs {
 #job-modal #job-server .remove {
   display: none !important;
 }
-#cluster-modal #cluster-on-fail .ts-dropdown,
-#job-modal #job-on-fail .ts-dropdown,
-#job-modal #job-server .ts-dropdown,
-.ts-dropdown {
-  background: #1e1e1e !important;
-  border: 1px solid #444 !important;
-}
-#cluster-modal #cluster-on-fail .ts-dropdown .option,
-#job-modal #job-on-fail .ts-dropdown .option,
-#job-modal #job-server .ts-dropdown .option {
-  background: #1e1e1e !important;
-  color: #e0e0e0 !important;
-}
-#cluster-modal #cluster-on-fail .ts-dropdown .option.active,
-#cluster-modal #cluster-on-fail .ts-dropdown .option.selected,
-#job-modal #job-on-fail .ts-dropdown .option.active,
-#job-modal #job-on-fail .ts-dropdown .option.selected,
-#job-modal #job-server .ts-dropdown .option.active,
-#job-modal #job-server .ts-dropdown .option.selected {
-  background: rgba(0, 255, 255, 0.15) !important;
-  color: #0ff !important;
-}
-#cluster-modal #cluster-on-fail .ts-control input,
-#job-modal #job-on-fail .ts-control input,
-#job-modal #job-server .ts-control input {
-  background: 0 0 !important;
-  color: inherit !important;
-}
-.ts-wrapper .item {
-  background: #2a2a3a !important;
-  border: 1px solid #555 !important;
-  color: #b0e0ff !important;
-  border-radius: 6px;
-  padding: 0.4rem 0.8rem;
-  margin: 0.3rem 0.5rem 0.3rem 0;
-  font-size: 0.95rem;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-  display: inline-flex;
-  align-items: center;
-  max-width: 100%;
-}
-.ts-wrapper .remove {
-  color: #f55 !important;
-  font-size: 1.2rem !important;
-  margin-left: 0.6rem !important;
-  cursor: pointer !important;
-  line-height: 1 !important;
-}
-.ts-wrapper .remove:hover {
-  color: #f77 !important;
-}
-.ts-wrapper:not(.multi) .remove {
-  display: none !important;
-}
-.ts-wrapper .ts-control {
-  background: #1e1e1e !important;
-  border: 1px solid #444 !important;
-  color: #b0e0ff !important;
-  border-radius: 6px;
-}
-.ts-wrapper .ts-control:focus-within,
-.ts-wrapper.focus .ts-control {
-  border-color: #0ff !important;
-  box-shadow: 0 0 12px rgba(0, 255, 255, 0.35) !important;
-}
-.ts-dropdown .option.active,
-.ts-dropdown .option.selected {
-  background: rgba(0, 255, 255, 0.15) !important;
-}
-.ts-dropdown .option {
-  background: #1e1e1e !important;
-  padding: 0.5rem 1rem;
-}
-.ts-dropdown .option.active,
-.ts-dropdown .option.selected,
-.ts-dropdown .option:hover {
-  background: rgba(0, 255, 255, 0.18) !important;
-  color: #0ff !important;
-}
-.ts-control .placeholder {
-  color: #888 !important;
-}
-.ts-dropdown .option {
-  color: #f0f0f0 !important;
-}
+
 .custom-remove:hover {
   color: #f77;
 }
@@ -1752,4 +1740,82 @@ tr[data-hidden="true"] ~ tr td:first-child::after,
 /* Collapsed rotation only applies to clusters with children */
 .ordo-cluster-row.collapsed .ordo-toggle:not(.empty) {
   transform: rotate(-90deg);
+}
+
+#confirm-modal .modal-title {
+  color: #f14668; /* red for danger */
+  font-weight: bold;
+}
+
+#confirm-modal #confirm-message {
+  font-size: 1.1rem;
+  color: #e0e0e0;
+  margin: 1rem 0;
+}
+
+#confirm-modal .modal-footer {
+  gap: 1rem;
+}
+
+#confirm-yes {
+  background: #f14668 !important;
+  border-color: #f14668 !important;
+  color: white !important;
+}
+
+#confirm-yes:hover {
+  background: #d6304f !important;
+  border-color: #d6304f !important;
+}
+
+/* Ensure dropdown menu stays inside Actions column */
+.data-table td:last-child .dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.data-table td:last-child .dropdown-menu {
+  right: 0;
+  left: auto;
+  min-width: 180px;
+}
+
+/* Optional: Flip menu left if too wide/right edge */
+.dropdown.is-right .dropdown-menu {
+  right: 0;
+  left: auto;
+}
+
+.dropdown.is-up .dropdown-menu {
+  bottom: 100%;
+  top: auto;
+  margin-bottom: 0.5rem;
+}
+
+/* Expandable crons row */
+.crons-row {
+  background: #1a1a1a;
+}
+
+.crons-row.hidden {
+  display: none;
+}
+
+.crons-detail {
+  background: #1e1e1e;
+  border-top: 1px solid #444;
+  padding: 1rem;
+}
+
+.crons-detail h4 {
+  margin-bottom: 1rem;
+  color: #0ff;
+}
+
+.crons-detail .data-table {
+  width: 100%;
+}
+
+.hidden {
+  display: none;
 }
