@@ -1,19 +1,34 @@
 <!-- partials/calendars.html.ep -->
 <section id="calendars" class="tab-content" data-private="true">
   <div class="content-center">
-    <div id="calendars-loading" class="text-center">
-      <i class="fas fa-spinner fa-spin"></i> Loading...
+    <!-- Loading state -->
+    <div id="calendars-loading" class="text-center py-6">
+      <i class="fas fa-spinner fa-spin fa-3x"></i>
+      <p class="mt-2">Loading calendars...</p>
     </div>
 
+    <!-- Main content -->
     <div id="calendars-content" style="display: none">
+      <!-- Header actions -->
+      <div class="actions-right mb-4 flex flex-wrap gap-3">
+        <button class="btn btn-success" id="create-calendar-btn">
+          <i class="fas fa-plus mr-2"></i>Create Calendar
+        </button>
+        <button class="btn btn-info" id="refresh-calendars">
+          <i class="fas fa-sync mr-2"></i>Refresh
+        </button>
+      </div>
+
+      <!-- Calendars table -->
       <div class="table-container">
         <table class="data-table" id="calendars-table">
           <thead>
             <tr>
               <th>Name</th>
-              <th>Type</th>
-              <th>Cron</th>
-              <th>State</th>
+              <th>Timezone</th>
+              <th>Description</th>
+              <th>Crons</th>
+              <th>Clusters</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -22,4 +37,75 @@
       </div>
     </div>
   </div>
-</section>
+
+  <!-- Create/Edit Calendar Modal -->
+  <div id="calendar-modal" class="app-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <header class="modal-header">
+        <p class="modal-title" id="calendar-modal-title">Create Calendar</p>
+        <button class="close-btn" data-dismiss="calendar-modal"></button>
+      </header>
+      <section class="modal-body">
+        <div class="form-group">
+          <label class="label required" for="calendar-name">Name</label>
+          <input class="input" type="text" id="calendar-name" placeholder="e.g. nightly-runs" required>
+        </div>
+        <div class="form-group">
+          <label class="label required" for="calendar-tz">Timezone</label>
+          <select class="input" id="calendar-tz" required>
+            <option value="">Select common timezone...</option>
+            <!-- Populated by JS -->
+          </select>
+          <input class="input mt-2" type="text" id="calendar-tz-custom" placeholder="Custom TZ (e.g. Asia/Tokyo)" style="display:none;">
+        </div>
+        <div class="form-group">
+          <label class="label" for="calendar-description">Description</label>
+          <textarea class="textarea" id="calendar-description" rows="3" placeholder="Optional description"></textarea>
+        </div>
+      </section>
+      <footer class="modal-footer">
+        <button class="btn btn-primary" id="save-calendar">Save</button>
+        <button class="btn btn-secondary" data-dismiss="calendar-modal">Cancel</button>
+      </footer>
+    </div>
+  </div>
+<!-- Crons List Modal -->
+<div id="crons-modal" class="app-modal">
+  <div class="modal-backdrop"></div>
+  <div class="modal-dialog modal-xl">
+    <header class="modal-header">
+      <p class="modal-title" id="crons-modal-title">Crons</p>
+      <button class="close-btn" data-dismiss="crons-modal"></button>
+    </header>
+    <section class="modal-body">
+      <div id="crons-loading" class="text-center py-6" style="display:none;">
+        <i class="fas fa-spinner fa-spin fa-2x"></i>
+        <p class="mt-2">Loading crons...</p>
+      </div>
+      <div id="crons-content" style="display:none;">
+        <table class="data-table" id="crons-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Cron</th>
+              <th>English</th>
+              <th>Begin</th>
+              <th>Expire</th>
+              <th>Description</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="crons-body"></tbody>
+        </table>
+        <p id="no-crons-message" class="text-grey text-center py-4" style="display:none;">
+          No crons yet.
+        </p>
+      </div>
+    </section>
+    <footer class="modal-footer">
+      <button class="btn btn-success" id="add-cron-btn">Add Cron</button>
+      <button class="btn btn-secondary close-btn" data-dismiss="crons-modal">Close</button>
+    </footer>
+  </div>
+</div>

@@ -1792,19 +1792,29 @@ tr[data-hidden="true"] ~ tr td:first-child::after,
   margin-bottom: 0.5rem;
 }
 
+/* Calendars tab - main row hover & cursor */
+.calendar-row {
+  cursor: pointer;
+}
+
+.calendar-row:hover {
+  background: #1e1e1e;
+}
+
 /* Expandable crons row */
 .crons-row {
-  background: #1a1a1a;
+  background: #1e1e1e;
+  transition: all 0.3s ease;
 }
 
 .crons-row.hidden {
-  display: none;
+  display: none !important; /* !important to override any inline style */
 }
 
+/* Crons detail styling */
 .crons-detail {
-  background: #1e1e1e;
+  padding: 1.5rem;
   border-top: 1px solid #444;
-  padding: 1rem;
 }
 
 .crons-detail h4 {
@@ -1812,10 +1822,33 @@ tr[data-hidden="true"] ~ tr td:first-child::after,
   color: #0ff;
 }
 
+/* Crons table inside expanded row */
 .crons-detail .data-table {
   width: 100%;
 }
 
-.hidden {
-  display: none;
+/* Toggle button styling */
+.toggle-crons {
+  min-width: 110px;
+  transition: color 0.2s;
+}
+
+.toggle-crons:hover {
+  color: #0ff;
+}
+
+
+
+.crons-row.hidden {
+  display: none !important;
+}
+
+.crons-row:not(.hidden) {
+  display: table-row !important;
+}
+
+.crons-detail {
+  min-height: 100px;  // ensure content area has height
+  padding: 1.5rem;
+  border-top: 1px solid #444;
 }

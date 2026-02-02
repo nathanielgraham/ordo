@@ -104,31 +104,25 @@
 </div>
 
 <!-- Attach Calendar Modal -->
-<div id="attach-cal-modal" class="app-modal">
-  <div class="modal-background"></div>
+<div id="attach-calendar-modal" class="app-modal">
+  <div class="modal-backdrop"></div>
   <div class="modal-dialog">
     <header class="modal-header">
-      <p class="modal-title">
-        Schedule cluster: <span id="attach-target-name"></span>
-      </p>
-      <button class="close-btn" aria-label="close"></button>
+      <p class="modal-title">Attach Calendar</p>
+      <p class="modal-subtitle" id="attach-cluster-name">Select cluster...</p>
+      <button class="close-btn" data-dismiss="attach-calendar-modal"></button>
     </header>
+
     <section class="modal-body">
       <div class="form-group">
-        <label class="label" for="attach-cal-select">Calendar</label>
-        <div class="select-wrapper">
-          <select id="attach-cal-select">
-            <option value="">None (run manually only)</option>
-          </select>
-        </div>
-        <p class="help-text">
-          Current: <strong id="attach-current-cal">None</strong>
-        </p>
+        <label class="label" for="calendar-select">Calendar</label>
+        <select id="calendar-select" placeholder="Select calendar or type to search..."></select>
       </div>
     </section>
+
     <footer class="modal-footer">
-      <button class="btn btn-primary" id="save-attach-cal">Apply</button>
-      <button class="btn btn-secondary" id="cancel-attach-cal">Cancel</button>
+      <button class="btn btn-primary" id="save-calendar">Save</button>
+      <button class="btn btn-secondary" id="cancel-job">Cancel</button>
     </footer>
   </div>
 </div>

@@ -962,6 +962,7 @@ sub update_cluster {
 
    return $cluster unless $cluster->{id};
    my $cluster_id = $cluster->{id};
+   print Dumper($d);
 
    return { success => 0, message => 'cluster not found' }                                   unless $cluster_id;
 
@@ -988,8 +989,6 @@ sub update_cluster {
 
    my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(mode description loops clonable)) };
 
-   print Dumper($d);
-   print Dumper($update_hash);
    $update_hash->{name} = $d->{newname} if $d->{newname};
    $update_hash->{on_fail_id} = $on_fail_id && $on_fail_id != $cluster_id ? $on_fail_id
                               : undef;
@@ -1022,7 +1021,8 @@ sub update_cluster {
 
       if ( exists $d->{cal_id} || exists $d->{cal} ) {
          my $new_cal    = $self->_cal_info( $user, { id => $d->{cal_id}, name => $d->{cal} } );
-         my $new_cal_id = $new_cal->{id} if $new_cal;
+         my $new_cal_id = $new_cal->{id} ? $new_cal->{id} : undef;
+         print "CALID: $new_cal_id\n";
          die unless $self->_set_cluster_cal_id( $user, { cluster_id => $cluster_id, cal_id => $new_cal_id } );
       }
       elsif ( exists $d->{cron} || exists $d->{at} ) {
@@ -3962,9 +3962,9 @@ sub routing {
                                                                                  # state $c  = qr/^[\w\/\@\:\.\s\-\(\)\"\']{1,50}$/;    # shell command
    state $c    = qr/.{1,60}/;                                                    # shell command
    state $pw   = qr/^.{8,20}$/;                                                  # password
-                                                                                 #state $ct   = qr/^((\S{1,12}\s+){4}(\S{1,12}\s+){0,2}(\S{1,12}\s*)|\s*)$/;    # cron
+                                                                                 # state $ct   = qr/^((\S{1,12}\s+){4}(\S{1,12}\s+){0,2}(\S{1,12}\s*)|\s*)$/;    # cron
    state $ct   = qr/^((\S{1,12}\s+){4}(\S{1,12}\s+){0,2}(\S{1,12}\s*)|\s*)$/;    # cron
-                                                                                 #state $ct = qr/./;
+                                                                                 # state $ct = qr/./;
    state $at   = qr/^(\d+|\s*)$/;                                                # at
    state $cal  = qr/^(\w+|\s*)$/;                                                # cal
    state $flag = qr/^(\d+|\s*)$/;
@@ -4024,7 +4024,7 @@ sub routing {
                server_id    => $i,
                mem          => $f,
                cpu          => $f,
-               newname      => $w,
+               newname      => $d,
                state        => $w,
                server       => $w,
                ppid         => $i,
@@ -4099,7 +4099,7 @@ sub routing {
                needs        => 's',
                needs_ids    => 's',
                json         => $json,
-               newname      => $w,
+               newname      => $d,
                description  => $d,
                cron         => $ct,
                at           => $at,

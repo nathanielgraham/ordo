@@ -745,57 +745,56 @@ function saveCalendar() {
   appState.currentEditCalId = null;
 }
 
-// Cron modal open
-function openCronModal(mode = "create", calId, cron = null) {
-  //closeAllDropdowns(); // ← close dropdowns when modal opens
-
-  const isEdit = mode === "edit";
-  document.getElementById("cron-modal-title").textContent = isEdit ? "Edit Cron" : "Add Cron";
-
-  // Pre-fill if edit
-  document.getElementById("cron-expression").value = isEdit ? cron?.name || "" : "";
-  document.getElementById("cron-description").value = isEdit ? cron?.description || "" : "";
-  document.getElementById("cron-begin").value = isEdit ? cron?.begin || "" : "";
-  document.getElementById("cron-expire").value = isEdit ? cron?.expire || "" : "";
-
-  // Store calId and cronId for save
-  const modal = document.getElementById("cron-modal");
-  modal.dataset.calId = calId;
-  modal.dataset.cronId = isEdit ? cron?.id : "";
-
-  modal.classList.add("active");
-}
-
-// Save cron
-function saveCron() {
-  const modal = document.getElementById("cron-modal");
-  const calId = modal.dataset.calId;
-  const cronId = modal.dataset.cronId;
-  const isEdit = !!cronId;
-
-  const name = document.getElementById("cron-expression")?.value.trim();
-  const description = document.getElementById("cron-description")?.value.trim();
-  const begin = document.getElementById("cron-begin")?.value.trim();
-  const expire = document.getElementById("cron-expire")?.value.trim();
-
-  if (!name) {
-    showToast("Cron expression is required", "danger");
+export function openCronsModal(calId) {
+  const cal = appState.calendarsData.find(c => c.id === Number(calId));
+  if (!cal) {
+    showToast("Calendar not found", "danger");
     return;
   }
 
-  const payload = {
-    command: isEdit ? "update_cron" : "create_cron",
-    id: isEdit ? Number(cronId) : undefined,
-    cal_id: Number(calId),
-    name,
-    description: description || undefined,
-    begin: begin ? Number(begin) : undefined,
-    expire: expire ? Number(expire) : undefined
+  document.getElementById("crons-modal-title").textContent = `Crons for ${cal.name}`;
+
+  const body = document.getElementById("crons-body");
+  const noCronsMsg = document.getElementById("no-crons-message");
+  const loading = document.getElementById("crons-loading");
+  const content = document.getElementById("crons-content");
+
+  loading.style.display = "block";
+  content.style.display = "none";
+
+  body.innerHTML = "";
+
+  if (cal.crons.length > 0) {
+    cal.crons.forEach(cron => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${cron.id}</td>
+        <td>${cron.name}</td>
+        <td>${cron.english || "—"}</td>
+        <td>${cron.begin ? new Date(cron.begin * 1000).toLocaleString() : "Immediate"}</td>
+        <td>${cron.expire ? new Date(cron.expire * 1000).toLocaleString() : "Never"}</td>
+        <td>${cron.description || "—"}</td>
+        <td>
+          <button class="btn btn-sm btn-warning edit-cron" data-cron-id="${cron.id}" data-cal-id="${cal.id}">Edit</button>
+          <button class="btn btn-sm btn-danger delete-cron" data-cron-id="${cron.id}" data-cal-id="${cal.id}">Delete</button>
+        </td>
+      `;
+      body.appendChild(tr);
+    });
+    noCronsMsg.style.display = "none";
+  } else {
+    noCronsMsg.style.display = "block";
+  }
+
+  loading.style.display = "none";
+  content.style.display = "block";
+
+  // Add "Add Cron" listener
+  document.getElementById("add-cron-btn").onclick = () => {
+    openCronModal("create", cal.id);
   };
 
-  sendWS(payload);
-  showToast(isEdit ? "Cron updated" : "Cron added", "success");
-  modal.classList.remove("active");
+  document.getElementById("crons-modal").classList.add("active");
 }
 
 // Initialize all listeners once on DOM ready
@@ -815,6 +814,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("click", e => {
     const target = e.target;
 
+/*
     if (target.classList.contains("add-cron")) {
       const calId = target.dataset.calId;
       openCronModal("create", calId);
@@ -842,6 +842,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       );
     }
+*/
+
   });
 });
 

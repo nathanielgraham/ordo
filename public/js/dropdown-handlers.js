@@ -5,10 +5,15 @@ import {
   openJobModal,
   openConfirmModal,
   openCalendarModal,
+  openCronsModal,
 } from "./modals.js";
 import { openDependencyGraph } from "./graph.js";
-import { sendCommand } from "./websocket.js";
-import { showToast, toggleCronsRow } from "./ui-handlers.js";
+import { sendCommand, sendWS } from "./websocket.js";
+import {
+  showToast,
+  toggleCronsRow,
+  renderCalendarsTable,
+} from "./ui-handlers.js";
 import { findClusterById } from "./utils.js";
 
 // Close all dropdowns (with debug logging)
@@ -70,37 +75,26 @@ function handleGlobalClick(e) {
   closeAllDropdowns();
 }
 
-// Delegated action handler (menu item clicks)
-// Delegated action handler (menu item clicks)
-function handleActionClick(e) {
-  const actionItem = e.target.closest(".dropdown-item[data-action]");
-  if (!actionItem) return;
-
-  e.preventDefault();
-
-  // Close dropdown immediately
-  const dropdown = actionItem.closest(".dropdown");
-  if (dropdown) {
-    console.log("[DEBUG] Action clicked – closing dropdown:", dropdown);
-    dropdown.classList.remove("active", "is-up");
-  }
-
-  const action = actionItem.dataset.action;
-  const row = actionItem.closest("tr");
-  if (!row) return;
-
+function handleTreeActionClick(e, actionItem, row, action) {
   const isCluster = row.classList.contains("ordo-cluster-row");
   const type = isCluster ? "cluster" : "job";
   const id = Number(row.dataset.id);
-  const calendarId = Number(row.dataset.calId); // consistent name
-
   const name =
     row
       .querySelector("td:first-child")
       ?.textContent.trim()
       .replace(/\/$/, "") || "";
 
-  console.log("[DEBUG] Action:", action, "id:", id, "calendarId:", calendarId, "type:", type);
+  console.log(
+    "[DEBUG] Tree action:",
+    action,
+    "type:",
+    type,
+    "id:",
+    id,
+    "name:",
+    name,
+  );
 
   switch (action) {
     case "attach-calendar":
@@ -147,31 +141,38 @@ function handleActionClick(e) {
           sendCommand("kill", id, type);
           showToast(`Killing ${type}...`, "warning");
         },
+        () => showToast("Kill cancelled", "info"),
       );
       break;
 
     case "hold":
       sendCommand("hold", id, type);
+      showToast(`Holding ${type}...`, "info");
       break;
 
     case "release":
       sendCommand("release", id, type);
+      showToast(`Releasing ${type}...`, "info");
       break;
 
     case "ice":
       sendCommand("ice", id, type);
+      showToast(`Icing ${type}...`, "info");
       break;
 
     case "melt":
       sendCommand("melt", id, type);
+      showToast(`Melting ${type}...`, "info");
       break;
 
     case "complete":
       sendCommand("complete", id, type);
+      showToast(`Completing ${type}...`, "info");
       break;
 
     case "reset":
       sendCommand("reset", id, type);
+      showToast(`Resetting ${type}...`, "info");
       break;
 
     case "delete":
@@ -185,9 +186,7 @@ function handleActionClick(e) {
             "success",
           );
         },
-        () => {
-          showToast("Deletion cancelled", "info");
-        },
+        () => showToast("Deletion cancelled", "info"),
       );
       break;
 
@@ -203,22 +202,24 @@ function handleActionClick(e) {
       }
       break;
 
+    default:
+      console.warn("Unhandled tree action:", action);
+  }
+}
+
+function handleCalendarsActionClick(e, actionItem, row, action) {
+  const calendarId = Number(row.dataset.calId);
+  const name = row.querySelector("td:first-child")?.textContent.trim() || "";
+
+  console.log("[DEBUG] Calendars action:", action, "calendarId:", calendarId, "name:", name);
+
+  switch (action) {
     case "edit-calendar":
       if (isNaN(calendarId) || calendarId <= 0) {
         showToast("Invalid calendar ID", "danger");
         return;
       }
-      console.log("[DEBUG] Edit calendar clicked – calendarId:", calendarId);
       openCalendarModal("edit", calendarId);
-      break;
-
-    case "view-crons":
-      if (isNaN(calendarId) || calendarId <= 0) {
-        showToast("Invalid calendar ID", "danger");
-        return;
-      }
-      console.log("[DEBUG] View crons clicked – calendarId:", calendarId);
-      toggleCronsRow(calendarId);
       break;
 
     case "delete-calendar":
@@ -226,22 +227,58 @@ function handleActionClick(e) {
         showToast("Invalid calendar ID", "danger");
         return;
       }
-      console.log("[DEBUG] Delete calendar clicked – calendarId:", calendarId);
       openConfirmModal(
         "Confirm Delete Calendar",
-        `Are you sure you want to delete calendar "${name}"?`,
+        `Are you sure you want to delete calendar "${name || "this calendar"}"?`,
         () => {
           sendWS({ command: "delete_cal", id: calendarId });
           showToast("Calendar deleted", "success");
         },
-        () => {
-          showToast("Deletion cancelled", "info");
-        },
+        () => showToast("Deletion cancelled", "info")
       );
       break;
 
+    case "view-crons":
+      if (isNaN(calendarId) || calendarId <= 0) {
+        showToast("Invalid calendar ID", "danger");
+        return;
+      }
+      openCronsModal(calendarId); // ← add this line
+      break;
+
     default:
-      console.warn("Unhandled action:", action);
+      console.warn("Unhandled calendar action:", action);
+  }
+}
+
+function handleActionClick(e) {
+  const actionItem = e.target.closest(".dropdown-item[data-action]");
+  if (!actionItem) return;
+
+  e.preventDefault();
+
+  const dropdown = actionItem.closest(".dropdown");
+  if (dropdown) dropdown.classList.remove("active", "is-up");
+
+  const action = actionItem.dataset.action;
+  const row = actionItem.closest("tr");
+  if (!row) return;
+
+  let handler = null;
+
+  if (row.closest("#tree-body")) {
+    handler = handleTreeActionClick;
+  } else if (
+    row.closest("#calendars-table") ||
+    row.closest("#calendars-body")
+  ) {
+    handler = handleCalendarsActionClick;
+  } // ← add more tabs here later (servers, etc.)
+
+  if (handler) {
+    handler(e, actionItem, row, action);
+  } else {
+    console.warn("[DEBUG] No handler found for this row/table");
   }
 }
 
@@ -379,110 +416,3 @@ export function attachGlobalListeners() {
 
   console.log("Global listeners attached successfully");
 }
-
-export function updateCalendars(data) {
-  hideLoading("calendars-loading");
-  document.getElementById("calendars-content").style.display = "block";
-
-  if (data.success) {
-    appState.calendarsData = data.cals || [];
-    renderCalendarsTable();
-  } else {
-    showToast("Failed to load calendars", "danger");
-  }
-}
-
-export function renderCalendarsTable() {
-  const tbody = document.getElementById("calendars-body");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-
-  appState.calendarsData.forEach(cal => {
-    const cronsCount = cal.crons?.length || 0;
-    const clustersCount = cal.cluster_ids?.length || 0;
-
-    // Main calendar row
-    const row = document.createElement("tr");
-    row.className = "calendar-row";
-    row.dataset.calId = cal.id;
-    row.innerHTML = `
-      <td>${cal.name || "—"}</td>
-      <td>${cal.tz || "—"}</td>
-      <td>${cal.description || "—"}</td>
-      <td>${cronsCount}</td>
-      <td>${clustersCount}</td>
-      <td>
-        <div class="dropdown is-right">
-          <div class="dropdown-trigger">
-            <button class="button is-small is-light" aria-haspopup="menu">
-              <i class="fas fa-ellipsis-v"></i>
-            </button>
-          </div>
-          <div class="dropdown-menu" role="menu">
-            <div class="dropdown-content">
-              <a href="#" class="dropdown-item" data-action="edit-calendar" data-id="${cal.id}">Edit</a>
-              <hr class="dropdown-divider">
-              <a href="#" class="dropdown-item is-danger" data-action="delete-calendar" data-id="${cal.id}">Delete</a>
-              <hr class="dropdown-divider">
-              <a href="#" class="dropdown-item" data-action="view-crons" data-id="${cal.id}">
-                ${cronsCount > 0 ? "View Crons" : "Add Crons"}
-              </a>
-            </div>
-          </div>
-        </div>
-      </td>
-    `;
-    tbody.appendChild(row);
-
-    // Expandable crons row (hidden by default)
-    const cronsRow = document.createElement("tr");
-    cronsRow.className = "crons-row hidden";
-    cronsRow.dataset.calId = cal.id;
-    cronsRow.innerHTML = `
-      <td colspan="6" class="p-0">
-        <div class="crons-detail bg-gray-900 p-4 border-t border-gray-700">
-          <h4 class="text-cyan-400 mb-3">Crons for ${cal.name}</h4>
-          ${cronsCount > 0 ? `
-            <table class="data-table mb-4">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Cron</th>
-                  <th>English</th>
-                  <th>Begin</th>
-                  <th>Expire</th>
-                  <th>Description</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${cal.crons.map(cron => `
-                  <tr>
-                    <td>${cron.id}</td>
-                    <td>${cron.name}</td>
-                    <td>${cron.english || "—"}</td>
-                    <td>${cron.begin ? new Date(cron.begin * 1000).toLocaleString() : "Immediate"}</td>
-                    <td>${cron.expire ? new Date(cron.expire * 1000).toLocaleString() : "Never"}</td>
-                    <td>${cron.description || "—"}</td>
-                    <td>
-                      <button class="btn btn-sm btn-warning edit-cron" data-cron-id="${cron.id}" data-cal-id="${cal.id}">Edit</button>
-                      <button class="btn btn-sm btn-danger delete-cron" data-cron-id="${cron.id}" data-cal-id="${cal.id}">Delete</button>
-                    </td>
-                  </tr>
-                `).join("")}
-              </tbody>
-            </table>
-          ` : '<p class="text-grey">No crons yet.</p>'}
-          <button class="btn btn-sm btn-success add-cron" data-cal-id="${cal.id}">Add Cron</button>
-        </div>
-      </td>
-    `;
-    tbody.appendChild(cronsRow);
-  });
-
-  setupDropdownFlip();
-
-  // Attach delegated toggle for "View Crons" (no need for .toggle-crons class)
-  // This is handled in handleActionClick (see below)
-}
-

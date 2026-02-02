@@ -289,28 +289,37 @@ export function updateCalendars(data) {
 }
 
 export function toggleCronsRow(calendarId) {
-  console.log("[DEBUG] toggleCronsRow called for calendarId:", calendarId);
+  console.log("[DEBUG] toggleCronsRow START – calendarId:", calendarId);
 
   const cronsRow = document.querySelector(`tr[data-cal-id="${calendarId}"].crons-row`);
   if (!cronsRow) {
-    console.warn("[DEBUG] No crons row found for calendarId:", calendarId);
+    console.warn("[DEBUG] CRONS ROW NOT FOUND – calendarId:", calendarId);
     return;
   }
 
-  console.log("[DEBUG] Found crons row:", cronsRow);
+  console.log("[DEBUG] Found row – current classes:", cronsRow.className, "inline display:", cronsRow.style.display);
 
   const wasHidden = cronsRow.classList.contains("hidden");
   cronsRow.classList.toggle("hidden");
-  const isNowHidden = cronsRow.classList.contains("hidden");
 
-  console.log("[DEBUG] Toggled hidden class – was hidden:", wasHidden, "now hidden:", isNowHidden);
+  // Force visibility for table rows
+  if (cronsRow.classList.contains("hidden")) {
+    cronsRow.style.display = "none";
+  } else {
+    cronsRow.style.display = "table-row";
+    cronsRow.style.minHeight = "200px";  // ← temporary test height
+    cronsRow.style.background = "rgba(255, 0, 0, 0.3)";  // ← temporary red tint
+  }
+
+  const isNowHidden = cronsRow.classList.contains("hidden");
+  console.log("[DEBUG] Toggled – was hidden:", wasHidden, "now hidden:", isNowHidden, "final display:", cronsRow.style.display);
 
   const toggleBtn = document.querySelector(`.dropdown-item[data-action="view-crons"][data-id="${calendarId}"]`);
   if (toggleBtn) {
     toggleBtn.textContent = isNowHidden ? "View Crons" : "Hide Crons";
-    console.log("[DEBUG] Updated button text to:", toggleBtn.textContent);
+    console.log("[DEBUG] Button text updated to:", toggleBtn.textContent);
   } else {
-    console.warn("[DEBUG] No toggle button found for calendarId:", calendarId);
+    console.warn("[DEBUG] Toggle button not found for calendarId:", calendarId);
   }
 }
 
@@ -323,9 +332,7 @@ export function renderCalendarsTable() {
     const cronsCount = cal.crons?.length || 0;
     const clustersCount = cal.cluster_ids?.length || 0;
 
-    // Main calendar row
     const row = document.createElement("tr");
-    row.className = "calendar-row";
     row.dataset.calId = cal.id;
     row.innerHTML = `
       <td>${cal.name || "—"}</td>
@@ -347,7 +354,7 @@ export function renderCalendarsTable() {
               <a href="#" class="dropdown-item is-danger" data-action="delete-calendar" data-id="${cal.id}">Delete</a>
               <hr class="dropdown-divider">
               <a href="#" class="dropdown-item" data-action="view-crons" data-id="${cal.id}">
-                ${cronsCount > 0 ? "View Crons" : "Add Crons"}
+                View Crons (${cronsCount})
               </a>
             </div>
           </div>
@@ -355,106 +362,9 @@ export function renderCalendarsTable() {
       </td>
     `;
     tbody.appendChild(row);
-
-    // Expandable crons row (hidden by default)
-    const cronsRow = document.createElement("tr");
-    cronsRow.className = "crons-row hidden";
-    cronsRow.dataset.calId = cal.id;
-    cronsRow.innerHTML = `
-      <td colspan="6" class="p-0">
-        <div class="crons-detail bg-gray-900 p-4 border-t border-gray-700">
-          <h4 class="text-cyan-400 mb-3">Crons for ${cal.name}</h4>
-          ${cronsCount > 0 ? `
-            <table class="data-table mb-4">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Cron</th>
-                  <th>English</th>
-                  <th>Begin</th>
-                  <th>Expire</th>
-                  <th>Description</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${cal.crons.map(cron => `
-                  <tr>
-                    <td>${cron.id}</td>
-                    <td>${cron.name}</td>
-                    <td>${cron.english || "—"}</td>
-                    <td>${cron.begin ? new Date(cron.begin * 1000).toLocaleString() : "Immediate"}</td>
-                    <td>${cron.expire ? new Date(cron.expire * 1000).toLocaleString() : "Never"}</td>
-                    <td>${cron.description || "—"}</td>
-                    <td>
-                      <button class="btn btn-sm btn-warning edit-cron" data-cron-id="${cron.id}" data-cal-id="${cal.id}">Edit</button>
-                      <button class="btn btn-sm btn-danger delete-cron" data-cron-id="${cron.id}" data-cal-id="${cal.id}">Delete</button>
-                    </td>
-                  </tr>
-                `).join("")}
-              </tbody>
-            </table>
-          ` : '<p class="text-grey">No crons yet.</p>'}
-          <button class="btn btn-sm btn-success add-cron" data-cal-id="${cal.id}">Add Cron</button>
-        </div>
-      </td>
-    `;
-    tbody.appendChild(cronsRow);
   });
 
   setupDropdownFlip();
-
-  // Attach toggle listeners for expandable rows
-  document.querySelectorAll(".dropdown-item[data-action='view-crons']").forEach(btn => {
-    btn.addEventListener("click", e => {
-      e.preventDefault();
-      const calId = btn.dataset.id;
-      const cronsRow = document.querySelector(`tr[data-cal-id="${calId}"].crons-row`);
-      if (cronsRow) {
-        cronsRow.classList.toggle("hidden");
-        const toggleBtn = btn.closest(".dropdown-content").querySelector(".dropdown-item[data-action='view-crons']");
-        toggleBtn.textContent = cronsRow.classList.contains("hidden") ? "View Crons" : "Hide Crons";
-      }
-    });
-  });
-
-  // Attach add/edit/delete cron listeners
-document.addEventListener("click", e => {
-  const target = e.target;
-
-  if (target.classList.contains("add-cron")) {
-    e.preventDefault();
-    const calId = target.dataset.calId;
-    openCronModal("create", calId);
-  }
-
-  if (target.classList.contains("edit-cron")) {
-    e.preventDefault();
-    const cronId = target.dataset.cronId;
-    const calId = target.dataset.calId;
-    const cal = appState.calendarsData.find(c => c.id == calId);
-    const cron = cal?.crons.find(c => c.id == cronId);
-    if (cron) openCronModal("edit", calId, cron);
-  }
-
-  if (target.classList.contains("delete-cron")) {
-    e.preventDefault();
-    const cronId = target.dataset.cronId;
-    openConfirmModal(
-      "Confirm Delete Cron",
-      "Are you sure you want to delete this cron expression?",
-      () => {
-        sendWS({
-          command: "delete_cron",
-          id: cronId
-        });
-        showToast("Cron deleted", "success");
-      }
-    );
-  }
-});
-
-
 }
 
 export function updateServers(data) {
