@@ -404,8 +404,13 @@ function populateJobDependencies(selectId, selectedIds = []) {
   select.innerHTML = '<option value="">None / Clear all</option>';
   let optionCount = 0;
   function addJobs(nodes) {
-    nodes.forEach(node => {
-      console.log("[DEBUG addJobs] checking node:", node.id, node.name, node.is_cluster ? "cluster" : "job");
+    nodes.forEach((node) => {
+      console.log(
+        "[DEBUG addJobs] checking node:",
+        node.id,
+        node.name,
+        node.is_cluster ? "cluster" : "job",
+      );
       // Skip root
       if (node.parent_id === null && node.name === "root") {
         console.log("[DEBUG addJobs] skipping root");
@@ -424,20 +429,26 @@ function populateJobDependencies(selectId, selectedIds = []) {
       if (node.children) addJobs(node.children);
       // Recurse jobs array (if present on cluster)
       if (node.jobs && Array.isArray(node.jobs)) {
-        node.jobs.forEach(job => {
+        node.jobs.forEach((job) => {
           const opt = document.createElement("option");
           opt.value = job.id;
           opt.textContent = getFullPath(job);
           if (selectedIds.includes(Number(job.id))) opt.selected = true;
           select.appendChild(opt);
           optionCount++;
-          console.log("[DEBUG addJobs] Added job from cluster jobs array:", job.id, job.name);
+          console.log(
+            "[DEBUG addJobs] Added job from cluster jobs array:",
+            job.id,
+            job.name,
+          );
         });
       }
     });
   }
   addJobs(appState.monitorData.tree || []);
-  console.log(`[populateJobDependencies] ${selectId} finished with ${optionCount} options added (total: ${select.options.length})`);
+  console.log(
+    `[populateJobDependencies] ${selectId} finished with ${optionCount} options added (total: ${select.options.length})`,
+  );
 }
 
 function populateClusterDependencies(selectId, selectedIds = []) {
@@ -832,13 +843,109 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("log-history-modal").classList.remove("active");
     });
 
-// At end of modals.js
-document.getElementById("copy-token")?.addEventListener("click", async () => {
-  const token = document.getElementById("account-token")?.textContent?.trim();
-  if (!token) return showToast("No token to copy", "danger");
+  // Copy token
+  document.getElementById("copy-token")?.addEventListener("click", () => {
+    const tokenInput = document.getElementById("account-token");
+    if (!tokenInput.value) {
+      showToast("No token to copy", "warning");
+      return;
+    }
+    tokenInput.select();
+    tokenInput.setSelectionRange(0, 99999);
+    try {
+      document.execCommand("copy");
+      showToast("Token copied!", "success");
+    } catch (err) {
+      showToast("Failed to copy", "danger");
+    }
+  });
 
-  await navigator.clipboard.writeText(token);
-  showToast("Token copied", "success");
-});
+  // Save profile
+  document.getElementById("save-profile")?.addEventListener("click", () => {
+    const name = document.getElementById("edit-name").value.trim();
+    const mode = document.getElementById("edit-mode").value.trim();
+    if (!name && !mode) {
+      showToast("No changes", "info");
+      return;
+    }
+    if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+      appState.ws.send(
+        JSON.stringify({
+          command: "update_user",
+          name: name || undefined,
+          mode: mode || undefined,
+        }),
+      );
+      showToast("Profile update requested", "info");
+    } else {
+      showToast("Not connected", "danger");
+    }
+  });
 
+  // Save org
+  document.getElementById("save-org")?.addEventListener("click", () => {
+    const payload = { command: "update_org" };
+    const name = document.getElementById("edit-org-name").value.trim();
+    const desc = document.getElementById("edit-org-desc").value.trim();
+    if (name) payload.name = name;
+    if (desc) payload.description = desc;
+    if (Object.keys(payload).length === 1) {
+      showToast("No changes", "info");
+      return;
+    }
+    if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+      appState.ws.send(JSON.stringify(payload));
+      showToast("Organization update requested", "info");
+    } else {
+      showToast("Not connected", "danger");
+    }
+  });
+
+  // Invite team modal
+  document.getElementById("invite-team")?.addEventListener("click", () => {
+    document.getElementById("invite-modal").classList.add("active");
+    document.getElementById("invite-email").value = "";
+  });
+
+  document.getElementById("cancel-invite")?.addEventListener("click", () => {
+    document.getElementById("invite-modal").classList.remove("active");
+  });
+
+  document.getElementById("close-invite")?.addEventListener("click", () => {
+    document.getElementById("invite-modal").classList.remove("active");
+  });
+
+  document.getElementById("send-invite")?.addEventListener("click", () => {
+    const email = document.getElementById("invite-email").value.trim();
+    if (!email) {
+      showToast("Enter email", "danger");
+      return;
+    }
+    if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+      appState.ws.send(
+        JSON.stringify({
+          command: "register_user",
+          email,
+          team_member: "1",
+        }),
+      );
+      showToast("Invitation sent", "success");
+      document.getElementById("invite-modal").classList.remove("active");
+    } else {
+      showToast("Not connected", "danger");
+    }
+  });
+
+  // Global cancel button handler (for all cancel buttons in modals)
+  document.addEventListener("click", (e) => {
+    const cancelBtn = e.target.closest(
+      '[id^="cancel-"], .btn[data-action="cancel"]',
+    );
+    if (cancelBtn) {
+      const modal = cancelBtn.closest(".app-modal");
+      if (modal) {
+        modal.classList.remove("active");
+      }
+    }
+  });
 });
