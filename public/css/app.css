@@ -1837,8 +1837,6 @@ tr[data-hidden="true"] ~ tr td:first-child::after,
   color: #0ff;
 }
 
-
-
 .crons-row.hidden {
   display: none !important;
 }
@@ -1852,3 +1850,19 @@ tr[data-hidden="true"] ~ tr td:first-child::after,
   padding: 1.5rem;
   border-top: 1px solid #444;
 }
+
+#crons-modal .modal-dialog {
+  max-width: 90%;
+  width: 1000px;
+}
+
+#crons-modal .data-table {
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+#crons-modal .modal-body {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+

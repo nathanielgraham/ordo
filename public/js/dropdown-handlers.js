@@ -6,6 +6,7 @@ import {
   openConfirmModal,
   openCalendarModal,
   openCronsModal,
+  openCronModal,
 } from "./modals.js";
 import { openDependencyGraph } from "./graph.js";
 import { sendCommand, sendWS } from "./websocket.js";
@@ -208,25 +209,37 @@ function handleTreeActionClick(e, actionItem, row, action) {
 }
 
 function handleCalendarsActionClick(e, actionItem, row, action) {
+  // Extract IDs once at the top — safe and consistent
   const calendarId = Number(row.dataset.calId);
+  //const calendarId = Number(actionItem.dataset.calId);
+  const cronId = Number(actionItem.dataset.cronId); // ← declare HERE (from clicked <a>)
   const name = row.querySelector("td:first-child")?.textContent.trim() || "";
 
-  console.log("[DEBUG] Calendars action:", action, "calendarId:", calendarId, "name:", name);
+  console.log(
+    "[DEBUG] Calendars action:",
+    action,
+    "calendarId:",
+    calendarId,
+    "cronId:",
+    cronId,
+    "name:",
+    name,
+  );
+
+  // Optional early guard for any calendar/cron action
+  if (action.startsWith("calendar-") || action.startsWith("cron-")) {
+    if (isNaN(calendarId) || calendarId <= 0) {
+      showToast("Invalid calendar ID", "danger");
+      return;
+    }
+  }
 
   switch (action) {
     case "edit-calendar":
-      if (isNaN(calendarId) || calendarId <= 0) {
-        showToast("Invalid calendar ID", "danger");
-        return;
-      }
       openCalendarModal("edit", calendarId);
       break;
 
     case "delete-calendar":
-      if (isNaN(calendarId) || calendarId <= 0) {
-        showToast("Invalid calendar ID", "danger");
-        return;
-      }
       openConfirmModal(
         "Confirm Delete Calendar",
         `Are you sure you want to delete calendar "${name || "this calendar"}"?`,
@@ -234,20 +247,81 @@ function handleCalendarsActionClick(e, actionItem, row, action) {
           sendWS({ command: "delete_cal", id: calendarId });
           showToast("Calendar deleted", "success");
         },
-        () => showToast("Deletion cancelled", "info")
+        () => showToast("Deletion cancelled", "info"),
       );
       break;
 
     case "view-crons":
+      console.log("[DEBUG] View crons clicked – calendarId:", calendarId);
       if (isNaN(calendarId) || calendarId <= 0) {
         showToast("Invalid calendar ID", "danger");
         return;
       }
-      openCronsModal(calendarId); // ← add this line
+      openCronsModal(calendarId);
+      break;
+
+    case "add-cron":
+      openCronModal("create", calendarId);
       break;
 
     default:
       console.warn("Unhandled calendar action:", action);
+  }
+}
+
+function handleCronsModalActionClick(e) {
+  const actionItem = e.target.closest(".dropdown-item[data-action]");
+  if (!actionItem) return;
+
+  e.preventDefault();
+
+  const dropdown = actionItem.closest(".dropdown");
+  if (dropdown) dropdown.classList.remove("active", "is-up");
+
+  const action = actionItem.dataset.action;
+  const calendarId = Number(actionItem.dataset.calId);
+  const cronId = Number(actionItem.dataset.cronId);
+
+  console.log("[DEBUG] Crons modal action:", action, "calendarId:", calendarId, "cronId:", cronId);
+
+  switch (action) {
+    case "edit-cron":
+      if (isNaN(calendarId) || isNaN(cronId)) {
+        showToast("Invalid ID", "danger");
+        return;
+      }
+      const cal = appState.calendarsData.find(c => c.id == calendarId);
+      if (!cal) return showToast("Calendar not found", "danger");
+      const cron = cal.crons.find(c => c.id == cronId);
+      if (!cron) return showToast("Cron not found", "danger");
+      openCronModal("edit", calendarId, cron);
+      break;
+
+    case "delete-cron":
+      if (isNaN(cronId)) {
+        showToast("Invalid cron ID", "danger");
+        return;
+      }
+      openConfirmModal(
+        "Confirm Delete Cron",
+        "Are you sure you want to delete this cron expression?",
+        () => {
+          sendWS({ command: "delete_cron", id: cronId });
+          showToast("Cron deleted", "success");
+          // Refresh crons modal
+          const modal = document.getElementById("crons-modal");
+          const calId = modal?.dataset?.calId;
+          if (calId && !isNaN(Number(calId))) {
+            modal.classList.remove("active");
+            setTimeout(() => openCronsModal(Number(calId)), 300);
+          }
+        },
+        () => showToast("Delete cancelled", "info")
+      );
+      break;
+
+    default:
+      console.warn("Unhandled crons modal action:", action);
   }
 }
 
@@ -270,7 +344,10 @@ function handleActionClick(e) {
     handler = handleTreeActionClick;
   } else if (
     row.closest("#calendars-table") ||
-    row.closest("#calendars-body")
+    row.closest("#calendars-body") ||
+    row.closest("#calendars-content") ||
+    row.closest("#crons-modal") ||
+    row.closest("#cron-modal")
   ) {
     handler = handleCalendarsActionClick;
   } // ← add more tabs here later (servers, etc.)

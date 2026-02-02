@@ -109,3 +109,39 @@
     </footer>
   </div>
 </div>
+
+<!-- Single Cron Add/Edit Modal -->
+<div id="cron-modal" class="app-modal">
+  <div class="modal-backdrop"></div>
+  <div class="modal-dialog">
+    <header class="modal-header">
+      <p class="modal-title" id="cron-modal-title">Add Cron</p>
+      <button class="close-btn" data-dismiss="cron-modal"></button>
+    </header>
+    <section class="modal-body">
+      <div class="form-group">
+        <label class="label required" for="cron-expression">Cron Expression</label>
+        <input class="input" type="text" id="cron-expression" placeholder="e.g. 0 0 12 * * ? *" required>
+        <p class="help-text small">Quartz format (6 or 7 fields). Example: 0 0 12 * * ? * = noon every day</p>
+      </div>
+      <div class="form-group">
+        <label class="label" for="cron-description">Description</label>
+        <input class="input" type="text" id="cron-description" placeholder="e.g. Daily backup">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="label" for="cron-begin">Begin (Unix timestamp)</label>
+          <input class="input" type="number" id="cron-begin" placeholder="e.g. 1704067200">
+        </div>
+        <div class="form-group">
+          <label class="label" for="cron-expire">Expire (Unix timestamp)</label>
+          <input class="input" type="number" id="cron-expire" placeholder="e.g. 1735689600">
+        </div>
+      </div>
+    </section>
+    <footer class="modal-footer">
+      <button class="btn btn-primary" id="save-cron">Save</button>
+      <button class="btn btn-secondary close-btn" data-dismiss="cron-modal">Cancel</button>
+    </footer>
+  </div>
+</div>
