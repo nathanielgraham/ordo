@@ -121,7 +121,7 @@
     </section>
 
     <footer class="modal-footer">
-      <button class="btn btn-primary" id="save-calendar">Save</button>
+      <button class="btn btn-primary" id="save-attach-calendar">Save</button>
       <button class="btn btn-secondary" id="cancel-job">Cancel</button>
     </footer>
   </div>
@@ -175,7 +175,7 @@
       <div class="grid-2">
         <div class="form-group">
           <label class="label" for="job-needs">Needs (blocking AND)</label>
-          <select id="job-needs" placeholder="Select dependencies..."></select>
+          <select id="job-needs" placeholder="Select dependencies..." multiple></select>
           <button
             type="button"
             class="btn btn-sm btn-secondary mt-1"
@@ -190,6 +190,7 @@
           <select
             id="job-needs-any"
             placeholder="Select dependencies..."
+            multiple
           ></select>
           <button
             type="button"
@@ -277,6 +278,7 @@
           <select
             id="cluster-needs"
             placeholder="Select dependencies..."
+            multiple
           ></select>
           <button
             type="button"
@@ -292,6 +294,7 @@
           <select
             id="cluster-needs-any"
             placeholder="Select dependencies..."
+            multiple
           ></select>
           <button
             type="button"

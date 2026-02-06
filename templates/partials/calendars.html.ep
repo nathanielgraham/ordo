@@ -93,7 +93,8 @@
               <th>Begin</th>
               <th>Expire</th>
               <th>Description</th>
-              <th>Actions</th>
+              <th>Next Start</th>
+              <th>Delete</th>
             </tr>
           </thead>
           <tbody id="crons-body"></tbody>
@@ -105,7 +106,7 @@
     </section>
     <footer class="modal-footer">
       <button class="btn btn-success" id="add-cron-btn">Add Cron</button>
-      <button class="btn btn-secondary close-btn" data-dismiss="crons-modal">Close</button>
+      <button class="btn btn-secondary" data-dismiss="crons-modal">Close</button>
     </footer>
   </div>
 </div>
@@ -141,7 +142,7 @@
     </section>
     <footer class="modal-footer">
       <button class="btn btn-primary" id="save-cron">Save</button>
-      <button class="btn btn-secondary close-btn" data-dismiss="cron-modal">Cancel</button>
+      <button class="btn btn-secondary" data-dismiss="cron-modal">Cancel</button>
     </footer>
   </div>
 </div>
