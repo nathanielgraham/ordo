@@ -1,21 +1,18 @@
 <!-- partials/servers.html.ep -->
 <section id="servers" class="tab-content" data-private="true">
   <div class="content-center">
-    <!-- Loading -->
+
+    <!-- Loading state -->
     <div id="servers-loading" class="text-center py-6">
       <i class="fas fa-spinner fa-spin fa-3x"></i>
       <p class="mt-2">Loading servers...</p>
     </div>
 
-    <!-- Content -->
+    <!-- Main content -->
     <div id="servers-content" style="display: none">
-      <div class="text-center py-large">
-        <h1 class="title-large">
-          <i class="fas fa-server mr-3"></i>Servers
-        </h1>
-        <p class="subtitle-medium">Real-time monitoring and management for execution servers</p>
-      </div>
+      <!-- No big hero title — tab name is enough -->
 
+      <!-- Actions toolbar -->
       <div class="actions-right mb-4 flex flex-wrap gap-3">
         <button class="btn btn-success" id="add-server-btn">
           <i class="fas fa-plus mr-2"></i>Add Server
@@ -25,27 +22,31 @@
         </button>
       </div>
 
+      <!-- Table -->
       <div class="table-container">
-        <table class="ordo-data-table" id="servers-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Host</th>
-              <th>Port</th>
-              <th>Status</th>
-              <th>Load Avg</th>
-              <th>CPU %</th>
-              <th>Memory</th>
-              <th>Disk</th>
-              <th>Uptime</th>
-              <th>Last Updated</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="servers-body"></tbody>
-        </table>
-      </div>
 
+
+<!-- Updated table opening tag -->
+<table class="ordo-table" id="servers-table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Host</th>
+      <th>Port</th>
+      <th>Stats Status</th>
+      <th>Load Avg</th>
+      <th>CPU %</th>
+      <th>Memory</th>
+      <th>Disk</th>
+      <th>Uptime</th>
+      <th>Last Updated</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody id="servers-body"></tbody>
+</table>
+
+      <!-- Empty state -->
       <p id="no-servers" class="text-grey text-center py-6 text-lg" style="display: none">
         <i class="fas fa-server fa-3x mb-4 opacity-50"></i><br>
         No servers configured yet.<br>
@@ -54,7 +55,7 @@
     </div>
   </div>
 
-  <!-- Add/Edit Modal -->
+  <!-- Add / Edit Server Modal -->
   <div id="server-modal" class="app-modal">
     <div class="modal-backdrop"></div>
     <div class="modal-dialog">

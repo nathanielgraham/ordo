@@ -13,25 +13,24 @@
 
     <div id="monitor-content" style="display: none">
       <div class="table-container">
-        <table class="ordo-tree-table" id="tree-table" role="treegrid" aria-label="Jobs and Clusters Hierarchy">
-          <!-- Removed: table is-fullwidth is-hoverable is-striped -->
-
-          <thead>
-            <tr>
-              <th>Path</th>
-              <th>State</th>
-              <th>Server</th>
-              <th>Deps</th>
-              <th>Stats</th>
-              <th>Last Run</th>
-              <th>Duration</th>
-              <th>Next Run</th>
-              <th>Calendar</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="tree-body"></tbody>
-        </table>
+<!-- Updated table opening tag -->
+<table class="ordo-table ordo-table--tree" id="tree-table" role="treegrid" aria-label="Jobs and Clusters Hierarchy">
+  <thead>
+    <tr>
+      <th>Path</th>
+      <th>State</th>
+      <th>Server</th>
+      <th>Deps</th>
+      <th>Stats</th>
+      <th>Last Run</th>
+      <th>Duration</th>
+      <th>Next Run</th>
+      <th>Calendar</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody id="tree-body"></tbody>
+</table>
       </div>
     </div>
   </div>

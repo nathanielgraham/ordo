@@ -21,19 +21,22 @@
 
       <!-- Calendars table -->
       <div class="table-container">
-        <table class="data-table" id="calendars-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Timezone</th>
-              <th>Description</th>
-              <th>Crons</th>
-              <th>Clusters</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="calendars-body"></tbody>
-        </table>
+
+<!-- Updated table opening tag -->
+<table class="ordo-table" id="calendars-table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Timezone</th>
+      <th>Description</th>
+      <th>Crons</th>
+      <th>Clusters</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody id="calendars-body"></tbody>
+</table>
+
       </div>
     </div>
   </div>
