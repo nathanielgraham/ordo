@@ -220,6 +220,40 @@ export function openJobModal(
   document.getElementById("job-modal").classList.add("active");
 }
 
+// ==================== SERVER MODAL ====================
+
+export function openServerModal(mode = "create", server = null) {
+  document.getElementById("server-modal-title").textContent = mode === "edit" ? "Edit Server" : "Add Server";
+  document.getElementById("server-name").value = server?.name || "";
+  document.getElementById("server-host").value = server?.host || server?.ip_address || "";
+  document.getElementById("server-user").value = server?.user || "broom";
+  document.getElementById("server-port").value = server?.port || "22";
+  document.getElementById("password-group").style.display = mode === "edit" ? "none" : "block";
+  appState.currentEditServerId = server?.id || null;
+  document.getElementById("server-modal").classList.add("active");
+}
+
+document.getElementById("add-server-btn")?.addEventListener("click", () => openServerModal("create"));
+
+document.getElementById("save-server")?.addEventListener("click", () => {
+  const payload = {
+    command: appState.currentEditServerId ? "update_monitor" : "create_monitor",
+    name: document.getElementById("server-name").value.trim(),
+    host: document.getElementById("server-host").value.trim(),
+    user: document.getElementById("server-user").value.trim() || "broom",
+    port: Number(document.getElementById("server-port").value) || 22,
+  };
+  if (appState.currentEditServerId) payload.id = appState.currentEditServerId;
+  if (!appState.currentEditServerId && document.getElementById("server-password").value) {
+    payload.password = document.getElementById("server-password").value;
+  }
+  if (!payload.name || !payload.host) return showToast("Name and Host required", "danger");
+
+  sendWS(payload);
+  showToast(appState.currentEditServerId ? "Updating server..." : "Adding server...", "info");
+  document.getElementById("server-modal").classList.remove("active");
+});
+
 // ==================== CLUSTER MODAL ====================
 export function openClusterModal(
   mode = "create",

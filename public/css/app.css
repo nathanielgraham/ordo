@@ -2106,10 +2106,10 @@ tr[data-hidden="true"] ~ tr td:first-child::after,
   max-height: calc(88vh - 140px);
 }
 
-/* Ensure Servers tab text visible */
+/* 
 #servers,
 #servers * {
-  color: #e0e0e0 !important; /* light grey fallback */
+  color: #e0e0e0 !important; 
 }
 #servers h1.title-large {
   color: #00ffff !important;
@@ -2141,6 +2141,7 @@ tr[data-hidden="true"] ~ tr td:first-child::after,
 .table-container {
   background: #1a1a1a;
 }
+*/
 
 
 /* Unified Data Table Base */
@@ -2172,11 +2173,137 @@ tr[data-hidden="true"] ~ tr td:first-child::after,
   background: rgba(255, 255, 255, 0.03);
 }
 
-/* Servers Specific */
 #servers .tag.is-success { background: #66bb6a; color: #000; }
 #servers .tag.is-warning { background: #ffb74d; color: #000; }
 #servers .tag.is-danger { background: #ef5350; color: #fff; }
 #servers tr.stale { opacity: 0.6; }
+
+
+/* ────────────────────────────────────────────────
+   UNIFIED ORDO TABLE BASE (all tabs)
+───────────────────────────────────────────────── */
+.ordo-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #1a1a1a;
+  color: #e0e0e0;
+  font-size: 0.95rem;
+  table-layout: auto;
+}
+
+.ordo-table thead th {
+  background: #0f0f1f;
+  color: #00ffff !important;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 2px solid #00ffff33;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  white-space: nowrap;
+}
+
+.ordo-table tbody td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #333;
+  vertical-align: middle;
+}
+
+.ordo-table tbody tr:hover {
+  background: rgba(0, 255, 255, 0.08);
+  transition: background 0.15s ease;
+}
+
+.ordo-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Optional: pointer cursor on rows (safe default, override if not clickable) */
+.ordo-table tbody tr {
+  cursor: pointer;
+}
+
+/* Responsive wrapper (ensure .table-container exists around each table) */
+.table-container {
+  overflow-x: auto;
+  max-width: 100%;
+  margin-bottom: 1rem;
+}
+
+/* ────────────────────────────────────────────────
+   TREE-SPECIFIC MODIFIER (only Jobs & Clusters)
+───────────────────────────────────────────────── */
+.ordo-table--tree td:first-child {
+  position: relative !important;
+  padding-left: calc(var(--depth) * 1.8rem + 1.5rem) !important;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: visible !important;
+}
+
+.ordo-table--tree td:first-child::before,
+.ordo-table--tree td:first-child::after {
+  content: "";
+  position: absolute;
+  left: calc(var(--depth) * 1.8rem - 0.9rem);
+  background: #444;
+}
+
+.ordo-table--tree td:first-child::before {
+  top: 0;
+  bottom: 0;
+  width: 2px;
+}
+
+.ordo-table--tree td:first-child::after {
+  top: 50%;
+  width: 1.8rem;
+  height: 2px;
+  transform: translateY(-50%);
+}
+
+.ordo-table--tree tr[data-last-child="true"] td:first-child::before {
+  bottom: 50%;
+}
+
+.ordo-table--tree td:first-child::after,
+.ordo-table--tree td:first-child::before {
+  background: #4448;
+  box-shadow: 0 0 4px #00ffff22;
+}
+
+/* Hover glow on connectors */
+.ordo-table--tree tr:hover td:first-child::before,
+.ordo-table--tree tr:hover td:first-child::after {
+  background: #00ffff44;
+  box-shadow: 0 0 6px #00ffff44;
+}
+
+/* Toggle icon */
+.ordo-table--tree .ordo-toggle {
+  cursor: pointer;
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.5em;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="%23666" d="M4 6l4 4 4-4z"/></svg>')
+    no-repeat center/contain;
+  transition: transform 0.2s ease;
+}
+
+.ordo-table--tree .ordo-cluster-row.collapsed .ordo-toggle:not(.empty) {
+  transform: rotate(-90deg);
+}
+
+.ordo-table--tree .ordo-toggle.empty {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
+
+
 
 /* Global Dropdown Unification (already mostly there, ensure) */
 .dropdown-menu {
@@ -2200,12 +2327,16 @@ tr[data-hidden="true"] ~ tr td:first-child::after,
 }
 
 /* Stale row hint */
+
+/*
 #servers tr.stale {
   opacity: 0.7;
-  background: rgba(255, 193, 7, 0.1) !important; /* yellow tint */
+  background: rgba(255, 193, 7, 0.1) !important; 
 }
 #servers tr.stale:hover {
   opacity: 1;
   background: rgba(255, 193, 7, 0.2) !important;
 }
+*/
+
 

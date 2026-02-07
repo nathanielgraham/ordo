@@ -3189,9 +3189,10 @@ sub update_monitor {
    my $server = $self->_server_info( $user, $d );
    return { success => 0, message => 'monitor not found' } unless $server;
 
-   my $update_hash = { map { $_ => $d->{$_} } grep { exists $d->{$_} } (qw(user host password total_memory used_memory cpu total_disk used_disk uptime)) };
+   my $update_hash = { map { $_ => $d->{$_} } grep { exists $d->{$_} } (qw(port user host password total_memory used_memory cpu total_disk used_disk uptime)) };
    $update_hash->{ping}        = $self->_ping( $server->{host} ) if $server->{host};
    $update_hash->{update_time} = time;
+   $update_hash->{name} = $d->{newname} if $d->{newname};
 
    if ( scalar keys %{$update_hash} ) {
       eval { $self->sqlite->db->update( 'server', $update_hash, { id => $server->{id} } ) };
@@ -3606,27 +3607,32 @@ sub _delete_cron {
 
    # id
 
-   my $rv = 0;
-   $self->_delete_cron_object( $user, $d ) && $rv++;
-   $self->_delete_cron_row( $user, $d )    && $rv++;
-   $self->_broadcast_cal($user, [ $d->{id} ]) if $rv;
+   my $org_id = $user->org_id;
+   my $sql = <<~"SQL";
+      select cron.id as cron_id, cal.id as cal_id
+      from cron
+      join cal on cron.cal_id = cal.id
+      where cal.org_id = $org_id
+      and cron.id = $d->{id}
+   SQL
 
-   return $rv;
+   my $cal = $self->sqlite->db->query($sql)->hash;
+
+   return 0 unless $cal->{cron_id};
+
+   $self->_delete_cron_object( $user, $d );
+   $self->_delete_cron_row( $user, $d );
+   $self->_broadcast_cal($user, [ $cal->{cal_id} ]);
+
+   return 1;
 }
 
 sub delete_cron {
    my ( $self, $user, $d ) = @_;
 
-   # id
-
-   my $cal = $self->sqlite->db->query("select cal.name from cron join cal on cron.cal_id = cal.id where cron.id = $d->{id}")->hash;
-   my $rv  = $self->_delete_cron( $user, { id => $d->{id} } );
-   if ($rv) {
-      return { success => 1, cal => $cal->{name} };
-   }
-   else {
-      return { success => 0, message => 'cron not found' };
-   }
+   my $success  = $self->_delete_cron( $user, { id => $d->{id} } );
+   my $message = $success ? 'cron deleted' : 'cron not found';
+   return { success => $success, message=> $message };
 }
 
 # cal related subroutines
@@ -4171,7 +4177,9 @@ sub routing {
             {},
             {
                id       => $i,
-               name     => $p,
+               port     => $i,
+               name     => $d,
+               newname  => $d,
                user     => $w,
                host     => $p,
                password => $pw,

@@ -9,20 +9,44 @@ export function attachTabListeners() {
       e.preventDefault();
       const tabId = link.dataset.tab;
 
+      // === DEBUG START ===
+      console.log("[DEBUG] Tab clicked:", tabId);
+      console.log(
+        "[DEBUG] All section elements in DOM:",
+        document.querySelectorAll("section"),
+      );
+      console.log(
+        "[DEBUG] All section IDs:",
+        Array.from(document.querySelectorAll("section"))
+          .map((s) => s.id)
+          .filter(Boolean),
+      );
+      console.log(
+        "[DEBUG] Direct getElementById('servers'):",
+        document.getElementById("servers"),
+      );
+      console.log(
+        "[DEBUG] Query selector for #servers:",
+        document.querySelector("#servers"),
+      );
+      console.log(
+        "[DEBUG] Query selector for section[id='servers']:",
+        document.querySelector("section[id='servers']"),
+      );
+      // === DEBUG END ===
+
       if (tabId === "docs") {
         const content = document.getElementById("docs-content");
         if (content && !content.innerHTML.trim()) {
           loadDoc("quickstart.md");
         }
       }
-
       // Dynamic import for tree timings
       if (tabId === "monitor") {
         import("./tree/tree-table.js").then((m) => m.startTreeTimings());
       } else {
         import("./tree/tree-table.js").then((m) => m.stopTreeTimings());
       }
-
       // Update active tab style
       tabLinks.forEach((l) => l.classList.remove("active"));
       link.classList.add("active");
@@ -31,10 +55,18 @@ export function attachTabListeners() {
       document
         .querySelectorAll(".tab-content")
         .forEach((s) => s.classList.remove("active"));
-      const target = document.getElementById(tabId);
+
+      // Robust lookup with fallback
+      let target = document.getElementById(tabId);
+      if (!target) {
+        console.warn(
+          "[DEBUG] getElementById failed — trying querySelector fallback",
+        );
+        target = document.querySelector(`section[id="${tabId}"]`);
+      }
       if (target) {
         target.classList.add("active");
-        console.log(`Switched to #${tabId}`);
+        console.log(`[DEBUG] Successfully activated #${tabId}`);
       } else {
         console.error(`Tab content missing: #${tabId}`);
       }

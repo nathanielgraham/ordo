@@ -7,15 +7,14 @@ import {
   openCalendarModal,
   openCronsModal,
   openCronModal,
+  openServerModal,
 } from "./modals.js";
 import { openDependencyGraph } from "./graph.js";
 import { sendCommand, sendWS } from "./websocket.js";
 import {
   showToast,
-  toggleCronsRow,
-  renderCalendarsTable,
 } from "./ui-handlers.js";
-import { findClusterById } from "./utils.js";
+import { findClusterById, findServerById } from "./utils.js";
 
 // Close all dropdowns (with debug logging)
 function closeAllDropdowns() {
@@ -208,6 +207,58 @@ function handleTreeActionClick(e, actionItem, row, action) {
   }
 }
 
+// Dedicated handler for Servers tab actions
+function handleServerActionClick(e, actionItem, row, action) {
+  e.preventDefault();
+  const serverId = Number(actionItem.dataset.id);
+  if (isNaN(serverId) || serverId <= 0) {
+    return showToast("Invalid server ID", "danger");
+  }
+
+  const server = findServerById(serverId);
+  if (!server && action !== "delete-server") { // delete may not need full object
+    return showToast("Server not found in local data", "warning");
+  }
+
+  console.log("[DEBUG] Server action:", action, "serverId:", serverId, "name:", server?.name);
+
+  switch (action) {
+    case "edit-server":
+      openServerModal("edit", server);
+      break;
+
+    case "delete-server":
+      openConfirmModal(
+        "Confirm Delete Server",
+        `Are you sure you want to delete server "${server?.name || "this server"}"?`,
+        () => {
+          sendWS({ command: "delete_monitor", id: serverId });
+          showToast("Deleting server...", "warning");
+        },
+        () => showToast("Delete cancelled", "info")
+      );
+      break;
+
+    // Future actions (expand later)
+    case "restart-server":
+      sendWS({ command: "restart_monitor", id: serverId }); // placeholder command
+      showToast("Restarting monitor...", "info");
+      break;
+
+    case "view-details":
+      // Future: open details modal or expand row
+      showToast("Server details view coming soon", "info");
+      break;
+
+    default:
+      console.warn("[DEBUG] Unhandled server action:", action);
+      showToast("Action not implemented", "warning");
+  }
+}
+
+
+
+
 function handleCalendarsActionClick(e, actionItem, row, action) {
   // Extract IDs once at the top — safe and consistent
   const calendarId = Number(row.dataset.calId);
@@ -269,66 +320,12 @@ function handleCalendarsActionClick(e, actionItem, row, action) {
   }
 }
 
-function handleCronsModalActionClick(e) {
-  const actionItem = e.target.closest(".dropdown-item[data-action]");
-  if (!actionItem) return;
-
-  e.preventDefault();
-
-  const dropdown = actionItem.closest(".dropdown");
-  if (dropdown) dropdown.classList.remove("active", "is-up");
-
-  const action = actionItem.dataset.action;
-  const calendarId = Number(actionItem.dataset.calId);
-  const cronId = Number(actionItem.dataset.cronId);
-
-  console.log("[DEBUG] Crons modal action:", action, "calendarId:", calendarId, "cronId:", cronId);
-
-  switch (action) {
-    case "edit-cron":
-      if (isNaN(calendarId) || isNaN(cronId)) {
-        showToast("Invalid ID", "danger");
-        return;
-      }
-      const cal = appState.calendarsData.find(c => c.id == calendarId);
-      if (!cal) return showToast("Calendar not found", "danger");
-      const cron = cal.crons.find(c => c.id == cronId);
-      if (!cron) return showToast("Cron not found", "danger");
-      openCronModal("edit", calendarId, cron);
-      break;
-
-    case "delete-cron":
-      if (isNaN(cronId)) {
-        showToast("Invalid cron ID", "danger");
-        return;
-      }
-      openConfirmModal(
-        "Confirm Delete Cron",
-        "Are you sure you want to delete this cron expression?",
-        () => {
-          sendWS({ command: "delete_cron", id: cronId });
-          showToast("Cron deleted", "success");
-          // Refresh crons modal
-          const modal = document.getElementById("crons-modal");
-          const calId = modal?.dataset?.calId;
-          if (calId && !isNaN(Number(calId))) {
-            modal.classList.remove("active");
-            setTimeout(() => openCronsModal(Number(calId)), 300);
-          }
-        },
-        () => showToast("Delete cancelled", "info")
-      );
-      break;
-
-    default:
-      console.warn("Unhandled crons modal action:", action);
-  }
-}
+//function handleCronsModalActionClick(e) {
+//}
 
 function handleActionClick(e) {
   const actionItem = e.target.closest(".dropdown-item[data-action]");
   if (!actionItem) return;
-
   e.preventDefault();
 
   const dropdown = actionItem.closest(".dropdown");
@@ -345,17 +342,21 @@ function handleActionClick(e) {
   } else if (
     row.closest("#calendars-table") ||
     row.closest("#calendars-body") ||
-    row.closest("#calendars-content") ||
-    row.closest("#crons-modal") ||
-    row.closest("#cron-modal")
+    row.closest("#calendars-content")
   ) {
     handler = handleCalendarsActionClick;
-  } // ← add more tabs here later (servers, etc.)
+  } else if (
+    row.closest("#servers-table") ||
+    row.closest("#servers-body") ||
+    row.closest("#servers-content")
+  ) {
+    handler = handleServerActionClick;
+  }
 
   if (handler) {
     handler(e, actionItem, row, action);
   } else {
-    console.warn("[DEBUG] No handler found for this row/table");
+    console.warn("[DEBUG] No handler found for table – action:", action);
   }
 }
 
@@ -383,7 +384,9 @@ export function setupDropdownFlip() {
       const spaceBelow = window.innerHeight - rect.bottom;
       const menu = dropdown.querySelector(".dropdown-menu");
       const menuHeight = menu?.offsetHeight || 200;
+
       if (spaceBelow < menuHeight + 30) {
+        // more buffer before flipping up
         dropdown.classList.add("is-up");
       } else {
         dropdown.classList.remove("is-up");
@@ -434,13 +437,16 @@ export function attachGlobalListeners() {
   document.addEventListener("keydown", handleEscapeKey);
 
   // dropdown-handlers.js – add this inside attachGlobalListeners() or as a separate listener
-
   document.addEventListener("click", (e) => {
     const trigger = e.target.closest(".dropdown-trigger button");
     if (!trigger) return;
 
     const dropdown = trigger.closest(".dropdown");
+    if (!dropdown) return;
+
     const menu = dropdown.querySelector(".dropdown-menu");
+    if (!menu) return;
+
     const willOpen = !dropdown.classList.contains("active");
 
     console.log(
@@ -448,7 +454,7 @@ export function attachGlobalListeners() {
       willOpen,
     );
 
-    // Close other dropdowns
+    // Close all other dropdowns
     document.querySelectorAll(".dropdown.active").forEach((d) => {
       if (d !== dropdown) {
         d.classList.remove("active", "is-up");
@@ -457,11 +463,14 @@ export function attachGlobalListeners() {
       }
     });
 
-    // Toggle current dropdown
-    dropdown.classList.toggle("active", willOpen);
-    if (willOpen) {
+    // Toggle the current dropdown
+    dropdown.classList.toggle("active");
+
+    if (dropdown.classList.contains("active")) {
       menu.style.display = "block";
-      menu.offsetHeight; // reflow
+      menu.offsetHeight; // reflow for transition
+
+      // Flip positioning
       const rect = trigger.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
       const menuHeight = menu.offsetHeight || 200;

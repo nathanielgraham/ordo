@@ -12,6 +12,7 @@ export const appState = {
   currentParentName: null,
   currentAttachClusterId: null,
   currentEditCalId: null,
+  currentEditServerId: null,
   collapsedClusters: new Set(
     JSON.parse(localStorage.getItem("ordo_collapsed_clusters") || "[]")
   ),

@@ -83,8 +83,11 @@ export function buildTree(data) {
   return root.children;
 }
 
-export function findClusterById(items, id) {
+export function findServerById(id) {
+  return appState.serversData.find(s => s.id === Number(id)) || null;
+}
 
+export function findClusterById(items, id) {
   if (!Array.isArray(items)) {
     console.warn("[DEBUG] findClusterById: items is NOT an array - returning null");
     return null;

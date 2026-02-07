@@ -1,7 +1,8 @@
 // ui-handlers.js
 import { appState, updateCollapsedClusters } from "./state.js";
 import { renderJobsTable } from "./tree/tree-table.js";
-import { removeJobById, removeClusterById } from "./utils.js";
+//import { removeJobById, removeClusterById } from "./utils.js";
+import { openCronsModal } from "./modals.js";
 
 import {
   formatDate,
@@ -10,6 +11,8 @@ import {
   findClusterById,
   findJobById,
   getFullPath,
+  removeJobById,
+  removeClusterById,
 } from "./utils.js";
 
 import { setupDropdownFlip } from "./dropdown-handlers.js";
@@ -367,6 +370,7 @@ export function renderCalendarsTable() {
   setupDropdownFlip();
 }
 
+
 export function updateServers(data) {
   hideLoading("servers-loading");
   document.getElementById("servers-content").style.display = "block";
@@ -378,101 +382,108 @@ export function updateServers(data) {
 
 export function renderServersTable() {
   const tbody = document.getElementById("servers-body");
+  const noServers = document.getElementById("no-servers");
   tbody.innerHTML = "";
-  appState.serversData.forEach((server) => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-        <td>${server.name || "—"}</td>
-        <td><span class="tag ${server.status === "online" ? "is-success" : "is-danger"}">${server.status || "—"}</span></td>
-        <td>${server.load || "—"}</td>
-        <td>
-          <div class="dropdown">
-            <div class="dropdown-trigger">
-              <button class="button is-small is-light" aria-haspopup="true" aria-controls="dropdown-menu">
-                <i class="fas fa-ellipsis-v"></i>
-              </button>
-            </div>
-            <div class="dropdown-menu" role="menu">
-              <div class="dropdown-content">
-                <a href="#" class="dropdown-item">Edit</a>
-                <hr class="dropdown-divider">
-                <a href="#" class="dropdown-item is-danger">Delete</a>
-              </div>
+  if (appState.serversData.length === 0) {
+    noServers.style.display = "block";
+    return;
+  }
+  noServers.style.display = "none";
+
+  const now = Math.floor(Date.now() / 1000);
+  appState.serversData.forEach(server => {
+    // Status logic
+    const updatedAgo = server.update_time ? now - server.update_time : Infinity;
+    let status = "Never Connected";
+    let statusClass = "is-danger";
+    let statusTooltip = "No stats received yet";
+
+    if (updatedAgo < 30) {
+      status = "Fresh";
+      statusClass = "is-success";
+      statusTooltip = `Stats updated ${updatedAgo}s ago`;
+    } else if (updatedAgo < 300) {
+      status = "Stale";
+      statusClass = "is-warning";
+      statusTooltip = `Stats last updated ${Math.floor(updatedAgo / 60)}m ago`;
+    } else if (updatedAgo < Infinity) {
+      status = "Very Stale";
+      statusClass = "is-danger";
+      statusTooltip = `Stats last updated ${Math.floor(updatedAgo / 60)}m ago`;
+    }
+
+    // Load Avg
+    const load = server.cpu !== null ? server.cpu.toFixed(1) : "—";
+
+    // Memory/Disk (GB + %)
+    const memUsedGB = server.used_memory ? (server.used_memory / 1024 / 1024 / 1024).toFixed(1) : null;
+    const memTotalGB = server.total_memory ? (server.total_memory / 1024 / 1024 / 1024).toFixed(1) : null;
+    const memPct = memUsedGB && memTotalGB ? ((server.used_memory / server.total_memory) * 100).toFixed(1) : null;
+    const mem = memPct ? `${memPct}% (${memUsedGB}/${memTotalGB} GB)` : "—";
+
+    const diskUsedGB = server.used_disk ? (server.used_disk / 1024 / 1024 / 1024).toFixed(1) : null;
+    const diskTotalGB = server.total_disk ? (server.total_disk / 1024 / 1024 / 1024).toFixed(1) : null;
+    const diskPct = diskUsedGB && diskTotalGB ? ((server.used_disk / server.total_disk) * 100).toFixed(1) : null;
+    const disk = diskPct ? `${diskPct}% (${diskUsedGB}/${diskTotalGB} GB)` : "—";
+
+    // Uptime
+    const uptime = server.uptime ? formatDuration(0, server.uptime) : "—";
+
+    // Last Updated
+    const updatedRel = updatedAgo < Infinity ? (updatedAgo < 60 ? `${updatedAgo}s ago` : `${Math.floor(updatedAgo / 60)}m ago`) : "—";
+    const updatedTitle = server.update_time ? formatDate(server.update_time) + ` (${statusTooltip})` : "—";
+
+    const tr = document.createElement("tr");
+    if (updatedAgo > 300) tr.classList.add("stale");
+    tr.innerHTML = `
+      <td>${server.name || "—"}</td>
+      <td>${server.host || server.ip_address || "—"}</td>
+      <td>${server.port || "—"}</td>
+      <td><span class="tag ${statusClass}" title="${statusTooltip}">${status}</span></td>
+      <td title="1-minute system load average">${load}</td>
+      <td title="True CPU utilization — coming soon">—</td>
+      <td title="Used / Total">${mem}</td>
+      <td title="Used / Total">${disk}</td>
+      <td title="Server uptime">${uptime}</td>
+      <td title="${updatedTitle}">${updatedRel}</td>
+      <td>
+        <div class="dropdown is-right">
+          <div class="dropdown-trigger">
+            <button class="btn btn-sm btn-ghost" aria-haspopup="menu">
+              <i class="fas fa-ellipsis-v"></i>
+            </button>
+          </div>
+          <div class="dropdown-menu" role="menu">
+            <div class="dropdown-content">
+              <a href="#" class="dropdown-item" data-action="edit-server" data-id="${server.id}">Edit</a>
+              <hr class="dropdown-divider">
+              <a href="#" class="dropdown-item is-danger" data-action="delete-server" data-id="${server.id}">Delete</a>
             </div>
           </div>
-        </td>
-      `;
-    tbody.appendChild(row);
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
   });
+  setupDropdownFlip();
 }
 
-/*
-export function applyClusterBroadcast(data) {
+export function applyServerBroadcast(data) {
   if (data.updates) {
-    data.updates.forEach((clusterUpdate) => {
-      const clusterId = Number(clusterUpdate.id);
-      let clusterNode = findClusterById(appState.monitorData.tree, clusterId);
-
-      if (clusterNode) {
-        // Update existing cluster
-        Object.assign(clusterNode, clusterUpdate);
-      } else {
-        // Create new cluster (cloned or new)
-        const newCluster = {
-          ...clusterUpdate,
-          id: clusterId,
-          is_cluster: true,
-          children: [], // populate below
-          depth: clusterUpdate.parent_id 
-            ? (findClusterById(appState.monitorData.tree, Number(clusterUpdate.parent_id))?.depth || 0) + 1 
-            : 0,
-        };
-
-        // Add to parent or root
-        if (clusterUpdate.parent_id != null) {
-          const parent = findClusterById(appState.monitorData.tree, Number(clusterUpdate.parent_id));
-          if (parent) parent.children.push(newCluster);
-          else appState.monitorData.tree.push(newCluster);
-        } else {
-          appState.monitorData.tree.push(newCluster);
-        }
-
-        clusterNode = newCluster;
-      }
-
-      // Process jobs included in this cluster update (critical for clones)
-      if (clusterUpdate.jobs && Array.isArray(clusterUpdate.jobs)) {
-        clusterUpdate.jobs.forEach((jobUpdate) => {
-          const jobId = Number(jobUpdate.id);
-          let jobNode = findJobById(appState.monitorData.tree, jobId);
-
-          if (jobNode) {
-            // Update existing job (e.g. state change)
-            Object.assign(jobNode, jobUpdate);
-          } else {
-            // Add new/cloned job to this cluster
-            const newJob = {
-              ...jobUpdate,
-              id: jobId,
-              is_cluster: false,
-              depth: clusterNode.depth + 1,
-            };
-            clusterNode.children.push(newJob);
-            console.log("Adding job", jobId, "to cluster", clusterId, "parent found?", !!clusterNode);
-          }
-        });
-      }
+    data.updates.forEach(update => {
+      const idx = appState.serversData.findIndex(s => s.id === update.id);
+      if (idx !== -1) appState.serversData[idx] = { ...appState.serversData[idx], ...update };
+      else appState.serversData.push(update);
     });
   }
-
   if (data.deletes) {
-    const uniqueDeletes = [...new Set(data.deletes.map(d => Number(d.id || d)))];
-    uniqueDeletes.forEach(id => removeClusterById(appState.monitorData.tree, id));
+    data.deletes.forEach(del => {
+      appState.serversData = appState.serversData.filter(s => s.id !== (del.id || del));
+    });
   }
-
-  renderJobsTable();
+  renderServersTable();
 }
-*/
+
 
 export function applyClusterBroadcast(data) {
   if (data.updates) {
@@ -582,61 +593,88 @@ export function applyJobBroadcast(data) {
 }
 
 export function applyCalBroadcast(data) {
-  if (data.updates) {
-    data.updates.forEach((update) => {
-      const id = Number(update.id);
-      const index = appState.calendarsData.findIndex(
-        (cal) => Number(cal.id) === id,
-      );
-      if (index !== -1) {
-        appState.calendarsData[index] = {
-          ...appState.calendarsData[index],
-          ...update,
-        };
-      } else {
-        appState.calendarsData.push({ ...update, id });
-      }
-    });
-  }
-  if (data.deletes) {
-    const uniqueDeletes = [
-      ...new Set(data.deletes.map((d) => Number(d.id || d))),
-    ];
-    uniqueDeletes.forEach((id) => {
-      const index = appState.calendarsData.findIndex(
-        (cal) => Number(cal.id) === id,
-      );
-      if (index !== -1) appState.calendarsData.splice(index, 1);
-    });
-  }
-  renderCalendarsTable();
-}
+  console.log("[DEBUG] applyCalBroadcast received:", JSON.stringify(data, null, 2));
 
-export function applyServerBroadcast(data) {
-  if (data.updates) {
+  // Log current state before update
+  console.log("[DEBUG] Before update – calendars count:", appState.calendarsData.length);
+  appState.calendarsData.forEach(cal => {
+    console.log(`[DEBUG] Cal ${cal.id} (${cal.name}) has ${cal.crons?.length || 0} crons before update`);
+  });
+
+  // Handle updates – FULL REPLACE
+  if (data.updates && Array.isArray(data.updates)) {
     data.updates.forEach((update) => {
-      const id = Number(update.id);
-      const index = appState.serversData.findIndex((s) => Number(s.id) === id);
+      const updateId = Number(update.id);
+      if (isNaN(updateId)) {
+        console.warn("[DEBUG] Invalid calendar ID in update:", update);
+        return;
+      }
+
+      const index = appState.calendarsData.findIndex(
+        (cal) => Number(cal.id) === updateId
+      );
+
       if (index !== -1) {
-        appState.serversData[index] = {
-          ...appState.serversData[index],
+        const oldCrons = appState.calendarsData[index].crons?.length || 0;
+        console.log(`[DEBUG] Replacing cal ${updateId} – old crons: ${oldCrons}, new crons: ${update.crons?.length || 0}`);
+        appState.calendarsData[index] = {
           ...update,
+          id: updateId,
+          crons: update.crons || []  // force empty array
         };
       } else {
-        appState.serversData.push({ ...update, id });
+        console.log(`[DEBUG] Adding new cal ${updateId}`);
+        appState.calendarsData.push({
+          ...update,
+          id: updateId,
+          crons: update.crons || []
+        });
       }
     });
   }
-  if (data.deletes) {
-    const uniqueDeletes = [
-      ...new Set(data.deletes.map((d) => Number(d.id || d))),
-    ];
-    uniqueDeletes.forEach((id) => {
-      const index = appState.serversData.findIndex((s) => Number(s.id) === id);
-      if (index !== -1) appState.serversData.splice(index, 1);
+
+  // Handle deletes
+  if (data.deletes && Array.isArray(data.deletes)) {
+    const deleteIds = data.deletes.map(d => Number(d.id || d)).filter(id => !isNaN(id));
+    const uniqueDeletes = [...new Set(deleteIds)];
+
+    uniqueDeletes.forEach(id => {
+      const index = appState.calendarsData.findIndex(cal => Number(cal.id) === id);
+      if (index !== -1) {
+        console.log(`[DEBUG] Deleting calendar ${id}`);
+        appState.calendarsData.splice(index, 1);
+      }
     });
   }
-  renderServersTable();
+
+  // Log state after update
+  console.log("[DEBUG] After update – calendars count:", appState.calendarsData.length);
+  appState.calendarsData.forEach(cal => {
+    console.log(`[DEBUG] Cal ${cal.id} (${cal.name}) has ${cal.crons?.length || 0} crons after update`);
+  });
+
+  renderCalendarsTable();
+
+  // Refresh open crons modal if affected
+  const cronsModal = document.getElementById("crons-modal");
+  if (cronsModal?.classList.contains("active")) {
+    const openCalId = Number(cronsModal.dataset.calId);
+    const wasAffected = data.updates?.some(u => Number(u.id) === openCalId) ||
+                        data.deletes?.some(d => Number(d.id || d) === openCalId);
+
+    if (wasAffected) {
+      console.log("[DEBUG] Refreshing open crons modal for calId:", openCalId);
+      cronsModal.classList.remove("active");
+      setTimeout(() => {
+        console.log("[DEBUG] Re-opening crons modal after delay");
+        openCronsModal(openCalId);
+      }, 800);
+    } else {
+      console.log("[DEBUG] No refresh needed – open modal not affected");
+    }
+  }
+
+  showToast("Calendars updated", "info");
 }
 
 export function loadDoc(file) {
