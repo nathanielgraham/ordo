@@ -7,7 +7,9 @@ import {
   findClusterById,
   findJobById,
   commonTimezones,
+  formatDate,
 } from "./utils.js";
+import { setupDropdownFlip } from "./dropdown-handlers.js";
 
 // ==================== TOM SELECT HELPERS ====================
 function initDependencySelect(selectId, clearBtnId, preSelectedIds = []) {
@@ -223,17 +225,22 @@ export function openJobModal(
 // ==================== SERVER MODAL ====================
 
 export function openServerModal(mode = "create", server = null) {
-  document.getElementById("server-modal-title").textContent = mode === "edit" ? "Edit Server" : "Add Server";
+  document.getElementById("server-modal-title").textContent =
+    mode === "edit" ? "Edit Server" : "Add Server";
   document.getElementById("server-name").value = server?.name || "";
-  document.getElementById("server-host").value = server?.host || server?.ip_address || "";
+  document.getElementById("server-host").value =
+    server?.host || server?.ip_address || "";
   document.getElementById("server-user").value = server?.user || "broom";
   document.getElementById("server-port").value = server?.port || "22";
-  document.getElementById("password-group").style.display = mode === "edit" ? "none" : "block";
+  document.getElementById("password-group").style.display =
+    mode === "edit" ? "none" : "block";
   appState.currentEditServerId = server?.id || null;
   document.getElementById("server-modal").classList.add("active");
 }
 
-document.getElementById("add-server-btn")?.addEventListener("click", () => openServerModal("create"));
+document
+  .getElementById("add-server-btn")
+  ?.addEventListener("click", () => openServerModal("create"));
 
 document.getElementById("save-server")?.addEventListener("click", () => {
   const payload = {
@@ -244,13 +251,20 @@ document.getElementById("save-server")?.addEventListener("click", () => {
     port: Number(document.getElementById("server-port").value) || 22,
   };
   if (appState.currentEditServerId) payload.id = appState.currentEditServerId;
-  if (!appState.currentEditServerId && document.getElementById("server-password").value) {
+  if (
+    !appState.currentEditServerId &&
+    document.getElementById("server-password").value
+  ) {
     payload.password = document.getElementById("server-password").value;
   }
-  if (!payload.name || !payload.host) return showToast("Name and Host required", "danger");
+  if (!payload.name || !payload.host)
+    return showToast("Name and Host required", "danger");
 
   sendWS(payload);
-  showToast(appState.currentEditServerId ? "Updating server..." : "Adding server...", "info");
+  showToast(
+    appState.currentEditServerId ? "Updating server..." : "Adding server...",
+    "info",
+  );
   document.getElementById("server-modal").classList.remove("active");
 });
 
@@ -568,29 +582,38 @@ export function openCalendarModal(mode = "create", calId = null) {
 }
 
 // ==================== CRONS LIST MODAL ====================
+// modals.js (most recent version)
 export function openCronsModal(calId) {
   console.log("[DEBUG] openCronsModal called – calId:", calId);
-
   const cal = appState.calendarsData.find((c) => c.id === Number(calId));
-  if (!cal) return showToast("Calendar not found", "danger");
-
+  if (!cal) {
+    console.warn("[DEBUG] Calendar not found for calId:", calId);
+    showToast("Calendar not found", "danger");
+    return;
+  }
+  console.log(
+    "[DEBUG] Found calendar:",
+    cal.name,
+    "with",
+    cal.crons?.length || 0,
+    "crons",
+  );
   const modal = document.getElementById("crons-modal");
-  if (!modal) return showToast("Crons modal not found", "danger");
-
+  if (!modal) {
+    console.error("[DEBUG] #crons-modal not found");
+    showToast("Crons modal not found", "danger");
+    return;
+  }
   modal.dataset.calId = calId;
   document.getElementById("crons-modal-title").textContent =
     `Crons for ${cal.name}`;
-
   const loading = document.getElementById("crons-loading");
   const content = document.getElementById("crons-content");
   const body = document.getElementById("crons-body");
   const noCronsMsg = document.getElementById("no-crons-message");
-
   loading.style.display = "block";
   content.style.display = "none";
-
   body.innerHTML = "";
-
   if (cal.crons.length > 0) {
     cal.crons.forEach((cron) => {
       const tr = document.createElement("tr");
@@ -601,21 +624,11 @@ export function openCronsModal(calId) {
         <td>${cron.begin ? new Date(cron.begin * 1000).toLocaleString() : "Immediate"}</td>
         <td>${cron.expire ? new Date(cron.expire * 1000).toLocaleString() : "Never"}</td>
         <td>${cron.description || "—"}</td>
+        <td>${formatDate(cron.next_start)}</td>
         <td>
-          <div class="dropdown is-right">
-            <div class="dropdown-trigger">
-              <button class="button is-small is-light" aria-haspopup="menu">
-                <i class="fas fa-ellipsis-v"></i>
-              </button>
-            </div>
-            <div class="dropdown-menu" role="menu">
-              <div class="dropdown-content">
-                <a href="#" class="dropdown-item" data-action="edit-cron" data-cron-id="${cron.id}" data-cal-id="${cal.id}">Edit</a>
-                <hr class="dropdown-divider">
-                <a href="#" class="dropdown-item is-danger" data-action="delete-cron" data-cron-id="${cron.id}" data-cal-id="${cal.id}">Delete</a>
-              </div>
-            </div>
-          </div>
+          <button class="btn btn-sm btn-danger delete-cron" data-cron-id="${cron.id}" data-cal-id="${cal.id}">
+            <i class="fas fa-trash"></i>
+          </button>
         </td>
       `;
       body.appendChild(tr);
@@ -624,11 +637,10 @@ export function openCronsModal(calId) {
   } else {
     noCronsMsg.style.display = "block";
   }
-
   loading.style.display = "none";
   content.style.display = "block";
-
   modal.classList.add("active");
+  setupDropdownFlip(); // ensure flip works in modal
 }
 
 // ==================== SINGLE CRON MODAL ====================
@@ -846,6 +858,38 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log("[DEBUG] Add Cron clicked – calId:", calId);
     openCronModal("create", Number(calId));
   });
+
+  // Event delegation for dynamic delete-cron buttons in crons modal
+  document.addEventListener("click", (e) => {
+    const deleteBtn = e.target.closest(".delete-cron");
+    if (!deleteBtn) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const cronId = Number(deleteBtn.dataset.cronId);
+    const calId = Number(deleteBtn.dataset.calId);
+
+    if (isNaN(cronId) || isNaN(calId)) {
+      showToast("Invalid cron or calendar ID", "danger");
+      return;
+    }
+
+    openConfirmModal(
+      "Confirm Delete Cron",
+      "Are you sure you want to delete this cron expression? This cannot be undone.",
+      () => {
+        sendWS({ command: "delete_cron", id: cronId });
+        showToast("Cron deleted", "success");
+
+        // Re-open the crons modal to refresh the list
+        document.getElementById("crons-modal")?.classList.remove("active");
+        setTimeout(() => openCronsModal(calId), 300);
+      },
+      () => showToast("Delete cancelled", "info"),
+    );
+  });
+
   document.getElementById("close-log")?.addEventListener("click", () => {
     document.getElementById("log-modal").classList.remove("active");
   });
