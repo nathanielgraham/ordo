@@ -49,7 +49,13 @@
       <section class="modal-body">
         <div class="form-group">
           <label class="label required" for="calendar-name">Name</label>
-          <input class="input" type="text" id="calendar-name" placeholder="e.g. nightly-runs" required>
+          <input
+            class="input"
+            type="text"
+            id="calendar-name"
+            placeholder="e.g. nightly-runs"
+            required
+          />
         </div>
         <div class="form-group">
           <label class="label required" for="calendar-tz">Timezone</label>
@@ -57,92 +63,142 @@
             <option value="">Select common timezone...</option>
             <!-- Populated by JS -->
           </select>
-          <input class="input mt-2" type="text" id="calendar-tz-custom" placeholder="Custom TZ (e.g. Asia/Tokyo)" style="display:none;">
+          <input
+            class="input mt-2"
+            type="text"
+            id="calendar-tz-custom"
+            placeholder="Custom TZ (e.g. Asia/Tokyo)"
+            style="display: none"
+          />
         </div>
         <div class="form-group">
           <label class="label" for="calendar-description">Description</label>
-          <textarea class="textarea" id="calendar-description" rows="3" placeholder="Optional description"></textarea>
+          <textarea
+            class="textarea"
+            id="calendar-description"
+            rows="3"
+            placeholder="Optional description"
+          ></textarea>
         </div>
       </section>
       <footer class="modal-footer">
         <button class="btn btn-primary" id="save-calendar">Save</button>
-        <button class="btn btn-secondary" data-dismiss="calendar-modal">Cancel</button>
+        <button class="btn btn-secondary" data-dismiss="calendar-modal">
+          Cancel
+        </button>
       </footer>
     </div>
   </div>
-<!-- Crons List Modal -->
-<div id="crons-modal" class="app-modal">
-  <div class="modal-backdrop"></div>
-  <div class="modal-dialog modal-xl">
-    <header class="modal-header">
-      <p class="modal-title" id="crons-modal-title">Crons</p>
-      <button class="close-btn" data-dismiss="crons-modal"></button>
-    </header>
-    <section class="modal-body">
-      <div id="crons-loading" class="text-center py-6" style="display:none;">
-        <i class="fas fa-spinner fa-spin fa-2x"></i>
-        <p class="mt-2">Loading crons...</p>
-      </div>
-      <div id="crons-content" style="display:none;">
-        <table class="data-table" id="crons-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Cron</th>
-              <th>English</th>
-              <th>Begin</th>
-              <th>Expire</th>
-              <th>Description</th>
-              <th>Next Start</th>
-              <th>Delete</th>
-            </tr>
-          </thead>
-          <tbody id="crons-body"></tbody>
-        </table>
-        <p id="no-crons-message" class="text-grey text-center py-4" style="display:none;">
-          No crons yet.
-        </p>
-      </div>
-    </section>
-    <footer class="modal-footer">
-      <button class="btn btn-success" id="add-cron-btn">Add Cron</button>
-      <button class="btn btn-secondary" data-dismiss="crons-modal">Close</button>
-    </footer>
+  <!-- Crons List Modal -->
+  <div id="crons-modal" class="app-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog modal-xl">
+      <header class="modal-header">
+        <p class="modal-title" id="crons-modal-title">Crons</p>
+        <button class="close-btn" data-dismiss="crons-modal"></button>
+      </header>
+      <section class="modal-body">
+        <div id="crons-loading" class="text-center py-6" style="display: none">
+          <i class="fas fa-spinner fa-spin fa-2x"></i>
+          <p class="mt-2">Loading crons...</p>
+        </div>
+        <div id="crons-content" style="display: none">
+          <table class="data-table" id="crons-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Cron</th>
+                <th>English</th>
+                <th>Begin</th>
+                <th>Expire</th>
+                <th>Description</th>
+                <th>Next Start</th>
+                <th>Delete</th>
+              </tr>
+            </thead>
+            <tbody id="crons-body"></tbody>
+          </table>
+          <p
+            id="no-crons-message"
+            class="text-grey text-center py-4"
+            style="display: none"
+          >
+            No crons yet.
+          </p>
+        </div>
+      </section>
+      <footer class="modal-footer">
+        <button class="btn btn-success" id="add-cron-btn">Add Cron</button>
+        <button class="btn btn-secondary" data-dismiss="crons-modal">
+          Close
+        </button>
+      </footer>
+    </div>
   </div>
-</div>
 
-<!-- Single Cron Add/Edit Modal -->
-<div id="cron-modal" class="app-modal">
-  <div class="modal-backdrop"></div>
-  <div class="modal-dialog">
-    <header class="modal-header">
-      <p class="modal-title" id="cron-modal-title">Add Cron</p>
-      <button class="close-btn" data-dismiss="cron-modal"></button>
-    </header>
-    <section class="modal-body">
-      <div class="form-group">
-        <label class="label required" for="cron-expression">Cron Expression</label>
-        <input class="input" type="text" id="cron-expression" placeholder="e.g. 0 0 12 * * ? *" required>
-        <p class="help-text small">Quartz format (6 or 7 fields). Example: 0 0 12 * * ? * = noon every day</p>
-      </div>
-      <div class="form-group">
-        <label class="label" for="cron-description">Description</label>
-        <input class="input" type="text" id="cron-description" placeholder="e.g. Daily backup">
-      </div>
-      <div class="grid-2">
+  <!-- Single Cron Add/Edit Modal -->
+  <div id="cron-modal" class="app-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <header class="modal-header">
+        <p class="modal-title" id="cron-modal-title">Add Cron</p>
+        <button class="close-btn" data-dismiss="cron-modal"></button>
+      </header>
+      <section class="modal-body">
         <div class="form-group">
-          <label class="label" for="cron-begin">Begin (Unix timestamp)</label>
-          <input class="input" type="number" id="cron-begin" placeholder="e.g. 1704067200">
+          <label class="label required" for="cron-expression"
+            >Cron Expression</label
+          >
+          <input
+            class="input"
+            type="text"
+            id="cron-expression"
+            placeholder="e.g. 0 0 12 * * ? *"
+            required
+          />
+          <p class="help-text small">
+            Quartz format (6 or 7 fields). Example: 0 0 12 * * ? * = noon every
+            day
+          </p>
         </div>
         <div class="form-group">
-          <label class="label" for="cron-expire">Expire (Unix timestamp)</label>
-          <input class="input" type="number" id="cron-expire" placeholder="e.g. 1735689600">
+          <label class="label" for="cron-description">Description</label>
+          <input
+            class="input"
+            type="text"
+            id="cron-description"
+            placeholder="e.g. Daily backup"
+          />
         </div>
-      </div>
-    </section>
-    <footer class="modal-footer">
-      <button class="btn btn-primary" id="save-cron">Save</button>
-      <button class="btn btn-secondary" data-dismiss="cron-modal">Cancel</button>
-    </footer>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="label" for="cron-begin">Begin (Unix timestamp)</label>
+            <input
+              class="input"
+              type="number"
+              id="cron-begin"
+              placeholder="e.g. 1704067200"
+            />
+          </div>
+          <div class="form-group">
+            <label class="label" for="cron-expire"
+              >Expire (Unix timestamp)</label
+            >
+            <input
+              class="input"
+              type="number"
+              id="cron-expire"
+              placeholder="e.g. 1735689600"
+            />
+          </div>
+        </div>
+      </section>
+      <footer class="modal-footer">
+        <button class="btn btn-primary" id="save-cron">Save</button>
+        <button class="btn btn-secondary" data-dismiss="cron-modal">
+          Cancel
+        </button>
+      </footer>
+    </div>
   </div>
-</div>
+</section>
