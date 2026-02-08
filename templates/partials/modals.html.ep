@@ -37,7 +37,7 @@
     </header>
     <section class="modal-body">
       <div class="table-container">
-        <table class="data-table" id="log-history-table">
+        <table class="ordo-table" id="log-history-table">
           <thead>
             <tr>
               <th>Run ID</th>

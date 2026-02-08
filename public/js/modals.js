@@ -238,36 +238,6 @@ export function openServerModal(mode = "create", server = null) {
   document.getElementById("server-modal").classList.add("active");
 }
 
-document
-  .getElementById("add-server-btn")
-  ?.addEventListener("click", () => openServerModal("create"));
-
-document.getElementById("save-server")?.addEventListener("click", () => {
-  const payload = {
-    command: appState.currentEditServerId ? "update_monitor" : "create_monitor",
-    name: document.getElementById("server-name").value.trim(),
-    host: document.getElementById("server-host").value.trim(),
-    user: document.getElementById("server-user").value.trim() || "broom",
-    port: Number(document.getElementById("server-port").value) || 22,
-  };
-  if (appState.currentEditServerId) payload.id = appState.currentEditServerId;
-  if (
-    !appState.currentEditServerId &&
-    document.getElementById("server-password").value
-  ) {
-    payload.password = document.getElementById("server-password").value;
-  }
-  if (!payload.name || !payload.host)
-    return showToast("Name and Host required", "danger");
-
-  sendWS(payload);
-  showToast(
-    appState.currentEditServerId ? "Updating server..." : "Adding server...",
-    "info",
-  );
-  document.getElementById("server-modal").classList.remove("active");
-});
-
 // ==================== CLUSTER MODAL ====================
 export function openClusterModal(
   mode = "create",
@@ -542,13 +512,104 @@ function populateClusterDependencies(selectId, selectedIds = []) {
   );
 }
 
+// utils.js or modals.js
+function getTimezoneOptions() {
+  const options = [];
+
+  // Modern browsers: full IANA list
+  if (Intl && Intl.supportedValuesOf) {
+    const timezones = Intl.supportedValuesOf('timeZone');
+    timezones.forEach(tz => {
+      // Optional: friendly name with offset (dynamic)
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        timeZoneName: 'long'
+      });
+      const parts = formatter.formatToParts(new Date());
+      const tzName = parts.find(p => p.type === 'timeZoneName')?.value || tz;
+      options.push({
+        value: tz,
+        text: `${tz} – ${tzName}`
+      });
+    });
+  } else {
+    // Static fallback - large curated list (add more as needed)
+    const staticTz = [
+      "UTC",
+      "America/New_York – Eastern Time (US & Canada)",
+      "America/Chicago – Central Time (US & Canada)",
+      "America/Denver – Mountain Time (US & Canada)",
+      "America/Los_Angeles – Pacific Time (US & Canada)",
+      "Europe/London – GMT / BST",
+      "Europe/Paris – Central European Time",
+      "Europe/Berlin – Central European Time",
+      "Asia/Tokyo – Japan Standard Time",
+      "Asia/Shanghai – China Standard Time",
+      "Asia/Singapore – Singapore Time",
+      "Australia/Sydney – Eastern Time (Australia)",
+      "Pacific/Auckland – New Zealand Time",
+      // ... add 100+ more major ones
+    ];
+    staticTz.forEach(tz => {
+      options.push({ value: tz.split(' – ')[0], text: tz });
+    });
+  }
+
+  // Sort alphabetically by text
+  options.sort((a, b) => a.text.localeCompare(b.text));
+
+  return options;
+}
+
 export function openCalendarModal(mode = "create", calId = null) {
   const isEdit = mode === "edit";
   document.getElementById("calendar-modal-title").textContent = isEdit
     ? "Edit Calendar"
     : "Create Calendar";
 
-  populateTimezoneSelect();
+  // Populate Tom Select for timezone
+  const tzSelect = document.getElementById("calendar-tz");
+  if (tzSelect.tomselect) tzSelect.tomselect.destroy(); // clean up previous
+
+  const tom = new TomSelect(tzSelect, {
+    maxItems: 1,
+    plugins: ['remove_button'],
+    placeholder: "Type to search or select timezone...",
+    searchField: ['text', 'value'],
+    options: getTimezoneOptions(), // large list - see below
+    render: {
+      option: (data) => `<div>${data.text}</div>`,
+      item: (data) => `<div class="item">${data.text}</div>`
+    },
+    onInitialize: function () {
+      // Default to browser's local timezone on create
+      if (!isEdit) {
+        const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (this.options[localTz]) {
+          this.setValue(localTz);
+        } else {
+          // Fallback: show custom input pre-filled
+          document.getElementById("calendar-tz-custom").value = localTz;
+          document.getElementById("calendar-tz-custom").style.display = "block";
+        }
+      }
+    }
+  });
+
+  tzSelect.tomselect = tom;
+
+  // Show/hide custom input based on selection
+  tom.on('change', () => {
+    const customInput = document.getElementById("calendar-tz-custom");
+    if (tom.getValue() === "") {
+      customInput.style.display = "block";
+      customInput.required = true;
+    } else {
+      customInput.style.display = "none";
+      customInput.required = false;
+      customInput.value = "";
+    }
+  });
 
   document.getElementById("calendar-name").value = "";
   document.getElementById("calendar-tz").value = "";
@@ -556,23 +617,21 @@ export function openCalendarModal(mode = "create", calId = null) {
   document.getElementById("calendar-tz-custom").style.display = "none";
   document.getElementById("calendar-description").value = "";
 
+  // ... rest of modal population (name, description, edit pre-fill)
   if (isEdit && calId) {
-    const cal = appState.calendarsData.find((c) => c.id === Number(calId));
+    const cal = appState.calendarsData.find(c => c.id === Number(calId));
     if (cal) {
       appState.currentEditCalId = Number(calId);
       document.getElementById("calendar-name").value = cal.name || "";
-      const tzSelect = document.getElementById("calendar-tz");
-      if (commonTimezones.includes(cal.tz)) {
-        tzSelect.value = cal.tz;
+      // Set Tom Select value (or custom)
+      if (tom.options[cal.tz]) {
+        tom.setValue(cal.tz);
       } else {
-        tzSelect.value = "";
+        tom.setValue("");
         document.getElementById("calendar-tz-custom").value = cal.tz || "";
         document.getElementById("calendar-tz-custom").style.display = "block";
       }
-      document.getElementById("calendar-description").value =
-        cal.description || "";
-    } else {
-      showToast("Calendar data not found", "warning");
+      document.getElementById("calendar-description").value = cal.description || "";
     }
   } else {
     appState.currentEditCalId = null;
@@ -684,6 +743,22 @@ export function openCronModal(mode = "create", calId, cron = null) {
 }
 
 // ==================== SAVE FUNCTIONS ====================
+function saveAttachCalendar() {
+  const select = document.getElementById("calendar-select");
+  if (!select) {
+    console.error("[Save Calendar] #calendar-select not found");
+    return;
+  }
+  const calId = select.value;
+  sendWS({
+    command: "update_cluster",
+    id: appState.currentAttachClusterId,
+    cal_id: calId || "" // empty = detach
+  });
+  showToast(calId ? "Calendar attached" : "Calendar detached", "success");
+  document.getElementById("attach-calendar-modal").classList.remove("active");
+};
+
 function saveJob() {
   const isEdit = !!appState.currentEditItem;
   const newName = document.getElementById("job-name").value.trim();
@@ -753,14 +828,17 @@ function saveCluster() {
 
 function saveCalendar() {
   const name = document.getElementById("calendar-name")?.value.trim();
-  const tzSelect = document.getElementById("calendar-tz");
-  const tzCustom = document.getElementById("calendar-tz-custom")?.value.trim();
-  const description = document
-    .getElementById("calendar-description")
-    ?.value.trim();
+  const tom = document.getElementById("calendar-tz")?.tomselect;
+  let tz = tom?.getValue() || "";
+  const customTz = document.getElementById("calendar-tz-custom")?.value.trim();
+
+  if (tz === "" && customTz) {
+    tz = customTz;
+  }
+
+  const description = document.getElementById("calendar-description")?.value.trim();
 
   if (!name) return showToast("Name is required", "danger");
-  const tz = tzSelect?.value || tzCustom;
   if (!tz) return showToast("Timezone is required", "danger");
 
   const isEdit = !!appState.currentEditCalId;
@@ -772,10 +850,6 @@ function saveCalendar() {
     tz,
     description: description || undefined,
   };
-
-  Object.keys(payload).forEach(
-    (key) => payload[key] === undefined && delete payload[key],
-  );
 
   sendWS(payload);
   showToast(isEdit ? "Calendar updated" : "Calendar created", "success");
@@ -844,6 +918,51 @@ document.addEventListener("DOMContentLoaded", () => {
     ?.addEventListener("click", () => {
       openCalendarModal("create");
     });
+
+  document.getElementById("save-attach-calendar")?.addEventListener("click", saveAttachCalendar);
+
+  document
+    .getElementById("add-server-btn")
+    ?.addEventListener("click", () => openServerModal("create"));
+
+  document.getElementById("save-server")?.addEventListener("click", () => {
+    const name = document.getElementById("server-name").value.trim();
+    const host = document.getElementById("server-host").value.trim();
+    const user = document.getElementById("server-user").value.trim() || "broom";
+    const port = Number(document.getElementById("server-port").value) || 22;
+    const password =
+      document.getElementById("server-password").value || undefined;
+
+    if (!name || !host) {
+      showToast("Name and Host required", "danger");
+      return;
+    }
+
+    const payload = {
+      host,
+      user,
+      port,
+    };
+
+    if (appState.currentEditServerId) {
+      // EDIT: use "newname" for rename, include id
+      payload.command = "update_monitor";
+      payload.id = appState.currentEditServerId;
+      payload.newname = name; // <-- key change here
+    } else {
+      // CREATE: use "name"
+      payload.command = "create_monitor";
+      payload.name = name;
+      if (password) payload.password = password;
+    }
+
+    sendWS(payload);
+    showToast(
+      appState.currentEditServerId ? "Updating server..." : "Adding server...",
+      "info",
+    );
+    document.getElementById("server-modal").classList.remove("active");
+  });
 
   // Add Cron button in crons modal
   document.getElementById("add-cron-btn")?.addEventListener("click", () => {

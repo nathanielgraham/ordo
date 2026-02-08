@@ -21,22 +21,20 @@
 
       <!-- Calendars table -->
       <div class="table-container">
-
-<!-- Updated table opening tag -->
-<table class="ordo-table" id="calendars-table">
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Timezone</th>
-      <th>Description</th>
-      <th>Crons</th>
-      <th>Clusters</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody id="calendars-body"></tbody>
-</table>
-
+        <!-- Updated table opening tag -->
+        <table class="ordo-table" id="calendars-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Timezone</th>
+              <th>Description</th>
+              <th>Crons</th>
+              <th>Clusters</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="calendars-body"></tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -60,12 +58,14 @@
             required
           />
         </div>
+
         <div class="form-group">
           <label class="label required" for="calendar-tz">Timezone</label>
-          <select class="input" id="calendar-tz" required>
-            <option value="">Select common timezone...</option>
-            <!-- Populated by JS -->
-          </select>
+          <select
+            id="calendar-tz"
+            placeholder="Type to search or select timezone..."
+            required
+          ></select>
           <input
             class="input mt-2"
             type="text"
@@ -73,7 +73,11 @@
             placeholder="Custom TZ (e.g. Asia/Tokyo)"
             style="display: none"
           />
+          <p class="help-text small mt-1">
+            Defaults to your local timezone. Search for your city or region.
+          </p>
         </div>
+
         <div class="form-group">
           <label class="label" for="calendar-description">Description</label>
           <textarea
@@ -106,7 +110,7 @@
           <p class="mt-2">Loading crons...</p>
         </div>
         <div id="crons-content" style="display: none">
-          <table class="data-table" id="crons-table">
+          <table class="ordo-table" id="crons-table">
             <thead>
               <tr>
                 <th>ID</th>

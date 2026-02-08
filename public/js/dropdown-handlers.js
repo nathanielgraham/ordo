@@ -11,9 +11,7 @@ import {
 } from "./modals.js";
 import { openDependencyGraph } from "./graph.js";
 import { sendCommand, sendWS } from "./websocket.js";
-import {
-  showToast,
-} from "./ui-handlers.js";
+import { showToast } from "./ui-handlers.js";
 import { findClusterById, findServerById } from "./utils.js";
 
 // Close all dropdowns (with debug logging)
@@ -45,25 +43,20 @@ function closeAllModals() {
   });
 }
 
-// Global outside-click handler (detects clicks outside dropdowns/modals)
+// Global outside-click handler (in dropdown-handlers.js)
 function handleGlobalClick(e) {
-  // Log every global click (comment out after debugging)
-  console.log(
-    "[DEBUG] Global click fired – target:",
-    e.target.tagName,
-    e.target.className,
-  );
+  // Check if click is on a trigger button
+  const trigger = e.target.closest(".dropdown-trigger button");
+  if (trigger) return;
 
-  // 1. Modal backdrop or close button
+  // In handleGlobalClick (global outside-click handler)
   const closeTrigger = e.target.closest(".modal-backdrop, .close-btn");
   if (closeTrigger) {
     const modal = closeTrigger.closest(".app-modal");
     if (modal) {
-      console.log(
-        "[DEBUG] Modal close trigger clicked – closing modal:",
-        modal.id,
-      );
       modal.classList.remove("active");
+
+      // Graph-specific cleanup
       if (modal.id === "graph-modal" && window.cy) {
         window.cy.destroy();
         window.cy = null;
@@ -71,6 +64,12 @@ function handleGlobalClick(e) {
     }
     return;
   }
+
+  // Log current open dropdowns before closing
+  const openDropdowns = document.querySelectorAll(".dropdown.active");
+  //openDropdowns.forEach(d => {
+  //  console.log("[GLOBAL CLOSER] Closing:", d.id || d.className, "menu display:", d.querySelector(".dropdown-menu")?.style.display);
+  //});
 
   closeAllDropdowns();
 }
@@ -216,11 +215,19 @@ function handleServerActionClick(e, actionItem, row, action) {
   }
 
   const server = findServerById(serverId);
-  if (!server && action !== "delete-server") { // delete may not need full object
+  if (!server && action !== "delete-server") {
+    // delete may not need full object
     return showToast("Server not found in local data", "warning");
   }
 
-  console.log("[DEBUG] Server action:", action, "serverId:", serverId, "name:", server?.name);
+  console.log(
+    "[DEBUG] Server action:",
+    action,
+    "serverId:",
+    serverId,
+    "name:",
+    server?.name,
+  );
 
   switch (action) {
     case "edit-server":
@@ -235,7 +242,7 @@ function handleServerActionClick(e, actionItem, row, action) {
           sendWS({ command: "delete_monitor", id: serverId });
           showToast("Deleting server...", "warning");
         },
-        () => showToast("Delete cancelled", "info")
+        () => showToast("Delete cancelled", "info"),
       );
       break;
 
@@ -255,9 +262,6 @@ function handleServerActionClick(e, actionItem, row, action) {
       showToast("Action not implemented", "warning");
   }
 }
-
-
-
 
 function handleCalendarsActionClick(e, actionItem, row, action) {
   // Extract IDs once at the top — safe and consistent
@@ -441,46 +445,50 @@ export function attachGlobalListeners() {
     const trigger = e.target.closest(".dropdown-trigger button");
     if (!trigger) return;
 
+    console.log(
+      "[TRIGGER HANDLER] Trigger click detected – target:",
+      e.target.tagName,
+      e.target.className,
+    );
+
+    e.stopPropagation(); // should block global closer from seeing it
+
     const dropdown = trigger.closest(".dropdown");
     if (!dropdown) return;
 
     const menu = dropdown.querySelector(".dropdown-menu");
     if (!menu) return;
 
-    const willOpen = !dropdown.classList.contains("active");
-
+    const isAlreadyActive = dropdown.classList.contains("active");
     console.log(
-      "[DEBUG] Global dropdown trigger clicked – willOpen:",
-      willOpen,
+      "[TRIGGER HANDLER] Dropdown active before toggle?",
+      isAlreadyActive,
     );
 
-    // Close all other dropdowns
+    // Close others
+    console.log("[TRIGGER HANDLER] Closing other dropdowns");
     document.querySelectorAll(".dropdown.active").forEach((d) => {
       if (d !== dropdown) {
+        console.log("[TRIGGER HANDLER] Closing other:", d.id || d.className);
         d.classList.remove("active", "is-up");
         const m = d.querySelector(".dropdown-menu");
         if (m) m.style.display = "none";
       }
     });
 
-    // Toggle the current dropdown
-    dropdown.classList.toggle("active");
-
-    if (dropdown.classList.contains("active")) {
-      menu.style.display = "block";
-      menu.offsetHeight; // reflow for transition
-
-      // Flip positioning
-      const rect = trigger.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const menuHeight = menu.offsetHeight || 200;
-      if (spaceBelow < menuHeight + 30) {
-        dropdown.classList.add("is-up");
-      } else {
-        dropdown.classList.remove("is-up");
-      }
-    } else {
+    // Toggle current
+    if (isAlreadyActive) {
+      console.log("[TRIGGER HANDLER] Closing current dropdown");
+      dropdown.classList.remove("active", "is-up");
       menu.style.display = "none";
+    } else {
+      console.log("[TRIGGER HANDLER] Opening dropdown");
+      dropdown.classList.add("active");
+      menu.style.display = "block";
+      menu.offsetHeight;
+
+      // Flip logic...
+      console.log("[TRIGGER HANDLER] Flip check complete");
     }
   });
 

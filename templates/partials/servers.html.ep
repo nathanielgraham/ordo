@@ -1,7 +1,6 @@
 <!-- partials/servers.html.ep -->
 <section id="servers" class="tab-content" data-private="true">
   <div class="content-center">
-
     <!-- Loading state -->
     <div id="servers-loading" class="text-center py-6">
       <i class="fas fa-spinner fa-spin fa-3x"></i>
@@ -24,72 +23,113 @@
 
       <!-- Table -->
       <div class="table-container">
+        <!-- Updated table opening tag -->
+        <table class="ordo-table" id="servers-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Host</th>
+              <th>Port</th>
+              <th>Stats Status</th>
+              <th>Load Avg</th>
+              <th>CPU %</th>
+              <th>Memory</th>
+              <th>Disk</th>
+              <th>Uptime</th>
+              <th>Last Updated</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="servers-body"></tbody>
+        </table>
 
-
-<!-- Updated table opening tag -->
-<table class="ordo-table" id="servers-table">
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Host</th>
-      <th>Port</th>
-      <th>Stats Status</th>
-      <th>Load Avg</th>
-      <th>CPU %</th>
-      <th>Memory</th>
-      <th>Disk</th>
-      <th>Uptime</th>
-      <th>Last Updated</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody id="servers-body"></tbody>
-</table>
-
-      <!-- Empty state -->
-      <p id="no-servers" class="text-grey text-center py-6 text-lg" style="display: none">
-        <i class="fas fa-server fa-3x mb-4 opacity-50"></i><br>
-        No servers configured yet.<br>
-        <button class="btn btn-success mt-4" id="add-server-btn">Add Your First Server</button>
-      </p>
+        <!-- Empty state -->
+        <p
+          id="no-servers"
+          class="text-grey text-center py-6 text-lg"
+          style="display: none"
+        >
+          <i class="fas fa-server fa-3x mb-4 opacity-50"></i><br />
+          No servers configured yet.<br />
+          <button class="btn btn-success mt-4" id="add-server-btn">
+            Add Your First Server
+          </button>
+        </p>
+      </div>
     </div>
-  </div>
 
-  <!-- Add / Edit Server Modal -->
-  <div id="server-modal" class="app-modal">
-    <div class="modal-backdrop"></div>
-    <div class="modal-dialog">
-      <header class="modal-header">
-        <p class="modal-title" id="server-modal-title">Add Server</p>
-        <button class="close-btn" data-dismiss="server-modal"></button>
-      </header>
-      <section class="modal-body">
-        <div class="form-group">
-          <label class="label required" for="server-name">Name</label>
-          <input class="input" type="text" id="server-name" placeholder="e.g. snarf" required>
-        </div>
-        <div class="form-group">
-          <label class="label required" for="server-host">Host / IP</label>
-          <input class="input" type="text" id="server-host" placeholder="e.g. 192.168.68.56" required>
-        </div>
-        <div class="form-group">
-          <label class="label" for="server-user">User</label>
-          <input class="input" type="text" id="server-user" value="broom" placeholder="e.g. broom">
-        </div>
-        <div class="form-group">
-          <label class="label" for="server-port">Port</label>
-          <input class="input" type="number" id="server-port" value="22" min="1" max="65535">
-        </div>
-        <div class="form-group" id="password-group">
-          <label class="label" for="server-password">Password (initial setup only)</label>
-          <input class="input" type="password" id="server-password" placeholder="••••••••">
-          <p class="help-text small">Used once for SSH key copy if needed. Not stored.</p>
-        </div>
-      </section>
-      <footer class="modal-footer">
-        <button class="btn btn-primary" id="save-server">Save</button>
-        <button class="btn btn-secondary" data-dismiss="server-modal">Cancel</button>
-      </footer>
+    <!-- Add / Edit Server Modal -->
+    <div id="server-modal" class="app-modal">
+      <div class="modal-backdrop"></div>
+      <div class="modal-dialog">
+        <header class="modal-header">
+          <p class="modal-title" id="server-modal-title">Add Server</p>
+          <button class="close-btn" data-dismiss="server-modal"></button>
+        </header>
+        <section class="modal-body">
+          <div class="form-group">
+            <label class="label required" for="server-name">Name</label>
+            <input
+              class="input"
+              type="text"
+              id="server-name"
+              placeholder="e.g. snarf"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label class="label required" for="server-host">Host / IP</label>
+            <input
+              class="input"
+              type="text"
+              id="server-host"
+              placeholder="e.g. 192.168.68.56"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label class="label" for="server-user">User</label>
+            <input
+              class="input"
+              type="text"
+              id="server-user"
+              value="broom"
+              placeholder="e.g. broom"
+            />
+          </div>
+          <div class="form-group">
+            <label class="label" for="server-port">Port</label>
+            <input
+              class="input"
+              type="number"
+              id="server-port"
+              value="22"
+              min="1"
+              max="65535"
+            />
+          </div>
+          <div class="form-group" id="password-group">
+            <label class="label" for="server-password"
+              >Password (initial setup only)</label
+            >
+            <input
+              class="input"
+              type="password"
+              id="server-password"
+              placeholder="••••••••"
+            />
+            <p class="help-text small">
+              Used once for SSH key copy if needed. Not stored.
+            </p>
+          </div>
+        </section>
+        <footer class="modal-footer">
+          <button class="btn btn-primary" id="save-server">Save</button>
+          <button class="btn btn-secondary" data-dismiss="server-modal">
+            Cancel
+          </button>
+        </footer>
+      </div>
     </div>
   </div>
 </section>

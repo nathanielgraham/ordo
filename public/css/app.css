@@ -723,21 +723,6 @@ main.content {
 .text-center {
   text-align: center;
 }
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.data-table td,
-.data-table th {
-  padding: 0.75rem;
-  border-bottom: 1px solid #333;
-  text-align: left;
-}
-.data-table th {
-  background: #0f0f1f;
-  color: #0ff;
-  font-weight: 600;
-}
 .btn {
   padding: clamp(0.35rem, 1vw, 0.5rem) clamp(0.5rem, 1.5vw, 0.75rem);
   border-radius: 6px;
@@ -1301,35 +1286,6 @@ body.is-logged-in .public-tabs {
   margin-left: 0.6rem;
   cursor: pointer;
 }
-.ordo-tree-table td:first-child {
-  position: relative !important;
-  padding-left: calc(var(--depth) * 1.8rem + 1.5rem) !important;
-  box-sizing: border-box;
-  white-space: nowrap;
-  overflow: visible !important;
-}
-.ordo-tree-table tbody tr {
-  height: 2rem;
-  line-height: 1.3;
-}
-.ordo-tree-table thead {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: #0f0f1f;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-}
-.ordo-tree-table thead th {
-  padding: 0.75rem;
-  border-bottom: 2px solid #00ffff33;
-  text-align: center;
-  vertical-align: middle;
-  line-height: 1.4;
-  height: 3rem;
-  background: #0f0f1f;
-  color: #0ff;
-  font-weight: 600;
-}
 .ordo-cluster-row.collapsed .ordo-toggle {
   transform: rotate(-90deg);
 }
@@ -1346,10 +1302,6 @@ body.is-logged-in .public-tabs {
 
 tr[data-hidden="true"] {
   display: none !important;
-}
-.ordo-tree-table tr,
-.table td {
-  position: relative;
 }
 tr[data-hidden="true"] {
   display: none !important;
@@ -1488,28 +1440,6 @@ body:not(.is-logged-in) .time-display {
   max-height: calc(100vh - var(--navbar-height) - 2rem);
   overflow-y: auto;
 }
-.ordo-tree-table {
-  border-collapse: collapse;
-  width: 100%;
-  table-layout: auto;
-}
-.ordo-tree-table tbody tr:nth-child(even) {
-  background-color: rgba(255, 255, 255, 0.03);
-}
-.ordo-tree-table thead th:first-child {
-  text-align: left;
-}
-.ordo-tree-table td,
-.ordo-tree-table th {
-  padding: 0.4rem 0.75rem;
-  text-align: left;
-}
-.ordo-tree-table thead th:hover {
-  background: rgba(0, 255, 255, 0.1);
-}
-.ordo-tree-table tbody tr:hover {
-  background-color: rgba(0, 255, 255, 0.08);
-}
 .ordo-toggle {
   cursor: pointer;
   display: inline-block;
@@ -1520,10 +1450,7 @@ body:not(.is-logged-in) .time-display {
     no-repeat center/contain;
   transition: transform 0.2s ease;
 }
-.ordo-tree-table,
-.ordo-tree-table tbody,
-.ordo-tree-table td,
-.ordo-tree-table tr,
+
 .table-container {
   overflow: visible !important;
   clip: auto !important;
@@ -1546,70 +1473,8 @@ body:not(.is-logged-in) .time-display {
   z-index: 1000;
 }
 
-/* ────────────────────────────────────────────────
-   Tree indentation + connector lines – original style, stable
-───────────────────────────────────────────────── */
-.ordo-tree-table {
-  border-collapse: collapse;
-  width: 100%;
-  table-layout: auto;
-}
-
-.ordo-tree-table tr,
-.table td {
-  position: relative;
-}
-
-.ordo-tree-table td:first-child {
-  position: relative !important;
-  padding-left: calc(var(--depth) * 1.8rem + 1.5rem) !important;
-  box-sizing: border-box;
-  white-space: nowrap;
-  overflow: visible !important;
-}
-
-.ordo-tree-table td:first-child::before,
-.ordo-tree-table td:first-child::after {
-  content: "";
-  position: absolute;
-  left: calc(var(--depth) * 1.8rem - 0.9rem);
-  background: #444;
-}
-
-.ordo-tree-table td:first-child::before {
-  top: 0;
-  bottom: 0;
-  width: 2px;
-}
-
-.ordo-tree-table td:first-child::after {
-  top: 50%;
-  width: 1.8rem;
-  height: 2px;
-  transform: translateY(-50%);
-}
-
-.ordo-tree-table tr[data-last-child="true"] td:first-child::before {
-  bottom: 50%;
-}
-
-.ordo-tree-table td:first-child::after,
-.ordo-tree-table td:first-child::before {
-  background: #4448;
-  box-shadow: 0 0 4px #00ffff22;
-}
-
-/* Hover glow */
-.ordo-tree-table tr:hover td:first-child::before,
-.ordo-tree-table tr:hover td:first-child::after {
-  background: #00ffff44;
-  box-shadow: 0 0 6px #00ffff44;
-}
-
 tr[data-hidden="true"] ~ tr td:first-child::before,
-tr[data-hidden="true"] ~ tr td:first-child::after,
-.ordo-cluster-row.collapsed ~ tr td:first-child::before,
-.ordo-cluster-row.collapsed ~ tr td:first-child::after {
+tr[data-hidden="true"] ~ tr td:first-child::after {
   display: none !important;
   display: block !important;
   translateZ(0);
@@ -1653,18 +1518,6 @@ tr[data-hidden="true"] ~ tr td:first-child::after,
   border-color: #d6304f !important;
 }
 
-/* Ensure dropdown menu stays inside Actions column */
-.data-table td:last-child .dropdown {
-  position: relative;
-  display: inline-block;
-}
-
-.data-table td:last-child .dropdown-menu {
-  right: 0;
-  left: auto;
-  min-width: 180px;
-}
-
 /* Optional: Flip menu left if too wide/right edge */
 .dropdown.is-right .dropdown-menu {
   right: 0;
@@ -1705,11 +1558,6 @@ tr[data-hidden="true"] ~ tr td:first-child::after,
 .crons-detail h4 {
   margin-bottom: 1rem;
   color: #0ff;
-}
-
-/* Crons table inside expanded row */
-.crons-detail .data-table {
-  width: 100%;
 }
 
 /* Toggle button styling */
@@ -2106,34 +1954,6 @@ tr[data-hidden="true"] ~ tr td:first-child::after,
   max-height: calc(88vh - 140px);
 }
 
-/* 
-#servers,
-#servers * {
-  color: #e0e0e0 !important; 
-}
-#servers h1.title-large {
-  color: #00ffff !important;
-}
-#servers .data-table td,
-#servers .data-table th {
-  color: #e0e0e0 !important;
-}
-#servers-content {
-  min-height: calc(100vh - var(--navbar-height) - 6rem);
-}
-
-#servers,
-#servers * {
-  color: #e0e0e0 !important;
-}
-#servers .title-large {
-  color: #00ffff !important;
-}
-#servers .data-table td,
-#servers .data-table th {
-  color: #e0e0e0 !important;
-  background: #1a1a1a !important;
-}
 #servers-content {
   min-height: calc(100vh - var(--navbar-height) - 6rem);
   padding: 2rem;
@@ -2143,40 +1963,9 @@ tr[data-hidden="true"] ~ tr td:first-child::after,
 }
 */
 
-
-/* Unified Data Table Base */
-.ordo-data-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #1a1a1a;
-}
-.ordo-data-table th {
-  background: #0f0f1f;
-  color: #00ffff;
-  font-weight: 600;
-  padding: 0.75rem;
-  text-align: left;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-.ordo-data-table td {
-  padding: 0.75rem;
-  border-bottom: 1px solid #333;
-  color: #e0e0e0;
-}
-.ordo-data-table tr:hover {
-  background: rgba(0, 255, 255, 0.08);
-  cursor: pointer;
-}
-.ordo-data-table tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.03);
-}
-
 #servers .tag.is-success { background: #66bb6a; color: #000; }
 #servers .tag.is-warning { background: #ffb74d; color: #000; }
 #servers .tag.is-danger { background: #ef5350; color: #fff; }
-#servers tr.stale { opacity: 0.6; }
 
 
 /* ────────────────────────────────────────────────
