@@ -1,225 +1,261 @@
 package SysInfo;
-
 use strict;
 use warnings;
 use Exporter 'import';
 use IO::Socket::INET;
 
-# Functions to export
 our @EXPORT = qw(get_local_ip_address get_cores pid_info find_pids system_info);
 
 my ($os) =
     $^O =~ /MSWin32/i ? 'windows'
-  : $^O =~ /darwin/i  ? 'darwin'
-  :                     'linux';
+  : $^O =~ /darwin/i ? 'darwin'
+  : 'linux';
 
 sub get_cores {
    my $cores =
-       $os eq 'linux'   ? get_linux_cores()
-     : $os eq 'darwin'  ? get_macos_cores()
+       $os eq 'linux' ? get_linux_cores()
+     : $os eq 'darwin' ? get_macos_cores()
      : $os eq 'windows' ? get_windows_cores()
-     :                    1;
-
+     : 1;
    return $cores;
 }
 
 sub get_local_ip_address {
     my $socket = IO::Socket::INET->new(
-        Proto    => 'udp',
-        PeerAddr => '198.41.0.4',  # a.root-servers.net
+        Proto => 'udp',
+        PeerAddr => '198.41.0.4', # a.root-servers.net
         PeerPort => '53',
     );
-
     return unless $socket;
     my $local_ip = $socket->sockhost;
     $socket->close;
     return $local_ip;
 }
 
-# -------------------------
 # Linux: parse /proc/cpuinfo
 sub get_linux_cores {
    my $count = 0;
-   open( my $fh, '<', '/proc/cpuinfo' ) or die "Can't open /proc/cpuinfo: $!";
+   open( my $fh, '<', '/proc/cpuinfo' ) or return 1;
    while (<$fh>) {
       $count++ if /^processor\s+:/;
-
    }
    close $fh;
-   return $count;
+   return $count || 1;
 }
 
-# -------------------------
 # macOS: sysctl
 sub get_macos_cores {
-   my $output = `sysctl -n hw.ncpu`;
+   my $output = `sysctl -n hw.ncpu 2>/dev/null`;
    chomp $output;
-   return $output;
+   return $output || 1;
 }
 
-# -------------------------
-# Windows: WMIC or fallback to ENV
+# Windows: WMIC or fallback
 sub get_windows_cores {
    my $output = `wmic cpu get NumberOfLogicalProcessors /value 2>NUL`;
    if ( $output =~ /NumberOfLogicalProcessors=(\d+)/ ) {
       return $1;
    }
-   else {
-      # Fallback (not always reliable)
-      return $ENV{'NUMBER_OF_PROCESSORS'} || 'Unknown';
-   }
+   return $ENV{'NUMBER_OF_PROCESSORS'} || 1;
 }
 
-sub windows_info {
-   my %sysinfo;
+# CPU % via top snapshot (internal delta, no state file)
+sub get_cpu_percent {
+  return undef unless $os eq 'linux';
 
-   # Memory
-   my $wmic = `wmic OS get TotalVisibleMemorySize,FreePhysicalMemory /Value`;
-   if ( $wmic =~ /FreePhysicalMemory=(\d+)/ ) {
-      $sysinfo{free_memory} = $1 / 1024;    # Convert KB to MB
-   }
-   if ( $wmic =~ /TotalVisibleMemorySize=(\d+)/ ) {
-      $sysinfo{total_memory} = $1 / 1024;    # Convert KB to MB
-   }
-   if ( $sysinfo{total_memory} && $sysinfo{free_memory} ) {
-      $sysinfo{used_memory} = $sysinfo{total_memory} - $sysinfo{free_memory};
-   }
-
-   # CPU
-   #my @output = `wmic cpu get loadpercentage`;
-   my $load = `wmic cpu get LoadPercentage /Value`;
-   if ( $load =~ /LoadPercentage=(\d+)/ ) {
-      $sysinfo{cpu} = $1;
-   }
-
-   # Uptime
-   my $output = `wmic os get LastBootUpTime /value`;
-   my ($boot_time_str) = $output =~ /LastBootUpTime=(\d{14})/;
-
-   if ($boot_time_str) {
-      my ( $year, $month, $day, $hour, $min, $sec ) = $boot_time_str =~ /(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/;
-      use Time::Local;
-      my $boot_epoch     = timegm( $sec, $min, $hour, $day, $month - 1, $year );
-      my $uptime_seconds = time() - $boot_epoch;
-      $sysinfo{uptime} = $uptime_seconds;
-   }
-
-   # Disk usage
-   my @output = `wmic logicaldisk get size,freespace,caption`;
-   shift @output;
-   my @results;
-
-   foreach my $line (@output) {
-      next if $line =~ /^\s*$/;
-      my ( $drive, $free, $total ) = $line =~ /([A-Z]:)\s+(\d+)\s+(\d+)/;
-      next unless defined $drive;
-      my $used = $total - $free;
-      $sysinfo{total_disk} = $total;
-      $sysinfo{used_disk}  = $used;
-      $sysinfo{free_disk}  = $free;
-      last;
-   }
-   return \%sysinfo;
+  my $top = `top -bn1 2>/dev/null`;
+  if ($top =~ /%Cpu\(s\):\s*([\d\.]+) us,\s*([\d\.]+) sy/) {
+    my $percent = $1 + $2;  # user + system
+    return sprintf("%.1f", $percent);
+  }
+  return undef; # fallback to loadavg
 }
 
-sub darwin_info {    # Mac
+# Load averages 1/5/15 min
 
-   my %sysinfo;
+sub get_loadavg {
+  my %load = (load_1 => undef, load_5 => undef, load_15 => undef);
 
-   # Memory
-   my $sysctl = `sysctl hw.memsize`;
-   if ( $sysctl =~ /hw.memsize: (\d+)/ ) {
-      $sysinfo{total_memory} = $1;
-   }
-   my $vm_stat    = `vm_stat`;
-   my $pages_free = 0;
-   if ( $vm_stat =~ /Pages free:\s+(\d+)/ ) {
-      $pages_free = $1;
-   }
+  return %load unless $os eq 'linux';
 
-   my $page_size = `sysctl vm.pagesize` =~ /vm.pagesize: (\d+)/ ? $1 : 4096;
-   $sysinfo{free_memory} = ( $pages_free * $page_size );
-   if ( $sysinfo{total_memory} && $sysinfo{free_memory} ) {
-      $sysinfo{used_memory} = $sysinfo{total_memory} - $sysinfo{free_memory};
-   }
+  open my $fh, '<', '/proc/loadavg' or return %load;
+  my $line = <$fh>;
+  close $fh;
 
-   # CPU
-   my $top = `top -l 1 | grep "CPU usage"`;
-   if ( $top =~ /CPU usage: (\d+\.\d+)% user, (\d+\.\d+)% sys/ ) {
-      $sysinfo{cpu} = $1 + $2;
-   }
+  return %load unless defined $line && $line =~ /\S/;
 
-   # Uptime
-   my $boot_time = `sysctl -n kern.boottime`;
-   if ( $boot_time =~ /sec = (\d+)/ ) {
-      my $boot_epoch     = $1;
-      my $uptime_seconds = time() - $boot_epoch;
-      $sysinfo{uptime} = $uptime_seconds;
-   }
+  # Trim trailing newline/spaces
+  chomp $line;
+  $line =~ s/\s+$//;
 
-   # Disk
-   my $disk_info = &linux_disk;
-   return { %sysinfo, %$disk_info };
+  # Split on whitespace, take first 3 fields only
+  my @fields = split(/\s+/, $line);
 
+  # Validate and assign only if numeric
+  $load{load_1}  = $fields[0] =~ /^[\d\.]+$/ ? $fields[0] : undef;
+  $load{load_5}  = $fields[1] =~ /^[\d\.]+$/ ? $fields[1] : undef;
+  $load{load_15} = $fields[2] =~ /^[\d\.]+$/ ? $fields[2] : undef;
+
+  # Debug (remove later)
+  warn "[get_loadavg] Raw line: '$line'" if $ENV{ORDO_DEBUG};
+  warn "[get_loadavg] Parsed: load_1=$load{load_1}, load_5=$load{load_5}, load_15=$load{load_15}" if $ENV{ORDO_DEBUG};
+
+  return %load;
 }
 
-sub linux_info {    # Linux probably
 
-   my %sysinfo;
+# Memory + Swap
+sub get_memory_swap {
+  my %mem = (
+    total_memory => undef, used_memory => undef, free_memory => undef,
+    total_swap => undef, used_swap => undef, free_swap => undef
+  );
 
-   # Memory
-   my $meminfo = `free -b 2>/dev/null`;    # use -b for bytes
-   my @lines   = split "\n", $meminfo;
+  return %mem unless $os eq 'linux';
 
-   foreach my $line (@lines) {
-      if ( $line =~ /^Mem:\s+(\d+)\s+(\d+)\s+(\d+)/ ) {
-         $sysinfo{total_memory} = $1;
-         $sysinfo{used_memory}  = $2;
-         $sysinfo{free_memory}  = $3;
-         last;
-      }
-   }
+  open my $fh, '<', '/proc/meminfo' or return %mem;
+  while (<$fh>) {
+    $mem{total_memory} = $1 * 1024 if /^MemTotal:\s+(\d+)/;
+    $mem{free_memory} = $1 * 1024 if /^MemFree:\s+(\d+)/;
+    $mem{total_swap} = $1 * 1024 if /^SwapTotal:\s+(\d+)/;
+    $mem{free_swap} = $1 * 1024 if /^SwapFree:\s+(\d+)/;
+  }
+  close $fh;
 
-   # CPU
-   if ( open my $fh, '<', '/proc/loadavg' ) {
-      my $line  = <$fh>;
-      my @loads = split( /\s+/, $line );
-      $sysinfo{cpu} = $loads[0];    # 1 minute load average
-   }
+  $mem{used_memory} = $mem{total_memory} - $mem{free_memory} if $mem{total_memory} && $mem{free_memory};
+  $mem{used_swap} = $mem{total_swap} - $mem{free_swap} if $mem{total_swap} && $mem{free_swap};
 
-   # Disk
-   my $disk_info = &linux_disk;
-
-   # Uptime
-   open my $fh, '<', '/proc/uptime' or return "Cannot open /proc/uptime: $!";
-   my $line = <$fh>;
-   close $fh;
-   my ($uptime_seconds) = split ' ', $line;
-   $sysinfo{uptime} = $uptime_seconds;
-
-   return { %sysinfo, %$disk_info };
+  return %mem;
 }
 
-sub linux_disk {
-   my %sysinfo;
-   my @output = `df -lP --total`;
+# Disk (aggregate + root separate)
+sub get_disk {
+  my %disk = (
+    total_disk => undef, used_disk => undef, free_disk => undef,
+    root_total_disk => undef, root_used_disk => undef, root_free_disk => undef
+  );
 
-   foreach my $line (@output) {
-      next unless $line =~ /^\s*total/;
-      my @fields = split( /\s+/, $line );
-      $sysinfo{total_disk} = $fields[1];
-      $sysinfo{used_disk}  = $fields[2];
-      $sysinfo{free_disk}  = $fields[3];
-   }
-   return \%sysinfo;
+  return %disk unless $os eq 'linux';
+
+  # Aggregate
+  my @df = `df -lP --total 2>/dev/null`;
+  foreach (@df) {
+    next unless /^total/;
+    my @f = split(/\s+/);
+    $disk{total_disk} = $f[1];
+    $disk{used_disk} = $f[2];
+    $disk{free_disk} = $f[3];
+    last;
+  }
+
+  # Root only
+  my $root = `df -B1 / 2>/dev/null | tail -1`;
+  if ($root =~ /\s+(\d+)\s+(\d+)\s+(\d+)/) {
+    $disk{root_total_disk} = $1;
+    $disk{root_used_disk} = $2;
+    $disk{root_free_disk} = $3;
+  }
+
+  return %disk;
 }
+
+# Network I/O (cumulative total bytes since boot — no delta)
+sub get_network_total {
+  my %net = (net_rx_bytes => 0, net_tx_bytes => 0);
+
+  return %net unless $os eq 'linux';
+
+  open my $fh, '<', '/proc/net/dev' or return %net;
+  while (<$fh>) {
+    next if /^Inter|^ face/;
+    my @f = split(/\s+/);
+    $net{net_rx_bytes} += $f[1] if $f[1] =~ /^\d+$/; # bytes received
+    $net{net_tx_bytes} += $f[9] if $f[9] =~ /^\d+$/; # bytes transmitted
+  }
+  close $fh;
+
+  return %net;
+}
+
+# Open file handles / max
+sub get_open_files {
+  my %files = (open_files => undef, max_files => undef);
+
+  return %files unless $os eq 'linux';
+
+  open my $fh, '<', '/proc/sys/fs/file-nr' or return %files;
+  my $line = <$fh>;
+  close $fh;
+
+  my ($allocated, $unused, $max) = split(/\s+/, $line);
+  $files{open_files} = $allocated;
+  $files{max_files} = $max;
+
+  return %files;
+}
+
+# Process count (total / zombies)
+sub get_processes {
+  my %proc = (total_processes => undef, zombie_processes => undef);
+
+  return %proc unless $os eq 'linux';
+
+  # Total
+  my $total = `ps -e | wc -l`;
+  chomp $total;
+  $proc{total_processes} = $total - 1; # subtract header
+
+  # Zombies
+  my $zombies = `ps -eo stat | grep -c '^Z'`;
+  chomp $zombies;
+  $proc{zombie_processes} = $zombies;
+
+  return %proc;
+}
+
+# Enhanced linux_info (combines all)
+sub linux_info {
+  my %sysinfo;
+
+  # Memory + Swap
+  %sysinfo = (%sysinfo, get_memory_swap());
+
+  # CPU %
+  $sysinfo{cpu_percent} = get_cpu_percent() // 0;
+
+  # Loadavg
+  my %load = get_loadavg();
+  %sysinfo = (%sysinfo, %load);
+
+  # Disk
+  %sysinfo = (%sysinfo, get_disk());
+
+  # Network (cumulative)
+  %sysinfo = (%sysinfo, get_network_total());
+
+  # Open files
+  %sysinfo = (%sysinfo, get_open_files());
+
+  # Processes
+  %sysinfo = (%sysinfo, get_processes());
+
+  # Uptime
+  open my $fh, '<', '/proc/uptime' or return \%sysinfo;
+  ($sysinfo{uptime}) = split ' ', <$fh>;
+  close $fh;
+
+  return \%sysinfo;
+}
+
+# Stubs for macOS/Windows (minimal)
+sub darwin_info { return linux_info(); } # fallback
+sub windows_info { return linux_info(); } # fallback
 
 sub system_info {
-   my $coderef = $os eq 'windows' ? \&windows_info
-               : $os eq 'darwin'  ? \&darwin_info
-               : \&linux_info;
-
-   return &{ $coderef };
+  my $coderef = $os eq 'windows' ? \&windows_info
+              : $os eq 'darwin' ? \&darwin_info
+              : \&linux_info;
+  return &{$coderef};
 }
 
 sub pid_info {

@@ -3,7 +3,7 @@ import { validateCollapsedStorage } from "./state.js";
 import { attachTabListeners, activateDefaultTab } from "./tabs.js";
 import { checkLoginAndConnect } from "./websocket.js";
 import { attachTreeListeners } from "./tree/tree-listeners.js"; // ← correct
-import { startTreeTimings } from "./tree/tree-table.js"; // keep if timings here
+import { startLiveTimings } from "./tree/tree-table.js"; // keep if timings here
 import { attachGlobalListeners } from "./dropdown-handlers.js";
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   attachTabListeners();
   attachTreeListeners(); // tree-specific clicks
-  startTreeTimings();
+  startLiveTimings();
 
   attachGlobalListeners(); // global dropdown/modal/esc/outside
 

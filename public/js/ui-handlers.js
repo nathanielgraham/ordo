@@ -7,6 +7,8 @@ import { openCronsModal } from "./modals.js";
 import {
   formatDate,
   formatDuration,
+  formatUptime,
+  formatRelativeTime,
   buildTree,
   findClusterById,
   findJobById,
@@ -68,6 +70,169 @@ export function showToast(message, type = "info") {
     toast.classList.remove("show");
     setTimeout(() => toast.remove(), 400);
   };
+}
+
+export function renderServersTable() {
+  const tbody = document.getElementById("servers-body");
+  const noServers = document.getElementById("no-servers");
+  tbody.innerHTML = "";
+  if (appState.serversData.length === 0) {
+    noServers.style.display = "block";
+    return;
+  }
+  noServers.style.display = "none";
+
+  const now = Math.floor(Date.now() / 1000);
+  appState.serversData.forEach(server => {
+    // 1. Freshness (tag only, base tooltip without time)
+    const updateTime = server.update_time != null ? Number(server.update_time) : null;
+    const updatedAgo = updateTime != null && !isNaN(updateTime) ? now - updateTime : Infinity;
+
+/*
+    let status = "Never Connected";
+    let statusClass = "is-danger";
+    let statusTooltip = "No stats received yet — server may still accept jobs";
+    if (Number.isFinite(updatedAgo)) {
+      if (updatedAgo < 30) {
+        status = "Fresh";
+        statusClass = "is-success";
+      } else if (updatedAgo < 300) {
+        status = "Stale";
+        statusClass = "is-warning";
+      } else {
+        status = "Very Stale";
+        statusClass = "is-danger";
+      }
+      //statusTooltip = "Stats last updated"; // timer adds time
+    }
+
+    // Add zombie info to base tooltip
+    if (server.zombie_processes > 0) {
+      statusTooltip += `\nZombies detected: ${server.zombie_processes}`;
+    }
+*/
+
+    // 2. Load Avg
+    const load1 = server.load_1 != null ? server.load_1.toFixed(2) : "—";
+    const coresText = server.cores != null ? ` (on ${server.cores} cores)` : "";
+    const loadTooltip = server.load_1 != null
+      ? `1-min: ${server.load_1.toFixed(2)}${coresText}\n5-min: ${server.load_5?.toFixed(2) ?? "—"}\n15-min: ${server.load_15?.toFixed(2) ?? "—"}`
+      : "Load averages not available";
+
+    // 3. CPU %
+    const cpu = server.cpu_percent != null ? `${server.cpu_percent.toFixed(1)}%` : "—";
+    const cpuTooltip = "CPU utilization (user + system)";
+
+    // 4. Memory + Swap
+    let mem = "—";
+    let memTooltip = "Memory usage not available";
+
+    if (server.total_memory != null && server.total_memory > 0) {
+      const usedBytes = server.used_memory != null ? server.used_memory : 0;
+      const totalBytes = server.total_memory;
+
+      let unit = "GB";
+      let divisor = 1024 * 1024 * 1024;
+      let precision = 1;
+      if (totalBytes < 10 * 1024 * 1024 * 1024) {
+        unit = "MB";
+        divisor = 1024 * 1024;
+        precision = 2;
+      }
+
+      const usedDisplay = (usedBytes / divisor).toFixed(precision);
+      const totalDisplay = (totalBytes / divisor).toFixed(precision);
+      const pct = (usedBytes / totalBytes) * 100;
+      const memPct = isNaN(pct) ? "—" : pct.toFixed(1);
+
+      mem = `${memPct}% (${usedDisplay}/${totalDisplay} ${unit})`;
+
+      const swapPct = server.total_swap != null && server.total_swap > 0
+        ? ((server.used_swap || 0) / server.total_swap * 100).toFixed(1) + "%"
+        : "—";
+      memTooltip = `RAM: ${memPct}% (${usedDisplay}/${totalDisplay} ${unit})\nSwap: ${swapPct}`;
+    }
+
+    // 5. Disk + Root
+    let disk = "—";
+    let diskTooltip = "Disk usage not available";
+
+    if (server.total_disk != null && server.total_disk > 0) {
+      const usedBytes = server.used_disk != null ? server.used_disk : 0;
+      const totalBytes = server.total_disk;
+
+      let unit = "GB";
+      let divisor = 1024 * 1024 * 1024;
+      let precision = 1;
+      if (totalBytes < 10 * 1024 * 1024 * 1024) {
+        unit = "MB";
+        divisor = 1024 * 1024;
+        precision = 2;
+      }
+
+      const usedDisplay = (usedBytes / divisor).toFixed(precision);
+      const totalDisplay = (totalBytes / divisor).toFixed(precision);
+      const pct = (usedBytes / totalBytes) * 100;
+      const diskPct = isNaN(pct) ? "—" : pct.toFixed(1);
+
+      disk = `${diskPct}% (${usedDisplay}/${totalDisplay} ${unit})`;
+
+      const rootPct = server.root_total_disk != null && server.root_total_disk > 0
+        ? ((server.root_used_disk || 0) / server.root_total_disk * 100).toFixed(1) + "%"
+        : "—";
+      diskTooltip = `Aggregate: ${diskPct}% (${usedDisplay}/${totalDisplay} ${unit})\nRoot: ${rootPct}`;
+    }
+
+    // 6. Uptime
+    const uptime = server.uptime != null ? formatUptime(server.uptime) : "—";
+
+    // 7. Host tooltip
+    const hostTooltip = [
+      `Host: ${server.host || server.ip_address || "—"}`,
+      `Port: ${server.port || "—"}`,
+      `OS: ${server.os || "—"}`,
+      `CWD: ${server.cwd || "—"}`,
+      `Home: ${server.home || "—"}`
+    ].filter(Boolean).join("\n");
+
+    // 8. Row creation
+    const tr = document.createElement("tr");
+    tr.dataset.updateTime = server.update_time || "";
+    if (Number.isFinite(updatedAgo) && updatedAgo > 300) tr.classList.add("stale");
+
+    tr.innerHTML = `
+      <td>${server.name || "—"}</td>
+      <td title="${hostTooltip}">
+        ${server.host || server.ip_address || "—"}
+      </td>
+      <td>
+        <span class="tag"</span>
+      </td>
+      <td title="${loadTooltip}">${load1}</td>
+      <td title="${cpuTooltip}">${cpu}</td>
+      <td title="${memTooltip}">${mem}</td>
+      <td title="${diskTooltip}">${disk}</td>
+      <td title="Server uptime">${uptime}</td>
+      <td>
+        <div class="dropdown is-right">
+          <div class="dropdown-trigger">
+            <button class="btn btn-sm btn-ghost" aria-haspopup="menu">
+              <i class="fas fa-ellipsis-v"></i>
+            </button>
+          </div>
+          <div class="dropdown-menu" role="menu">
+            <div class="dropdown-content">
+              <a href="#" class="dropdown-item" data-action="edit-server" data-id="${server.id}">Edit</a>
+              <hr class="dropdown-divider">
+              <a href="#" class="dropdown-item is-danger" data-action="delete-server" data-id="${server.id}">Delete</a>
+            </div>
+          </div>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  setupDropdownFlip();
 }
 
 export function updateAccount(data) {
@@ -294,13 +459,20 @@ export function updateCalendars(data) {
 export function toggleCronsRow(calendarId) {
   console.log("[DEBUG] toggleCronsRow START – calendarId:", calendarId);
 
-  const cronsRow = document.querySelector(`tr[data-cal-id="${calendarId}"].crons-row`);
+  const cronsRow = document.querySelector(
+    `tr[data-cal-id="${calendarId}"].crons-row`,
+  );
   if (!cronsRow) {
     console.warn("[DEBUG] CRONS ROW NOT FOUND – calendarId:", calendarId);
     return;
   }
 
-  console.log("[DEBUG] Found row – current classes:", cronsRow.className, "inline display:", cronsRow.style.display);
+  console.log(
+    "[DEBUG] Found row – current classes:",
+    cronsRow.className,
+    "inline display:",
+    cronsRow.style.display,
+  );
 
   const wasHidden = cronsRow.classList.contains("hidden");
   cronsRow.classList.toggle("hidden");
@@ -310,14 +482,23 @@ export function toggleCronsRow(calendarId) {
     cronsRow.style.display = "none";
   } else {
     cronsRow.style.display = "table-row";
-    cronsRow.style.minHeight = "200px";  // ← temporary test height
-    cronsRow.style.background = "rgba(255, 0, 0, 0.3)";  // ← temporary red tint
+    cronsRow.style.minHeight = "200px"; // ← temporary test height
+    cronsRow.style.background = "rgba(255, 0, 0, 0.3)"; // ← temporary red tint
   }
 
   const isNowHidden = cronsRow.classList.contains("hidden");
-  console.log("[DEBUG] Toggled – was hidden:", wasHidden, "now hidden:", isNowHidden, "final display:", cronsRow.style.display);
+  console.log(
+    "[DEBUG] Toggled – was hidden:",
+    wasHidden,
+    "now hidden:",
+    isNowHidden,
+    "final display:",
+    cronsRow.style.display,
+  );
 
-  const toggleBtn = document.querySelector(`.dropdown-item[data-action="view-crons"][data-id="${calendarId}"]`);
+  const toggleBtn = document.querySelector(
+    `.dropdown-item[data-action="view-crons"][data-id="${calendarId}"]`,
+  );
   if (toggleBtn) {
     toggleBtn.textContent = isNowHidden ? "View Crons" : "Hide Crons";
     console.log("[DEBUG] Button text updated to:", toggleBtn.textContent);
@@ -331,7 +512,7 @@ export function renderCalendarsTable() {
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  appState.calendarsData.forEach(cal => {
+  appState.calendarsData.forEach((cal) => {
     const cronsCount = cal.crons?.length || 0;
     const clustersCount = cal.cluster_ids?.length || 0;
 
@@ -370,7 +551,6 @@ export function renderCalendarsTable() {
   setupDropdownFlip();
 }
 
-
 export function updateServers(data) {
   hideLoading("servers-loading");
   document.getElementById("servers-content").style.display = "block";
@@ -380,110 +560,24 @@ export function updateServers(data) {
   }
 }
 
-export function renderServersTable() {
-  const tbody = document.getElementById("servers-body");
-  const noServers = document.getElementById("no-servers");
-  tbody.innerHTML = "";
-  if (appState.serversData.length === 0) {
-    noServers.style.display = "block";
-    return;
-  }
-  noServers.style.display = "none";
-
-  const now = Math.floor(Date.now() / 1000);
-  appState.serversData.forEach(server => {
-    // Status logic
-    const updatedAgo = server.update_time ? now - server.update_time : Infinity;
-    let status = "Never Connected";
-    let statusClass = "is-danger";
-    let statusTooltip = "No stats received yet";
-
-    if (updatedAgo < 30) {
-      status = "Fresh";
-      statusClass = "is-success";
-      statusTooltip = `Stats updated ${updatedAgo}s ago`;
-    } else if (updatedAgo < 300) {
-      status = "Stale";
-      statusClass = "is-warning";
-      statusTooltip = `Stats last updated ${Math.floor(updatedAgo / 60)}m ago`;
-    } else if (updatedAgo < Infinity) {
-      status = "Very Stale";
-      statusClass = "is-danger";
-      statusTooltip = `Stats last updated ${Math.floor(updatedAgo / 60)}m ago`;
-    }
-
-    // Load Avg
-    const load = server.cpu !== null ? server.cpu.toFixed(1) : "—";
-
-    // Memory/Disk (GB + %)
-    const memUsedGB = server.used_memory ? (server.used_memory / 1024 / 1024 / 1024).toFixed(1) : null;
-    const memTotalGB = server.total_memory ? (server.total_memory / 1024 / 1024 / 1024).toFixed(1) : null;
-    const memPct = memUsedGB && memTotalGB ? ((server.used_memory / server.total_memory) * 100).toFixed(1) : null;
-    const mem = memPct ? `${memPct}% (${memUsedGB}/${memTotalGB} GB)` : "—";
-
-    const diskUsedGB = server.used_disk ? (server.used_disk / 1024 / 1024 / 1024).toFixed(1) : null;
-    const diskTotalGB = server.total_disk ? (server.total_disk / 1024 / 1024 / 1024).toFixed(1) : null;
-    const diskPct = diskUsedGB && diskTotalGB ? ((server.used_disk / server.total_disk) * 100).toFixed(1) : null;
-    const disk = diskPct ? `${diskPct}% (${diskUsedGB}/${diskTotalGB} GB)` : "—";
-
-    // Uptime
-    const uptime = server.uptime ? formatDuration(0, server.uptime) : "—";
-
-    // Last Updated
-    const updatedRel = updatedAgo < Infinity ? (updatedAgo < 60 ? `${updatedAgo}s ago` : `${Math.floor(updatedAgo / 60)}m ago`) : "—";
-    const updatedTitle = server.update_time ? formatDate(server.update_time) + ` (${statusTooltip})` : "—";
-
-    const tr = document.createElement("tr");
-    if (updatedAgo > 300) tr.classList.add("stale");
-    tr.innerHTML = `
-      <td>${server.name || "—"}</td>
-      <td>${server.host || server.ip_address || "—"}</td>
-      <td>${server.port || "—"}</td>
-      <td><span class="tag ${statusClass}" title="${statusTooltip}">${status}</span></td>
-      <td title="1-minute system load average">${load}</td>
-      <td title="True CPU utilization — coming soon">—</td>
-      <td title="Used / Total">${mem}</td>
-      <td title="Used / Total">${disk}</td>
-      <td title="Server uptime">${uptime}</td>
-      <td title="${updatedTitle}">${updatedRel}</td>
-      <td>
-        <div class="dropdown is-right">
-          <div class="dropdown-trigger">
-            <button class="btn btn-sm btn-ghost" aria-haspopup="menu">
-              <i class="fas fa-ellipsis-v"></i>
-            </button>
-          </div>
-          <div class="dropdown-menu" role="menu">
-            <div class="dropdown-content">
-              <a href="#" class="dropdown-item" data-action="edit-server" data-id="${server.id}">Edit</a>
-              <hr class="dropdown-divider">
-              <a href="#" class="dropdown-item is-danger" data-action="delete-server" data-id="${server.id}">Delete</a>
-            </div>
-          </div>
-        </div>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-  setupDropdownFlip();
-}
-
 export function applyServerBroadcast(data) {
   if (data.updates) {
-    data.updates.forEach(update => {
-      const idx = appState.serversData.findIndex(s => s.id === update.id);
-      if (idx !== -1) appState.serversData[idx] = { ...appState.serversData[idx], ...update };
+    data.updates.forEach((update) => {
+      const idx = appState.serversData.findIndex((s) => s.id === update.id);
+      if (idx !== -1)
+        appState.serversData[idx] = { ...appState.serversData[idx], ...update };
       else appState.serversData.push(update);
     });
   }
   if (data.deletes) {
-    data.deletes.forEach(del => {
-      appState.serversData = appState.serversData.filter(s => s.id !== (del.id || del));
+    data.deletes.forEach((del) => {
+      appState.serversData = appState.serversData.filter(
+        (s) => s.id !== (del.id || del),
+      );
     });
   }
   renderServersTable();
 }
-
 
 export function applyClusterBroadcast(data) {
   if (data.updates) {
@@ -499,13 +593,19 @@ export function applyClusterBroadcast(data) {
           id: clusterId,
           is_cluster: true,
           children: [],
-          depth: clusterUpdate.parent_id 
-            ? (findClusterById(appState.monitorData.tree, Number(clusterUpdate.parent_id))?.depth || 0) + 1 
+          depth: clusterUpdate.parent_id
+            ? (findClusterById(
+                appState.monitorData.tree,
+                Number(clusterUpdate.parent_id),
+              )?.depth || 0) + 1
             : 0,
         };
 
         if (clusterUpdate.parent_id != null) {
-          const parent = findClusterById(appState.monitorData.tree, Number(clusterUpdate.parent_id));
+          const parent = findClusterById(
+            appState.monitorData.tree,
+            Number(clusterUpdate.parent_id),
+          );
           if (parent) parent.children.push(newCluster);
           else appState.monitorData.tree.push(newCluster);
         } else {
@@ -531,7 +631,9 @@ export function applyClusterBroadcast(data) {
               depth: clusterNode.depth + 1,
             };
             clusterNode.children.push(newJob);
-            console.log(`Added job ${jobId} to cluster ${clusterId} from broadcast`);
+            console.log(
+              `Added job ${jobId} to cluster ${clusterId} from broadcast`,
+            );
           }
         });
 
@@ -542,13 +644,16 @@ export function applyClusterBroadcast(data) {
   }
 
   if (data.deletes) {
-    const uniqueDeletes = [...new Set(data.deletes.map(d => Number(d.id || d)))];
-    uniqueDeletes.forEach(id => removeClusterById(appState.monitorData.tree, id));
+    const uniqueDeletes = [
+      ...new Set(data.deletes.map((d) => Number(d.id || d))),
+    ];
+    uniqueDeletes.forEach((id) =>
+      removeClusterById(appState.monitorData.tree, id),
+    );
   }
 
   renderJobsTable();
 }
-
 
 export function applyJobBroadcast(data) {
   if (data.updates) {
@@ -561,9 +666,13 @@ export function applyJobBroadcast(data) {
         Object.assign(node, update);
       } else {
         // Create new job
-        const parentCluster = update.cluster_id != null 
-          ? findClusterById(appState.monitorData.tree, Number(update.cluster_id)) 
-          : null;
+        const parentCluster =
+          update.cluster_id != null
+            ? findClusterById(
+                appState.monitorData.tree,
+                Number(update.cluster_id),
+              )
+            : null;
 
         const newJob = {
           ...update,
@@ -585,20 +694,30 @@ export function applyJobBroadcast(data) {
   }
 
   if (data.deletes) {
-    const uniqueDeletes = [...new Set(data.deletes.map(d => Number(d.id || d)))];
-    uniqueDeletes.forEach(id => removeJobById(appState.monitorData.tree, id));
+    const uniqueDeletes = [
+      ...new Set(data.deletes.map((d) => Number(d.id || d))),
+    ];
+    uniqueDeletes.forEach((id) => removeJobById(appState.monitorData.tree, id));
   }
 
   renderJobsTable();
 }
 
 export function applyCalBroadcast(data) {
-  console.log("[DEBUG] applyCalBroadcast received:", JSON.stringify(data, null, 2));
+  console.log(
+    "[DEBUG] applyCalBroadcast received:",
+    JSON.stringify(data, null, 2),
+  );
 
   // Log current state before update
-  console.log("[DEBUG] Before update – calendars count:", appState.calendarsData.length);
-  appState.calendarsData.forEach(cal => {
-    console.log(`[DEBUG] Cal ${cal.id} (${cal.name}) has ${cal.crons?.length || 0} crons before update`);
+  console.log(
+    "[DEBUG] Before update – calendars count:",
+    appState.calendarsData.length,
+  );
+  appState.calendarsData.forEach((cal) => {
+    console.log(
+      `[DEBUG] Cal ${cal.id} (${cal.name}) has ${cal.crons?.length || 0} crons before update`,
+    );
   });
 
   // Handle updates – FULL REPLACE
@@ -611,23 +730,25 @@ export function applyCalBroadcast(data) {
       }
 
       const index = appState.calendarsData.findIndex(
-        (cal) => Number(cal.id) === updateId
+        (cal) => Number(cal.id) === updateId,
       );
 
       if (index !== -1) {
         const oldCrons = appState.calendarsData[index].crons?.length || 0;
-        console.log(`[DEBUG] Replacing cal ${updateId} – old crons: ${oldCrons}, new crons: ${update.crons?.length || 0}`);
+        console.log(
+          `[DEBUG] Replacing cal ${updateId} – old crons: ${oldCrons}, new crons: ${update.crons?.length || 0}`,
+        );
         appState.calendarsData[index] = {
           ...update,
           id: updateId,
-          crons: update.crons || []  // force empty array
+          crons: update.crons || [], // force empty array
         };
       } else {
         console.log(`[DEBUG] Adding new cal ${updateId}`);
         appState.calendarsData.push({
           ...update,
           id: updateId,
-          crons: update.crons || []
+          crons: update.crons || [],
         });
       }
     });
@@ -635,11 +756,15 @@ export function applyCalBroadcast(data) {
 
   // Handle deletes
   if (data.deletes && Array.isArray(data.deletes)) {
-    const deleteIds = data.deletes.map(d => Number(d.id || d)).filter(id => !isNaN(id));
+    const deleteIds = data.deletes
+      .map((d) => Number(d.id || d))
+      .filter((id) => !isNaN(id));
     const uniqueDeletes = [...new Set(deleteIds)];
 
-    uniqueDeletes.forEach(id => {
-      const index = appState.calendarsData.findIndex(cal => Number(cal.id) === id);
+    uniqueDeletes.forEach((id) => {
+      const index = appState.calendarsData.findIndex(
+        (cal) => Number(cal.id) === id,
+      );
       if (index !== -1) {
         console.log(`[DEBUG] Deleting calendar ${id}`);
         appState.calendarsData.splice(index, 1);
@@ -648,9 +773,14 @@ export function applyCalBroadcast(data) {
   }
 
   // Log state after update
-  console.log("[DEBUG] After update – calendars count:", appState.calendarsData.length);
-  appState.calendarsData.forEach(cal => {
-    console.log(`[DEBUG] Cal ${cal.id} (${cal.name}) has ${cal.crons?.length || 0} crons after update`);
+  console.log(
+    "[DEBUG] After update – calendars count:",
+    appState.calendarsData.length,
+  );
+  appState.calendarsData.forEach((cal) => {
+    console.log(
+      `[DEBUG] Cal ${cal.id} (${cal.name}) has ${cal.crons?.length || 0} crons after update`,
+    );
   });
 
   renderCalendarsTable();
@@ -659,8 +789,9 @@ export function applyCalBroadcast(data) {
   const cronsModal = document.getElementById("crons-modal");
   if (cronsModal?.classList.contains("active")) {
     const openCalId = Number(cronsModal.dataset.calId);
-    const wasAffected = data.updates?.some(u => Number(u.id) === openCalId) ||
-                        data.deletes?.some(d => Number(d.id || d) === openCalId);
+    const wasAffected =
+      data.updates?.some((u) => Number(u.id) === openCalId) ||
+      data.deletes?.some((d) => Number(d.id || d) === openCalId);
 
     if (wasAffected) {
       console.log("[DEBUG] Refreshing open crons modal for calId:", openCalId);

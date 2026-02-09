@@ -1,5 +1,6 @@
 // tabs.js – tab navigation + default activation
 import { loadDoc } from "./ui-handlers.js";
+import { startLiveTimings, stopLiveTimings } from "./tree/tree-table.js";
 
 export function attachTabListeners() {
   const tabLinks = document.querySelectorAll(".nav-tab[data-tab]");
@@ -42,11 +43,13 @@ export function attachTabListeners() {
         }
       }
       // Dynamic import for tree timings
-      if (tabId === "monitor") {
-        import("./tree/tree-table.js").then((m) => m.startTreeTimings());
-      } else {
-        import("./tree/tree-table.js").then((m) => m.stopTreeTimings());
-      }
+
+if (tabId === "monitor" || tabId === "servers" || tabId === "calendars") {
+  startLiveTimings();
+} else {
+  stopLiveTimings();
+}
+
       // Update active tab style
       tabLinks.forEach((l) => l.classList.remove("active"));
       link.classList.add("active");

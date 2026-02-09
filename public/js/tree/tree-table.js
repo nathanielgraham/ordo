@@ -5,6 +5,7 @@ import {
   formatTplus,
   formatTminus,
   formatDuration,
+  formatRelativeTime,
   findClusterById,
   findJobById,
   getFullPath,
@@ -19,7 +20,7 @@ function sortTreeNodes(nodes) {
     return Number(a.id) - Number(b.id);
   });
 
-  nodes.forEach(node => {
+  nodes.forEach((node) => {
     if (node.children && node.children.length > 0) {
       sortTreeNodes(node.children);
     }
@@ -35,7 +36,7 @@ export function renderJobsTable() {
   // Cleanup stale collapsed IDs
   const currentClusterIds = new Set();
   function collectIds(nodes) {
-    nodes.forEach(node => {
+    nodes.forEach((node) => {
       if (node.is_cluster) {
         currentClusterIds.add(String(node.id));
         if (node.children) collectIds(node.children);
@@ -46,7 +47,7 @@ export function renderJobsTable() {
 
   let cleaned = false;
   const before = [...appState.collapsedClusters];
-  appState.collapsedClusters.forEach(id => {
+  appState.collapsedClusters.forEach((id) => {
     if (!currentClusterIds.has(id)) {
       appState.collapsedClusters.delete(id);
       cleaned = true;
@@ -62,8 +63,8 @@ export function renderJobsTable() {
   setupDropdownFlip();
 
   // Update timings immediately + start interval
-  updateTreeTimings();
-  startTreeTimings();
+  updateLiveTimings();
+  startLiveTimings();
 }
 
 // Build table rows recursively (the core DOM builder)
@@ -82,7 +83,9 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
         ? "disabled"
         : "";
     const killDisabled = state === "running" ? "" : "disabled";
-    const holdDisabled = ["hold", "immutable", "ice"].includes(state) ? "disabled" : "";
+    const holdDisabled = ["hold", "immutable", "ice"].includes(state)
+      ? "disabled"
+      : "";
     const releaseDisabled = state === "hold" ? "" : "disabled";
     const iceDisabled = ["ice", "immutable"].includes(state) ? "disabled" : "";
     const meltDisabled = state === "ice" ? "" : "disabled";
@@ -114,7 +117,7 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
     }
 
     const toggleHtml = item.is_cluster
-      ? `<span class="ordo-toggle ${hasChildren ? '' : 'empty'}"></span>`
+      ? `<span class="ordo-toggle ${hasChildren ? "" : "empty"}"></span>`
       : "";
 
     const icon = isCluster
@@ -130,16 +133,18 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
 
     if (item.needs_ids?.length) {
       depsCount += item.needs_ids.length;
-      const lines = item.needs_ids.map(id =>
-        `• ${resolveDepName(id, appState.monitorData.tree, isThisCluster)}`
+      const lines = item.needs_ids.map(
+        (id) =>
+          `• ${resolveDepName(id, appState.monitorData.tree, isThisCluster)}`,
       );
       depsTooltipLines.push(`Needs (blocking):\n${lines.join("\n")}`);
     }
 
     if (item.needs_any_ids?.length) {
       depsCount += item.needs_any_ids.length;
-      const lines = item.needs_any_ids.map(id =>
-        `• ${resolveDepName(id, appState.monitorData.tree, isThisCluster)}`
+      const lines = item.needs_any_ids.map(
+        (id) =>
+          `• ${resolveDepName(id, appState.monitorData.tree, isThisCluster)}`,
       );
       depsTooltipLines.push(`Needs Any (flexible):\n${lines.join("\n")}`);
     }
@@ -152,7 +157,9 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
     }
 
     const depsDisplay = depsCount > 0 ? depsCount : "—";
-    const depsTitle = depsTooltipLines.length ? depsTooltipLines.join("\n\n") : "";
+    const depsTitle = depsTooltipLines.length
+      ? depsTooltipLines.join("\n\n")
+      : "";
 
     // Stats badge + tooltip
     let statsDisplay = "—";
@@ -191,11 +198,15 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
         item.rss == null
       ) {
         statsTooltipLines.push("");
-        statsTooltipLines.push("Full stats not collected – run update_stats.pl");
+        statsTooltipLines.push(
+          "Full stats not collected – run update_stats.pl",
+        );
       }
     }
 
-    const statsTitle = statsTooltipLines.length ? statsTooltipLines.join("\n") : "";
+    const statsTitle = statsTooltipLines.length
+      ? statsTooltipLines.join("\n")
+      : "";
     if (statsTitle && statsDisplay.includes("tag")) {
       const tempDiv = document.createElement("div");
       tempDiv.innerHTML = statsDisplay;
@@ -327,9 +338,26 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
   });
 }
 
+let liveTimingInterval = null;
 
-export function updateTreeTimings() {
-  document.querySelectorAll("#tree-body tr[data-id]").forEach(row => {
+export function startLiveTimings() {
+  if (liveTimingInterval) return;
+  liveTimingInterval = setInterval(updateLiveTimings, 1000);
+  updateLiveTimings();
+}
+
+export function stopLiveTimings() {
+  if (liveTimingInterval) {
+    clearInterval(liveTimingInterval);
+    liveTimingInterval = null;
+  }
+}
+
+export function updateLiveTimings() {
+  const now = Math.floor(Date.now() / 1000);
+
+  // Jobs & Clusters (existing)
+  document.querySelectorAll("#tree-body tr[data-id]").forEach((row) => {
     const id = row.dataset.id;
     const isClusterRow = row.classList.contains("ordo-cluster-row");
     const item = isClusterRow
@@ -339,22 +367,76 @@ export function updateTreeTimings() {
 
     const cells = row.cells;
     if (cells[5]) cells[5].textContent = formatTplus(item.started) || "—";
-    if (cells[6]) cells[6].textContent = formatDuration(item.started, item.ended) || "—";
+    if (cells[6])
+      cells[6].textContent = formatDuration(item.started, item.ended) || "—";
     if (cells[7]) cells[7].textContent = formatTminus(item.next_start) || "—";
   });
-}
 
-let timingInterval = null;
-export function startTreeTimings() {
-  if (timingInterval) return;
-  timingInterval = setInterval(updateTreeTimings, 1000);
-  updateTreeTimings();
-}
+  // Servers (only if visible)
+  const serversContent = document.getElementById("servers-content");
+  if (serversContent && serversContent.offsetParent !== null) {
+    document.querySelectorAll("#servers-body tr").forEach((row) => {
+      const updateTime = Number(row.dataset.updateTime);
+      const freshnessCell = row.cells[2];
+      if (!freshnessCell) return;
 
-export function stopTreeTimings() {
-  if (timingInterval) {
-    clearInterval(timingInterval);
-    timingInterval = null;
+      const tag = freshnessCell.querySelector("span.tag");
+      if (!tag) return;
+
+      if (isNaN(updateTime) || updateTime <= 0) {
+        // Never Connected
+        tag.title = "No stats received yet — server may still accept jobs";
+        return;
+      }
+
+      const age = now - updateTime;
+      const minutes = Math.floor(age / 60);
+
+      // Calculate current minute-level time text
+      let timeText = "less than one minute ago";
+      if (minutes >= 1) {
+        timeText = `${minutes}m ago`;
+        if (minutes >= 60) {
+          const hours = Math.floor(minutes / 60);
+          const remainingMin = minutes % 60;
+          timeText = `${hours}h ${remainingMin > 0 ? remainingMin + "m " : ""}ago`;
+        }
+        if (minutes >= 1440) {
+          const days = Math.floor(minutes / 1440);
+          const remainingHours = Math.floor((minutes % 1440) / 60);
+          timeText = `${days}d ${remainingHours > 0 ? remainingHours + "h " : ""}ago`;
+        }
+      }
+
+      // Full tooltip built by timer
+      let tooltip = `Stats last updated ${timeText}`;
+
+      // Add zombie info
+      const zombieCount = Number(row.dataset.zombieCount || 0); // add data-zombie-count in render if needed
+      if (zombieCount > 0) {
+        tooltip += `\nZombies detected: ${zombieCount}`;
+      }
+
+      tag.title = tooltip;
+
+      // Dynamic status tag update
+      let newStatus = "Never Connected";
+      let newClass = "is-danger";
+      if (age < 30) {
+        newStatus = "Fresh";
+        newClass = "is-success";
+      } else if (age < 300) {
+        newStatus = "Stale";
+        newClass = "is-warning";
+      } else if (age < Infinity) {
+        newStatus = "Very Stale";
+        newClass = "is-danger";
+      }
+
+      if (tag.textContent !== newStatus) {
+        tag.textContent = newStatus;
+        tag.className = `tag ${newClass}`;
+      }
+    });
   }
 }
-

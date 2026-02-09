@@ -8,6 +8,34 @@ export function formatDate(epoch) {
   return new Date(epoch * 1000).toLocaleString();
 }
 
+export function formatUptime(seconds) {
+  if (typeof seconds !== 'number' || seconds <= 0 || isNaN(seconds)) {
+    return "—";
+  }
+
+  const days    = Math.floor(seconds / 86400);
+  seconds %= 86400;
+  const hours   = Math.floor(seconds / 3600);
+  seconds %= 3600;
+  const minutes = Math.floor(seconds / 60);
+  seconds = Math.floor(seconds % 60);
+
+  const parts = [];
+  if (days > 0)    parts.push(`${days}d`);
+  if (hours > 0)   parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}m`);
+  if (seconds > 0 && (days + hours + minutes === 0)) parts.push(`${seconds}s`); // only show seconds if very short
+
+  return parts.join(" ") || "just now";
+}
+
+export function formatRelativeTime(agoSeconds) {
+  if (agoSeconds < 60) return `${agoSeconds}s ago`;
+  if (agoSeconds < 3600) return `${Math.floor(agoSeconds / 60)}m ago`;
+  if (agoSeconds < 86400) return `${Math.floor(agoSeconds / 3600)}h ago`;
+  return `${Math.floor(agoSeconds / 86400)}d ago`;
+}
+
 export function formatTplus(epoch) {
   if (!epoch || isNaN(epoch)) return "—";
   const diff = Math.floor(Date.now() / 1000) - epoch;

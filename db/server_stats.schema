@@ -4,13 +4,34 @@ DROP TABLE IF EXISTS server_stats;
 CREATE TABLE server_stats (
         id INTEGER PRIMARY KEY NOT NULL,
 	server_id INTEGER REFERENCES server(id) ON DELETE CASCADE,
-        total_memory integer,
-        used_memory integer,
-        total_disk integer,
-        used_disk integer,
-        uptime integer,
-        cpu real,
-        ping real,
+
+    total_memory INTEGER,
+    used_memory INTEGER,
+    free_memory INTEGER,
+    total_disk INTEGER,
+    used_disk INTEGER,
+    free_disk INTEGER,
+    uptime INTEGER,
+    ping REAL,
+
+    -- New stats from enhanced SysInfo.pm / update_stats.pl
+    cpu_percent REAL,                -- True CPU utilization % (from top snapshot)
+    load_1 REAL,                     -- 1-minute load average
+    load_5 REAL,                     -- 5-minute load average
+    load_15 REAL,                    -- 15-minute load average
+    used_swap  INTEGER,              -- Swap used (bytes)
+    total_swap INTEGER,              -- Swap total (bytes)
+    free_swap INTEGER,
+    open_files INTEGER,              -- Current open file handles
+    max_files INTEGER,               -- Max open file handles allowed
+    total_processes INTEGER,         -- Total number of processes
+    zombie_processes INTEGER,        -- Number of zombie processes
+    net_rx_bytes INTEGER,            -- Cumulative received bytes since boot
+    net_tx_bytes INTEGER,            -- Cumulative transmitted bytes since boot
+    root_used_disk INTEGER,          -- Root filesystem used (bytes)
+    root_total_disk INTEGER,         -- Root filesystem total (bytes)
+    root_free_disk INTEGER,          -- Root filesystem free (bytes)
+
         creation_time integer DEFAULT (strftime('%s', 'now'))
 );
 

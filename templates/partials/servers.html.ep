@@ -29,14 +29,12 @@
             <tr>
               <th>Name</th>
               <th>Host</th>
-              <th>Port</th>
-              <th>Stats Status</th>
+              <th>Last Seen</th>
               <th>Load Avg</th>
               <th>CPU %</th>
               <th>Memory</th>
               <th>Disk</th>
               <th>Uptime</th>
-              <th>Last Updated</th>
               <th>Actions</th>
             </tr>
           </thead>

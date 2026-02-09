@@ -232,7 +232,7 @@ sub startup {
          }
 
          my $user = ordo::Model::User->new( remote_address => $c->tx->remote_address );
-         my $res = $c->app->request( $user, { command => 'login_user', token => $token } );
+         my $res  = $c->app->request( $user, { command => 'login_user', token => $token } );
 
          if ( $res && $res->{success} ) {
             return 1;
@@ -245,10 +245,10 @@ sub startup {
    );
 
    # Public SPA (anyone can load the HTML/JS)
-   $r->get('/app' => sub { shift->render(template => 'app'); });
+   $r->get( '/app' => sub { shift->render( template => 'app' ); } );
 
    # Root redirects to public SPA
-   $r->get('/' => sub { shift->redirect_to('/app'); });
+   $r->get( '/' => sub { shift->redirect_to('/app'); } );
 
    #$auth->get(
    #   '/monitor' => sub {
@@ -465,12 +465,12 @@ sub _cluster_info {
 
    my $cluster = $self->sqlite->db->query($sql)->hash;
 
-   my $needs_ids = $self->sqlite->db->query( "SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 0", $cluster->{id} )->hashes->to_array;
+   my $needs_ids     = $self->sqlite->db->query( "SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 0", $cluster->{id} )->hashes->to_array;
    my $needs_any_ids = $self->sqlite->db->query( "SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 1", $cluster->{id} )->hashes->to_array;
 
-   $cluster->{needs_ids} = [ map { $_->{needs_cluster_id} } @$needs_ids ];
+   $cluster->{needs_ids}     = [ map { $_->{needs_cluster_id} } @$needs_ids ];
    $cluster->{needs_any_ids} = [ map { $_->{needs_cluster_id} } @$needs_any_ids ];
-   $cluster->{next_start} = $self->_cal_next_start( $user, { id => $cluster->{cal_id} } ) if $cluster->{cal_id};
+   $cluster->{next_start}    = $self->_cal_next_start( $user, { id => $cluster->{cal_id} } ) if $cluster->{cal_id};
 
    #my $needs_ids = $self->sqlite->db->query( "SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 0", $d->{id} )->hashes->to_array;
    #my $needs_any_ids = $self->sqlite->db->query( "SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 1", $d->{id} )->hashes->to_array;
@@ -503,6 +503,7 @@ sub _read_cluster {
    #$cluster->{needs_ids} = [ map { $_->{needs_cluster_id} } @$needs_ids ];
    #$cluster->{needs_any_ids} = [ map { $_->{needs_cluster_id} } @$needs_any_ids ];
    $cluster->{jobs} = $self->_find_jobs( $user, { cluster_id => $cluster->{id} } );
+
    #$cluster->{next_start} = $self->_cal_next_start( $user, { id => $cluster->{cal_id} } ) if $cluster->{cal_id};
 
    return $cluster;
@@ -633,9 +634,9 @@ sub _set_cluster_state {
    }
 
    # Final update if needed
-   if ($update_hash->{state_id}) {
+   if ( $update_hash->{state_id} ) {
       $self->sqlite->db->update( 'cluster', $update_hash, { id => $cluster_id } );
-      $self->_broadcast_cluster($user, [ $cluster_id ]);
+      $self->_broadcast_cluster( $user, [$cluster_id] );
    }
 
    return 1;
@@ -653,44 +654,46 @@ sub _broadcast {
 
 sub _broadcast_cluster {
    my ( $self, $user, $ids ) = @_;
-   $self->_broadcast_any($user, $ids, 'cluster');
+   $self->_broadcast_any( $user, $ids, 'cluster' );
 }
 
 sub _broadcast_job {
    my ( $self, $user, $ids ) = @_;
-   $self->_broadcast_any($user, $ids, 'job');
+   $self->_broadcast_any( $user, $ids, 'job' );
 }
 
 sub _broadcast_server {
    my ( $self, $user, $ids ) = @_;
-   $self->_broadcast_any($user, $ids, 'server');
+   $self->_broadcast_any( $user, $ids, 'server' );
 }
 
 sub _broadcast_cal {
    my ( $self, $user, $ids ) = @_;
-   $self->_broadcast_any($user, $ids, 'cal');
+   $self->_broadcast_any( $user, $ids, 'cal' );
 }
 
 sub _broadcast_org {
    my ( $self, $user ) = @_;
    my $payload = $self->_org_info($user);
    $payload->{broadcast} = 'org_changed';
-   $self->_broadcast($user, $payload);
+   $self->_broadcast( $user, $payload );
 }
 
 sub _broadcast_any {
    my ( $self, $user, $ids, $type ) = @_;
-   return unless $type && $self->app->clients_by_org->{$user->org_id} && scalar @{ $ids };
+   return unless $type && $self->app->clients_by_org->{ $user->org_id } && scalar @{$ids};
    my $payload = {
       broadcast => $type . 's_changed',
-      updates => [],
-      deletes => [],
+      updates   => [],
+      deletes   => [],
    };
-   my $method = $type eq 'cal' ? '_read_cal' 
-              : $type eq 'cluster' ? '_read_cluster' 
-              : ('_' . $type . '_info');
-   for my $id ( @{ $ids } ) {
+   my $method =
+       $type eq 'cal'     ? '_read_cal'
+     : $type eq 'cluster' ? '_read_cluster'
+     :                      ( '_' . $type . '_info' );
+   for my $id ( @{$ids} ) {
       my $thing = $self->$method( $user, { id => $id } );
+
       #my $cluster = $self->_cluster_info( $user, { id => $cluster_id } );
       if ( $thing->{id} ) {
          push @{ $payload->{updates} }, $thing;
@@ -699,7 +702,7 @@ sub _broadcast_any {
          push @{ $payload->{deletes} }, { id => $id };
       }
    }
-   $self->_broadcast($user, $payload);
+   $self->_broadcast( $user, $payload );
 }
 
 sub start_cluster {
@@ -746,18 +749,18 @@ sub _start_cluster {
    elsif ( $cluster->{clonable} && $cluster->{state_id} == $self->job_states->{running} ) {
       my $response = $self->clone_cluster( $user, { id => $cluster_id } );
       return $response unless $response->{success} && $response->{clone_id};
-      $self->_broadcast_cluster($user, [ $response->{clone_id} ]);
+      $self->_broadcast_cluster( $user, [ $response->{clone_id} ] );
       return $self->_start_cluster( $user, { id => $response->{clone_id}, force => 1 } );
    }
    elsif ( $cluster->{state_id} == $self->job_states->{running} ) {
       return { success => 0, message => 'cluster already running' };
    }
 
-   unless ( $self->_cluster_needs_met( $user, { id => $cluster->{id} }) ) {
+   unless ( $self->_cluster_needs_met( $user, { id => $cluster->{id} } ) ) {
+
       #print "NEEDS: " . $self->_cluster_needs_met( $user, { id => $cluster->{id} } ) . "\n";
       return { success => 0, waiting => 1, message => 'dependency not met.' };
    }
-
 
    #unless ( $d->{force} ) {
 
@@ -765,10 +768,10 @@ sub _start_cluster {
    #      return { success => 0, waiting => 1, message => 'expecting cron start. use --force to start anyway' };
    #   }
 
-      # prevent cluster from running if needs not met
-      #if ( !$self->_cluster_needs_met( $user, { id => $cluster->{id} } ) ) {
-         #return { success => 0, waiting => 1, message => "dependency not met. use --force to start anyway" };
-      #}
+   # prevent cluster from running if needs not met
+   #if ( !$self->_cluster_needs_met( $user, { id => $cluster->{id} } ) ) {
+   #return { success => 0, waiting => 1, message => "dependency not met. use --force to start anyway" };
+   #}
    #}
 
    unless ( $d->{origin} && $d->{origin} eq 'loop' ) {
@@ -945,7 +948,7 @@ sub find_cluster {
       my $children = $self->sqlite->db->select( 'cluster', ['id'], { parent_id => $id, org_id => $user->org_id }, { order_by => 'id' } );
 
       while ( my $c = $children->hash ) {
-         my $child = $self->_read_cluster($user, { id => $c->{id} });
+         my $child = $self->_read_cluster( $user, { id => $c->{id} } );
          push @clusters, $child;
          __SUB__->( $c->{id} );
       }
@@ -964,9 +967,9 @@ sub update_cluster {
    my $cluster_id = $cluster->{id};
    print Dumper($d);
 
-   return { success => 0, message => 'cluster not found' }                                   unless $cluster_id;
+   return { success => 0, message => 'cluster not found' } unless $cluster_id;
 
-   my ($needs_ids, $needs_any_ids, $on_fail_id);
+   my ( $needs_ids, $needs_any_ids, $on_fail_id );
 
    if ( $d->{needs_ids} ) {
       $needs_ids = $self->_filter_cluster_ids( $user, $d->{needs_ids} );
@@ -981,17 +984,19 @@ sub update_cluster {
       $needs_any_ids = $self->_resolve_cluster_ids( $user, $d->{needs_any} );
    }
    if ( $d->{on_fail_id} ) {
-      $on_fail_id = shift @{ $self->_filter_cluster_ids( $user, [ $d->{on_fail_id} ]) };
+      $on_fail_id = shift @{ $self->_filter_cluster_ids( $user, [ $d->{on_fail_id} ] ) };
    }
    elsif ( $d->{on_fail} ) {
-      $on_fail_id = shift @{ $self->_resolve_cluster_ids( $user, [ $d->{on_fail} ]) };
+      $on_fail_id = shift @{ $self->_resolve_cluster_ids( $user, [ $d->{on_fail} ] ) };
    }
 
    my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(mode description loops clonable)) };
 
    $update_hash->{name} = $d->{newname} if $d->{newname};
-   $update_hash->{on_fail_id} = $on_fail_id && $on_fail_id != $cluster_id ? $on_fail_id
-                              : undef;
+   $update_hash->{on_fail_id} =
+       $on_fail_id && $on_fail_id != $cluster_id
+     ? $on_fail_id
+     : undef;
 
    if ( $d->{json} ) {
       eval { my $data = decode_json( $d->{json} ); };
@@ -1040,11 +1045,11 @@ sub update_cluster {
       #$tx->commit;
    };
 
-   if($@) {
+   if ($@) {
       return { success => 0, message => $@ } if $@;
    }
    else {
-      $self->_broadcast_cluster($user, [ $cluster_id ]);
+      $self->_broadcast_cluster( $user, [$cluster_id] );
       return { success => 1 };
    }
 }
@@ -1088,7 +1093,7 @@ sub delete_cluster {
       }
    }
    if ($delete_count) {
-      $self->_broadcast_cluster($user, [ map { $_->{id} } @{$clusters} ]);
+      $self->_broadcast_cluster( $user, [ map { $_->{id} } @{$clusters} ] );
       return { success => 1, deleted => $delete_count };
    }
    else {
@@ -1099,10 +1104,10 @@ sub delete_cluster {
 sub create_cluster {
    my ( $self, $user, $d ) = @_;
 
-   my ($parent_id, $name);
-   if ($d->{parent_id}) {
+   my ( $parent_id, $name );
+   if ( $d->{parent_id} ) {
       $parent_id = $d->{parent_id};
-      $name = $d->{name};
+      $name      = $d->{name};
    }
    else {
       my $p = $self->_path_info( $user, $d->{name} );
@@ -1110,7 +1115,7 @@ sub create_cluster {
       return { success => 0, message => 'a job by that name already exists' } if $p->{job_id};
       return { success => 0, message => 'a cluster by that name exists' }     if $p->{cluster_id};
       $parent_id = $p->{parent_cluster_id};
-      $name = $p->{name};
+      $name      = $p->{name};
    }
 
    #my $cluster = $self->read_cluster( $user, { id => $p->{parent_cluster_id} } );
@@ -1118,7 +1123,7 @@ sub create_cluster {
 
    return { success => 0, message => 'parent cluster not found' } unless $parent_cluster->{id};
 
-   my ($needs_ids, $needs_any_ids, $on_fail_id);
+   my ( $needs_ids, $needs_any_ids, $on_fail_id );
 
    if ( $d->{needs_ids} ) {
       $needs_ids = $self->_filter_cluster_ids( $user, $d->{needs_ids} );
@@ -1133,10 +1138,10 @@ sub create_cluster {
       $needs_any_ids = $self->_resolve_cluster_ids( $user, $d->{needs_any} );
    }
    if ( $d->{on_fail_id} ) {
-      $on_fail_id = shift @{ $self->_filter_cluster_ids( $user, [ $d->{on_fail_id} ]) };
+      $on_fail_id = shift @{ $self->_filter_cluster_ids( $user, [ $d->{on_fail_id} ] ) };
    }
    elsif ( $d->{on_fail} ) {
-      $on_fail_id = shift @{ $self->_resolve_cluster_ids( $user, [ $d->{on_fail} ]) };
+      $on_fail_id = shift @{ $self->_resolve_cluster_ids( $user, [ $d->{on_fail} ] ) };
    }
 
    my $insert_hash = {
@@ -1178,8 +1183,8 @@ sub create_cluster {
    if ( $d->{cron} || $d->{at} ) {
       my $rv = $self->_add_cluster_cron( $user, { id => $id, tz => $d->{tz}, cron => $d->{cron}, at => $d->{at} } );
    }
-   if($id) {
-      $self->_broadcast_cluster($user, [ $id ]);
+   if ($id) {
+      $self->_broadcast_cluster( $user, [$id] );
       return { success => 1, id => $id };
    }
    else {
@@ -1464,6 +1469,7 @@ sub create_user {
       #$user->id($user_id);
 
       $db->update( 'org', { root_cluster_id => $root_id }, { id => $org_id } );
+
       #$db->update( 'cluster', { user_id => $user_id }, { id => $root_id } );
       $tx->commit;
    };
@@ -1472,7 +1478,7 @@ sub create_user {
       return { message => $@, success => 0 };
    }
    else {
-      $self->_broadcast_org($user, [ $org_id ] );
+      $self->_broadcast_org( $user, [$org_id] );
       return { success => 1, id => $user_id, token => $user_token, message => "user $user_id created" };
    }
 }
@@ -1493,12 +1499,14 @@ sub _new_token {
 
 sub read_user {
    my ( $self, $user ) = @_;
-   my $me = $self->_user_info($user, { id => $user->id } );
-   my $group = $self->sqlite->db->select( 'user', [ qw(id email org_id level remote_address update_time creation_time mode name) ], { org_id => $user->org_id, id => { '!=', $user->id } } )->hashes->to_array;
-   my $org = $self->sqlite->db->select( 'org', [ '*' ], { id => $user->org_id })->hash;
+   my $me = $self->_user_info( $user, { id => $user->id } );
+   my $group =
+     $self->sqlite->db->select( 'user', [qw(id email org_id level remote_address update_time creation_time mode name)], { org_id => $user->org_id, id => { '!=', $user->id } } )->hashes->to_array;
+   my $org = $self->sqlite->db->select( 'org', ['*'], { id => $user->org_id } )->hash;
    $me->{group} = $group;
-   $me->{org} = $org;
+   $me->{org}   = $org;
    return $me;
+
    #return $self->_user_info($user, { id => $user->id } );
 }
 
@@ -1535,7 +1543,7 @@ sub update_user {
 
 sub read_org {
    my ( $self, $user, $d ) = @_;
-   my $org = $self->_org_info( $user );
+   my $org     = $self->_org_info($user);
    my $success = $org->{id} ? 1 : 0;
    return { success => $success, %$org };
 }
@@ -1543,13 +1551,13 @@ sub read_org {
 sub _org_info {
    my ( $self, $user ) = @_;
    my $org = $self->sqlite->db->select( 'org', ['*'], { id => $user->org_id } )->hash;
-   $org->{members} = $self->sqlite->db->select( 'user', [ qw(id email level) ], { org_id => $user->org_id } )->hashes->to_array;
+   $org->{members} = $self->sqlite->db->select( 'user', [qw(id email level)], { org_id => $user->org_id } )->hashes->to_array;
    return $org;
 }
 
 sub update_org {
    my ( $self, $user, $d ) = @_;
-   return $self->_update_org( $user, $d ); 
+   return $self->_update_org( $user, $d );
 }
 
 sub _update_org {
@@ -1570,7 +1578,7 @@ sub delete_user {
 
 sub delete_me {
    my ( $self, $user ) = @_;
-   return $self->delete_user($user, { id => $user->id });
+   return $self->delete_user( $user, { id => $user->id } );
 }
 
 # job related subroutines
@@ -1630,9 +1638,9 @@ sub _job_info {
 
    return unless $job->{id};
 
-   my $needs_ids = $self->sqlite->db->query( "SELECT needs_job_id FROM job_needs WHERE job_id = ? AND needs_any_mode = 0", $job_id )->hashes->to_array;
+   my $needs_ids     = $self->sqlite->db->query( "SELECT needs_job_id FROM job_needs WHERE job_id = ? AND needs_any_mode = 0", $job_id )->hashes->to_array;
    my $needs_any_ids = $self->sqlite->db->query( "SELECT needs_job_id FROM job_needs WHERE job_id = ? AND needs_any_mode = 1", $job_id )->hashes->to_array;
-   $job->{needs_ids} = [ map { $_->{needs_job_id} } @$needs_ids ];
+   $job->{needs_ids}     = [ map { $_->{needs_job_id} } @$needs_ids ];
    $job->{needs_any_ids} = [ map { $_->{needs_job_id} } @$needs_any_ids ];
 
    return $job;
@@ -1647,7 +1655,7 @@ sub _find_jobs {
    my @jobs;
    my $jobs = $self->sqlite->db->select( 'job', ['id'], { cluster_id => $d->{cluster_id} }, { order_by => 'id' } );
    while ( my $job = $jobs->hash ) {
-      my $j = $self->_job_info($user, { id => $job->{id} });
+      my $j = $self->_job_info( $user, { id => $job->{id} } );
       push @jobs, $j if $j->{id};
    }
 
@@ -1800,22 +1808,24 @@ sub complete_cluster {
    my $running = $self->job_states->{running};
 
    if ( grep { $self->job_states->{$_} == $cluster->{state_id} } (qw(running immutable)) ) {
-   #if ( !$self->_cluster_is_complete( $user, { id => $cluster->{id} } ) ) {
+
+      #if ( !$self->_cluster_is_complete( $user, { id => $cluster->{id} } ) ) {
       return { success => 0, message => 'unable to complete cluster' };
    }
 
    # complete cluster
-    $self->_set_cluster_state( $user, { id => $cluster->{id}, state => 'complete' } );
+   $self->_set_cluster_state( $user, { id => $cluster->{id}, state => 'complete' } );
 
    # complete child jobs
    my @job_ids;
    my $jobs = $self->sqlite->db->select( 'job', ['id'], { cluster_id => $cluster->{id}, state_id => { '!=', [ -and => ($running) ] } } );
    while ( my $job = $jobs->hash ) {
       $self->sqlite->db->update( 'job', { state_id => $self->job_states->{complete} }, { id => $job->{id} } );
-      push (@job_ids, $job->{id});
-     # $self->_set_job_state( $user, { id => $job->{id}, state => 'complete' } );
+      push( @job_ids, $job->{id} );
+
+      # $self->_set_job_state( $user, { id => $job->{id}, state => 'complete' } );
    }
-   $self->_broadcast_job($user, [ @job_ids ]) if scalar @job_ids;
+   $self->_broadcast_job( $user, [@job_ids] ) if scalar @job_ids;
 
    # complete child clusters
    my $children = $self->sqlite->db->select( 'cluster', ['id'], { parent_id => $cluster->{id}, state_id => { '!=', [ -and => ($running) ] } } );
@@ -1935,7 +1945,7 @@ sub _create_job {
    my ( $self, $user, $d ) = @_;
 
    my $parent_id;
-   if ($d->{parent_id}) {
+   if ( $d->{parent_id} ) {
       $parent_id = $d->{parent_id};
    }
    else {
@@ -1947,7 +1957,7 @@ sub _create_job {
       $parent_id = $j->{parent_cluster_id};
    }
 
-   my ($needs_ids, $needs_any_ids, $on_fail_id);
+   my ( $needs_ids, $needs_any_ids, $on_fail_id );
 
    if ( $d->{needs_ids} ) {
       $needs_ids = $self->_filter_job_ids( $user, $d->{needs_ids} );
@@ -1962,13 +1972,13 @@ sub _create_job {
       $needs_any_ids = $self->_resolve_job_ids( $user, $d->{needs_any} );
    }
    if ( $d->{on_fail_id} ) {
-      $on_fail_id = shift @{ $self->_filter_job_ids( $user, [ $d->{on_fail_id} ]) };
+      $on_fail_id = shift @{ $self->_filter_job_ids( $user, [ $d->{on_fail_id} ] ) };
    }
    elsif ( $d->{on_fail} ) {
-      $on_fail_id = shift @{ $self->_resolve_job_ids( $user, [ $d->{on_fail} ]) };
+      $on_fail_id = shift @{ $self->_resolve_job_ids( $user, [ $d->{on_fail} ] ) };
    }
 
-   my $insert_hash = { cluster_id => $parent_id , name => $d->{name} };
+   my $insert_hash = { cluster_id => $parent_id, name => $d->{name} };
    $insert_hash->{delay} = $d->{delay} if $d->{delay} && $d->{delay} <= 3600;
 
    my @fields = qw(retrys loops delay state_id description started ended);
@@ -2011,7 +2021,7 @@ sub _create_job {
    }
    $self->_write_job_needs( $user, { needs_all => $needs_ids, needs_any => $needs_any_ids, id => $id, cluster_id => $parent_id } );
 
-   $self->_broadcast_job($user, [ $id ]);
+   $self->_broadcast_job( $user, [$id] );
    return { success => 1, id => $id, cluster_id => $parent_id };
 }
 
@@ -2043,7 +2053,7 @@ sub delete_job {
       $self->_set_cluster_cal_id( $user, { cluster_id => $job->{cluster_id}, cal_id => undef } );
       $self->_set_cluster_state( $user, { id => $job->{cluster_id}, state => 'ready' } );
    }
-   $self->_broadcast_job($user, [ $job->{id} ]);
+   $self->_broadcast_job( $user, [ $job->{id} ] );
    return { success => 1, id => $job->{id} };
 }
 
@@ -2059,6 +2069,7 @@ sub melt_job {
    my $job = $self->_job_info( $user, $d );
    return { success => 0, message => 'job not found' }  unless $job->{id};
    return { success => 0, message => 'job not on ice' } unless $job->{state_id} == $self->job_states->{ice};
+
    #eval { $self->sqlite->db->update( 'job', { state_id => $self->job_states->{ready} }, { id => $job->{id} } ); };
    $self->_set_job_state( $user, { state => 'ready', id => $job->{id} } );
    return { success => 1 };
@@ -2282,7 +2293,7 @@ sub _set_job_state {
    $self->sqlite->db->update( 'job', $update_hash, { id => $job_id } ) if scalar keys %$update_hash;
 
    # === ALWAYS BROADCAST FINAL STATE ===
-   $self->_broadcast_job($user, [ $job_id ]);
+   $self->_broadcast_job( $user, [$job_id] );
 
    return 1;
 }
@@ -2333,7 +2344,7 @@ sub _update_job {
    my $job = $self->_job_info( $user, $d );    #job info
    return { success => 0, message => 'job not found' } unless $job->{id};
 
-   my ($needs_ids, $needs_any_ids, $on_fail_id);
+   my ( $needs_ids, $needs_any_ids, $on_fail_id );
 
    if ( $d->{needs_ids} ) {
       $needs_ids = $self->_filter_job_ids( $user, $d->{needs_ids} );
@@ -2348,10 +2359,10 @@ sub _update_job {
       $needs_any_ids = $self->_resolve_job_ids( $user, $d->{needs_any} );
    }
    if ( $d->{on_fail_id} ) {
-      $on_fail_id = shift @{ $self->_filter_cluster_ids( $user, [ $d->{on_fail_id} ]) };
+      $on_fail_id = shift @{ $self->_filter_cluster_ids( $user, [ $d->{on_fail_id} ] ) };
    }
    elsif ( $d->{on_fail} ) {
-      $on_fail_id = shift @{ $self->_resolve_cluster_ids( $user, [ $d->{on_fail} ]) };
+      $on_fail_id = shift @{ $self->_resolve_cluster_ids( $user, [ $d->{on_fail} ] ) };
    }
 
    my @fields = qw(retrys loops delay pctcpu pid start priority rss pctmem fname signal exit_code state_id description started ended server_id script);
@@ -2370,8 +2381,10 @@ sub _update_job {
    }
 
    $update_hash->{delay} = $d->{delay} if $d->{delay} && $d->{delay} <= 3600;
-   $update_hash->{on_fail_id} = $on_fail_id ? $on_fail_id
-                              : undef;
+   $update_hash->{on_fail_id} =
+       $on_fail_id
+     ? $on_fail_id
+     : undef;
 
    if ( $d->{state} ) {
       my $rv = $self->_set_job_state( $user, { id => $job->{id}, state => $d->{state} } );
@@ -2413,7 +2426,6 @@ sub _update_job {
       $self->_write_job_needs( $user, { needs_all => $needs_ids, needs_any => $needs_any_ids, id => $job->{id}, cluster_id => $job->{cluster_id} } );
    }
 
-
    if ( $d->{server} ) {
       my $res = $self->sqlite->db->select( 'server', ['id'], { name => $d->{server}, org_id => $user->org_id } )->hash;
       return { success => 0, message => 'server not found' } unless $res->{id};
@@ -2425,7 +2437,7 @@ sub _update_job {
    $self->sqlite->db->update( 'job', $update_hash, { id => $job->{id} } );
    $self->sqlite->db->delete( 'job_needs', { job_id => $job->{id} } ) if $d->{remove_needs};
 
-   $self->_broadcast_job($user, [ $job->{id} ]);
+   $self->_broadcast_job( $user, [ $job->{id} ] );
 
    return { success => 1 };
 }
@@ -2565,9 +2577,33 @@ sub update_sysinfo {
    my $server = $self->_server_info( $user, { id => $d->{id} } );
    return { success => 0, exit => 1, message => 'server not found' } unless $server;
 
-   my $uh = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(total_memory used_memory cpu total_disk used_disk uptime)) };
+   my @stats = qw(
+     used_disk
+     load_15
+     used_memory
+     total_processes
+     load_1
+     used_swap
+     total_swap
+     max_files
+     total_disk
+     open_files
+     root_total_disk
+     root_used_disk
+     cpu_percent
+     net_rx_bytes
+     net_tx_bytes
+     uptime
+     load_5
+     total_memory
+     zombie_processes
+     free_memory
+     free_disk
+     free_swap
+     root_free_disk
+   );
 
-   # TODO: server alarms: max cpu mem disk ping load uptime
+   my $uh = { map { $_, $d->{$_} } grep { exists $d->{$_} } @stats };
 
    my $ssh = $self->ssh_connection->{ $server->{id} };
    return { success => 0, exit => 1 } unless $server->{id} && $ssh && $ssh->check_master;
@@ -2579,6 +2615,7 @@ sub update_sysinfo {
    my $stopping = $self->job_states->{stopping};
 
    my @job_ids = ();
+
    # receive pid info
    if ( $d->{pids} && ref $d->{pids} eq 'ARRAY' ) {
       foreach my $pid ( @{ $d->{pids} } ) {
@@ -2616,18 +2653,44 @@ sub update_sysinfo {
    }
 
    if ( $server->{stats} ) {
-      my $ss_insert = { map { $_, $uh->{$_} } (qw(total_memory used_memory cpu total_disk used_disk uptime)) };
+      my @stats = qw(
+        used_disk
+        load_15
+        used_memory
+        total_processes
+        load_1
+        used_swap
+        total_swap
+        max_files
+        total_disk
+        open_files
+        root_total_disk
+        root_used_disk
+        cpu_percent
+        net_rx_bytes
+        net_tx_bytes
+        uptime
+        load_5
+        total_memory
+        zombie_processes
+        free_memory
+        free_disk
+        free_swap
+        root_free_disk
+      );
+
+      my $ss_insert = { map { $_, $uh->{$_} } @stats };
       $self->sqlite->db->insert( 'server_stats', $ss_insert );
    }
 
    eval { $self->sqlite->db->update( 'server', $uh, { id => $d->{id} } ) };
 
    if ($@) {
-      return { success => 0 };
+      return { success => 0, message => $@ };
    }
    else {
-      $self->_broadcast_server($user, [ $server->{id} ]);
-      $self->_broadcast_job($user, \@job_ids);
+      $self->_broadcast_server( $user, [ $server->{id} ] );
+      $self->_broadcast_job( $user, \@job_ids );
       return { success => 1, pids => \@pids };
    }
 }
@@ -2678,7 +2741,7 @@ sub _cluster_needs_met {
    my ( $self, $user, $d ) = @_;
    my $cluster = $self->_read_cluster( $user, { id => $d->{id} } );
 
-   return 1 if (!scalar @{ $cluster->{needs_ids} } && !scalar @{ $cluster->{needs_any_ids} });
+   return 1 if ( !scalar @{ $cluster->{needs_ids} } && !scalar @{ $cluster->{needs_any_ids} } );
 
    my $complete = $self->job_states->{complete};
    my $ice      = $self->job_states->{ice};
@@ -2705,7 +2768,7 @@ sub _cluster_needs_met {
       and cn.cluster_id = ?;
    SQL
 
-   my $met = $self->sqlite->db->query( $any_sql, $d->{id} )->hash;
+   my $met     = $self->sqlite->db->query( $any_sql, $d->{id} )->hash;
    my $any_met = scalar @{ $cluster->{needs_any_ids} } && !$met ? 0 : 1;
 
    return $all_met && $any_met ? 1 : 0;
@@ -2715,7 +2778,7 @@ sub _job_needs_met {
    my ( $self, $user, $d ) = @_;
    my $job = $self->_job_info( $user, { id => $d->{id} } );
 
-   return 1 if (!scalar @{ $job->{needs_ids} } && !scalar @{ $job->{needs_any_ids} });
+   return 1 if ( !scalar @{ $job->{needs_ids} } && !scalar @{ $job->{needs_any_ids} } );
 
    my $complete = $self->job_states->{complete};
    my $ice      = $self->job_states->{ice};
@@ -2742,7 +2805,7 @@ sub _job_needs_met {
       and jn.job_id = ?;
    SQL
 
-   my $met = $self->sqlite->db->query( $any_sql, $d->{id} )->hash;
+   my $met     = $self->sqlite->db->query( $any_sql, $d->{id} )->hash;
    my $any_met = scalar @{ $job->{needs_any_ids} } && !$met ? 0 : 1;
 
    return $all_met && $any_met ? 1 : 0;
@@ -2783,7 +2846,7 @@ sub _start_job {
 
    #print "JOB: " . $job->{id} . "\n";
    #print "NEEDS: " . $self->_job_needs_met( $user, { id => $job->{id} } ) . "\n";
-   unless ( $self->_job_needs_met( $user, { id => $job->{id} }) ) {
+   unless ( $self->_job_needs_met( $user, { id => $job->{id} } ) ) {
       print "NEEDS: " . $self->_job_needs_met( $user, { id => $job->{id} } ) . "\n";
       return { success => 0, waiting => 1, message => 'dependency not met.' };
    }
@@ -3040,7 +3103,7 @@ sub create_monitor {
    return { success => 0, message => "install failed" } unless $installed;
 
    $self->_start_monitor( $user, { id => $id } ) or die "start failed";
-   $self->_broadcast_server($user, [ $id ]);
+   $self->_broadcast_server( $user, [$id] );
 
    return { success => 1 };
 }
@@ -3073,8 +3136,6 @@ sub _server_info {
    return unless $select;
    my $server = $self->sqlite->db->select( 'server', ['*'], $select )->hash;
    return $server->{id} ? $server : undef;
-
-   #my $info = { map { $_, $server->{$_} } (qw(id os cwd home cores update_time ping user host name port total_memory used_memory cpu total_disk used_disk uptime)) };
 }
 
 sub _disconnect_ssh {
@@ -3189,28 +3250,26 @@ sub update_monitor {
    my $server = $self->_server_info( $user, $d );
    return { success => 0, message => 'monitor not found' } unless $server;
 
-   my $update_hash = { map { $_ => $d->{$_} } grep { exists $d->{$_} } (qw(port user host password total_memory used_memory cpu total_disk used_disk uptime)) };
+   #my $update_hash = { map { $_ => $d->{$_} } grep { exists $d->{$_} } (qw(port user host password total_memory used_memory cpu total_disk used_disk uptime)) };
+   my $update_hash = { map { $_ => $d->{$_} } grep { exists $d->{$_} } (qw(port user host password)) };
    $update_hash->{ping}        = $self->_ping( $server->{host} ) if $server->{host};
    $update_hash->{update_time} = time;
-   $update_hash->{name} = $d->{newname} if $d->{newname};
+   $update_hash->{name}        = $d->{newname} if $d->{newname};
 
    if ( scalar keys %{$update_hash} ) {
       eval { $self->sqlite->db->update( 'server', $update_hash, { id => $server->{id} } ) };
       return { success => 0, message => $@ } if $@;
    }
+   $server = $self->_server_info( $user, $d );
+   $self->_broadcast_server( $user, [ $server->{id} ] );
 
-   my $connection_ok = 1;
+   my $connection_ok = $self->_connect_ssh( $user, { id => $server->{id} } );
+   return { success => 0, message => "$server->{name} connection failed" } unless $connection_ok;
+
    if ( $d->{password} ) {
       $self->_ssh_copy( $user, { user => $server->{user}, host => $server->{host}, password => $d->{password} } ) if $d->{password};
-      $connection_ok = $self->_connect_ssh( $user, { id => $server->{id} } );
    }
-   if ($connection_ok) {
-      $self->_broadcast_server($user, [ $server->{id} ]);
-      return { success => 1 };
-   }
-   else {
-      return { success => 0, message => 'connection failed' };
-   }
+   return { success => 1, message => "connected to $server->{name}" };
 }
 
 sub upgrade_monitor {
@@ -3235,7 +3294,7 @@ sub delete_monitor {
       return { success => 0, message => $@ };
    }
    else {
-      $self->_broadcast_server($user, [ $server->{id} ]);
+      $self->_broadcast_server( $user, [ $server->{id} ] );
       return { success => 1 };
    }
 }
@@ -3403,9 +3462,9 @@ sub _log_info {
    return if $ssh->error || !$out;
    $log->{out} = $out;
 
-   $log->{job_name} = $job->{name};
+   $log->{job_name}    = $job->{name};
    $log->{server_name} = $job->{server_name};
-   $log->{job_path} = $self->id2path( $user, { id => $job->{cluster_id} } ); 
+   $log->{job_path}    = $self->id2path( $user, { id => $job->{cluster_id} } );
    return $log;
 }
 
@@ -3414,7 +3473,7 @@ sub read_log {
 
    my $log = $self->_log_info( $user, $d );
 
-   if ($log && $log->{id}) {
+   if ( $log && $log->{id} ) {
       $log->{success} = 1;
       return $log;
    }
@@ -3608,7 +3667,7 @@ sub _delete_cron {
    # id
 
    my $org_id = $user->org_id;
-   my $sql = <<~"SQL";
+   my $sql    = <<~"SQL";
       select cron.id as cron_id, cal.id as cal_id
       from cron
       join cal on cron.cal_id = cal.id
@@ -3622,7 +3681,7 @@ sub _delete_cron {
 
    $self->_delete_cron_object( $user, $d );
    $self->_delete_cron_row( $user, $d );
-   $self->_broadcast_cal($user, [ $cal->{cal_id} ]);
+   $self->_broadcast_cal( $user, [ $cal->{cal_id} ] );
 
    return 1;
 }
@@ -3630,9 +3689,9 @@ sub _delete_cron {
 sub delete_cron {
    my ( $self, $user, $d ) = @_;
 
-   my $success  = $self->_delete_cron( $user, { id => $d->{id} } );
+   my $success = $self->_delete_cron( $user, { id => $d->{id} } );
    my $message = $success ? 'cron deleted' : 'cron not found';
-   return { success => $success, message=> $message };
+   return { success => $success, message => $message };
 }
 
 # cal related subroutines
@@ -3655,8 +3714,8 @@ sub create_cal {
 
    my $id = $self->_create_cal( $user, $d );
 
-   if ( $id ) {
-      $self->_broadcast_cal($user, [ $id ]);
+   if ($id) {
+      $self->_broadcast_cal( $user, [$id] );
       return { success => 1 };
    }
    else {
@@ -3878,7 +3937,7 @@ sub _add_cron {
    eval { $id = $self->_create_cron_row( $user, { name => $d->{name}, begin => $d->{begin}, expire => $d->{expire}, description => $d->{description}, cal_id => $cal_info->{id}, } ); };
 
    if ($id) {
-      $self->_broadcast_cal($user, [ $cal_info->{id} ]);
+      $self->_broadcast_cal( $user, [ $cal_info->{id} ] );
    }
    else {
       return { success => 0, message => 'invalid or an identical cron already exists in that calendar' };
@@ -3921,7 +3980,7 @@ sub update_cal {
 
    if ( scalar keys %$update_hash ) {
       $self->sqlite->db->update( 'cal', $update_hash, { id => $cal->{id}, org_id => $user->org_id } );
-      $self->_broadcast_cal($user, [ $cal->{id} ]);
+      $self->_broadcast_cal( $user, [ $cal->{id} ] );
       return { success => 1 };
    }
    else {
@@ -3935,8 +3994,8 @@ sub _delete_cal {
    # id (cal id)
 
    my $rows = $self->sqlite->db->delete( 'cal', { id => $d->{id} } )->rows;
-   if ( $rows ) {
-      $self->_broadcast_cal($user, [ $d->{id} ]);
+   if ($rows) {
+      $self->_broadcast_cal( $user, [ $d->{id} ] );
       return 1;
    }
    else {
@@ -3979,15 +4038,15 @@ sub routing {
    state %routing = (
 
       # org related
-      'update_org'   => [ \&update_org,   1, [ {}, { description => $d, name => $d } ] ],
-      'read_org'   =>   [ \&read_org,   1, [ {}, { } ] ],
+      'update_org' => [ \&update_org, 1, [ {}, { description => $d, name => $d } ] ],
+      'read_org'   => [ \&read_org,   1, [ {}, {} ] ],
 
       # user related
       'create_user'   => [ \&create_user,   3, [ { name => $w }, { team_member => $i, email => $w, level => $i } ] ],
       'read_user'     => [ \&read_user,     0, [ {},             {} ] ],
-      'update_user'   => [ \&update_user,   1, [ {}, { mode => $i, name => $w } ] ],
+      'update_user'   => [ \&update_user,   1, [ {},             { mode => $i, name => $w } ] ],
       'delete_user'   => [ \&delete_user,   3, [ { id => $i }, {} ] ],
-      'delete_me'   =>   [ \&delete_me,     1, [ { id => $i }, {} ] ],
+      'delete_me'     => [ \&delete_me,     1, [ { id => $i }, {} ] ],
       'login_user'    => [ \&login_user,    0, [ { token => $w }, {} ] ],
       'new_token'     => [ \&new_token,     1, [ {}, {} ] ],
       'register_user' => [ \&register_user, 0, [ { email => $e }, { team_member => $i } ] ],
@@ -3999,19 +4058,19 @@ sub routing {
          [
             { name => $p, script => $c, server => $w },
             {
-               parent_id   => $i,
-               needs       => 's',
-               needs_ids   => 's',
-               json        => $json,
-               description => $d,
-               retrys      => $i,
-               loops       => $i,
-               delay       => $i,
-               script      => $c,
-               needs_any   => 's',
+               parent_id     => $i,
+               needs         => 's',
+               needs_ids     => 's',
+               json          => $json,
+               description   => $d,
+               retrys        => $i,
+               loops         => $i,
+               delay         => $i,
+               script        => $c,
+               needs_any     => 's',
                needs_any_ids => 's',
-               on_fail     => $p,
-               on_fail_id  => $i,
+               on_fail       => $p,
+               on_fail_id    => $i,
             }
          ]
       ],
@@ -4022,34 +4081,34 @@ sub routing {
          [
             {},
             {
-               name         => $p,
-               json         => $json,
-               id           => $i,
-               signal       => $i,
-               exit_code    => $i,
-               server_id    => $i,
-               mem          => $f,
-               cpu          => $f,
-               newname      => $d,
-               state        => $w,
-               server       => $w,
-               ppid         => $i,
-               pid          => $i,
-               script       => $c,
-               started      => $i,
-               description  => $d,
-               needs        => 's',
-               needs_ids    => 's',
-               ended        => $i,
-               retrys       => $i,
-               log_id       => $i,
-               loops        => $i,
-               delay        => $i,
+               name          => $p,
+               json          => $json,
+               id            => $i,
+               signal        => $i,
+               exit_code     => $i,
+               server_id     => $i,
+               mem           => $f,
+               cpu           => $f,
+               newname       => $d,
+               state         => $w,
+               server        => $w,
+               ppid          => $i,
+               pid           => $i,
+               script        => $c,
+               started       => $i,
+               description   => $d,
+               needs         => 's',
+               needs_ids     => 's',
+               ended         => $i,
+               retrys        => $i,
+               log_id        => $i,
+               loops         => $i,
+               delay         => $i,
                needs_any_ids => 's',
-               needs_any    => 's',
-               on_fail      => $p,
-               on_fail_id   => $i,
-               remove_needs => $i,
+               needs_any     => 's',
+               on_fail       => $p,
+               on_fail_id    => $i,
+               remove_needs  => $i,
             }
          ]
       ],
@@ -4072,24 +4131,24 @@ sub routing {
          [
             { name => $p },
             {
-               parent_id   => $i,
-               needs       => 's',
-               needs_ids   => 's',
-               json        => $json,
-               mode        => $i,
-               description => $d,
-               cron        => $ct,
-               at          => $at,
-               cal         => $cal,
-               cal_id      => $at,
-               tz          => $p,
-               clonable    => $i,
-               mode        => $i,
-               loops       => $i,
-               needs_any   => 's',
+               parent_id     => $i,
+               needs         => 's',
+               needs_ids     => 's',
+               json          => $json,
+               mode          => $i,
+               description   => $d,
+               cron          => $ct,
+               at            => $at,
+               cal           => $cal,
+               cal_id        => $at,
+               tz            => $p,
+               clonable      => $i,
+               mode          => $i,
+               loops         => $i,
+               needs_any     => 's',
                needs_any_ids => 's',
-               on_fail     => $p,
-               on_fail_id  => $i,
+               on_fail       => $p,
+               on_fail_id    => $i,
             }
          ]
       ],
@@ -4100,26 +4159,26 @@ sub routing {
          [
             {},
             {
-               id           => $i,
-               name         => $p,
-               needs        => 's',
-               needs_ids    => 's',
-               json         => $json,
-               newname      => $d,
-               description  => $d,
-               cron         => $ct,
-               at           => $at,
-               cal          => $cal,
-               cal_id       => $at,
-               tz           => $p,
-               mode         => $i,
-               clonable     => $i,
-               loops        => $i,
-               needs_any    => 's',
+               id            => $i,
+               name          => $p,
+               needs         => 's',
+               needs_ids     => 's',
+               json          => $json,
+               newname       => $d,
+               description   => $d,
+               cron          => $ct,
+               at            => $at,
+               cal           => $cal,
+               cal_id        => $at,
+               tz            => $p,
+               mode          => $i,
+               clonable      => $i,
+               loops         => $i,
+               needs_any     => 's',
                needs_any_ids => 's',
-               on_fail      => $p,
-               on_fail_id   => $i,
-               remove_needs => $i,
+               on_fail       => $p,
+               on_fail_id    => $i,
+               remove_needs  => $i,
             }
          ]
       ],
@@ -4198,17 +4257,32 @@ sub routing {
          1,
          [
             {
-               free_memory  => $i,
-               used_memory  => $i,
-               total_memory => $i,
-               free_disk    => $i,
-               used_disk    => $i,
-               total_disk   => $i,
-               uptime       => $f,
-               cpu          => $f,
-               pids         => 's',
-               zombies      => 's',
-               id           => $i,
+               used_memory      => $i,
+               total_memory     => $i,
+               free_memory      => $i,
+               used_disk        => $i,
+               total_disk       => $i,
+               free_disk       => $i,
+               uptime           => $f,
+               pids             => 's',
+               zombies          => 's',
+               id               => $i,
+               cpu_percent      => $f,
+               load_1           => $f,
+               load_5           => $f,
+               load_15          => $f,
+               used_swap        => $i,
+               total_swap       => $i,
+               free_swap       => $i,
+               open_files       => $i,
+               max_files        => $i,
+               total_processes  => $i,
+               zombie_processes => $i,
+               net_rx_bytes     => $i,
+               net_tx_bytes     => $i,
+               root_used_disk   => $i,
+               root_total_disk  => $i,
+               root_free_disk  => $i,
             },
             {}
          ]

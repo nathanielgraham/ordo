@@ -1808,7 +1808,7 @@ tr[data-hidden="true"] ~ tr td:first-child::after {
   border-radius: 12px;
   overflow: hidden;
   width: 90%;
-  max-width: 800px;
+  max-width: 90vh;
   max-height: 90vh;
 }
 
@@ -1961,12 +1961,26 @@ tr[data-hidden="true"] ~ tr td:first-child::after {
 .table-container {
   background: #1a1a1a;
 }
-*/
 
-#servers .tag.is-success { background: #66bb6a; color: #000; }
-#servers .tag.is-warning { background: #ffb74d; color: #000; }
-#servers .tag.is-danger { background: #ef5350; color: #fff; }
+/* Remove background from all badges in table (or specific ones) */
+#servers .tag {
+  background: transparent !important;
+  border: 1px solid currentColor;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.85rem;
+}
 
+/* Status-specific text colors (no fill) */
+#servers .tag.is-success { color: #66bb6a; border-color: #66bb6a; }
+#servers .tag.is-warning { color: #ffb74d; border-color: #ffb74d; }
+#servers .tag.is-danger  { color: #ef5350; border-color: #ef5350; }
+
+/* Zombie-specific badge (red text only) */
+#servers .tag.zombie {
+  color: #ef5350;
+  border-color: #ef5350;
+  font-weight: 600;
+}
 
 /* ────────────────────────────────────────────────
    UNIFIED ORDO TABLE BASE (all tabs)
@@ -2091,9 +2105,6 @@ tr[data-hidden="true"] ~ tr td:first-child::after {
   pointer-events: none;
 }
 
-
-
-
 /* Global Dropdown Unification (already mostly there, ensure) */
 .dropdown-menu {
   background: #1a1a1a;
@@ -2115,17 +2126,6 @@ tr[data-hidden="true"] ~ tr td:first-child::after {
   margin: 0.25rem 0;
 }
 
-/* Stale row hint */
-
-/*
-#servers tr.stale {
-  opacity: 0.7;
-  background: rgba(255, 193, 7, 0.1) !important; 
+.tag {
+  white-space: nowrap;
 }
-#servers tr.stale:hover {
-  opacity: 1;
-  background: rgba(255, 193, 7, 0.2) !important;
-}
-*/
-
-
