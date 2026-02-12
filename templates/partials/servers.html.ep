@@ -29,7 +29,8 @@
             <tr>
               <th>Name</th>
               <th>Host</th>
-              <th>Last Seen</th>
+              <th>Freshness</th>
+              <th>Last Update</th>
               <th>Load Avg</th>
               <th>CPU %</th>
               <th>Memory</th>

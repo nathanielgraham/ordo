@@ -6,45 +6,17 @@
     transform: rotate(360deg);
   }
 }
+
 .navbar-spacer {
   height: var(--navbar-height, 60px);
   min-height: var(--navbar-height, 60px);
 }
+
 .table-container,
 main.content {
   margin-top: var(--navbar-height, 60px);
 }
-.topnav,
-.topnav .btn,
-.topnav a.nav-tab {
-  font-size: clamp(14px, 2.1vw, 16px);
-}
-.tabs {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 1.5rem;
-}
-.tabs ul {
-  list-style: none;
-  display: flex;
-  gap: 0.5rem;
-}
-.button,
-.tabs a {
-  border-radius: 6px;
-  transition: all 0.2s;
-}
-.tabs a {
-  display: block;
-  padding: 0.6rem 1.2rem;
-  background: #1e1e1e;
-  color: #d0d0d0;
-  text-decoration: none;
-}
-.tabs a:hover {
-  background: rgba(0, 209, 178, 0.15);
-  color: #fff;
-}
+
 .button {
   padding: 0.5rem 1rem;
   border: 1px solid var(--glow-blue);
@@ -135,16 +107,6 @@ main.content {
 .py-6 {
   padding-top: 3rem;
   padding-bottom: 3rem;
-}
-.nav-brand {
-  font-size: 1.5rem;
-  color: #0ff;
-}
-.nav-right {
-  align-items: center;
-}
-.time-display {
-  font-size: 0.9rem;
 }
 .dropdown {
   position: relative;
@@ -738,29 +700,6 @@ main.content {
   background: rgba(0, 255, 255, 0.1);
   border-color: var(--glow-blue);
 }
-@media (max-width: 1024px) {
-  .topnav {
-    padding: clamp(0.4rem, 1.2vw, 0.6rem) clamp(0.6rem, 1.8vw, 0.8rem);
-  }
-  .btn,
-  .nav-tab,
-  .time-display {
-    font-size: clamp(0.85rem, 1.9vw, 0.95rem);
-  }
-  .nav-actions {
-    gap: clamp(0.5rem, 1.8vw, 1rem);
-  }
-}
-@media (max-width: 768px) {
-  .topnav {
-    padding: clamp(0.3rem, 1vw, 0.5rem) clamp(0.5rem, 1.5vw, 0.7rem);
-  }
-  .btn,
-  .nav-tab,
-  .time-display {
-    font-size: clamp(0.8rem, 1.8vw, 0.9rem);
-  }
-}
 body.is-logged-in [data-public="true"] {
   display: none !important;
 }
@@ -1317,12 +1256,6 @@ tr[data-hidden="true"] {
   --navbar-height: 60px;
   font-size: clamp(12px, 2.2vw, 16px);
 }
-*,
-.tabs ul {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
 body,
 html {
   background: var(--bg-primary);
@@ -1351,59 +1284,6 @@ html {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 2rem;
-}
-.topnav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
-  background: linear-gradient(to bottom, #1e293b, #0a0a0a);
-  border-bottom: 1px solid #00ffff33;
-  padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1rem);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: nowrap;
-  overflow: hidden;
-}
-.nav-brand {
-  font-size: clamp(1.3rem, 3.5vw, 1.8rem);
-  font-weight: 700;
-  color: var(--glow-blue);
-}
-.nav-tabs {
-  display: flex;
-  align-items: center;
-  gap: clamp(0.5rem, 1.5vw, 1rem);
-}
-.nav-tab {
-  color: #d0d0d0;
-  text-decoration: none;
-  padding: clamp(0.4rem, 1vw, 0.6rem) clamp(0.6rem, 1.5vw, 1rem);
-  border-radius: 6px;
-  transition: all 0.2s;
-  font-size: clamp(0.9rem, 2vw, 1rem);
-  white-space: nowrap;
-}
-.nav-tab:hover {
-  color: var(--glow-blue);
-  background: rgba(0, 255, 255, 0.08);
-}
-.nav-tab.active {
-  background: rgba(0, 255, 255, 0.25);
-  color: #fff;
-  font-weight: 600;
-}
-.nav-actions {
-  display: flex;
-  align-items: center;
-  gap: clamp(0.75rem, 2vw, 1.5rem);
-}
-.time-display {
-  color: #888;
-  font-size: clamp(0.8rem, 1.8vw, 0.9rem);
-  white-space: nowrap;
 }
 .login-link,
 .logout-link,
@@ -2129,3 +2009,246 @@ tr[data-hidden="true"] ~ tr td:first-child::after {
 .tag {
   white-space: nowrap;
 }
+
+/* Google Font Import - add to <head> in app.html.ep if not already present */
+<!-- <link href="https://fonts.googleapis.com/css2?family=Jost:wght@600;700;800&display=swap" rel="stylesheet"> -->
+
+/* ==================== NAVBAR CONTAINER ==================== */
+.topnav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;   /* logo left, tabs center, actions right */
+  background: linear-gradient(to bottom, #0a1422, #000000);
+  border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+  padding: 0 2rem;
+  height: 90px;                     /* taller for breathing room + larger logo/tabs */
+  box-shadow: 0 4px 20px rgba(0, 255, 255, 0.1);
+  padding: 1.5rem 2rem;  /* increase top/bottom */
+}
+
+/* ==================== LOGO (BRAND) ==================== */
+.nav-brand {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 0;                  /* top/bottom padding for perfect centering */
+  min-width: 220px;
+}
+
+.brand-link {
+  display: block;
+  line-height: 0;
+}
+
+.brand-logo-img {
+  height: 68px !important;
+  width: auto;
+  display: block !important;
+  filter: none;
+  transition: transform 0.3s ease;
+}
+
+.brand-logo-img:hover {
+  transform: scale(1.05);
+}
+
+/* ==================== TABS CONTAINER & GROUPING ==================== */
+.nav-tabs {
+  display: flex;
+  justify-content: center;          /* perfect horizontal centering */
+  align-items: center;
+  flex-grow: 1;                     /* fills available space */
+  gap: 3rem;                        /* space between operational/personal groups */
+}
+
+.tab-group {
+  display: flex;
+  gap: 2rem;                        /* space between tabs in same group */
+}
+
+/* ==================== BASE TAB STYLING ==================== */
+.nav-tab {
+  font-family: 'Jost', sans-serif !important;
+  font-weight: 700;
+  text-transform: lowercase;
+  letter-spacing: 1.8px;
+  font-size: 1.1rem;
+  color: #b0c4de;
+  text-shadow: 
+    0 1px 2px rgba(0,0,0,0.8),
+    0 0 6px rgba(0, 255, 255, 0.2);
+  padding: 0.8rem 1.4rem;
+  border-radius: 8px;
+  background: transparent !important;
+  border: none !important;
+  text-decoration: none !important;   /* no word underline ever */
+  position: relative;                 /* for pseudo underline */
+  transition: all 0.3s ease;
+}
+
+/* Hover */
+.nav-tab:hover {
+  color: #ffffff;
+  text-shadow: 
+    0 0 12px rgba(0, 255, 255, 0.5),
+    0 1px 3px rgba(0,0,0,0.9);
+  transform: translateY(-2px);
+  background: rgba(0, 255, 255, 0.08);
+}
+
+/* Active Tab - glassy background + neon glow */
+.nav-tab.active {
+  color: #00ffff !important;
+  background: rgba(0, 255, 255, 0.15) !important;
+  text-shadow: 
+    0 0 20px rgba(0, 255, 255, 0.8),
+    0 0 40px rgba(0, 255, 255, 0.4) !important;
+  box-shadow: 0 4px 20px rgba(0, 255, 255, 0.3) !important;
+  font-weight: 800;
+  font-size: 1.15rem;
+  border: none !important;
+  box-shadow: 0 8px 30px rgba(0, 255, 255, 0.4);
+}
+
+/* Single glowing underline on active tab only */
+.nav-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;                      /* slight lift from edge */
+  left: 50%;
+  width: 70%;
+  height: 4px;
+  background: #00ffff;
+  border-radius: 2px;
+  box-shadow: 0 0 25px rgba(0, 255, 255, 0.9);
+  transform: translateX(-50%);
+  transition: all 0.3s ease;
+}
+
+/* ==================== RIGHT-SIDE ACTIONS (Sign In / Logout) ==================== */
+.nav-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1.5rem;
+  min-width: 150px;
+}
+
+/* Sign In Button (logged out) */
+.login-link {
+  font-family: 'Jost', sans-serif;
+  font-weight: 700;
+  text-transform: lowercase;
+  letter-spacing: 1.8px;
+  font-size: 1.05rem;
+  padding: 0.7rem 1.8rem;
+  background: rgba(0, 255, 255, 0.15);
+  border: 2px solid #00ffff;
+  color: #00ffff;
+  text-shadow: 0 0 12px rgba(0, 255, 255, 0.6);
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 255, 255, 0.2);
+}
+
+.login-link:hover {
+  background: rgba(0, 255, 255, 0.3);
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+  transform: translateY(-2px);
+}
+
+/* Logout Link (logged in) */
+.logout-link {
+  font-family: 'Jost', sans-serif;
+  font-weight: 700;
+  text-transform: lowercase;
+  letter-spacing: 1.8px;
+  font-size: 1.05rem;
+  color: #b0c4de;
+  text-shadow: 0 0 6px rgba(0, 255, 255, 0.2);
+  padding: 0.7rem 1.4rem;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.logout-link:hover {
+  color: #00ffff;
+  background: rgba(0, 255, 255, 0.15);
+  text-shadow: 0 0 12px rgba(0, 255, 255, 0.5);
+  transform: translateY(-2px);
+}
+
+/* ==================== MOBILE ADJUSTMENTS ==================== */
+@media (max-width: 1024px) {
+  .topnav {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 1rem;
+  }
+  .nav-tabs {
+    justify-content: flex-start;
+    gap: 2rem;
+    padding: 1rem 0;
+  }
+  .brand-logo-img {
+    height: 56px;
+  }
+  .nav-tab {
+    font-size: 1rem;
+    padding: 0.6rem 1rem;
+  }
+}
+
+tr.hidden {
+  display: none !important;
+}
+
+.ordo-table tr.hidden {
+  display: none !important;
+}
+
+.ordo-table tr {
+  display: table-row;
+}
+
+.dropdown.is-up .dropdown-menu {
+  top: auto;
+  bottom: 100%;
+  margin-bottom: 8px;
+  margin-top: 0;
+}
+
+/* Fallback forced down (more space below but still cramped) */
+.dropdown.is-forced-down .dropdown-menu {
+  position: fixed;
+}
+
+.dropdown-menu {
+  left: auto;
+  right: 0;                    /* align to right of trigger */
+  transform: none;             /* remove centering */
+  margin-top: 8px;
+}
+
+/* For flipped up menus */
+.dropdown.is-up .dropdown-menu {
+  bottom: 100%;
+  margin-bottom: 8px;
+  right: 0;
+  left: auto;
+}
+
+.dropdown-menu {
+  right: 0;
+  left: auto;
+}
+
+/* Fallback if menu wider than viewport */
+@media (max-width: 768px) {
+  .dropdown-menu {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+

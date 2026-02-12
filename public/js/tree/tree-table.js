@@ -1,6 +1,7 @@
 // tree/tree-table.js – Pure rendering logic only (buildRows, sort, renderJobsTable)
 import { appState } from "../state.js";
 import { setupDropdownFlip } from "../dropdown-handlers.js";
+import { updateFreshnessCell } from "../ui-handlers.js";
 import {
   formatTplus,
   formatTminus,
@@ -12,6 +13,7 @@ import {
   resolveDepName,
 } from "../utils.js";
 
+import { toggleSubtree } from "./tree-listeners.js";
 // Sort tree nodes (jobs before clusters at same level)
 function sortTreeNodes(nodes) {
   nodes.sort((a, b) => {
@@ -58,6 +60,23 @@ export function renderJobsTable() {
   // Sort & build
   sortTreeNodes(appState.monitorData.tree);
   buildRows(appState.monitorData.tree, tbody);
+
+  console.log("[DEBUG RENDER] After buildRows - collapsed set:", [
+    ...appState.collapsedClusters,
+  ]);
+  console.log("[DEBUG RENDER] Forcing initial hide for all collapsed");
+
+  // Force apply hide for any loaded collapsed (critical fix)
+  appState.collapsedClusters.forEach((id) => {
+    console.log("[DEBUG RENDER] Applying initial hide for ID:", id);
+    toggleSubtree(id, true);
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    if (row) {
+      row.classList.add("collapsed");
+      row.setAttribute("aria-expanded", "false");
+      console.log("[DEBUG RENDER] Added collapsed class to row");
+    }
+  });
 
   // Re-apply dropdown flip after DOM update
   setupDropdownFlip();
@@ -107,8 +126,20 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
 
     if (isCluster) {
       const isCollapsed = collapsedSet.has(String(item.id));
-      if (isCollapsed) row.classList.add("collapsed");
+      console.log(
+        "[DEBUG BUILDROWS] Cluster ID:",
+        item.id,
+        "detected collapsed:",
+        isCollapsed,
+      );
+
+      if (isCollapsed) {
+        row.classList.add("collapsed");
+        console.log("[DEBUG BUILDROWS] Added 'collapsed' class during build");
+      }
       row.setAttribute("aria-expanded", (!isCollapsed).toString());
+
+      // No toggleSubtree here — move to after full render (above)
     }
 
     const isLastInSiblings = index === items.length - 1;
@@ -377,66 +408,16 @@ export function updateLiveTimings() {
   if (serversContent && serversContent.offsetParent !== null) {
     document.querySelectorAll("#servers-body tr").forEach((row) => {
       const updateTime = Number(row.dataset.updateTime);
-      const freshnessCell = row.cells[2];
-      if (!freshnessCell) return;
+      if (isNaN(updateTime) || updateTime <= 0) return;
 
-      const tag = freshnessCell.querySelector("span.tag");
-      if (!tag) return;
+      // Find server object from appState
+      const server = appState.serversData.find(
+        (s) => Number(s.update_time) === updateTime,
+      );
+      if (!server) return;
 
-      if (isNaN(updateTime) || updateTime <= 0) {
-        // Never Connected
-        tag.title = "No stats received yet — server may still accept jobs";
-        return;
-      }
-
-      const age = now - updateTime;
-      const minutes = Math.floor(age / 60);
-
-      // Calculate current minute-level time text
-      let timeText = "less than one minute ago";
-      if (minutes >= 1) {
-        timeText = `${minutes}m ago`;
-        if (minutes >= 60) {
-          const hours = Math.floor(minutes / 60);
-          const remainingMin = minutes % 60;
-          timeText = `${hours}h ${remainingMin > 0 ? remainingMin + "m " : ""}ago`;
-        }
-        if (minutes >= 1440) {
-          const days = Math.floor(minutes / 1440);
-          const remainingHours = Math.floor((minutes % 1440) / 60);
-          timeText = `${days}d ${remainingHours > 0 ? remainingHours + "h " : ""}ago`;
-        }
-      }
-
-      // Full tooltip built by timer
-      let tooltip = `Stats last updated ${timeText}`;
-
-      // Add zombie info
-      const zombieCount = Number(row.dataset.zombieCount || 0); // add data-zombie-count in render if needed
-      if (zombieCount > 0) {
-        tooltip += `\nZombies detected: ${zombieCount}`;
-      }
-
-      tag.title = tooltip;
-
-      // Dynamic status tag update
-      let newStatus = "Never Connected";
-      let newClass = "is-danger";
-      if (age < 30) {
-        newStatus = "Fresh";
-        newClass = "is-success";
-      } else if (age < 300) {
-        newStatus = "Stale";
-        newClass = "is-warning";
-      } else if (age < Infinity) {
-        newStatus = "Very Stale";
-        newClass = "is-danger";
-      }
-
-      if (tag.textContent !== newStatus) {
-        tag.textContent = newStatus;
-        tag.className = `tag ${newClass}`;
-      }
+      // Central freshness update
+      updateFreshnessCell(row, server, now);
     });
   }
 }

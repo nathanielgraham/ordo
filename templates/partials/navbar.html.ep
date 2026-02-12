@@ -1,34 +1,38 @@
 <!-- partials/navbar.html.ep -->
 <nav class="topnav" role="navigation" aria-label="Main navigation">
+  <!-- Logo -->
   <div class="nav-brand">
-    <span class="brand-logo">
-      <i class="fas fa-briefcase mr-2"></i>Ordo
-    </span>
+    <a href="/" class="brand-link">
+      <img src="/img/ordo-logo.png" alt="Ordo" class="brand-logo-img">
+    </a>
   </div>
 
-  <!-- Public tabs (shown when logged out) -->
-  <div class="nav-tabs public-tabs" data-group="public" hidden>
-    <a href="#" class="nav-tab" data-tab="about">About</a>
-    <a href="#" class="nav-tab" data-tab="docs">Docs</a>
-    <a href="#" class="nav-tab" data-tab="pricing">Pricing</a>
-  </div>
-
-  <!-- Private tabs (shown when logged in) -->
+  <!-- Private tabs (logged in) -->
   <div class="nav-tabs private-tabs" data-group="private">
-    <a href="#" class="nav-tab" data-tab="account">Account</a>
-    <a href="#" class="nav-tab active" data-tab="monitor">Jobs & Clusters</a>
-    <a href="#" class="nav-tab" data-tab="docs">Docs</a>
-    <a href="#" class="nav-tab" data-tab="calendars">Calendars</a>
-    <a href="#" class="nav-tab" data-tab="servers">Servers</a>
+    <div class="tab-group operational">
+      <a href="#" class="nav-tab active" data-tab="monitor">jobs & clusters</a>
+      <a href="#" class="nav-tab" data-tab="calendars">calendars</a>
+      <a href="#" class="nav-tab" data-tab="servers">servers</a>
+    </div>
+
+    <div class="tab-group personal">
+      <a href="#" class="nav-tab" data-tab="account">account</a>
+      <a href="#" class="nav-tab" data-tab="docs">docs</a>
+    </div>
   </div>
 
-  <!-- Right side actions -->
+  <!-- Public tabs (logged out) -->
+  <div class="nav-tabs public-tabs" data-group="public" hidden>
+    <div class="tab-group info">
+      <a href="#" class="nav-tab active" data-tab="about">about</a>
+      <a href="#" class="nav-tab" data-tab="docs">docs</a>
+      <a href="#" class="nav-tab" data-tab="pricing">pricing</a>
+    </div>
+  </div>
+
+  <!-- Right-side actions -->
   <div class="nav-actions">
-    <span id="current-time" class="time-display"></span>
-    <button class="btn btn-sm btn-ghost" id="global-refresh">
-      <i class="fas fa-sync"></i> Refresh
-    </button>
-    <a href="/logout" class="nav-tab logout-link" hidden>Logout</a>
-    <a href="/login" class="nav-tab login-link">Sign In</a>
+    <!-- Logged out: Sign In button -->
+    <a href="/login" class="btn btn-primary login-link">sign in</a>
   </div>
 </nav>

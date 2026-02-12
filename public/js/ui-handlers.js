@@ -72,6 +72,60 @@ export function showToast(message, type = "info") {
   };
 }
 
+export function updateFreshnessCell(row, server, now) {
+  const updateTime = server.update_time != null ? Number(server.update_time) : null;
+  const updatedAgo = updateTime != null && !isNaN(updateTime) ? now - updateTime : Infinity;
+
+  let status = "Never Connected";
+  let statusClass = "is-danger";
+  let statusTooltip = "No stats received yet — server may still accept jobs";
+
+  if (Number.isFinite(updatedAgo)) {
+    if (updatedAgo < 30) {
+      status = "Fresh";
+      statusClass = "is-success";
+    } else if (updatedAgo < 300) {
+      status = "Stale";
+      statusClass = "is-warning";
+    } else {
+      status = "Very Stale";
+      statusClass = "is-danger";
+    }
+  }
+
+  // Add zombie info to tooltip only
+  if (server.zombie_processes > 0) {
+    statusTooltip += `\nZombies detected: ${server.zombie_processes}`;
+  }
+
+  // Calculate current relative time (second-level precision)
+  let relTime = "—";
+  if (Number.isFinite(updatedAgo)) {
+    relTime = formatRelativeTime(updatedAgo);
+  }
+
+  // Update tag
+  const tag = row.querySelector("span.tag");
+  if (tag) {
+    tag.textContent = status;
+    tag.className = `tag ${statusClass}`;
+    tag.title = statusTooltip;
+  }
+
+  // Update inline time text
+  const timeSpan = row.querySelector("td.time-text");
+  if (timeSpan) {
+    timeSpan.textContent = relTime;
+  }
+
+  // Stale row hint
+  if (Number.isFinite(updatedAgo) && updatedAgo > 300) {
+    row.classList.add("stale");
+  } else {
+    row.classList.remove("stale");
+  }
+}
+
 export function renderServersTable() {
   const tbody = document.getElementById("servers-body");
   const noServers = document.getElementById("no-servers");
@@ -84,46 +138,26 @@ export function renderServersTable() {
 
   const now = Math.floor(Date.now() / 1000);
   appState.serversData.forEach(server => {
-    // 1. Freshness (tag only, base tooltip without time)
+
     const updateTime = server.update_time != null ? Number(server.update_time) : null;
     const updatedAgo = updateTime != null && !isNaN(updateTime) ? now - updateTime : Infinity;
-
-/*
-    let status = "Never Connected";
-    let statusClass = "is-danger";
-    let statusTooltip = "No stats received yet — server may still accept jobs";
+    let relTime = "—";
     if (Number.isFinite(updatedAgo)) {
-      if (updatedAgo < 30) {
-        status = "Fresh";
-        statusClass = "is-success";
-      } else if (updatedAgo < 300) {
-        status = "Stale";
-        statusClass = "is-warning";
-      } else {
-        status = "Very Stale";
-        statusClass = "is-danger";
-      }
-      //statusTooltip = "Stats last updated"; // timer adds time
+      relTime = formatRelativeTime(updatedAgo);
     }
 
-    // Add zombie info to base tooltip
-    if (server.zombie_processes > 0) {
-      statusTooltip += `\nZombies detected: ${server.zombie_processes}`;
-    }
-*/
-
-    // 2. Load Avg
+    // Load Avg
     const load1 = server.load_1 != null ? server.load_1.toFixed(2) : "—";
     const coresText = server.cores != null ? ` (on ${server.cores} cores)` : "";
     const loadTooltip = server.load_1 != null
       ? `1-min: ${server.load_1.toFixed(2)}${coresText}\n5-min: ${server.load_5?.toFixed(2) ?? "—"}\n15-min: ${server.load_15?.toFixed(2) ?? "—"}`
       : "Load averages not available";
 
-    // 3. CPU %
+    // CPU %
     const cpu = server.cpu_percent != null ? `${server.cpu_percent.toFixed(1)}%` : "—";
-    const cpuTooltip = "CPU utilization (user + system)";
+    const cpuTooltip = "True CPU utilization (user + system) from top snapshot";
 
-    // 4. Memory + Swap
+    // Memory + Swap (smart units)
     let mem = "—";
     let memTooltip = "Memory usage not available";
 
@@ -153,7 +187,7 @@ export function renderServersTable() {
       memTooltip = `RAM: ${memPct}% (${usedDisplay}/${totalDisplay} ${unit})\nSwap: ${swapPct}`;
     }
 
-    // 5. Disk + Root
+    // Disk + Root (smart units)
     let disk = "—";
     let diskTooltip = "Disk usage not available";
 
@@ -183,22 +217,23 @@ export function renderServersTable() {
       diskTooltip = `Aggregate: ${diskPct}% (${usedDisplay}/${totalDisplay} ${unit})\nRoot: ${rootPct}`;
     }
 
-    // 6. Uptime
+    // Uptime
     const uptime = server.uptime != null ? formatUptime(server.uptime) : "—";
 
-    // 7. Host tooltip
+    // Host tooltip with Port + static info + Ping
+    const pingText = server.ping != null ? server.ping.toFixed(3) + "s" : "—";
     const hostTooltip = [
       `Host: ${server.host || server.ip_address || "—"}`,
       `Port: ${server.port || "—"}`,
+      `Ping: ${pingText}`,
       `OS: ${server.os || "—"}`,
       `CWD: ${server.cwd || "—"}`,
       `Home: ${server.home || "—"}`
     ].filter(Boolean).join("\n");
 
-    // 8. Row creation
+    // Row creation
     const tr = document.createElement("tr");
     tr.dataset.updateTime = server.update_time || "";
-    if (Number.isFinite(updatedAgo) && updatedAgo > 300) tr.classList.add("stale");
 
     tr.innerHTML = `
       <td>${server.name || "—"}</td>
@@ -206,8 +241,9 @@ export function renderServersTable() {
         ${server.host || server.ip_address || "—"}
       </td>
       <td>
-        <span class="tag"</span>
+        <span class="tag is-danger" title="">Never Connected</span>
       </td>
+      <td class="time-text text-grey">${relTime}</td>
       <td title="${loadTooltip}">${load1}</td>
       <td title="${cpuTooltip}">${cpu}</td>
       <td title="${memTooltip}">${mem}</td>
@@ -231,6 +267,9 @@ export function renderServersTable() {
       </td>
     `;
     tbody.appendChild(tr);
+
+    // Initial freshness update using central function
+    updateFreshnessCell(tr, server, now);
   });
   setupDropdownFlip();
 }

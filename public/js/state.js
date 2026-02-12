@@ -33,6 +33,7 @@ export function validateCollapsedStorage() {
     localStorage.setItem(COLLAPSE_VERSION_KEY, CURRENT_COLLAPSE_VERSION);
     appState.collapsedClusters.clear();
   }
+  console.log("[DEBUG STORAGE] Loaded collapsedClusters:", [...appState.collapsedClusters]);
 }
 
 export function getCollapsedIds() {
@@ -44,12 +45,13 @@ export function getCollapsedIds() {
   }
 }
 
-export function saveCollapsedIds(set) {
-  try {
-    localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...set]));
-  } catch {}
-}
-
 export function updateCollapsedClusters() {
-  saveCollapsedIds(appState.collapsedClusters);
+  try {
+    const array = [...appState.collapsedClusters];
+    console.log("[DEBUG STORAGE] Saving collapsed IDs to localStorage:", array);
+    localStorage.setItem(COLLAPSE_KEY, JSON.stringify(array));
+    console.log("[DEBUG STORAGE] Save complete - verify in devtools Application > Local Storage");
+  } catch (e) {
+    console.error("[DEBUG STORAGE] Save failed:", e);
+  }
 }
