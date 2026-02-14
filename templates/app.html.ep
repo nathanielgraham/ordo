@@ -37,14 +37,17 @@
 <body>
   <%= include 'partials/navbar' %>
 
-  <main class="container mt-6">
+  <!-- Spacer for fixed navbar -->
+  <div class="navbar-spacer"></div>
+
+  <main class="container">
     <%= include 'partials/about' %>
     <%= include 'partials/docs' %>
     <%= include 'partials/pricing' %>
     <%= include 'partials/account' %>
+    <%= include 'partials/servers' %>
     <%= include 'partials/jobs_clusters' %>
     <%= include 'partials/calendars' %>
-    <%= include 'partials/servers' %>
   </main>
 
   <%= include 'partials/modals' %>

@@ -1,8 +1,8 @@
 // ui-handlers.js
 import { appState, updateCollapsedClusters } from "./state.js";
 import { renderJobsTable } from "./tree/tree-table.js";
-//import { removeJobById, removeClusterById } from "./utils.js";
 import { openCronsModal } from "./modals.js";
+import { updateRow, insertRow, removeRow, updateLiveTimings } from "./tree/tree-table.js";
 
 import {
   formatDate,
@@ -620,127 +620,75 @@ export function applyServerBroadcast(data) {
 
 export function applyClusterBroadcast(data) {
   if (data.updates) {
-    data.updates.forEach((clusterUpdate) => {
-      const clusterId = Number(clusterUpdate.id);
-      let clusterNode = findClusterById(appState.monitorData.tree, clusterId);
+    data.updates.forEach((update) => {
+      const id = Number(update.id);
+      const rowId = `row-cluster-${id}`;
+      const existingRow = document.getElementById(rowId);
 
-      if (clusterNode) {
-        Object.assign(clusterNode, clusterUpdate);
+      if (existingRow) {
+        // Update existing row
+        updateRow(existingRow, { ...update, is_cluster: true });
       } else {
-        const newCluster = {
-          ...clusterUpdate,
-          id: clusterId,
-          is_cluster: true,
-          children: [],
-          depth: clusterUpdate.parent_id
-            ? (findClusterById(
-                appState.monitorData.tree,
-                Number(clusterUpdate.parent_id),
-              )?.depth || 0) + 1
-            : 0,
-        };
-
-        if (clusterUpdate.parent_id != null) {
-          const parent = findClusterById(
-            appState.monitorData.tree,
-            Number(clusterUpdate.parent_id),
-          );
-          if (parent) parent.children.push(newCluster);
-          else appState.monitorData.tree.push(newCluster);
-        } else {
-          appState.monitorData.tree.push(newCluster);
-        }
-
-        clusterNode = newCluster;
+        // Insert new cluster row
+        const parentId = update.parent_id || null;
+        insertRow({ ...update, is_cluster: true }, parentId);
       }
 
-      // === MOVE THIS BLOCK HERE (after if/else) ===
-      if (clusterUpdate.jobs && Array.isArray(clusterUpdate.jobs)) {
-        clusterUpdate.jobs.forEach((jobUpdate) => {
+      // Handle nested jobs if included in update
+      if (update.jobs && Array.isArray(update.jobs)) {
+        update.jobs.forEach((jobUpdate) => {
           const jobId = Number(jobUpdate.id);
-          let jobNode = findJobById(appState.monitorData.tree, jobId);
+          const jobRowId = `row-job-${jobId}`;
+          const jobRow = document.getElementById(jobRowId);
 
-          if (jobNode) {
-            Object.assign(jobNode, jobUpdate);
+          if (jobRow) {
+            updateRow(jobRow, { ...jobUpdate, is_cluster: false });
           } else {
-            const newJob = {
-              ...jobUpdate,
-              id: jobId,
-              is_cluster: false,
-              depth: clusterNode.depth + 1,
-            };
-            clusterNode.children.push(newJob);
-            console.log(
-              `Added job ${jobId} to cluster ${clusterId} from broadcast`,
-            );
+            // Insert new job under this cluster
+            insertRow({ ...jobUpdate, is_cluster: false }, id);
           }
         });
-
-        clusterNode.children.sort((a, b) => Number(a.id) - Number(b.id));
       }
-      // === END ===
     });
   }
 
   if (data.deletes) {
-    const uniqueDeletes = [
-      ...new Set(data.deletes.map((d) => Number(d.id || d))),
-    ];
-    uniqueDeletes.forEach((id) =>
-      removeClusterById(appState.monitorData.tree, id),
-    );
+    const uniqueDeletes = [...new Set(data.deletes.map((d) => Number(d.id || d)))];
+    uniqueDeletes.forEach((id) => removeClusterById(appState.monitorData.tree, id));
+    // Also remove rows
+    uniqueDeletes.forEach((id) => {
+      const row = document.getElementById(`row-cluster-${id}`);
+      if (row) row.remove();
+    });
   }
 
-  renderJobsTable();
+  // Optional: re-apply timings if needed
+  updateLiveTimings();
 }
 
 export function applyJobBroadcast(data) {
   if (data.updates) {
     data.updates.forEach((update) => {
       const id = Number(update.id);
-      let node = findJobById(appState.monitorData.tree, id);
-
-      if (node) {
-        // Update existing job
-        Object.assign(node, update);
+      const rowId = `row-job-${id}`;
+      const existingRow = document.getElementById(rowId);
+      if (existingRow) {
+        updateRow(existingRow, update);
       } else {
-        // Create new job
-        const parentCluster =
-          update.cluster_id != null
-            ? findClusterById(
-                appState.monitorData.tree,
-                Number(update.cluster_id),
-              )
-            : null;
-
-        const newJob = {
-          ...update,
-          id,
-          is_cluster: false,
-          depth: parentCluster ? parentCluster.depth + 1 : 0,
-        };
-
-        if (parentCluster) {
-          parentCluster.children.push(newJob);
-          // Optional: sort children by id or name after insert
-          // parentCluster.children.sort((a, b) => a.id - b.id);
-        } else {
-          // Fallback: add to root
-          appState.monitorData.tree.push(newJob);
-        }
+        const parentId = update.cluster_id || null;
+        insertRow(update, parentId);
       }
     });
   }
-
   if (data.deletes) {
-    const uniqueDeletes = [
-      ...new Set(data.deletes.map((d) => Number(d.id || d))),
-    ];
-    uniqueDeletes.forEach((id) => removeJobById(appState.monitorData.tree, id));
+    data.deletes.forEach((del) => {
+      removeRow(Number(del.id || del), false);
+    });
   }
-
-  renderJobsTable();
 }
+
+// Similar for applyClusterBroadcast (use row-cluster- prefix)
+
 
 export function applyCalBroadcast(data) {
   console.log(

@@ -20,6 +20,15 @@ document.addEventListener("DOMContentLoaded", () => {
   checkLoginAndConnect();
   activateDefaultTab();
 
+  // Navbar scroll shadow
+  window.addEventListener("scroll", () => {
+    if (window.scrollY > 20) {
+      document.body.classList.add("scrolled");
+    } else {
+      document.body.classList.remove("scrolled");
+    }
+  });
+
   setInterval(() => {
     const timeEl = document.getElementById("current-time");
     if (timeEl) {
