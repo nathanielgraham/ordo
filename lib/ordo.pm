@@ -3515,10 +3515,25 @@ sub update_cron {
 
    my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(description begin expire)) };
    $update_hash->{cal_id} = $cal->{id} if $cal->{id};
+   $update_hash->{name} = $d->{newname} if $d->{newname};
+   my $exp = $d->{newname} || $d->{name};
+
+   eval {
+      my $c = Cron::Toolkit->new(
+         expression => $exp,
+      );
+      $update_hash->{english} = $c->describe;
+   };
+   return { success => 0, message => 'invalid cron expression' } if $@;
 
    my $rows    = $self->sqlite->db->update( 'cron', $update_hash, { id => $cron->{id}, org_id => $user->org_id } )->rows if scalar keys %$update_hash;
-   my $success = $rows ? 1 : 0;
-   return { success => $success };
+   if ($rows) {
+      $self->_broadcast_cal( $user, [ $cal->{id} ] );
+      return { success => 1 };
+   }
+   else {
+     return { success => 0, message => 'unable to update cron' };
+   }
 }
 
 sub create_cron {
@@ -3747,6 +3762,8 @@ sub _cal_crons {
    my @crons;
    my $results = $self->sqlite->db->select( 'cron', ['*'], { cal_id => $d->{id}, org_id => $user->org_id } );
    while ( my $c = $results->hash ) {
+      my $next = $self->_cron_next_start( $user, { id => $c->{id} } );
+      $c->{next_start} = $next;
       push @crons, $c;
    }
    return \@crons;
@@ -4202,14 +4219,14 @@ sub routing {
       'create_cal' => [ \&create_cal, 1, [ { name => $w, tz => $p }, { description => $d } ] ],
       'read_cal'   => [ \&read_cal,   1, [ {}, { name => $w, id   => $i } ] ],
       'find_cal'   => [ \&find_cal,   1, [ {}, { name => $w, id   => $i } ] ],
-      'update_cal' => [ \&update_cal, 1, [ {}, { id   => $i, name => $w, tz => $p, description => $d, newname => $w } ] ],
+      'update_cal' => [ \&update_cal, 1, [ {}, { id   => $i, name => $w, tz => $p, description => $d, newname => $c } ] ],
       'delete_cal' => [ \&delete_cal, 1, [ {}, { name => $p, id   => $i } ] ],
 
       # crons ats
       'create_cron' => [ \&create_cron, 1, [ { name => $ct }, { description => $d, cal => $w, cal_id => $i, begin => $i, expire => $i } ] ],
       'delete_cron' => [ \&delete_cron, 1, [ {}, { name => $ct, id => $i } ] ],
       'create_at'   => [ \&create_at,   1, [ { name => $i }, { description => $d, cal => $w, cal_id => $i } ] ],
-      'update_cron' => [ \&update_cron, 1, [ { id => $i }, { description => $d, begin => $i, expire => $i, cal => $w, cal_id => $i } ] ],
+      'update_cron' => [ \&update_cron, 1, [ { id => $i }, { newname => $ct, description => $d, begin => $i, expire => $i, cal => $w, cal_id => $i } ] ],
 
       # logs
       'find_log' => [ \&find_log, 1, [ {}, { name => $p, id => $i } ] ],

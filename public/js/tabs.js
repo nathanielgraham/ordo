@@ -79,7 +79,7 @@ if (tabId === "monitor" || tabId === "servers" || tabId === "calendars") {
 
 export function activateDefaultTab() {
   const isLoggedIn = document.body.classList.contains("is-logged-in");
-  const defaultTab = isLoggedIn ? "monitor" : "about";
+  const defaultTab = isLoggedIn ? "servers" : "about";
   const link = document.querySelector(`.nav-tab[data-tab="${defaultTab}"]`);
   if (link) {
     link.click();

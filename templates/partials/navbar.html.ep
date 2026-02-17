@@ -1,38 +1,39 @@
 <!-- partials/navbar.html.ep -->
+<!-- Replace the entire <nav> block -->
 <nav class="topnav" role="navigation" aria-label="Main navigation">
-  <!-- Logo -->
-  <div class="nav-brand">
-    <a href="/" class="brand-link">
-      <img src="/img/ordo-logo.png" alt="Ordo" class="brand-logo-img">
-    </a>
-  </div>
-
-  <!-- Private tabs (logged in) -->
-  <div class="nav-tabs private-tabs" data-group="private">
-    <div class="tab-group operational">
-      <a href="#" class="nav-tab active" data-tab="monitor">jobs & clusters</a>
-      <a href="#" class="nav-tab" data-tab="calendars">calendars</a>
-      <a href="#" class="nav-tab" data-tab="servers">servers</a>
-    </div>
-
-    <div class="tab-group personal">
-      <a href="#" class="nav-tab" data-tab="account">account</a>
-      <a href="#" class="nav-tab" data-tab="docs">docs</a>
+  <!-- Logo Row -->
+  <div class="nav-logo-row">
+    <div class="nav-brand">
+      <a href="/" class="brand-link">
+        <img src="/img/ordo-logo.png" alt="Ordo" class="brand-logo-img">
+      </a>
     </div>
   </div>
 
-  <!-- Public tabs (logged out) -->
-  <div class="nav-tabs public-tabs" data-group="public" hidden>
-    <div class="tab-group info">
-      <a href="#" class="nav-tab active" data-tab="about">about</a>
-      <a href="#" class="nav-tab" data-tab="docs">docs</a>
-      <a href="#" class="nav-tab" data-tab="pricing">pricing</a>
-    </div>
-  </div>
+  <!-- Tabs Row -->
+  <div class="nav-tabs-row">
 
-  <!-- Right-side actions -->
-  <div class="nav-actions">
-    <!-- Logged out: Sign In button -->
-    <a href="/login" class="btn btn-primary login-link">sign in</a>
+    <!-- Private tabs (logged in) -->
+    <div class="nav-tabs private-tabs" data-group="private">
+      <div class="tab-group operational">
+        <a href="#" class="nav-tab" data-tab="servers">servers</a>
+        <a href="#" class="nav-tab active" data-tab="monitor">jobs & clusters</a>
+        <a href="#" class="nav-tab" data-tab="calendars">calendars</a>
+      </div>
+      <div class="tab-group personal">
+        <a href="#" class="nav-tab" data-tab="account">account</a>
+        <a href="#" class="nav-tab" data-tab="docs">docs</a>
+      </div>
+    </div>
+
+    <!-- Public tabs (logged out) -->
+    <div class="nav-tabs public-tabs" data-group="public" hidden>
+      <div class="tab-group info">
+        <a href="#" class="nav-tab active" data-tab="about">about</a>
+        <a href="#" class="nav-tab" data-tab="docs">docs</a>
+        <a href="#" class="nav-tab" data-tab="pricing">pricing</a>
+      </div>
+    </div>
+
   </div>
 </nav>

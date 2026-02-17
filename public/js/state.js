@@ -16,7 +16,34 @@ export const appState = {
   collapsedClusters: new Set(
     JSON.parse(localStorage.getItem("ordo_collapsed_clusters") || "[]")
   ),
+  collapsedCalendars: new Set(
+    JSON.parse(localStorage.getItem("ordo_collapsed_calendars") || "[]")
+  ),
 };
+
+// New persistence functions
+const CAL_COLLAPSE_KEY = "ordo_collapsed_calendars";
+const CAL_COLLAPSE_VERSION_KEY = "ordo_collapsed_calendars_version";
+const CURRENT_CAL_COLLAPSE_VERSION = "1";
+
+export function validateCalendarCollapsedStorage() {
+  const storedVersion = localStorage.getItem(CAL_COLLAPSE_VERSION_KEY);
+  if (storedVersion !== CURRENT_CAL_COLLAPSE_VERSION) {
+    console.log(`Calendar collapsed version mismatch. Resetting.`);
+    localStorage.removeItem(CAL_COLLAPSE_KEY);
+    localStorage.setItem(CAL_COLLAPSE_VERSION_KEY, CURRENT_CAL_COLLAPSE_VERSION);
+    appState.collapsedCalendars.clear();
+  }
+}
+
+export function updateCalendarCollapsed() {
+  try {
+    const array = [...appState.collapsedCalendars];
+    localStorage.setItem(CAL_COLLAPSE_KEY, JSON.stringify(array));
+  } catch (e) {
+    console.error("Failed to save calendar collapsed state:", e);
+  }
+}
 
 // Persistence helpers for collapsed clusters
 const COLLAPSE_KEY = "ordo_collapsed_clusters";

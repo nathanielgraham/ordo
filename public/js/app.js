@@ -5,6 +5,7 @@ import { checkLoginAndConnect } from "./websocket.js";
 import { attachTreeListeners } from "./tree/tree-listeners.js"; // ← correct
 import { startLiveTimings } from "./tree/tree-table.js"; // keep if timings here
 import { attachGlobalListeners } from "./dropdown-handlers.js";
+import { attachCalendarsTreeListeners } from "./ui-handlers.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   console.log("DOM ready");
@@ -17,6 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   attachGlobalListeners(); // global dropdown/modal/esc/outside
 
+  attachCalendarsTreeListeners();
   checkLoginAndConnect();
   activateDefaultTab();
 

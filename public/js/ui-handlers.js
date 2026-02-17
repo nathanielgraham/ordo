@@ -1,5 +1,5 @@
 // ui-handlers.js
-import { appState, updateCollapsedClusters } from "./state.js";
+import { appState, updateCollapsedClusters, updateCalendarCollapsed } from "./state.js";
 import { renderJobsTable } from "./tree/tree-table.js";
 import { openCronsModal } from "./modals.js";
 import { updateRow, insertRow, removeRow, updateLiveTimings } from "./tree/tree-table.js";
@@ -16,8 +16,6 @@ import {
   removeJobById,
   removeClusterById,
 } from "./utils.js";
-
-import { setupDropdownFlip } from "./dropdown-handlers.js";
 
 export function showLoading(containerId) {
   const loading = document.getElementById(containerId);
@@ -271,7 +269,6 @@ export function renderServersTable() {
     // Initial freshness update using central function
     updateFreshnessCell(tr, server, now);
   });
-  setupDropdownFlip();
 }
 
 export function updateAccount(data) {
@@ -552,42 +549,113 @@ export function renderCalendarsTable() {
   tbody.innerHTML = "";
 
   appState.calendarsData.forEach((cal) => {
-    const cronsCount = cal.crons?.length || 0;
-    const clustersCount = cal.cluster_ids?.length || 0;
+    const hasCrons = cal.crons && cal.crons.length > 0;
+    const isCollapsed = appState.collapsedCalendars.has(String(cal.id));
 
-    const row = document.createElement("tr");
-    row.dataset.calId = cal.id;
-    row.innerHTML = `
-      <td>${cal.name || "—"}</td>
+    // === Calendar row ===
+    const calRow = document.createElement("tr");
+    calRow.className = "ordo-calendar-row";
+    calRow.dataset.id = cal.id;
+    calRow.dataset.depth = 0;
+    calRow.dataset.parent = "";
+    calRow.style.setProperty("--depth", 0);
+
+    const toggleHtml = hasCrons
+      ? `<span class="ordo-toggle${!hasCrons ? " empty" : ""}"></span>`
+      : `<span class="ordo-toggle empty"></span>`;
+    const icon = '<i class="fas fa-folder mr-2 has-text-info"></i>';
+
+    calRow.innerHTML = `
+      <td>${toggleHtml}${icon}${cal.name || "—"}</td>
       <td>${cal.tz || "—"}</td>
       <td>${cal.description || "—"}</td>
-      <td>${cronsCount}</td>
-      <td>${clustersCount}</td>
-      <td>
-        <div class="dropdown is-right">
-          <div class="dropdown-trigger">
-            <button class="button is-small is-light" aria-haspopup="menu">
-              <i class="fas fa-ellipsis-v"></i>
-            </button>
-          </div>
-          <div class="dropdown-menu" role="menu">
-            <div class="dropdown-content">
-              <a href="#" class="dropdown-item" data-action="edit-calendar" data-id="${cal.id}">Edit</a>
-              <hr class="dropdown-divider">
-              <a href="#" class="dropdown-item is-danger" data-action="delete-calendar" data-id="${cal.id}">Delete</a>
-              <hr class="dropdown-divider">
-              <a href="#" class="dropdown-item" data-action="view-crons" data-id="${cal.id}">
-                View Crons (${cronsCount})
-              </a>
-            </div>
-          </div>
-        </div>
-      </td>
+      <td>${cal.crons?.length || 0}</td>
+      <td>${cal.cluster_ids?.length || 0}</td>
+      <td>—</td>
+      <td>—</td>
+      <td>—</td>
+      <td>${generateCalendarActions(cal.id, hasCrons)}</td>
     `;
-    tbody.appendChild(row);
-  });
 
-  setupDropdownFlip();
+    if (isCollapsed) {
+      calRow.classList.add("collapsed");
+      calRow.setAttribute("aria-expanded", "false");
+    } else {
+      calRow.setAttribute("aria-expanded", hasCrons ? "true" : "false");
+    }
+
+    tbody.appendChild(calRow);
+
+    // === Always render cron rows (if any) ===
+    if (hasCrons) {
+      (cal.crons || []).forEach((cron) => {
+        const cronRow = document.createElement("tr");
+        cronRow.className = "ordo-cron-row";
+        if (isCollapsed) cronRow.classList.add("hidden"); // hide if parent collapsed
+        cronRow.dataset.id = `cron-${cal.id}-${cron.id}`;
+        cronRow.dataset.depth = 1;
+        cronRow.dataset.parent = cal.id;
+        cronRow.style.setProperty("--depth", 1);
+
+        const cronIcon = '<i class="fas fa-clock mr-2 has-text-cyan"></i>';
+
+        cronRow.innerHTML = `
+          <td>${cronIcon}${cron.name || "—"}</td>
+          <td>${cron.english || "—"}</td>
+          <td>${cron.description || "—"}</td>
+          <td>—</td>
+          <td>—</td>
+          <td>${cron.begin ? formatDate(cron.begin) : "Immediate"}</td>
+          <td>${cron.expire ? formatDate(cron.expire) : "Never"}</td>
+          <td>${formatDate(cron.next_start) || "—"}</td>
+          <td>${generateCronActions(cal.id, cron.id)}</td>
+        `;
+
+        tbody.appendChild(cronRow);
+      });
+    }
+  });
+}
+
+// Helper: calendar dropdown actions
+function generateCalendarActions(calId, hasCrons) {
+  return `
+    <div class="dropdown is-right">
+      <div class="dropdown-trigger">
+        <button class="btn btn-sm btn-ghost" aria-haspopup="menu">
+          <i class="fas fa-ellipsis-v"></i>
+        </button>
+      </div>
+      <div class="dropdown-menu" role="menu">
+        <div class="dropdown-content">
+          <a href="#" class="dropdown-item" data-action="edit-calendar" data-id="${calId}">Edit</a>
+          <a href="#" class="dropdown-item" data-action="add-cron" data-cal-id="${calId}">Add Cron</a>
+          <hr class="dropdown-divider">
+          <a href="#" class="dropdown-item is-danger" data-action="delete-calendar" data-id="${calId}">Delete</a>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Helper: cron dropdown actions
+function generateCronActions(calId, cronId) {
+  return `
+    <div class="dropdown is-right">
+      <div class="dropdown-trigger">
+        <button class="btn btn-sm btn-ghost" aria-haspopup="menu">
+          <i class="fas fa-ellipsis-v"></i>
+        </button>
+      </div>
+      <div class="dropdown-menu" role="menu">
+        <div class="dropdown-content">
+          <a href="#" class="dropdown-item" data-action="edit-cron" data-cal-id="${calId}" data-cron-id="${cronId}">Edit</a>
+          <hr class="dropdown-divider">
+          <a href="#" class="dropdown-item is-danger" data-action="delete-cron" data-cron-id="${cronId}">Delete</a>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 export function updateServers(data) {
@@ -852,3 +920,34 @@ document.getElementById("docs-toc").addEventListener("click", (e) => {
     }
   }
 });
+
+export function attachCalendarsTreeListeners() {
+  const tbody = document.getElementById("calendars-body");
+  if (!tbody) return;
+
+  tbody.addEventListener("click", (e) => {
+    const toggle = e.target.closest(".ordo-toggle");
+    if (!toggle || toggle.classList.contains("empty")) return;
+
+    const row = toggle.closest("tr");
+    if (!row || !row.classList.contains("ordo-calendar-row")) return;
+
+    const calId = row.dataset.id;
+    const isNowCollapsed = row.classList.toggle("collapsed");
+
+    // Persist
+    if (isNowCollapsed) {
+      appState.collapsedCalendars.add(calId);
+    } else {
+      appState.collapsedCalendars.delete(calId);
+    }
+    updateCalendarCollapsed();
+
+    // Show/hide children using .hidden
+    document.querySelectorAll(`tr[data-parent="${calId}"]`).forEach((child) => {
+      child.classList.toggle("hidden", isNowCollapsed);
+    });
+
+    row.setAttribute("aria-expanded", (!isNowCollapsed && row.querySelector(".ordo-toggle:not(.empty)")).toString());
+  });
+}

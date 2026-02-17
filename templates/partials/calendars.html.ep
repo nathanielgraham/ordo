@@ -20,16 +20,19 @@
       </div>
 
       <!-- Calendars table -->
+
       <div class="table-container">
-        <!-- Updated table opening tag -->
-        <table class="ordo-table" id="calendars-table">
+        <table class="ordo-table ordo-table--tree" id="calendars-table">
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Timezone</th>
+              <th>Name / Expression</th>
+              <th>Timezone / English</th>
               <th>Description</th>
               <th>Crons</th>
               <th>Clusters</th>
+              <th>Begin</th>
+              <th>Expire</th>
+              <th>Next Start</th>
               <th>Actions</th>
             </tr>
           </thead>

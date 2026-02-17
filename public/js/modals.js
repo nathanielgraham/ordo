@@ -1,6 +1,6 @@
 // modals.js
 import { appState } from "./state.js";
-import { showToast } from "./ui-handlers.js";
+import { showToast, renderCalendarsTable } from "./ui-handlers.js";
 import { sendWS } from "./websocket.js";
 import {
   getFullPath,
@@ -9,7 +9,6 @@ import {
   commonTimezones,
   formatDate,
 } from "./utils.js";
-import { setupDropdownFlip } from "./dropdown-handlers.js";
 
 // ==================== TOM SELECT HELPERS ====================
 function initDependencySelect(selectId, clearBtnId, preSelectedIds = []) {
@@ -249,33 +248,39 @@ export function openClusterModal(
   if (mode === "edit" && itemId) {
     item = findClusterById(appState.monitorData.tree, itemId);
   }
+
   appState.currentEditItem = item;
   appState.currentParentId = parentId;
   appState.currentParentName = parentName;
 
   const isEdit = mode === "edit";
-  document.getElementById("cluster-modal-title").textContent = isEdit
-    ? "Edit Cluster"
-    : "New Cluster";
-  document.getElementById("cluster-context").textContent = isEdit
-    ? `ID: ${item?.id || "—"}`
-    : parentName
-      ? `In cluster: ${parentName}`
-      : "In root";
 
-  document.getElementById("cluster-name").value = isEdit
-    ? item?.name || ""
-    : "new-cluster";
-  document.getElementById("cluster-description").value = isEdit
-    ? item?.description || ""
-    : "";
-  document.getElementById("cluster-loops").value = isEdit
-    ? (item?.loops ?? 0)
-    : "0";
-  document.getElementById("cluster-clonable").checked =
-    isEdit && !!item?.clonable;
+  // Safe element access
+  const titleEl = document.getElementById("cluster-modal-title");
+  if (titleEl) titleEl.textContent = isEdit ? "Edit Cluster" : "New Cluster";
 
-  // Populate dependencies
+  const contextEl = document.getElementById("cluster-context");
+  if (contextEl) {
+    contextEl.textContent = isEdit
+      ? `ID: ${item?.id || "—"}`
+      : parentName
+        ? `In cluster: ${parentName}`
+        : "In root";
+  }
+
+  const nameEl = document.getElementById("cluster-name");
+  if (nameEl) nameEl.value = isEdit ? (item?.name || "") : "new-cluster";
+
+  const descEl = document.getElementById("cluster-description");
+  if (descEl) descEl.value = isEdit ? (item?.description || "") : "";
+
+  const loopsEl = document.getElementById("cluster-loops");
+  if (loopsEl) loopsEl.value = isEdit ? (item?.loops ?? 0) : "0";
+
+  const clonableEl = document.getElementById("cluster-clonable");
+  if (clonableEl) clonableEl.checked = isEdit && !!item?.clonable;
+
+  // Populate dependencies (safe)
   populateClusterDependencies("cluster-needs", item?.needs_ids || []);
   populateClusterDependencies("cluster-needs-any", item?.needs_any_ids || []);
   populateClusterDependencies(
@@ -283,23 +288,14 @@ export function openClusterModal(
     item?.on_fail_id ? [item.on_fail_id] : [],
   );
 
-  // Initialize Tom Select
-  initDependencySelect(
-    "cluster-needs",
-    "clear-cluster-needs",
-    item?.needs_ids || [],
-  );
-  initDependencySelect(
-    "cluster-needs-any",
-    "clear-cluster-needs-any",
-    item?.needs_any_ids || [],
-  );
-  initSingleSelect(
-    "cluster-on-fail",
-    item?.on_fail_id ? [item.on_fail_id] : [],
-  );
+  // Initialize Tom Selects (safe)
+  initDependencySelect("cluster-needs", "clear-cluster-needs", item?.needs_ids || []);
+  initDependencySelect("cluster-needs-any", "clear-cluster-needs-any", item?.needs_any_ids || []);
+  initSingleSelect("cluster-on-fail", item?.on_fail_id ? [item.on_fail_id] : []);
 
-  document.getElementById("cluster-modal").classList.add("active");
+  // Finally show the modal
+  const modal = document.getElementById("cluster-modal");
+  if (modal) modal.classList.add("active");
 }
 
 // ==================== ATTACH CALENDAR MODAL ====================
@@ -518,18 +514,18 @@ function getTimezoneOptions() {
 
   // Modern browsers: full IANA list
   if (Intl && Intl.supportedValuesOf) {
-    const timezones = Intl.supportedValuesOf('timeZone');
-    timezones.forEach(tz => {
+    const timezones = Intl.supportedValuesOf("timeZone");
+    timezones.forEach((tz) => {
       // Optional: friendly name with offset (dynamic)
-      const formatter = new Intl.DateTimeFormat('en-US', {
+      const formatter = new Intl.DateTimeFormat("en-US", {
         timeZone: tz,
-        timeZoneName: 'long'
+        timeZoneName: "long",
       });
       const parts = formatter.formatToParts(new Date());
-      const tzName = parts.find(p => p.type === 'timeZoneName')?.value || tz;
+      const tzName = parts.find((p) => p.type === "timeZoneName")?.value || tz;
       options.push({
         value: tz,
-        text: `${tz} – ${tzName}`
+        text: `${tz} – ${tzName}`,
       });
     });
   } else {
@@ -550,8 +546,8 @@ function getTimezoneOptions() {
       "Pacific/Auckland – New Zealand Time",
       // ... add 100+ more major ones
     ];
-    staticTz.forEach(tz => {
-      options.push({ value: tz.split(' – ')[0], text: tz });
+    staticTz.forEach((tz) => {
+      options.push({ value: tz.split(" – ")[0], text: tz });
     });
   }
 
@@ -573,13 +569,13 @@ export function openCalendarModal(mode = "create", calId = null) {
 
   const tom = new TomSelect(tzSelect, {
     maxItems: 1,
-    plugins: ['remove_button'],
+    plugins: ["remove_button"],
     placeholder: "Type to search or select timezone...",
-    searchField: ['text', 'value'],
+    searchField: ["text", "value"],
     options: getTimezoneOptions(), // large list - see below
     render: {
       option: (data) => `<div>${data.text}</div>`,
-      item: (data) => `<div class="item">${data.text}</div>`
+      item: (data) => `<div class="item">${data.text}</div>`,
     },
     onInitialize: function () {
       // Default to browser's local timezone on create
@@ -593,13 +589,13 @@ export function openCalendarModal(mode = "create", calId = null) {
           document.getElementById("calendar-tz-custom").style.display = "block";
         }
       }
-    }
+    },
   });
 
   tzSelect.tomselect = tom;
 
   // Show/hide custom input based on selection
-  tom.on('change', () => {
+  tom.on("change", () => {
     const customInput = document.getElementById("calendar-tz-custom");
     if (tom.getValue() === "") {
       customInput.style.display = "block";
@@ -619,7 +615,7 @@ export function openCalendarModal(mode = "create", calId = null) {
 
   // ... rest of modal population (name, description, edit pre-fill)
   if (isEdit && calId) {
-    const cal = appState.calendarsData.find(c => c.id === Number(calId));
+    const cal = appState.calendarsData.find((c) => c.id === Number(calId));
     if (cal) {
       appState.currentEditCalId = Number(calId);
       document.getElementById("calendar-name").value = cal.name || "";
@@ -631,7 +627,8 @@ export function openCalendarModal(mode = "create", calId = null) {
         document.getElementById("calendar-tz-custom").value = cal.tz || "";
         document.getElementById("calendar-tz-custom").style.display = "block";
       }
-      document.getElementById("calendar-description").value = cal.description || "";
+      document.getElementById("calendar-description").value =
+        cal.description || "";
     }
   } else {
     appState.currentEditCalId = null;
@@ -699,46 +696,31 @@ export function openCronsModal(calId) {
   loading.style.display = "none";
   content.style.display = "block";
   modal.classList.add("active");
-  setupDropdownFlip(); // ensure flip works in modal
 }
 
 // ==================== SINGLE CRON MODAL ====================
+// Replace openCronModal
 export function openCronModal(mode = "create", calId, cron = null) {
-  console.log(
-    "[DEBUG] openCronModal called – mode:",
-    mode,
-    "calId:",
-    calId,
-    "cronId:",
-    cron?.id || "none",
-  );
-
-  const isEdit = mode === "edit";
-
+  const isEdit = mode === "edit" && cron;
   const titleEl = document.getElementById("cron-modal-title");
-  if (!titleEl) {
-    console.error("[DEBUG] #cron-modal-title not found – modal HTML missing?");
-    showToast("Cron modal not loaded", "danger");
-    return;
-  }
   titleEl.textContent = isEdit ? "Edit Cron" : "Add Cron";
 
-  // Pre-fill if edit
-  document.getElementById("cron-expression").value = isEdit
-    ? cron?.name || ""
-    : "";
-  document.getElementById("cron-description").value = isEdit
-    ? cron?.description || ""
-    : "";
-  document.getElementById("cron-begin").value = isEdit ? cron?.begin || "" : "";
-  document.getElementById("cron-expire").value = isEdit
-    ? cron?.expire || ""
-    : "";
+  // Clear fields first
+  document.getElementById("cron-expression").value = "";
+  document.getElementById("cron-description").value = "";
+  document.getElementById("cron-begin").value = "";
+  document.getElementById("cron-expire").value = "";
+
+  if (isEdit && cron) {
+    document.getElementById("cron-expression").value = cron.name || "";
+    document.getElementById("cron-description").value = cron.description || "";
+    document.getElementById("cron-begin").value = cron.begin || "";
+    document.getElementById("cron-expire").value = cron.expire || "";
+  }
 
   const modal = document.getElementById("cron-modal");
   modal.dataset.calId = calId;
-  modal.dataset.cronId = isEdit ? cron?.id || "" : "";
-
+  modal.dataset.cronId = isEdit ? cron.id : "";
   modal.classList.add("active");
 }
 
@@ -753,11 +735,11 @@ function saveAttachCalendar() {
   sendWS({
     command: "update_cluster",
     id: appState.currentAttachClusterId,
-    cal_id: calId || "" // empty = detach
+    cal_id: calId || "", // empty = detach
   });
   showToast(calId ? "Calendar attached" : "Calendar detached", "success");
   document.getElementById("attach-calendar-modal").classList.remove("active");
-};
+}
 
 function saveJob() {
   const isEdit = !!appState.currentEditItem;
@@ -836,7 +818,9 @@ function saveCalendar() {
     tz = customTz;
   }
 
-  const description = document.getElementById("calendar-description")?.value.trim();
+  const description = document
+    .getElementById("calendar-description")
+    ?.value.trim();
 
   if (!name) return showToast("Name is required", "danger");
   if (!tz) return showToast("Timezone is required", "danger");
@@ -860,33 +844,46 @@ function saveCalendar() {
 // ==================== SAVE CRON ====================
 function saveCron() {
   const modal = document.getElementById("cron-modal");
-  const calId = modal.dataset.calId;
-  const cronId = modal.dataset.cronId;
-  const isEdit = !!cronId;
+  const calId = Number(modal.dataset.calId);
+  const cronIdStr = modal.dataset.cronId;
+  const isEdit = !!cronIdStr && cronIdStr !== "";
+  const cronId = isEdit ? Number(cronIdStr) : null;
 
-  const name = document.getElementById("cron-expression")?.value.trim();
+  const expression = document.getElementById("cron-expression")?.value.trim();
   const description = document.getElementById("cron-description")?.value.trim();
   const begin = document.getElementById("cron-begin")?.value.trim();
   const expire = document.getElementById("cron-expire")?.value.trim();
 
-  if (!name) return showToast("Cron expression is required", "danger");
+  if (!expression) {
+    return showToast("Cron expression is required", "danger");
+  }
+  if (isNaN(calId) || calId <= 0) {
+    return showToast("Invalid calendar ID", "danger");
+  }
 
   const payload = {
     command: isEdit ? "update_cron" : "create_cron",
-    id: isEdit ? Number(cronId) : undefined,
-    cal_id: Number(calId),
-    name,
-    description: description || undefined,
-    begin: begin ? Number(begin) : undefined,
-    expire: expire ? Number(expire) : undefined,
+    cal_id: calId,
   };
+
+  if (isEdit) {
+    payload.id = cronId;
+    // Only send newname if the expression actually changed or always (safe)
+    payload.newname = expression;
+  } else {
+    payload.name = expression;
+  }
+
+  if (description) payload.description = description;
+  if (begin) payload.begin = Number(begin);
+  if (expire) payload.expire = Number(expire);
 
   sendWS(payload);
   showToast(isEdit ? "Cron updated" : "Cron added", "success");
   modal.classList.remove("active");
 
-  // Refresh crons modal
-  setTimeout(() => openCronsModal(calId), 300);
+  // Full re-render calendars table to reflect changes immediately
+  renderCalendarsTable();
 }
 
 // ==================== DOMContentLoaded - attach all listeners ====================
@@ -902,15 +899,31 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("save-cron")?.addEventListener("click", saveCron);
 
   // Cancel/close buttons
-  document
-    .querySelectorAll(".close-btn[data-dismiss], .btn[data-dismiss]")
-    .forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const modalId = btn.dataset.dismiss;
-        document.getElementById(modalId)?.classList.remove("active");
-        resetAllModals();
-      });
-    });
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-dismiss]");
+    if (!btn) return;
+
+    const modalId = btn.dataset.dismiss;
+    const modal = document.getElementById(modalId);
+
+    if (!modal) return;
+
+    modal.classList.remove("active");
+
+    // Special cleanup
+    if (modal.id === "log-history-modal") {
+      const logBody = modal.querySelector(".modal-body");
+      if (logBody) logBody.innerHTML = "";
+    }
+
+    if (modal.id === "graph-modal" && window.cy) {
+      window.cy.destroy();
+      window.cy = null;
+    }
+
+    // General reset for all modals
+    resetAllModals();
+  });
 
   // Create calendar button
   document
@@ -919,7 +932,9 @@ document.addEventListener("DOMContentLoaded", () => {
       openCalendarModal("create");
     });
 
-  document.getElementById("save-attach-calendar")?.addEventListener("click", saveAttachCalendar);
+  document
+    .getElementById("save-attach-calendar")
+    ?.addEventListener("click", saveAttachCalendar);
 
   document
     .getElementById("add-server-btn")

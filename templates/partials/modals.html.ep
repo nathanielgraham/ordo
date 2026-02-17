@@ -1,4 +1,4 @@
-<!-- partials/modals.html.ep -->
+<!-- templates/partials/modals.html.ep -->
 
 <!-- Log Modal -->
 <div id="log-modal" class="app-modal">
@@ -7,10 +7,8 @@
     <header class="modal-header">
       <p class="modal-title" id="log-modal-title">Latest Job Log</p>
       <p class="modal-subtitle" id="log-modal-subtitle"></p>
-      <!-- empty initially -->
-      <button class="close-btn" aria-label="close"></button>
+      <button class="close-btn" data-dismiss="log-modal" aria-label="close">×</button>
     </header>
-
     <section class="modal-body">
       <div id="log-loading" class="text-center py-6" style="display: none">
         <i class="fas fa-spinner fa-spin fa-2x"></i>
@@ -18,11 +16,10 @@
       </div>
       <pre id="log-content" style="display: none"></pre>
     </section>
-
     <footer class="modal-footer">
       <button class="btn btn-secondary" id="view-history">View History</button>
       <button class="btn btn-secondary" id="refresh-log">Refresh Log</button>
-      <button class="btn btn-primary" id="close-log">Close</button>
+      <button class="btn btn-primary" data-dismiss="log-modal">Close</button>
     </footer>
   </div>
 </div>
@@ -33,7 +30,7 @@
   <div class="modal-dialog">
     <header class="modal-header">
       <p class="modal-title">Job Log History</p>
-      <button class="close-btn" aria-label="close"></button>
+      <button class="close-btn" data-dismiss="log-history-modal" aria-label="close">×</button>
     </header>
     <section class="modal-body">
       <div class="table-container">
@@ -54,7 +51,7 @@
       </p>
     </section>
     <footer class="modal-footer">
-      <button class="btn btn-secondary" id="close-log-history">Close</button>
+      <button class="btn btn-secondary" data-dismiss="log-history-modal">Close</button>
     </footer>
   </div>
 </div>
@@ -65,22 +62,17 @@
   <div class="modal-dialog">
     <header class="modal-header">
       <p class="modal-title">Invite Team Member</p>
-      <button class="close-btn" aria-label="close" id="close-invite"></button>
+      <button class="close-btn" data-dismiss="invite-modal" aria-label="close">×</button>
     </header>
     <section class="modal-body">
       <div class="form-group">
         <label class="label" for="invite-email">Email Address</label>
-        <input
-          class="input"
-          type="email"
-          id="invite-email"
-          placeholder="Enter email to invite"
-        />
+        <input class="input" type="email" id="invite-email" placeholder="Enter email to invite" />
       </div>
     </section>
     <footer class="modal-footer">
+      <button class="btn btn-secondary" data-dismiss="invite-modal">Cancel</button>
       <button class="btn btn-primary" id="send-invite">Send Invite</button>
-      <button class="btn btn-secondary" id="cancel-invite">Cancel</button>
     </footer>
   </div>
 </div>
@@ -91,67 +83,54 @@
   <div class="modal-dialog">
     <header class="modal-header">
       <p class="modal-title">Confirm Action</p>
-      <button class="close-btn" aria-label="close" id="close-confirm"></button>
+      <button class="close-btn" data-dismiss="confirm-modal" aria-label="close">×</button>
     </header>
     <section class="modal-body">
       <p id="confirm-message">Are you sure you want to [action] [name]?</p>
     </section>
     <footer class="modal-footer">
+      <button class="btn btn-secondary" data-dismiss="confirm-modal">No</button>
       <button class="btn btn-danger" id="confirm-yes">Yes</button>
-      <button class="btn btn-secondary" id="confirm-no">No</button>
     </footer>
   </div>
 </div>
 
 <!-- Attach Calendar Modal -->
 <div id="attach-calendar-modal" class="app-modal">
-  <div class="modal-backdrop"></div>
+  <div class="modal-background"></div>
   <div class="modal-dialog">
     <header class="modal-header">
       <p class="modal-title">Attach Calendar</p>
       <p class="modal-subtitle" id="attach-cluster-name">Select cluster...</p>
-      <button class="close-btn" data-dismiss="attach-calendar-modal"></button>
+      <button class="close-btn" data-dismiss="attach-calendar-modal" aria-label="close">×</button>
     </header>
-
     <section class="modal-body">
       <div class="form-group">
         <label class="label" for="calendar-select">Calendar</label>
         <select id="calendar-select" placeholder="Select calendar or type to search..."></select>
       </div>
     </section>
-
     <footer class="modal-footer">
+      <button class="btn btn-secondary" data-dismiss="attach-calendar-modal">Cancel</button>
       <button class="btn btn-primary" id="save-attach-calendar">Save</button>
-      <button class="btn btn-secondary" id="cancel-job">Cancel</button>
     </footer>
   </div>
 </div>
 
-<!-- ==================== JOB MODAL ==================== -->
+<!-- Job Modal -->
 <div id="job-modal" class="app-modal">
-  <div class="modal-backdrop"></div>
+  <div class="modal-background"></div>
   <div class="modal-dialog large">
     <header class="modal-header">
       <p class="modal-title" id="job-modal-title">New Job</p>
       <p class="modal-subtitle" id="job-context"></p>
-      <button
-        class="close-btn"
-        aria-label="close"
-        data-dismiss="job-modal"
-      ></button>
+      <button class="close-btn" data-dismiss="job-modal" aria-label="close">×</button>
     </header>
     <section class="modal-body">
       <div class="form-group">
         <label class="label required" for="job-name">Name</label>
-        <input
-          class="input"
-          type="text"
-          id="job-name"
-          placeholder="e.g. nightly-backup"
-        />
-        <p class="help-text">
-          Short name — will be created in the selected cluster
-        </p>
+        <input class="input" type="text" id="job-name" placeholder="e.g. nightly-backup" />
+        <p class="help-text">Short name — will be created in the selected cluster</p>
       </div>
       <div class="form-group">
         <label class="label" for="job-description">Description</label>
@@ -159,49 +138,24 @@
       </div>
       <div class="form-group">
         <label class="label required" for="job-script">Script / Command</label>
-        <input
-          class="input"
-          type="text"
-          id="job-script"
-          placeholder="perl backup.pl --full"
-        />
+        <input class="input" type="text" id="job-script" placeholder="perl backup.pl --full" />
       </div>
-
       <div class="form-group">
         <label class="label required" for="job-server">Server</label>
         <select id="job-server" placeholder="Select server..."></select>
       </div>
-
       <div class="grid-2">
         <div class="form-group">
           <label class="label" for="job-needs">Needs (blocking AND)</label>
           <select id="job-needs" placeholder="Select dependencies..." multiple></select>
-          <button
-            type="button"
-            class="btn btn-sm btn-secondary mt-1"
-            id="clear-job-needs"
-          >
-            Clear
-          </button>
+          <button type="button" class="btn btn-sm btn-secondary mt-1" id="clear-job-needs">Clear</button>
           <p class="help-text">Dependencies that must all complete first.</p>
         </div>
         <div class="form-group">
           <label class="label" for="job-needs-any">Needs Any (OR)</label>
-          <select
-            id="job-needs-any"
-            placeholder="Select dependencies..."
-            multiple
-          ></select>
-          <button
-            type="button"
-            class="btn btn-sm btn-secondary mt-1"
-            id="clear-job-needs-any"
-          >
-            Clear
-          </button>
-          <p class="help-text">
-            Any one of these completing satisfies the dependency.
-          </p>
+          <select id="job-needs-any" placeholder="Select dependencies..." multiple></select>
+          <button type="button" class="btn btn-sm btn-secondary mt-1" id="clear-job-needs-any">Clear</button>
+          <p class="help-text">Any one of these completing satisfies the dependency.</p>
         </div>
       </div>
       <div class="form-group">
@@ -214,20 +168,12 @@
       </div>
       <div class="grid-3">
         <div class="form-group">
-          <label class="label"
-            >Loops <span class="text-grey">(0 = run once)</span></label
-          >
+          <label class="label">Loops <span class="text-grey">(0 = run once)</span></label>
           <input class="input" type="number" id="job-loops" min="0" value="0" />
         </div>
         <div class="form-group">
           <label class="label">Retries</label>
-          <input
-            class="input"
-            type="number"
-            id="job-retrys"
-            min="0"
-            value="0"
-          />
+          <input class="input" type="number" id="job-retrys" min="0" value="0" />
         </div>
         <div class="form-group">
           <label class="label">Delay (seconds)</label>
@@ -236,37 +182,26 @@
       </div>
     </section>
     <footer class="modal-footer">
+      <button class="btn btn-secondary" data-dismiss="job-modal">Cancel</button>
       <button class="btn btn-primary" id="save-job">Save</button>
-      <button class="btn btn-secondary" id="cancel-job">Cancel</button>
     </footer>
   </div>
 </div>
 
-<!-- ==================== CLUSTER MODAL ==================== -->
+<!-- Cluster Modal -->
 <div id="cluster-modal" class="app-modal">
-  <div class="modal-backdrop"></div>
+  <div class="modal-background"></div>
   <div class="modal-dialog large">
     <header class="modal-header">
       <p class="modal-title" id="cluster-modal-title">New Cluster</p>
       <p class="modal-subtitle" id="cluster-context"></p>
-      <button
-        class="close-btn"
-        aria-label="close"
-        data-dismiss="cluster-modal"
-      ></button>
+      <button class="close-btn" data-dismiss="cluster-modal" aria-label="close">×</button>
     </header>
     <section class="modal-body">
       <div class="form-group">
         <label class="label required" for="cluster-name">Name</label>
-        <input
-          class="input"
-          type="text"
-          id="cluster-name"
-          placeholder="e.g. nightly-backups"
-        />
-        <p class="help-text">
-          Short name — will be created in the selected parent cluster
-        </p>
+        <input class="input" type="text" id="cluster-name" placeholder="e.g. nightly-backups" />
+        <p class="help-text">Short name — will be created in the selected parent cluster</p>
       </div>
       <div class="form-group">
         <label class="label" for="cluster-description">Description</label>
@@ -275,37 +210,15 @@
       <div class="grid-2">
         <div class="form-group">
           <label class="label" for="cluster-needs">Needs (blocking AND)</label>
-          <select
-            id="cluster-needs"
-            placeholder="Select dependencies..."
-            multiple
-          ></select>
-          <button
-            type="button"
-            class="btn btn-sm btn-secondary mt-1"
-            id="clear-cluster-needs"
-          >
-            Clear
-          </button>
+          <select id="cluster-needs" placeholder="Select dependencies..." multiple></select>
+          <button type="button" class="btn btn-sm btn-secondary mt-1" id="clear-cluster-needs">Clear</button>
           <p class="help-text">Dependencies that must all complete first.</p>
         </div>
         <div class="form-group">
           <label class="label" for="cluster-needs-any">Needs Any (OR)</label>
-          <select
-            id="cluster-needs-any"
-            placeholder="Select dependencies..."
-            multiple
-          ></select>
-          <button
-            type="button"
-            class="btn btn-sm btn-secondary mt-1"
-            id="clear-cluster-needs-any"
-          >
-            Clear
-          </button>
-          <p class="help-text">
-            Any one of these completing satisfies the dependency.
-          </p>
+          <select id="cluster-needs-any" placeholder="Select dependencies..." multiple></select>
+          <button type="button" class="btn btn-sm btn-secondary mt-1" id="clear-cluster-needs-any">Clear</button>
+          <p class="help-text">Any one of these completing satisfies the dependency.</p>
         </div>
       </div>
       <div class="form-group">
@@ -317,69 +230,40 @@
         </div>
       </div>
       <div class="form-group">
-        <label class="label"
-          >Loops <span class="text-grey">(0 = run once)</span></label
-        >
-        <input
-          class="input"
-          type="number"
-          id="cluster-loops"
-          min="0"
-          value="0"
-        />
+        <label class="label">Loops <span class="text-grey">(0 = run once)</span></label>
+        <input class="input" type="number" id="cluster-loops" min="0" value="0" />
       </div>
-
-<div class="form-group">
-  <label class="label">
-    <input type="checkbox" id="cluster-clonable" />
-    Clonable
-  </label>
-  <p class="help-text">
-    If checked, starting a running cluster creates & starts an exact clone instead of erroring. Useful for recovery workflows.
-  </p>
-</div>
-
-      <!-- Add cluster-specific fields here later, e.g. calendar, clonable -->
+      <div class="form-group">
+        <label class="label">
+          <input type="checkbox" id="cluster-clonable" />
+          Clonable
+        </label>
+        <p class="help-text">If checked, starting a running cluster creates & starts an exact clone instead of erroring.</p>
+      </div>
     </section>
     <footer class="modal-footer">
+      <button class="btn btn-secondary" data-dismiss="cluster-modal">Cancel</button>
       <button class="btn btn-primary" id="save-cluster">Save</button>
-      <button class="btn btn-secondary" id="cancel-cluster">Cancel</button>
     </footer>
   </div>
 </div>
 
-<!-- Dependency Graph Modal -->
+<!-- Graph Modal -->
 <div id="graph-modal" class="app-modal">
   <div class="modal-background"></div>
   <div class="modal-dialog full">
     <header class="modal-header">
-      <p class="modal-title">
-        Dependency Graph: <span id="graph-title"></span>
-      </p>
+      <p class="modal-title">Dependency Graph: <span id="graph-title"></span></p>
       <div class="zoom-controls">
         <button class="btn btn-sm" id="zoom-out">−</button>
         <button class="btn btn-sm" id="zoom-fit">Fit</button>
         <button class="btn btn-sm" id="zoom-in">+</button>
       </div>
-      <button class="close-btn" aria-label="close"></button>
+      <button class="close-btn" data-dismiss="graph-modal" aria-label="close">×</button>
     </header>
     <section class="modal-body graph-body">
       <div id="graph-container"></div>
-      <div id="graph-legend">
-        <strong>Dependency Legend</strong>
-        <div class="legend-item">
-          <span class="legend-line needs"></span>
-          needs (blocking AND)
-        </div>
-        <div class="legend-item">
-          <span class="legend-line needs-any"></span>
-          needs any (OR)
-        </div>
-        <div class="legend-item">
-          <span class="legend-line on-fail"></span>
-          on fail (recovery)
-        </div>
-      </div>
+      <div id="graph-legend"></div>
     </section>
   </div>
 </div>
