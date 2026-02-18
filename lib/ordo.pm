@@ -689,7 +689,8 @@ sub _broadcast_any {
    };
    my $method =
        $type eq 'cal'     ? '_read_cal'
-     : $type eq 'cluster' ? '_read_cluster'
+     : $type eq 'cluster' ? '_cluster_info'
+     #: $type eq 'cluster' ? '_read_cluster'
      :                      ( '_' . $type . '_info' );
    for my $id ( @{$ids} ) {
       my $thing = $self->$method( $user, { id => $id } );

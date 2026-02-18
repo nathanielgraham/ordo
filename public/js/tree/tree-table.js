@@ -251,24 +251,37 @@ function buildSingleRow(row, item, depth = 0, parentId = null, index = 0, siblin
   row.setAttribute("aria-expanded", hasChildren ? (!isCollapsed).toString() : "false");
 }
 
-// Update existing row
+// ==================== FIXED updateRow ====================
 function updateRow(row, item) {
+  if (!row || !item) return;
+
+  console.log(`[updateRow] ${item.is_cluster ? 'CLUSTER' : 'JOB'} ID=${item.id} | next_start=`, item.next_start);
+
   const depth = Number(row.dataset.depth) || 0;
   const parentId = row.dataset.parent || null;
-
   const { html, isCollapsed } = generateRowContent(item, depth, parentId);
 
   row.innerHTML = html;
-
   row.className = item.is_cluster ? "ordo-cluster-row" : "ordo-job-row";
-  if (isCollapsed) {
-    row.classList.add("collapsed");
-  } else {
-    row.classList.remove("collapsed");
+
+  if (isCollapsed) row.classList.add("collapsed");
+  else row.classList.remove("collapsed");
+
+  // === FIXED: Always update Next Run for clusters ===
+  if (item.is_cluster && item.next_start !== undefined && item.next_start !== null) {
+    const nextRunCell = row.querySelector("td:nth-child(8)"); // Next Run column
+
+    if (nextRunCell) {
+      const formatted = formatTminus(item.next_start);
+      console.log(`[updateRow] → Setting Next Run to: "${formatted}"`);
+
+      nextRunCell.textContent = formatted;
+      nextRunCell.dataset.nextStart = item.next_start;
+    }
   }
 }
 
-// Insert new row (approximate position)
+// ==================== FIXED insertRow ====================
 function insertRow(item, parentId = null) {
   const tbody = document.getElementById("tree-body");
   if (!tbody) return;
@@ -277,16 +290,27 @@ function insertRow(item, parentId = null) {
   const rowId = item.is_cluster ? `row-cluster-${item.id}` : `row-job-${item.id}`;
   newRow.id = rowId;
 
-  const depth = parentId ? (Number(document.getElementById(`row-cluster-${parentId}`)?.dataset.depth) || 0) + 1 : 0;
+  const depth = parentId 
+    ? (Number(document.getElementById(`row-cluster-${parentId}`)?.dataset.depth) || 0) + 1 
+    : 0;
 
   buildSingleRow(newRow, item, depth, parentId, 0, 1);
 
+  // === FIXED: Set Next Run for new clusters ===
+  if (item.is_cluster && item.next_start !== undefined && item.next_start !== null) {
+    const nextRunCell = newRow.querySelector("td:nth-child(8)");
+    if (nextRunCell) {
+      const formatted = formatTminus(item.next_start);
+      nextRunCell.textContent = formatted;
+      nextRunCell.dataset.nextStart = item.next_start;
+    }
+  }
+
+  // Your existing insert logic
   let insertBefore = null;
   if (parentId) {
     const siblings = document.querySelectorAll(`tr[data-parent="${parentId}"]`);
-    if (siblings.length > 0) {
-      insertBefore = siblings[siblings.length - 1].nextSibling;
-    }
+    if (siblings.length > 0) insertBefore = siblings[siblings.length - 1].nextSibling;
   }
 
   if (insertBefore) {

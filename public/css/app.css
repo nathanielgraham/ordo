@@ -109,28 +109,6 @@ body.scrolled .topnav {
 .btn {
   cursor: pointer;
 }
-.btn-primary {
-  background: var(--glow-cyan);
-  box-shadow: 0 0 15px rgba(0, 255, 255, 0.4);
-}
-.btn-primary:hover {
-  background: #00ffffdd;
-  box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
-  transform: translateY(-2px);
-}
-.btn[data-dismiss] {
-  background: #444;
-  color: #fff;
-}
-.btn-secondary:hover,
-.btn[data-dismiss]:hover {
-  background: #555;
-  box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
-  transform: translateY(-2px);
-}
-.btn-danger:hover {
-  background: #d6304f;
-}
 #log-history-modal .modal-body {
   padding: 0;
 }
@@ -665,22 +643,6 @@ main.content {
 }
 .select-wrapper {
   position: relative;
-}
-.btn {
-  padding: 0.5rem 1rem;
-  font-weight: 500;
-}
-.btn-primary {
-  background: var(--glow-blue);
-  color: #000;
-}
-.btn-danger {
-  background: #f14668;
-  color: #fff;
-}
-.btn-secondary {
-  background: #444;
-  color: #fff;
 }
 .text-grey {
   color: #888;
@@ -1960,5 +1922,154 @@ footer {
 .app-modal .modal-body::-webkit-scrollbar-thumb {
   background: rgba(0, 255, 255, 0.3);
   border-radius: 4px;
+}
+
+/* ==================== TOM SELECT - CYBERPUNK COMPACT THEME ==================== */
+
+.ts-wrapper {
+  .ts-control {
+    background: #1e1e1e !important;
+    border: 1px solid #444 !important;
+    color: #b0e0ff !important;
+    border-radius: 6px !important;
+    padding: 0.35rem 0.75rem !important;   /* more compact */
+    min-height: 36px !important;
+    box-shadow: none !important;
+    transition: all 0.2s ease !important;
+  }
+
+  .ts-control:focus-within,
+  .ts-control.focus {
+    border-color: #0ff !important;
+    box-shadow: 0 0 12px rgba(0, 255, 255, 0.35) !important;
+    background: #222226 !important;
+  }
+
+  /* Selected items (chips) */
+  .item {
+    background: #2a2a3a !important;
+    border: 1px solid #555 !important;
+    color: #b0e0ff !important;
+    border-radius: 6px !important;
+    padding: 0.3rem 0.7rem !important;     /* tighter */
+    margin: 0.25rem 0.4rem 0.25rem 0 !important;
+    font-size: 0.9rem !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) !important;
+  }
+
+  .item .remove {
+    color: #f55 !important;
+    font-size: 1.25rem !important;
+    margin-left: 0.5rem !important;
+    cursor: pointer !important;
+    opacity: 0.8 !important;
+    transition: opacity 0.2s !important;
+  }
+
+  .item .remove:hover {
+    opacity: 1 !important;
+    color: #f77 !important;
+  }
+
+  /* Dropdown menu */
+  .ts-dropdown {
+    background: #1e1e1e !important;
+    border: 1px solid #444 !important;
+    border-radius: 6px !important;
+    box-shadow: 0 8px 25px rgba(0, 255, 255, 0.15) !important;
+    color: #e0e0e0 !important;
+    max-height: 65vh !important;
+    overflow-y: auto;
+  }
+
+  .ts-dropdown .option {
+    padding: 0.45rem 1rem !important;
+    color: #f0f0f0 !important;
+  }
+
+  .ts-dropdown .option:hover,
+  .ts-dropdown .option.active,
+  .ts-dropdown .option.selected {
+    background: rgba(0, 255, 255, 0.18) !important;
+    color: #0ff !important;
+  }
+
+  /* Disabled state */
+  &.disabled .ts-control {
+    opacity: 0.55 !important;
+    cursor: not-allowed !important;
+  }
+}
+
+/* Scrollbar for dropdown */
+.ts-dropdown .ts-dropdown-content {
+  scrollbar-width: thin;
+  scrollbar-color: #555 #1e1e1e;
+}
+
+.ts-dropdown .ts-dropdown-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ts-dropdown .ts-dropdown-content::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.ts-dropdown .ts-dropdown-content::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 3px;
+}
+
+.ts-dropdown .ts-dropdown-content::-webkit-scrollbar-thumb:hover {
+  background: #777;
+}
+
+/* ==================== BUTTONS - CYBERPUNK NEON THEME ==================== */
+
+.btn {
+  border-radius: 6px !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Primary Button (Save, Create, etc.) */
+.btn-primary {
+  background: #00ffff !important;
+  color: #0a0a0a !important;
+  border: 1px solid #00ffff !important;
+  box-shadow: 0 0 15px rgba(0, 255, 255, 0.6) !important;
+}
+
+.btn-primary:hover {
+  background: #00f0f0 !important;
+  box-shadow: 0 0 25px rgba(0, 255, 255, 0.9) !important;
+  transform: translateY(-1px);
+}
+
+/* Secondary Button (Cancel, Clear, etc.) */
+.btn-secondary {
+  background: #222 !important;
+  color: #b0e0ff !important;
+  border: 1px solid #444 !important;
+}
+
+.btn-secondary:hover {
+  background: #333 !important;
+  border-color: #00ffff !important;
+  color: #00ffff !important;
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.3) !important;
+}
+
+/* Danger Button (if you have any) */
+.btn-danger {
+  background: #f14668 !important;
+  color: #fff !important;
+}
+
+.btn-danger:hover {
+  background: #ff3366 !important;
+  box-shadow: 0 0 15px rgba(255, 51, 102, 0.6) !important;
 }
 
