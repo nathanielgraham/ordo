@@ -144,7 +144,7 @@ body {
   font-weight: 500;
   font-size: clamp(14px, 1.8vw, 18px) !important;
 }
-#graph-legend,
+
 .ordo-table,
 .ordo-table td,
 .ordo-table th {
@@ -286,56 +286,8 @@ main.content {
   min-height: auto;
 }
 
-#graph-legend {
-  line-height: 1.5;
-  max-width: 20rem;
-  position: absolute;
-  bottom: 1.25rem;
-  right: 1.25rem;
-  background: rgba(0, 0, 0, 0.85);
-  color: #e0ffff;
-  padding: 0.75rem 1rem;
-  border-radius: 0.375rem;
-  border: 1px solid #00ffff44;
-  font-size: 0.9rem;
-  z-index: 10;
-  box-shadow: 0 0.25rem 0.9375rem rgba(0, 255, 255, 0.15);
-}
 .modal-card-body::-webkit-scrollbar {
   display: none;
-}
-#graph-legend strong {
-  color: #0ff;
-  font-weight: 700;
-}
-#graph-legend:hover {
-  opacity: 1;
-  transform: scale(1.02);
-}
-.legend-item {
-  margin: 6px 0;
-  display: flex;
-  align-items: center;
-}
-.legend-item span.legend-line {
-  display: inline-block;
-  width: 30px;
-  height: 2px;
-  margin-right: 8px;
-  vertical-align: middle;
-}
-#graph-legend .legend-line.needs,
-.legend-needs .legend-line {
-  background: #f36;
-}
-#graph-legend .legend-line.needs-any,
-.legend-needs-any .legend-line {
-  background: #0ff;
-  border-style: dashed;
-}
-#graph-legend .legend-line.on-fail,
-.legend-on-fail .legend-line {
-  background: #fa0;
 }
 .buttons.has-addons {
   position: absolute;
@@ -1483,8 +1435,14 @@ tr.hidden {
 }
 .servers-header {
   text-align: center;
-  padding: 2rem 0 1.5rem;
+  padding: 1.5rem 0 1rem;
 }
+/* ==================== CALENDARS HEADER - MATCHES SERVERS EXACTLY ==================== */
+.calendars-header {
+  text-align: center;
+  padding: 1.5rem 0 1rem;
+}
+
 .btn-ghost.neon-ghost {
   background: 0 0 !important;
   border: 2px solid var(--glow-cyan) !important;
@@ -2071,5 +2029,61 @@ footer {
 .btn-danger:hover {
   background: #ff3366 !important;
   box-shadow: 0 0 15px rgba(255, 51, 102, 0.6) !important;
+}
+
+.empty-state {
+  display: none;
+  padding: 5rem 2rem;
+  border: 2px dashed #444;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* ==================== COMPACT DEPENDENCY GRAPH LEGEND ==================== */
+.graph-legend {
+  position: absolute;
+  bottom: 22px;
+  right: 22px;
+  background: rgba(12, 12, 18, 0.96);
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-shadow: 0 0 22px rgba(0, 255, 255, 0.25);
+  z-index: 1000;
+  min-width: 205px;
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.graph-legend-title {
+  font-weight: 700;
+  color: #00ffff;
+  margin-bottom: 8px;
+  font-size: 0.88rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 5px;
+}
+
+.legend-svg {
+  flex-shrink: 0;
+}
+
+/* Colors matching your Cytoscape graph */
+.legend-needs     .legend-line { background: #ff3366; }   /* Red - needs */
+.legend-needs-any .legend-line { background: #00ff9d; }   /* Green - needs_any */
+.legend-on-fail   .legend-line { background: #ffaa00; }   /* Orange - on_fail */
+
+/* Make Cytoscape graph smaller and fit better in modal */
+#cy {
+  width: 100% !important;
+  height: calc(100% - 80px) !important;   /* leaves space for title + legend */
+  min-height: 380px;
 }
 

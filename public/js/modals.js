@@ -344,41 +344,50 @@ export function openAttachCalendarModal(
 }
 
 // ==================== CONFIRM MODAL ====================
-export function openConfirmModal(
-  title = "Confirm Action",
-  message,
-  onConfirm,
-  onCancel = () => {},
-) {
+export function openConfirmModal(title = "Confirm", message = "Are you sure?", onConfirm = null, onCancel = null) {
   const modal = document.getElementById("confirm-modal");
-  if (!modal) return console.error("Confirm modal not found");
+  if (!modal) {
+    console.error("[openConfirmModal] Modal not found");
+    return;
+  }
 
-  modal.querySelector(".modal-title").textContent = title;
-  modal.querySelector("#confirm-message").textContent = message;
+  // Set title and message
+  const titleEl = modal.querySelector(".modal-title");
+  if (titleEl) titleEl.textContent = title;
 
+  const msgEl = document.getElementById("confirm-message");
+  if (msgEl) msgEl.textContent = message;
+
+  // Get buttons
   const yesBtn = document.getElementById("confirm-yes");
-  const noBtn = document.getElementById("confirm-no");
-  const closeBtn = document.getElementById("close-confirm");
+  const noBtn  = document.getElementById("confirm-no");
 
-  const yesHandler = () => {
-    onConfirm();
-    modal.classList.remove("active");
-    cleanup();
-  };
-  const cancelHandler = () => {
-    onCancel();
-    modal.classList.remove("active");
-    cleanup();
-  };
-  const cleanup = () => {
-    yesBtn.removeEventListener("click", yesHandler);
-    noBtn.removeEventListener("click", cancelHandler);
-    closeBtn.removeEventListener("click", cancelHandler);
-  };
+  if (!yesBtn) {
+    console.error("[openConfirmModal] #confirm-yes button missing");
+    modal.classList.add("active");
+    return;
+  }
 
-  yesBtn.addEventListener("click", yesHandler);
-  noBtn.addEventListener("click", cancelHandler);
-  closeBtn.addEventListener("click", cancelHandler);
+  // Clone buttons to clear old listeners
+  const newYes = yesBtn.cloneNode(true);
+  yesBtn.parentNode.replaceChild(newYes, yesBtn);
+
+  if (noBtn) {
+    const newNo = noBtn.cloneNode(true);
+    noBtn.parentNode.replaceChild(newNo, noBtn);
+
+    // No button = cancel
+    newNo.addEventListener("click", () => {
+      modal.classList.remove("active");
+      if (typeof onCancel === "function") onCancel();
+    });
+  }
+
+  // Yes button = confirm / delete
+  newYes.addEventListener("click", () => {
+    modal.classList.remove("active");
+    if (typeof onConfirm === "function") onConfirm();
+  });
 
   modal.classList.add("active");
 }

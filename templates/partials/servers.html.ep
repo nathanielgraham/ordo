@@ -40,17 +40,13 @@
         </table>
 
         <!-- Empty state -->
-        <p
-          id="no-servers"
-          class="text-grey text-center py-6 text-lg"
-          style="display: none"
-        >
-          <i class="fas fa-server fa-3x mb-4 opacity-50"></i><br />
-          No servers configured yet.<br />
-          <button class="btn btn-success" id="add-server-btn">
-            Add Your First Server
-          </button>
-        </p>
+
+<div id="no-servers" class="empty-state has-text-centered py-10">
+  <i class="fas fa-server fa-5x has-text-grey mb-4"></i>
+  <h3 class="has-text-grey-light">No servers configured yet</h3>
+  <p class="has-text-grey mt-2">Add your first server to start monitoring hardware and jobs.</p>
+</div>
+
       </div>
     </div>
 

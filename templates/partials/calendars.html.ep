@@ -10,12 +10,14 @@
     <!-- Main content -->
     <div id="calendars-content" style="display: none">
       <!-- Header actions -->
-      <div class="actions-right mb-4 flex flex-wrap gap-3">
-        <button class="btn btn-success" id="create-calendar-btn">
-          <i class="fas fa-plus mr-2"></i>Create Calendar
-        </button>
-        <button class="btn btn-info" id="refresh-calendars">
-          <i class="fas fa-sync mr-2"></i>Refresh
+
+      <!-- Actions toolbar - Calendars -->
+      <div class="calendars-header">
+        <button
+          class="btn btn-ghost btn-large neon-ghost"
+          id="create-calendar-btn"
+        >
+          + Create Calendar
         </button>
       </div>
 
@@ -38,6 +40,14 @@
           </thead>
           <tbody id="calendars-body"></tbody>
         </table>
+
+        <div id="no-calendars" class="empty-state has-text-centered py-10">
+          <i class="fas fa-calendar-alt fa-5x has-text-grey mb-4"></i>
+          <h3 class="has-text-grey-light">No calendars configured yet</h3>
+          <p class="has-text-grey mt-2">
+            Create your first calendar to schedule recurring jobs.
+          </p>
+        </div>
       </div>
     </div>
   </div>

@@ -1,8 +1,17 @@
 // ui-handlers.js
-import { appState, updateCollapsedClusters, updateCalendarCollapsed } from "./state.js";
+import {
+  appState,
+  updateCollapsedClusters,
+  updateCalendarCollapsed,
+} from "./state.js";
 import { renderJobsTable } from "./tree/tree-table.js";
 import { openCronsModal } from "./modals.js";
-import { updateRow, insertRow, removeRow, updateLiveTimings } from "./tree/tree-table.js";
+import {
+  updateRow,
+  insertRow,
+  removeRow,
+  updateLiveTimings,
+} from "./tree/tree-table.js";
 
 import {
   formatDate,
@@ -71,8 +80,10 @@ export function showToast(message, type = "info") {
 }
 
 export function updateFreshnessCell(row, server, now) {
-  const updateTime = server.update_time != null ? Number(server.update_time) : null;
-  const updatedAgo = updateTime != null && !isNaN(updateTime) ? now - updateTime : Infinity;
+  const updateTime =
+    server.update_time != null ? Number(server.update_time) : null;
+  const updatedAgo =
+    updateTime != null && !isNaN(updateTime) ? now - updateTime : Infinity;
 
   let status = "Never Connected";
   let statusClass = "is-danger";
@@ -125,20 +136,36 @@ export function updateFreshnessCell(row, server, now) {
 }
 
 export function renderServersTable() {
+
   const tbody = document.getElementById("servers-body");
+  const table = document.getElementById("servers-table");
   const noServers = document.getElementById("no-servers");
-  tbody.innerHTML = "";
-  if (appState.serversData.length === 0) {
+
+  if (!tbody || !table || !noServers) {
+    console.error("[renderServersTable] MISSING DOM ELEMENTS");
+    return;
+  }
+
+  // ==================== EMPTY STATE ====================
+  if (!appState.serversData || appState.serversData.length === 0) {
+    table.style.display = "none";
     noServers.style.display = "block";
     return;
   }
+
+  // Show table, hide empty state
+  table.style.display = "table";
   noServers.style.display = "none";
 
+  tbody.innerHTML = "";
+
   const now = Math.floor(Date.now() / 1000);
-  appState.serversData.forEach(server => {
+
+  appState.serversData.forEach((server, index) => {
 
     const updateTime = server.update_time != null ? Number(server.update_time) : null;
     const updatedAgo = updateTime != null && !isNaN(updateTime) ? now - updateTime : Infinity;
+
     let relTime = "—";
     if (Number.isFinite(updatedAgo)) {
       relTime = formatRelativeTime(updatedAgo);
@@ -155,14 +182,12 @@ export function renderServersTable() {
     const cpu = server.cpu_percent != null ? `${server.cpu_percent.toFixed(1)}%` : "—";
     const cpuTooltip = "True CPU utilization (user + system) from top snapshot";
 
-    // Memory + Swap (smart units)
+    // Memory + Swap
     let mem = "—";
     let memTooltip = "Memory usage not available";
-
     if (server.total_memory != null && server.total_memory > 0) {
       const usedBytes = server.used_memory != null ? server.used_memory : 0;
       const totalBytes = server.total_memory;
-
       let unit = "GB";
       let divisor = 1024 * 1024 * 1024;
       let precision = 1;
@@ -171,54 +196,55 @@ export function renderServersTable() {
         divisor = 1024 * 1024;
         precision = 2;
       }
-
       const usedDisplay = (usedBytes / divisor).toFixed(precision);
       const totalDisplay = (totalBytes / divisor).toFixed(precision);
       const pct = (usedBytes / totalBytes) * 100;
       const memPct = isNaN(pct) ? "—" : pct.toFixed(1);
-
       mem = `${memPct}% (${usedDisplay}/${totalDisplay} ${unit})`;
-
       const swapPct = server.total_swap != null && server.total_swap > 0
-        ? ((server.used_swap || 0) / server.total_swap * 100).toFixed(1) + "%"
+        ? (((server.used_swap || 0) / server.total_swap) * 100).toFixed(1) + "%"
         : "—";
       memTooltip = `RAM: ${memPct}% (${usedDisplay}/${totalDisplay} ${unit})\nSwap: ${swapPct}`;
     }
 
-    // Disk + Root (smart units)
+    // Disk (server sends values in KB)
     let disk = "—";
     let diskTooltip = "Disk usage not available";
-
     if (server.total_disk != null && server.total_disk > 0) {
-      const usedBytes = server.used_disk != null ? server.used_disk : 0;
-      const totalBytes = server.total_disk;
+      const usedKB = Number(server.used_disk || 0);
+      const totalKB = Number(server.total_disk);
+      const usedGB = usedKB / 1024 / 1024;
+      const totalGB = totalKB / 1024 / 1024;
 
       let unit = "GB";
-      let divisor = 1024 * 1024 * 1024;
-      let precision = 1;
-      if (totalBytes < 10 * 1024 * 1024 * 1024) {
-        unit = "MB";
-        divisor = 1024 * 1024;
+      let precision = 2;
+      if (totalGB >= 1000) {
+        unit = "TB";
         precision = 2;
+      } else if (totalGB < 1) {
+        unit = "MB";
+        precision = 0;
       }
 
-      const usedDisplay = (usedBytes / divisor).toFixed(precision);
-      const totalDisplay = (totalBytes / divisor).toFixed(precision);
-      const pct = (usedBytes / totalBytes) * 100;
-      const diskPct = isNaN(pct) ? "—" : pct.toFixed(1);
+      const usedDisplay = usedGB.toFixed(precision);
+      const totalDisplay = totalGB.toFixed(precision);
+      const pct = totalGB > 0 ? (usedGB / totalGB * 100) : 0;
+      const diskPct = pct.toFixed(1);
 
       disk = `${diskPct}% (${usedDisplay}/${totalDisplay} ${unit})`;
 
-      const rootPct = server.root_total_disk != null && server.root_total_disk > 0
-        ? ((server.root_used_disk || 0) / server.root_total_disk * 100).toFixed(1) + "%"
-        : "—";
-      diskTooltip = `Aggregate: ${diskPct}% (${usedDisplay}/${totalDisplay} ${unit})\nRoot: ${rootPct}`;
+      let rootInfo = "";
+      if (server.root_total_disk != null && server.root_total_disk > 0) {
+        const rootPct = ((server.root_used_disk || 0) / server.root_total_disk * 100).toFixed(1);
+        rootInfo = `\nRoot: ${rootPct}%`;
+      }
+      diskTooltip = `Aggregate: ${diskPct}% (${usedDisplay}/${totalDisplay} ${unit})${rootInfo}`;
     }
 
     // Uptime
     const uptime = server.uptime != null ? formatUptime(server.uptime) : "—";
 
-    // Host tooltip with Port + static info + Ping
+    // Host tooltip
     const pingText = server.ping != null ? server.ping.toFixed(3) + "s" : "—";
     const hostTooltip = [
       `Host: ${server.host || server.ip_address || "—"}`,
@@ -226,13 +252,12 @@ export function renderServersTable() {
       `Ping: ${pingText}`,
       `OS: ${server.os || "—"}`,
       `CWD: ${server.cwd || "—"}`,
-      `Home: ${server.home || "—"}`
+      `Home: ${server.home || "—"}`,
     ].filter(Boolean).join("\n");
 
     // Row creation
     const tr = document.createElement("tr");
     tr.dataset.updateTime = server.update_time || "";
-
     tr.innerHTML = `
       <td>${server.name || "—"}</td>
       <td title="${hostTooltip}">
@@ -250,7 +275,7 @@ export function renderServersTable() {
       <td>
         <div class="dropdown is-right">
           <div class="dropdown-trigger">
-            <button class="btn btn-sm btn-ghost" aria-haspopup="menu">
+            <button class="btn btn-sm btn-ghost" aria-haspopup="menu" title="Actions">
               <i class="fas fa-ellipsis-v"></i>
             </button>
           </div>
@@ -266,9 +291,9 @@ export function renderServersTable() {
     `;
     tbody.appendChild(tr);
 
-    // Initial freshness update using central function
     updateFreshnessCell(tr, server, now);
   });
+
 }
 
 export function updateAccount(data) {
@@ -485,30 +510,22 @@ export function updateJobsClusters(data) {
 
 export function updateCalendars(data) {
   hideLoading("calendars-loading");
-  document.getElementById("calendars-content").style.display = "block";
-  if (data.success) {
-    appState.calendarsData = data.cals || [];
-    renderCalendarsTable();
-  }
+
+  const content = document.getElementById("calendars-content");
+  if (content) content.style.display = "block";   // ← always show the content area
+
+  appState.calendarsData = data.cals || [];
+  renderCalendarsTable();
 }
 
 export function toggleCronsRow(calendarId) {
-  console.log("[DEBUG] toggleCronsRow START – calendarId:", calendarId);
 
   const cronsRow = document.querySelector(
     `tr[data-cal-id="${calendarId}"].crons-row`,
   );
   if (!cronsRow) {
-    console.warn("[DEBUG] CRONS ROW NOT FOUND – calendarId:", calendarId);
     return;
   }
-
-  console.log(
-    "[DEBUG] Found row – current classes:",
-    cronsRow.className,
-    "inline display:",
-    cronsRow.style.display,
-  );
 
   const wasHidden = cronsRow.classList.contains("hidden");
   cronsRow.classList.toggle("hidden");
@@ -523,21 +540,12 @@ export function toggleCronsRow(calendarId) {
   }
 
   const isNowHidden = cronsRow.classList.contains("hidden");
-  console.log(
-    "[DEBUG] Toggled – was hidden:",
-    wasHidden,
-    "now hidden:",
-    isNowHidden,
-    "final display:",
-    cronsRow.style.display,
-  );
 
   const toggleBtn = document.querySelector(
     `.dropdown-item[data-action="view-crons"][data-id="${calendarId}"]`,
   );
   if (toggleBtn) {
     toggleBtn.textContent = isNowHidden ? "View Crons" : "Hide Crons";
-    console.log("[DEBUG] Button text updated to:", toggleBtn.textContent);
   } else {
     console.warn("[DEBUG] Toggle button not found for calendarId:", calendarId);
   }
@@ -545,28 +553,41 @@ export function toggleCronsRow(calendarId) {
 
 export function renderCalendarsTable() {
   const tbody = document.getElementById("calendars-body");
-  if (!tbody) return;
+  const table = document.getElementById("calendars-table");
+  const noCalendars = document.getElementById("no-calendars");
+
+  if (!tbody || !table || !noCalendars) return;
+
+  const calendars = appState.calendarsData || [];
+
+  if (calendars.length === 0) {
+    table.style.display = "none";
+    noCalendars.style.display = "block";
+    return;
+  }
+
+  // Show table, hide empty state
+  table.style.display = "table";
+  noCalendars.style.display = "none";
+
   tbody.innerHTML = "";
 
-  appState.calendarsData.forEach((cal) => {
+  calendars.forEach((cal) => {
     const hasCrons = cal.crons && cal.crons.length > 0;
     const isCollapsed = appState.collapsedCalendars.has(String(cal.id));
 
-    // === Calendar row ===
     const calRow = document.createElement("tr");
-    calRow.className = "ordo-calendar-row";
+    calRow.className = `ordo-calendar-row ${isCollapsed ? "collapsed" : ""}`;
     calRow.dataset.id = cal.id;
     calRow.dataset.depth = 0;
-    calRow.dataset.parent = "";
-    calRow.style.setProperty("--depth", 0);
+    calRow.style.setProperty("--depth", "0");
 
-    const toggleHtml = hasCrons
-      ? `<span class="ordo-toggle${!hasCrons ? " empty" : ""}"></span>`
+    const toggleHtml = hasCrons 
+      ? `<span class="ordo-toggle"></span>` 
       : `<span class="ordo-toggle empty"></span>`;
-    const icon = '<i class="fas fa-folder mr-2 has-text-info"></i>';
 
     calRow.innerHTML = `
-      <td>${toggleHtml}${icon}${cal.name || "—"}</td>
+      <td>${toggleHtml}<i class="fas fa-folder mr-2 has-text-info"></i>${cal.name || "—"}</td>
       <td>${cal.tz || "—"}</td>
       <td>${cal.description || "—"}</td>
       <td>${cal.crons?.length || 0}</td>
@@ -577,25 +598,18 @@ export function renderCalendarsTable() {
       <td>${generateCalendarActions(cal.id, hasCrons)}</td>
     `;
 
-    if (isCollapsed) {
-      calRow.classList.add("collapsed");
-      calRow.setAttribute("aria-expanded", "false");
-    } else {
-      calRow.setAttribute("aria-expanded", hasCrons ? "true" : "false");
-    }
-
     tbody.appendChild(calRow);
 
-    // === Always render cron rows (if any) ===
     if (hasCrons) {
-      (cal.crons || []).forEach((cron) => {
+      (cal.crons || []).forEach((cron, idx) => {
+        const isLast = idx === cal.crons.length - 1;
         const cronRow = document.createElement("tr");
-        cronRow.className = "ordo-cron-row";
-        if (isCollapsed) cronRow.classList.add("hidden"); // hide if parent collapsed
+        cronRow.className = `ordo-cron-row ${isCollapsed ? "hidden" : ""}`;
         cronRow.dataset.id = `cron-${cal.id}-${cron.id}`;
         cronRow.dataset.depth = 1;
         cronRow.dataset.parent = cal.id;
-        cronRow.style.setProperty("--depth", 1);
+        cronRow.dataset.lastChild = isLast ? "true" : "false";
+        cronRow.style.setProperty("--depth", "1");
 
         const cronIcon = '<i class="fas fa-clock mr-2 has-text-cyan"></i>';
 
@@ -660,11 +674,14 @@ function generateCronActions(calId, cronId) {
 
 export function updateServers(data) {
   hideLoading("servers-loading");
-  document.getElementById("servers-content").style.display = "block";
-  if (data.success) {
-    appState.serversData = data.servers || [];
-    renderServersTable();
-  }
+
+  const content = document.getElementById("servers-content");
+  if (content) content.style.display = "block";
+
+  // Always set data (even if success:0)
+  appState.serversData = data.success ? (data.servers || []) : [];
+
+  renderServersTable();
 }
 
 export function applyServerBroadcast(data) {
@@ -692,11 +709,11 @@ export function applyServerBroadcast(data) {
   if (data.deletes) {
     const deleteIds = data.deletes.map((d) => Number(d.id || d));
     appState.serversData = appState.serversData.filter(
-      (s) => !deleteIds.includes(Number(s.id))
+      (s) => !deleteIds.includes(Number(s.id)),
     );
   }
 
-  renderServersTable();   // ← your server render function
+  renderServersTable(); // ← your server render function
 }
 
 export function applyClusterBroadcast(data) {
@@ -746,7 +763,9 @@ export function applyClusterBroadcast(data) {
   }
 
   if (data.deletes) {
-    const uniqueDeletes = [...new Set(data.deletes.map((d) => Number(d.id || d)))];
+    const uniqueDeletes = [
+      ...new Set(data.deletes.map((d) => Number(d.id || d))),
+    ];
     uniqueDeletes.forEach((id) => {
       removeClusterById(appState.monitorData.tree, id);
       const row = document.getElementById(`row-cluster-${id}`);
@@ -757,7 +776,6 @@ export function applyClusterBroadcast(data) {
   // Refresh live timings (now sees fresh data)
   updateLiveTimings();
 
-  console.log("[applyClusterBroadcast] In-memory tree + DOM updated successfully");
 }
 
 export function applyJobBroadcast(data) {
@@ -787,9 +805,11 @@ export function applyJobBroadcast(data) {
   }
 
   if (data.deletes) {
-    const uniqueDeletes = [...new Set(data.deletes.map(d => Number(d.id || d)))];
-    uniqueDeletes.forEach(id => {
-      removeJobById(appState.monitorData.tree, id);   // make sure this helper exists
+    const uniqueDeletes = [
+      ...new Set(data.deletes.map((d) => Number(d.id || d))),
+    ];
+    uniqueDeletes.forEach((id) => {
+      removeJobById(appState.monitorData.tree, id); // make sure this helper exists
       const row = document.getElementById(`row-job-${id}`);
       if (row) row.remove();
     });
@@ -799,26 +819,35 @@ export function applyJobBroadcast(data) {
 }
 
 export function applyCalBroadcast(data) {
-  if (!appState.monitorData.cals) {
-    appState.monitorData.cals = [];
+  if (!appState.calendarsData) {
+    appState.calendarsData = [];
   }
 
   if (data.updates) {
     data.updates.forEach((update) => {
-      const idx = appState.monitorData.cals.findIndex((c) => c.id === update.id);
-      if (idx !== -1)
-        appState.monitorData.cals[idx] = { ...appState.monitorData.cals[idx], ...update };
-      else appState.monitorData.cals.push(update);
+      const id = Number(update.id);
+
+      const idx = appState.calendarsData.findIndex((c) => Number(c.id) === id);
+
+      if (idx !== -1) {
+        appState.calendarsData[idx] = {
+          ...appState.calendarsData[idx],
+          ...update,
+        };
+      } else {
+        appState.calendarsData.push(update);
+      }
     });
   }
+
   if (data.deletes) {
-    data.deletes.forEach((del) => {
-      appState.monitorData.cals = appState.monitorData.cals.filter(
-        (c) => c.id !== (del.id || del),
-      );
-    });
+    const deleteIds = data.deletes.map((d) => Number(d.id || d));
+    appState.calendarsData = appState.calendarsData.filter(
+      (c) => !deleteIds.includes(Number(c.id)),
+    );
   }
-  renderCalendarsTable();   // change this if your calendar render function has a different name
+
+  renderCalendarsTable();
 }
 
 export function loadDoc(file) {
@@ -888,6 +917,38 @@ export function attachCalendarsTreeListeners() {
     if (!toggle || toggle.classList.contains("empty")) return;
 
     const row = toggle.closest("tr");
+    if (!row || !row.dataset.id) return;
+
+    const calId = String(row.dataset.id);
+
+    // Toggle collapsed state (same logic as main tree)
+    const isNowCollapsed = !appState.collapsedCalendars.has(calId);
+
+    if (isNowCollapsed) {
+      appState.collapsedCalendars.add(calId);
+    } else {
+      appState.collapsedCalendars.delete(calId);
+    }
+
+    // Re-render the whole table (simplest and most reliable)
+    renderCalendarsTable();
+
+    // Save to localStorage
+    if (typeof updateCalendarCollapsed === "function") {
+      updateCalendarCollapsed();
+    }
+  });
+}
+
+export function attachCalendarsTreeListeners2() {
+  const tbody = document.getElementById("calendars-body");
+  if (!tbody) return;
+
+  tbody.addEventListener("click", (e) => {
+    const toggle = e.target.closest(".ordo-toggle");
+    if (!toggle || toggle.classList.contains("empty")) return;
+
+    const row = toggle.closest("tr");
     if (!row || !row.classList.contains("ordo-calendar-row")) return;
 
     const calId = row.dataset.id;
@@ -906,6 +967,11 @@ export function attachCalendarsTreeListeners() {
       child.classList.toggle("hidden", isNowCollapsed);
     });
 
-    row.setAttribute("aria-expanded", (!isNowCollapsed && row.querySelector(".ordo-toggle:not(.empty)")).toString());
+    row.setAttribute(
+      "aria-expanded",
+      (
+        !isNowCollapsed && row.querySelector(".ordo-toggle:not(.empty)")
+      ).toString(),
+    );
   });
 }
