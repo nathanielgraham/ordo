@@ -4,10 +4,6 @@ use warnings;
 use strict;
 use File::Spec;
 
-# set PERL5LIB
-#my $home_dir = $ENV{HOME} || $ENV{USERPROFILE} || die "Home directory not found.\n";
-#my $perl5lib = File::Spec->catdir($home_dir, 'perl5', 'lib', 'perl5');
-#$ENV{PERL5LIB} = $perl5lib;
 use LWP::UserAgent;
 use JSON::PP;
 use FindBin qw($Bin);

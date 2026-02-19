@@ -673,12 +673,15 @@ body:not(.is-logged-in) [data-private="true"] {
 #toast-container {
   position: fixed;
   top: 2rem;
-  right: 2rem;
+  right: 3rem;
   z-index: 3000;
   display: flex;
   flex-direction: column;
   gap: 12px;
   max-width: 420px;
+  position: fixed;
+  z-index: 999999 !important;
+  pointer-events: none; /* allows clicks to pass through container */
 }
 .toast.show {
   opacity: 1;
@@ -735,10 +738,25 @@ body:not(.is-logged-in) [data-private="true"] {
   white-space: normal;
   word-break: break-word;
   overflow: hidden;
+  pointer-events: all; /* only the toast itself is clickable */
+  z-index: 999999 !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+  animation: toastSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .toast span {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+@keyframes toastSlideIn {
+  from {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 .toast.short-message .close-btn {
   right: 12px;

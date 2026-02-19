@@ -113,7 +113,35 @@ sub startup {
 
    $self->helper( request => \&request );
    $self->helper( routing => \&routing );
-   $self->helper( sqlite  => sub { state $sql = Mojo::SQLite->new("$Bin/../db/ordo.db"); $sql->db->query('PRAGMA foreign_keys = ON;') } );
+
+   #$self->helper( sqlite  => sub { state $sql = Mojo::SQLite->new("$Bin/../db/ordo.db"); $sql->db->query('PRAGMA foreign_keys = ON;') } );
+
+   $self->helper(
+      sqlite => sub {
+         state $sql = do {
+            my $sqlite = Mojo::SQLite->new("$Bin/../db/ordo.db");
+
+            $sqlite->on(
+               connect => sub {
+                  my ( $sqlite, $dbh ) = @_;
+
+                  # Performance & reliability settings
+                  $dbh->do('PRAGMA journal_mode = WAL;');           # concurrency + speed
+                  $dbh->do('PRAGMA synchronous = NORMAL;');         # faster commits
+                  $dbh->do('PRAGMA busy_timeout = 5000;');          # wait up to 5s on lock
+                  $dbh->do('PRAGMA temp_store = MEMORY;');          # temp objects in RAM
+                  $dbh->do('PRAGMA wal_autocheckpoint = 1000;');    # checkpoint after ~1 MB WAL
+                  $dbh->do('PRAGMA cache_size = -20000;');          # 20 MB page cache
+                  $dbh->do('PRAGMA foreign_keys = ON;');            # keep your setting
+               }
+            );
+
+            $sqlite;
+         };
+
+         #$sql->db;
+      }
+   );
 
    state $states = $self->sqlite->db->select( 'job_states', ['*'] )->hashes->to_array;
    $self->helper(
@@ -688,10 +716,12 @@ sub _broadcast_any {
       deletes   => [],
    };
    my $method =
-       $type eq 'cal'     ? '_read_cal'
+     $type eq 'cal'
+     ? '_read_cal'
      : $type eq 'cluster' ? '_cluster_info'
+
      #: $type eq 'cluster' ? '_read_cluster'
-     :                      ( '_' . $type . '_info' );
+     : ( '_' . $type . '_info' );
    for my $id ( @{$ids} ) {
       my $thing = $self->$method( $user, { id => $id } );
 
@@ -3515,25 +3545,23 @@ sub update_cron {
    }
 
    my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } (qw(description begin expire)) };
-   $update_hash->{cal_id} = $cal->{id} if $cal->{id};
-   $update_hash->{name} = $d->{newname} if $d->{newname};
+   $update_hash->{cal_id} = $cal->{id}    if $cal->{id};
+   $update_hash->{name}   = $d->{newname} if $d->{newname};
    my $exp = $d->{newname} || $d->{name};
 
    eval {
-      my $c = Cron::Toolkit->new(
-         expression => $exp,
-      );
+      my $c = Cron::Toolkit->new( expression => $exp, );
       $update_hash->{english} = $c->describe;
    };
    return { success => 0, message => 'invalid cron expression' } if $@;
 
-   my $rows    = $self->sqlite->db->update( 'cron', $update_hash, { id => $cron->{id}, org_id => $user->org_id } )->rows if scalar keys %$update_hash;
+   my $rows = $self->sqlite->db->update( 'cron', $update_hash, { id => $cron->{id}, org_id => $user->org_id } )->rows if scalar keys %$update_hash;
    if ($rows) {
       $self->_broadcast_cal( $user, [ $cal->{id} ] );
       return { success => 1 };
    }
    else {
-     return { success => 0, message => 'unable to update cron' };
+      return { success => 0, message => 'unable to update cron' };
    }
 }
 
@@ -4280,7 +4308,7 @@ sub routing {
                free_memory      => $i,
                used_disk        => $i,
                total_disk       => $i,
-               free_disk       => $i,
+               free_disk        => $i,
                uptime           => $f,
                pids             => 's',
                zombies          => 's',
@@ -4291,7 +4319,7 @@ sub routing {
                load_15          => $f,
                used_swap        => $i,
                total_swap       => $i,
-               free_swap       => $i,
+               free_swap        => $i,
                open_files       => $i,
                max_files        => $i,
                total_processes  => $i,
@@ -4300,7 +4328,7 @@ sub routing {
                net_tx_bytes     => $i,
                root_used_disk   => $i,
                root_total_disk  => $i,
-               root_free_disk  => $i,
+               root_free_disk   => $i,
             },
             {}
          ]
