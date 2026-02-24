@@ -754,7 +754,7 @@ function saveJob() {
   const isEdit = !!appState.currentEditItem;
   const newName = document.getElementById("job-name").value.trim();
   const payload = {
-    command: isEdit ? "update_job" : "create_job",
+    command: isEdit ? "update_job_config" : "create_job",
     id: isEdit ? Number(appState.currentEditItem.id) : undefined,
     parent_id: !isEdit ? appState.currentParentId : undefined,
     name: !isEdit ? newName : undefined,

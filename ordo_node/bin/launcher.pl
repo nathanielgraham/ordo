@@ -84,7 +84,7 @@ print STDOUT $log_info;
 
    my $state = $origin eq 'retry' ? 'retrying' : $origin eq 'loop' ? 'looping' : $delay && $delay <= 3600 ? 'sleeping' : undef;
    if ($state) {
-      &post( { command => 'update_job', token => $token, id => $id, log_id => $time, state => $state, ppid => $ppid } );
+      &post( { command => 'update_job_state', token => $token, id => $id, log_id => $time, state => $state, ppid => $ppid } );
    }
 
    if ( $delay && $delay <= 3600 ) {
@@ -94,7 +94,7 @@ print STDOUT $log_info;
 my $pid = fork();
 
 if ( !defined $pid ) {
-   &post( { command => 'update_job', token => $token, id => $id, log_id => $time, state => 'failed', ppid => $ppid } );
+   &post( { command => 'update_job_state', token => $token, id => $id, log_id => $time, state => 'failed', ppid => $ppid } );
    die "fork failed: $!";
 }
 elsif ( $pid == 0 ) {
@@ -119,14 +119,14 @@ elsif ( $pid == 0 ) {
    eval { exec { $cmd[0] } @cmd or die "Exec failed: $!" };
 
    if ($@) {
-      &post( { command => 'update_job', token => $token, id => $id, state => 'failed', pid => $$, ppid => $ppid, log_id => $time } );
+      &post( { command => 'update_job_state', token => $token, id => $id, state => 'failed', pid => $$, ppid => $ppid, log_id => $time } );
       die "fork failed: $@";
    }
 }
 else {
    # parent
    $0 = "supervisor_$pid";
-   &post( { command => 'update_job', token => $token, started => time, id => $id, state => 'running', pid => $pid, ppid => $$, log_id => $time } );
+   &post( { command => 'update_job_state', token => $token, started => time, id => $id, state => 'running', pid => $pid, ppid => $$, log_id => $time } );
 
    while (1) {    # stain' alive
       sleep(1);
@@ -135,8 +135,8 @@ else {
          my $exit_code = $? >> 8;
          my $signal    = $? & 127;
          my $state     = $signal ? 'killed' : $exit_code ? 'failed' : 'complete';
-         &post( { command => 'update_job', ended => time, token => $token, id => $id, ppid => $$, log_id => $time, state => $state, signal => $signal, exit_code => $exit_code } );
-         #&post( { command => 'update_job', ended => time, token => $token, id => $id, log_id => $time, state => $state, signal => $signal, exit_code => $exit_code } );
+         &post( { command => 'update_job_state', ended => time, token => $token, id => $id, ppid => $$, log_id => $time, state => $state, signal => $signal, exit_code => $exit_code } );
+         #&post( { command => 'update_job_state', ended => time, token => $token, id => $id, log_id => $time, state => $state, signal => $signal, exit_code => $exit_code } );
 
          my $ended    = scalar localtime(time);
          my $log_tail = <<~"TAIL";

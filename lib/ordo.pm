@@ -424,36 +424,36 @@ sub validate_params {
          $clean->{$key} = $value + 0;
       }
 
-   elsif ($type eq 'i?') {  # nullable/optional integer (for detach/unset)
-      if (!defined $value || $value eq '' || $value eq 'undef' || $value eq 'null' || $value == 0) {
-        $clean->{$key} = undef;  # detach / unset
+      elsif ( $type eq 'i?' ) {    # nullable/optional integer (for detach/unset)
+         if ( !defined $value || $value eq '' || $value eq 'undef' || $value eq 'null' || $value == 0 ) {
+            $clean->{$key} = undef;    # detach / unset
+         }
+         elsif ( $value =~ /^\d+$/ ) {
+            $clean->{$key} = $value + 0;
+         }
+         else {
+            return ( 0, "invalid integer for $key (must be number or empty/0/null to detach)" );
+         }
       }
-      elsif ($value =~ /^\d+$/) {
-        $clean->{$key} = $value + 0;
-      }
-      else {
-        return (0, "invalid integer for $key (must be number or empty/0/null to detach)");
-      }
-    }
 
-elsif ($type eq 'pw') {  # password (e.g. for monitor SSH)
-  return (0, "password must be 8–20 characters for $key") unless length($value // '') >= 8 && length($value // '') <= 20;
-  $clean->{$key} = $value;  # no trimming — preserve exact input (spaces/symbols allowed)
-}
+      elsif ( $type eq 'pw' ) {    # password (e.g. for monitor SSH)
+         return ( 0, "password must be 8–20 characters for $key" ) unless length( $value // '' ) >= 8 && length( $value // '' ) <= 20;
+         $clean->{$key} = $value;    # no trimming — preserve exact input (spaces/symbols allowed)
+      }
 
-      elsif ( $type eq 'n' ) {    # name (job/cluster/cal/server) — allow slashes for /root
+      elsif ( $type eq 'n' ) {       # name (job/cluster/cal/server) — allow slashes for /root
          return ( 0, "invalid name for $key" ) unless $value =~ /^[\w\/\-_\.]{1,60}$/;
          $clean->{$key} = $value =~ s/^\s+|\s+$//gr;
       }
-      elsif ( $type eq 'd' ) {    # description
+      elsif ( $type eq 'd' ) {       # description
          return ( 0, "description too long for $key" ) if length $value > 2000;
          $clean->{$key} = $value =~ s/^\s+|\s+$//gr;
       }
-      elsif ( $type eq 'p' ) {    # path
+      elsif ( $type eq 'p' ) {       # path
          return ( 0, "invalid path for $key" ) unless $value =~ /^[\w\/\@\:\.\-]{1,200}$/;
          $clean->{$key} = $value =~ s/^\s+|\s+$//gr;
       }
-      elsif ( $type eq 'c' ) {    # shell command
+      elsif ( $type eq 'c' ) {       # shell command
          return ( 0, "shell command too long for $key" ) if length $value > 4000;
          $clean->{$key} = $value;    # preserve spaces — MUST be safely quoted in execution
       }
@@ -482,17 +482,17 @@ elsif ($type eq 'pw') {  # password (e.g. for monitor SSH)
          $clean->{$key} = $value =~ s/^\s+|\s+$//gr;
       }
 
-elsif ($type eq 'srv') {  # server name, host, IP address
-  # Allow typical hostname, FQDN, IPv4, IPv6
-  return (0, "invalid server identifier for $key") unless $value =~ /^(?:
+      elsif ( $type eq 'srv' ) {     # server name, host, IP address
+                                     # Allow typical hostname, FQDN, IPv4, IPv6
+         return ( 0, "invalid server identifier for $key" ) unless $value =~ /^(?:
     [a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9](\.[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])*
     | \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}
     | [a-fA-F0-9:]+
   )$/x;
 
-  # Optional: trim and lowercase (for consistency)
-  $clean->{$key} = lc($value =~ s/^\s+|\s+$//gr);
-}
+         # Optional: trim and lowercase (for consistency)
+         $clean->{$key} = lc( $value =~ s/^\s+|\s+$//gr );
+      }
       elsif ( $type eq 'st' ) {
          my $valid_states = $self->sqlite->db->select( 'job_states', ['state'] )->arrays->map( sub { $_->[0] } )->to_array;
 
@@ -626,15 +626,15 @@ sub request {
    die "Decoded must be HASH ref" unless ref $decoded eq 'HASH';
 
    my $command = delete $decoded->{command};
-   my $params = { map { $_ => $decoded->{$_} } grep { defined $decoded->{$_} } keys %$decoded };
+   my $params  = { map { $_ => $decoded->{$_} } grep { defined $decoded->{$_} } keys %$decoded };
 
    if ( exists $self->routing->{$command} ) {
       my $level = $user->level || 0;
       my ( $sub_name, $min_level, $legal_options, $count_usage ) = @{ $self->routing->{$command} };
       my ( $required_types, $optional_types ) = @{$legal_options};
 
-      $optional_types->{token} = 's';
-      $optional_types->{tz} = 'tz';
+      $optional_types->{token}      = 's';
+      $optional_types->{tz}         = 'tz';
       $optional_types->{request_id} = 's';
 
       if ( $level < $min_level ) {
@@ -643,20 +643,21 @@ sub request {
       }
       else {
          # ==================== VALIDATION ====================
-         my ($valid, $clean_params_or_error) = $self->validate_params($required_types, $optional_types, $params);
+         my ( $valid, $clean_params_or_error ) = $self->validate_params( $required_types, $optional_types, $params );
 
-         if (!$valid) {
+         if ( !$valid ) {
             $response = { success => 0, message => $clean_params_or_error };
          }
          else {
             # ==================== SPECIAL CASE: SKIP FOR LOGIN ====================
-            if ($command eq 'login_user') {
+            if ( $command eq 'login_user' || $command eq 'register_user' ) {
+
                # Skip throttling/logging for login (low-impact auth command)
                $response = $self->$sub_name( $user, $clean_params_or_error );
             }
             else {
                # ==================== NORMAL COMMANDS ====================
-               my $org_id = $user->org_id;
+               my $org_id  = $user->org_id;
                my $user_id = $user->id;
                return { success => 0, message => 'no org_id' } unless $org_id;
 
@@ -667,21 +668,21 @@ sub request {
                   $org_id
                )->hash;
 
-               my $user_limit = $org ? ($org->{rate_limit_user_per_minute} // 100) : 100;
-               my $org_limit  = $org ? ($org->{rate_limit_org_per_minute}  // 500) : 500;
+               my $user_limit = $org ? ( $org->{rate_limit_user_per_minute} // 100 ) : 100;
+               my $org_limit  = $org ? ( $org->{rate_limit_org_per_minute}  // 500 ) : 500;
 
                # Debug log (remove/comment in production)
                $self->log->debug("Throttle check for org $org_id (command $command): user_limit=$user_limit, org_limit=$org_limit");
 
                # Throttle (always apply, even for non-counted commands)
-               if ($self->throttle_exceeded($user->id, $org_id, $user_limit, $org_limit)) {
+               if ( $self->throttle_exceeded( $user->id, $org_id, $user_limit, $org_limit ) ) {
                   $self->log->warn("Throttle hit for user $user_id / org $org_id (command $command)");
                   $response = { success => 0, message => "Rate limit exceeded" };
                }
                else {
                   # Log usage only if flag is set
                   if ($count_usage) {
-                     $self->increment_usage($org_id, $command);
+                     $self->increment_usage( $org_id, $command );
                   }
 
                   # Execute as method
@@ -2553,6 +2554,154 @@ sub _set_job_state {
    return 1;
 }
 
+sub _update_job_log {
+   my ( $self, $user, $d ) = @_;
+
+   print "LOGINFO\n";
+   print Dumper($d);
+
+   return unless $d->{job_id} && $d->{log_id} && $d->{ppid};
+
+   #return unless $d->{log_id} && $d->{ppid};
+
+   #my $job_id = $job->{id};
+   #my $log_id = $d->{log_id};
+   #my $ppid   = $d->{ppid};
+
+   my $log_dir  = "ordo_node/logs";                           # adjust to your log path
+   my $log_file = "$log_dir/out.$d->{job_id}.$d->{ppid}.$d->{log_id}.log";
+
+   if ( $d->{state} eq 'running' ) {
+
+      # Insert new log entry
+      my $insert_hash = { map { $_ => $d->{$_} } grep { defined $d->{$_} } (qw(job_id log_id ppid started)) };
+      my $rows = $self->sqlite->db->insert( 'job_log', $insert_hash )->rows;
+
+      # Auto-cleanup: delete oldest log if > 12
+      if ($rows) {
+         my $count = $self->sqlite->db->query( "SELECT count(*) as count FROM job_log WHERE job_id = ?", $d->{id} )->hash->{count};
+
+         if ( $count > 12 ) {
+            my $oldest = $self->sqlite->db->select( 'job_log', ['*'], { job_id => $d->{job_id} }, { order_by => 'id', limit => 1 } )->hash;
+
+            $self->sqlite->db->delete( 'job_log', { id => $oldest->{id} } );
+
+            # Cross-platform log file deletion (Perl unlink via SSH)
+            my $ssh = $self->ssh_connection->{ $d->{server_id} };
+            unless ( $ssh && $ssh->check_master ) {
+               $self->_connect_ssh( $user, { id => $d->{server_id} } );
+               $ssh = $self->ssh_connection->{ $d->{server_id} };
+            }
+
+            if ($ssh) {
+               my $remote_log = $ssh->capture("perl -e 'unlink \"$log_file\" if -f \"$log_file\"'");
+               if ($@) {
+                  $self->log->warn("Failed to delete remote log $log_file: $@");
+               }
+            }
+         }
+      }
+   }
+   else {
+      # Update existing log entry
+      my $update_hash = { map { $_ => $d->{$_} } grep { defined $d->{$_} } (qw(job_id log_id ppid pid exit_code signal ended)) };
+      #$update_hash->{job_id} = $d->{job_id};
+      $self->sqlite->db->update( 'job_log', $update_hash, { job_id => $d->{job_id}, log_id => $d->{log_id}, ppid => $d->{ppid} } );
+   }
+}
+
+sub update_job_state {
+   my ( $self, $user, $d ) = @_;
+   my $job = $self->_job_info( $user, $d );
+   return { success => 0, message => 'job not found' } unless $job->{id};
+
+   my $job_id = $job->{id};
+
+   # Step 1: Update runtime fields in job table
+   my @runtime_fields = qw(pctcpu pid ppid start rss pctmem fname signal exit_code started ended);
+
+   my $runtime_hash   = { map { $_ => $d->{$_} } grep { exists $d->{$_} } @runtime_fields };
+   $runtime_hash->{last_update} = time;
+
+   $self->sqlite->db->update( 'job', $runtime_hash, { id => $job_id } ) if scalar keys %$runtime_hash;
+
+
+   # Step 2: Job log handling
+   if ($d->{ppid} && $d->{log_id} && $d->{state}) {
+      my $update_log_hash = { map { $_ => $d->{$_} } grep { exists $d->{$_} } qw(state log_id ppid pid exit_code signal started ended) };
+      $update_log_hash->{job_id} =  $job->{id};
+      $update_log_hash->{server_id} = $job->{server_id};
+      $self->_update_job_log( $user, $update_log_hash );
+   }
+
+   # Step 3: Call _set_job_state if state is present and valid
+   if ( defined $d->{state} && $self->job_states->{ $d->{state} } ) {
+      $self->_set_job_state( $user, { id => $job_id, state => $d->{state} } );
+   }
+
+   # Step 4: Broadcast state/runtime update
+   $self->_broadcast_job( $user, [$job_id] );
+
+   return { success => 1 };
+}
+
+sub update_job_config {
+   my ( $self, $user, $d ) = @_;
+   my $job = $self->_job_info( $user, $d );
+   return { success => 0, message => 'job not found' } unless $job->{id};
+
+   my ( $needs_ids, $needs_any_ids, $on_fail_id );
+
+   if ( $d->{needs_ids} ) {
+      $needs_ids = $self->_filter_job_ids( $user, $d->{needs_ids} );
+   }
+   elsif ( $d->{needs} ) {
+      $needs_ids = $self->_resolve_job_ids( $user, $d->{needs} );
+   }
+
+   if ( $d->{needs_any_ids} ) {
+      $needs_any_ids = $self->_filter_job_ids( $user, $d->{needs_any_ids} );
+   }
+   elsif ( $d->{needs_any} ) {
+      $needs_any_ids = $self->_resolve_job_ids( $user, $d->{needs_any} );
+   }
+
+   if ( $d->{on_fail_id} ) {
+      $on_fail_id = shift @{ $self->_filter_cluster_ids( $user, [ $d->{on_fail_id} ] ) };
+   }
+   elsif ( $d->{on_fail} ) {
+      $on_fail_id = shift @{ $self->_resolve_cluster_ids( $user, [ $d->{on_fail} ] ) };
+   }
+
+   my @fields      = qw(retrys loops delay description server_id script);
+   my $update_hash = { map { $_ => $d->{$_} } grep { exists $d->{$_} } @fields };
+
+   if ( $d->{json} ) {
+      eval { my $data = decode_json( $d->{json} ); };
+      if ($@) {
+         return { success => 0, message => 'invalid json' };
+      }
+      else {
+         $update_hash->{json} = $d->{json};
+      }
+   }
+
+   $update_hash->{delay}       = $d->{delay} if $d->{delay} && $d->{delay} <= 3600;
+   $update_hash->{on_fail_id}  = $on_fail_id ? $on_fail_id : undef;
+   $update_hash->{name}        = $d->{newname} if $d->{newname};
+   $update_hash->{last_update} = time;
+
+   $self->sqlite->db->update( 'job', $update_hash, { id => $job->{id} } );
+   $self->sqlite->db->delete( 'job_needs', { job_id => $job->{id} } ) if $d->{remove_needs};
+
+   # Optional broadcast if name/description changed
+   if ( $d->{newname} || $d->{description} ) {
+      $self->_broadcast_job( $user, [ $job->{id} ] );
+   }
+
+   return { success => 1 };
+}
+
 sub update_job {
    my ( $self, $user, $d ) = @_;
    my $rv = $self->_update_job( $user, $d );
@@ -3164,6 +3313,7 @@ sub _start_job {
    $opts->{needed} = $needed       if $needed;
 
    my $json = encode_json($opts);
+   print Dumper($json);
 
    # TODO: encode with MIME::Base64
    my $json_hex = unpack( 'H*', $json );
@@ -3304,7 +3454,7 @@ sub _ssh_copy {
    #return 0 unless $password;
 
    # copy public ssh key to remote host
-   my $copy_key  = "sshpass -p $d->{password} ssh-copy-id -p $port $d->{user}\@$d->{host}";
+   my $copy_key  = "sshpass -p $d->{password} ssh-copy-id -f  -p $port $d->{user}\@$d->{host}";
    my $exit_code = system($copy_key);
    $exit_code = $? >> 8;
    return $exit_code ? 0 : 1;
@@ -3748,7 +3898,7 @@ sub find_log {
       push @all, $log;
    }
    my $path = $self->id2path( $user, { id => $job->{cluster_id} } );
-   return scalar @all ? { success => 1, path => $path, name => $job->{name}, logs => \@all } : { success => 0, message => 'no logs found' };
+   return scalar @all ? { success => 1, path => $path, name => $job->{name}, job_id => $job->{id}, logs => \@all } : { success => 0, message => 'no logs found' };
 
 }
 
@@ -4289,19 +4439,20 @@ sub delete_cal {
 
 sub routing {
    state %routing = (
+
       # Org related
       'update_org' => [ 'update_org', 1, [ {}, { description => 'd', name => 'n' } ], 1 ],
-      'read_org'   => [ 'read_org',   1, [ {}, {} ], 0 ],
+      'read_org'   => [ 'read_org',   1, [ {}, {} ],                                  0 ],
 
       # User related
       'create_user'   => [ 'create_user',   3, [ { name => 'n' }, { team_member => 'i', email => 'e', level => 'i' } ], 1 ],
-      'read_user'     => [ 'read_user',     0, [ {}, {} ], 0 ],
-      'update_user'   => [ 'update_user',   1, [ {}, { mode => 'm', name => 'n' } ], 1 ],
-      'delete_user'   => [ 'delete_user',   3, [ { id => 'i' }, {} ], 1 ],
-      'delete_me'     => [ 'delete_me',     1, [ { id => 'i' }, {} ], 1 ],
-      'login_user'    => [ 'login_user',    0, [ { token => 's' }, {} ], 0 ],
-      'new_token'     => [ 'new_token',     1, [ {}, {} ], 0 ],
-      'register_user' => [ 'register_user', 0, [ { email => 'e' }, { team_member => 'i' } ], 1 ],
+      'read_user'     => [ 'read_user',     0, [ {}, {} ],                                                              0 ],
+      'update_user'   => [ 'update_user',   1, [ {}, { mode => 'm', name => 'n' } ],                                    1 ],
+      'delete_user'   => [ 'delete_user',   3, [ { id => 'i' }, {} ],                                                   1 ],
+      'delete_me'     => [ 'delete_me',     1, [ { id => 'i' }, {} ],                                                   1 ],
+      'login_user'    => [ 'login_user',    0, [ { token => 's' }, {} ],                                                0 ],
+      'new_token'     => [ 'new_token',     1, [ {}, {} ],                                                              0 ],
+      'register_user' => [ 'register_user', 0, [ { email => 'e' }, { team_member => 'i' } ],                            1 ],
 
       # Job related
       'create_job' => [
@@ -4328,7 +4479,7 @@ sub routing {
          ],
          1
       ],
-      'read_job' => [ 'read_job', 1, [ {}, { name => 'n', id => 'i', cluster_id => 'i' } ], 0 ],
+      'read_job'   => [ 'read_job', 1, [ {}, { name => 'n', id => 'i', cluster_id => 'i' } ], 0 ],
       'update_job' => [
          'update_job',
          1,
@@ -4368,16 +4519,71 @@ sub routing {
          ],
          1
       ],
-      'delete_job'  => [ 'delete_job',  1, [ {}, { name => 'n', id => 'i', force => 'b' } ], 1 ],
-      'start_job'   => [ 'start_job',   1, [ {}, { name => 'n', id => 'i', force => 'b' } ], 1 ],
-      'watch_job'   => [ 'watch_job',   1, [ {}, { name => 'n', id => 'i', server_id => 'i', server => 'srv', pid => 'i', match => 'c' } ], 0 ],
-      'kill_job'    => [ 'kill_job',    1, [ {}, { name => 'n', id => 'i' } ], 1 ],
-      'nice_job'    => [ 'nice_job',    1, [ {}, { name => 'n', id => 'i' } ], 1 ],
-      'hold_job'    => [ 'hold_job',    1, [ {}, { name => 'n', id => 'i' } ], 1 ],
-      'release_job' => [ 'release_job', 1, [ {}, { name => 'n', id => 'i' } ], 1 ],
-      'ice_job'     => [ 'ice_job',     1, [ {}, { name => 'n', id => 'i' } ], 1 ],
-      'prune_job'   => [ 'prune_job',   1, [ {}, { name => 'n', id => 'i' } ], 1 ],
-      'melt_job'    => [ 'melt_job',    1, [ {}, { name => 'n', id => 'i' } ], 1 ],
+
+      # Replace the old 'update_job' entry with these two
+
+      'update_job_config' => [
+         'update_job_config',
+         1,
+         [
+            {},    # no required params
+            {
+               id           => 'i',
+               name         => 'n',
+               newname      => 'n',
+               description  => 'd',
+               script       => 'c',
+               server       => 'srv',
+               server_id    => 'i?',
+               needs        => 'a:s',
+               needs_ids    => 'a:i',
+               needs_any_ids => 'a:i',
+               needs_any     => 'a:s',
+               json         => 'j',
+               mode         => 'm',
+               retrys       => 'i',
+               loops        => 'i',
+               delay        => 'i',
+               priority     => 'i',
+               on_fail      => 'p',
+               on_fail_id   => 'i?',
+               remove_needs => 'i',
+            }
+         ],
+         1    # billable
+      ],
+
+      'update_job_state' => [
+         'update_job_state',
+         1,
+         [
+            {},    # no required params
+            {
+               id        => 'i',
+               state     => 'st',
+               pid       => 'i',
+               ppid      => 'i',
+               exit_code => 'i',
+               signal    => 'sig',
+               mem       => 'f',
+               cpu       => 'f',
+               started   => 'i',
+               ended     => 'i',
+               log_id    => 'i',
+            }
+         ],
+         0    # do not count (automatic)
+      ],
+      'delete_job'   => [ 'delete_job',   1, [ {}, { name => 'n', id => 'i', force => 'b' } ],                                                1 ],
+      'start_job'    => [ 'start_job',    1, [ {}, { name => 'n', id => 'i', force => 'b' } ],                                                1 ],
+      'watch_job'    => [ 'watch_job',    1, [ {}, { name => 'n', id => 'i', server_id => 'i', server => 'srv', pid => 'i', match => 'c' } ], 0 ],
+      'kill_job'     => [ 'kill_job',     1, [ {}, { name => 'n', id => 'i' } ], 1 ],
+      'nice_job'     => [ 'nice_job',     1, [ {}, { name => 'n', id => 'i' } ], 1 ],
+      'hold_job'     => [ 'hold_job',     1, [ {}, { name => 'n', id => 'i' } ], 1 ],
+      'release_job'  => [ 'release_job',  1, [ {}, { name => 'n', id => 'i' } ], 1 ],
+      'ice_job'      => [ 'ice_job',      1, [ {}, { name => 'n', id => 'i' } ], 1 ],
+      'prune_job'    => [ 'prune_job',    1, [ {}, { name => 'n', id => 'i' } ], 1 ],
+      'melt_job'     => [ 'melt_job',     1, [ {}, { name => 'n', id => 'i' } ], 1 ],
       'complete_job' => [ 'complete_job', 1, [ {}, { name => 'n', id => 'i' } ], 1 ],
 
       # Cluster related
@@ -4387,63 +4593,63 @@ sub routing {
          [
             { name => 'n' },
             {
-               parent_id => 'i',
-               needs => 'a:s',
-               needs_ids => 'a:i',
-               json => 'j',
-               description => 'd',
-               cron => 'ct',
-               at => 'i',
-               cal => 'n',
-               cal_id => 'i?',
-               tz => 'tz',
-               clonable => 'b',
-               mode => 'm',
-               loops => 'i',
-               needs_any => 'a:s',
+               parent_id     => 'i',
+               needs         => 'a:s',
+               needs_ids     => 'a:i',
+               json          => 'j',
+               description   => 'd',
+               cron          => 'ct',
+               at            => 'i',
+               cal           => 'n',
+               cal_id        => 'i?',
+               tz            => 'tz',
+               clonable      => 'b',
+               mode          => 'm',
+               loops         => 'i',
+               needs_any     => 'a:s',
                needs_any_ids => 'a:i',
-               on_fail => 'p',
-               on_fail_id => 'i?',
+               on_fail       => 'p',
+               on_fail_id    => 'i?',
             }
          ],
          1
       ],
-      'read_cluster'    => [ 'read_cluster',    1, [ {}, { name => 'n', id => 'i' } ], 0 ],
-      'update_cluster'  => [
+      'read_cluster'   => [ 'read_cluster', 1, [ {}, { name => 'n', id => 'i' } ], 0 ],
+      'update_cluster' => [
          'update_cluster',
          1,
          [
             {},
             {
-               id => 'i',
-               name => 'n',
-               needs => 'a:s',
-               needs_ids => 'a:i',
-               json => 'j',
-               newname => 'n',
-               description => 'd',
-               cron => 'ct',
-               at => 'i',
-               cal => 'n',
-               cal_id => 'i?',
-               tz => 'tz',
-               mode => 'm',
-               clonable => 'b',
-               loops => 'i',
-               needs_any => 'a:s',
+               id            => 'i',
+               name          => 'n',
+               needs         => 'a:s',
+               needs_ids     => 'a:i',
+               json          => 'j',
+               newname       => 'n',
+               description   => 'd',
+               cron          => 'ct',
+               at            => 'i',
+               cal           => 'n',
+               cal_id        => 'i?',
+               tz            => 'tz',
+               mode          => 'm',
+               clonable      => 'b',
+               loops         => 'i',
+               needs_any     => 'a:s',
                needs_any_ids => 'a:i',
-               on_fail => 'p',
-               on_fail_id => 'i',
-               remove_needs => 'i',
+               on_fail       => 'p',
+               on_fail_id    => 'i',
+               remove_needs  => 'i',
             }
          ],
          1
       ],
-      'delete_cluster'   => [ 'delete_cluster',   1, [ {}, { name => 'n', id => 'i' } ], 1 ],
-      'change_cluster'   => [ 'change_cluster',   1, [ {}, { name => 'n', id => 'i' } ], 1 ],
-      'find_cluster'     => [ 'find_cluster',     1, [ {}, { name => 'n', id => 'i' } ], 0 ],
-      'reset_cluster'    => [ 'reset_cluster',    1, [ {}, { name => 'n', id => 'i' } ], 1 ],
-      'start_cluster'    => [ 'start_cluster',    1, [ {}, { id => 'i', name => 'n', force => 'b' } ], 1 ],
+      'delete_cluster'   => [ 'delete_cluster',   1, [ {}, { name => 'n', id => 'i' } ],                   1 ],
+      'change_cluster'   => [ 'change_cluster',   1, [ {}, { name => 'n', id => 'i' } ],                   1 ],
+      'find_cluster'     => [ 'find_cluster',     1, [ {}, { name => 'n', id => 'i' } ],                   0 ],
+      'reset_cluster'    => [ 'reset_cluster',    1, [ {}, { name => 'n', id => 'i' } ],                   1 ],
+      'start_cluster'    => [ 'start_cluster',    1, [ {}, { id => 'i', name => 'n', force => 'b' } ],     1 ],
       'clone_cluster'    => [ 'clone_cluster',    1, [ {}, { id => 'i', name => 'n', parent_id => 'i' } ], 1 ],
       'ice_cluster'      => [ 'ice_cluster',      1, [ {}, { id => 'i', name => 'n' } ], 1 ],
       'prune_cluster'    => [ 'prune_cluster',    1, [ {}, { id => 'i', name => 'n' } ], 1 ],
@@ -4454,16 +4660,16 @@ sub routing {
       'complete_cluster' => [ 'complete_cluster', 1, [ {}, { id => 'i', name => 'n' } ], 1 ],
 
       # Calendar related
-      'create_cal' => [ 'create_cal', 1, [ { name => 'n', tz => 'tz' }, { description => 'd' } ], 1 ],
-      'read_cal'   => [ 'read_cal',   1, [ {}, { name => 'n', id => 'i' } ], 0 ],
-      'find_cal'   => [ 'find_cal',   1, [ {}, { name => 'n', id => 'i' } ], 0 ],
+      'create_cal' => [ 'create_cal', 1, [ { name => 'n', tz => 'tz' }, { description => 'd' } ],                            1 ],
+      'read_cal'   => [ 'read_cal',   1, [ {}, { name => 'n', id => 'i' } ],                                                 0 ],
+      'find_cal'   => [ 'find_cal',   1, [ {}, { name => 'n', id => 'i' } ],                                                 0 ],
       'update_cal' => [ 'update_cal', 1, [ {}, { id => 'i', name => 'n', tz => 'tz', description => 'd', newname => 'n' } ], 1 ],
-      'delete_cal' => [ 'delete_cal', 1, [ {}, { name => 'n', id => 'i' } ], 1 ],
+      'delete_cal' => [ 'delete_cal', 1, [ {}, { name => 'n', id => 'i' } ],                                                 1 ],
 
       # Crons / Ats
-      'create_cron' => [ 'create_cron', 1, [ { name => 'ct' }, { description => 'd', cal => 'n', cal_id => 'i', begin => 'i', expire => 'i' } ], 1 ],
-      'delete_cron' => [ 'delete_cron', 1, [ {}, { name => 'ct', id => 'i' } ], 1 ],
-      'create_at'   => [ 'create_at',   1, [ { name => 'i' }, { description => 'd', cal => 'n', cal_id => 'i' } ], 1 ],
+      'create_cron' => [ 'create_cron', 1, [ { name => 'ct' }, { description => 'd', cal => 'n', cal_id => 'i', begin => 'i', expire => 'i' } ],               1 ],
+      'delete_cron' => [ 'delete_cron', 1, [ {}, { name => 'ct', id => 'i' } ],                                                                                1 ],
+      'create_at'   => [ 'create_at',   1, [ { name => 'i' }, { description => 'd', cal => 'n', cal_id => 'i' } ],                                             1 ],
       'update_cron' => [ 'update_cron', 1, [ { id => 'i' }, { newname => 'ct', description => 'd', begin => 'i', expire => 'i', cal => 'n', cal_id => 'i' } ], 1 ],
 
       # Logs
@@ -4471,41 +4677,33 @@ sub routing {
       'read_log' => [ 'read_log', 1, [ {}, { name => 'n', id => 'i', log_id => 'i' } ], 0 ],
 
       # Monitor related
-      'create_monitor' => [
-         'create_monitor',
-         1,
-         [
-            { name => 'n', user => 'n', host => 'srv' },
-            { password => 'pw', port => 'i' }
-         ],
-         1
-      ],
-      'find_monitor'   => [ 'find_monitor',   1, [ {}, { id => 'i', name => 'n' } ], 0 ],
-      'read_monitor'   => [ 'read_monitor',   1, [ {}, { id => 'i', name => 'n' } ], 0 ],
+      'create_monitor' => [ 'create_monitor', 1, [ { name => 'n', user => 'n', host => 'srv' }, { password => 'pw', port => 'i' } ], 1 ],
+      'find_monitor'   => [ 'find_monitor',   1, [ {},                                          { id       => 'i',  name => 'n' } ], 0 ],
+      'read_monitor'   => [ 'read_monitor',   1, [ {},                                          { id       => 'i',  name => 'n' } ], 0 ],
       'update_monitor' => [
          'update_monitor',
          1,
          [
             {},
             {
-               id => 'i',
-               port => 'i',
-               name => 'n',
-               newname => 'n',
-               user => 'n',
-               host => 'srv',
+               id       => 'i',
+               port     => 'i',
+               name     => 'n',
+               newname  => 'n',
+               user     => 'n',
+               host     => 'srv',
                password => 'pw',
             }
          ],
          1
       ],
-      'delete_monitor'  => [ 'delete_monitor',  1, [ {}, { id => 'i', name => 'n' } ], 1 ],
+      'delete_monitor'  => [ 'delete_monitor',  1, [ {}, { id => 'i', name => 'n' } ],                                  1 ],
       'ssh_copy'        => [ 'ssh_copy',        1, [ { name => 'n', user => 'n', host => 'p' }, { password => 'pw' } ], 1 ],
-      'stop_monitor'    => [ 'stop_monitor',    1, [ {}, { id => 'i', name => 'n' } ], 1 ],
-      'start_monitor'   => [ 'start_monitor',   1, [ {}, { id => 'i', name => 'n' } ], 1 ],
-      'upgrade_monitor' => [ 'upgrade_monitor', 1, [ {}, { id => 'i', name => 'n' } ], 1 ],
-      'active_pids'     => [ 'active_pids',     1, [ { id => 'i' }, {} ], 0 ],
-      'sync'            => [ 'sync',            1, [ {}, {} ], 0 ],
+      'stop_monitor'    => [ 'stop_monitor',    1, [ {}, { id => 'i', name => 'n' } ],                                  1 ],
+      'start_monitor'   => [ 'start_monitor',   1, [ {}, { id => 'i', name => 'n' } ],                                  1 ],
+      'upgrade_monitor' => [ 'upgrade_monitor', 1, [ {}, { id => 'i', name => 'n' } ],                                  1 ],
+      'active_pids'     => [ 'active_pids',     1, [ { id => 'i' }, {} ],                                               0 ],
+      'sync'            => [ 'sync',            1, [ {}, {} ],                                                          0 ],
       'update_sysinfo'  => [
          'update_sysinfo',
          1,

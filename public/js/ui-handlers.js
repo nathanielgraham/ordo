@@ -136,7 +136,6 @@ export function updateFreshnessCell(row, server, now) {
 }
 
 export function renderServersTable() {
-
   const tbody = document.getElementById("servers-body");
   const table = document.getElementById("servers-table");
   const noServers = document.getElementById("no-servers");
@@ -162,9 +161,10 @@ export function renderServersTable() {
   const now = Math.floor(Date.now() / 1000);
 
   appState.serversData.forEach((server, index) => {
-
-    const updateTime = server.update_time != null ? Number(server.update_time) : null;
-    const updatedAgo = updateTime != null && !isNaN(updateTime) ? now - updateTime : Infinity;
+    const updateTime =
+      server.update_time != null ? Number(server.update_time) : null;
+    const updatedAgo =
+      updateTime != null && !isNaN(updateTime) ? now - updateTime : Infinity;
 
     let relTime = "—";
     if (Number.isFinite(updatedAgo)) {
@@ -174,12 +174,14 @@ export function renderServersTable() {
     // Load Avg
     const load1 = server.load_1 != null ? server.load_1.toFixed(2) : "—";
     const coresText = server.cores != null ? ` (on ${server.cores} cores)` : "";
-    const loadTooltip = server.load_1 != null
-      ? `1-min: ${server.load_1.toFixed(2)}${coresText}\n5-min: ${server.load_5?.toFixed(2) ?? "—"}\n15-min: ${server.load_15?.toFixed(2) ?? "—"}`
-      : "Load averages not available";
+    const loadTooltip =
+      server.load_1 != null
+        ? `1-min: ${server.load_1.toFixed(2)}${coresText}\n5-min: ${server.load_5?.toFixed(2) ?? "—"}\n15-min: ${server.load_15?.toFixed(2) ?? "—"}`
+        : "Load averages not available";
 
     // CPU %
-    const cpu = server.cpu_percent != null ? `${server.cpu_percent.toFixed(1)}%` : "—";
+    const cpu =
+      server.cpu_percent != null ? `${server.cpu_percent.toFixed(1)}%` : "—";
     const cpuTooltip = "True CPU utilization (user + system) from top snapshot";
 
     // Memory + Swap
@@ -201,9 +203,11 @@ export function renderServersTable() {
       const pct = (usedBytes / totalBytes) * 100;
       const memPct = isNaN(pct) ? "—" : pct.toFixed(1);
       mem = `${memPct}% (${usedDisplay}/${totalDisplay} ${unit})`;
-      const swapPct = server.total_swap != null && server.total_swap > 0
-        ? (((server.used_swap || 0) / server.total_swap) * 100).toFixed(1) + "%"
-        : "—";
+      const swapPct =
+        server.total_swap != null && server.total_swap > 0
+          ? (((server.used_swap || 0) / server.total_swap) * 100).toFixed(1) +
+            "%"
+          : "—";
       memTooltip = `RAM: ${memPct}% (${usedDisplay}/${totalDisplay} ${unit})\nSwap: ${swapPct}`;
     }
 
@@ -228,14 +232,17 @@ export function renderServersTable() {
 
       const usedDisplay = usedGB.toFixed(precision);
       const totalDisplay = totalGB.toFixed(precision);
-      const pct = totalGB > 0 ? (usedGB / totalGB * 100) : 0;
+      const pct = totalGB > 0 ? (usedGB / totalGB) * 100 : 0;
       const diskPct = pct.toFixed(1);
 
       disk = `${diskPct}% (${usedDisplay}/${totalDisplay} ${unit})`;
 
       let rootInfo = "";
       if (server.root_total_disk != null && server.root_total_disk > 0) {
-        const rootPct = ((server.root_used_disk || 0) / server.root_total_disk * 100).toFixed(1);
+        const rootPct = (
+          ((server.root_used_disk || 0) / server.root_total_disk) *
+          100
+        ).toFixed(1);
         rootInfo = `\nRoot: ${rootPct}%`;
       }
       diskTooltip = `Aggregate: ${diskPct}% (${usedDisplay}/${totalDisplay} ${unit})${rootInfo}`;
@@ -245,7 +252,10 @@ export function renderServersTable() {
     const uptime = server.uptime != null ? formatUptime(server.uptime) : "—";
 
     // Host tooltip
-    const pingText = server.ping != null ? server.ping.toFixed(3) + "s" : "—";
+    const pingText =
+      typeof server.ping === "number" && !isNaN(server.ping)
+        ? server.ping.toFixed(3) + "s"
+        : "—";
     const hostTooltip = [
       `Host: ${server.host || server.ip_address || "—"}`,
       `Port: ${server.port || "—"}`,
@@ -253,7 +263,9 @@ export function renderServersTable() {
       `OS: ${server.os || "—"}`,
       `CWD: ${server.cwd || "—"}`,
       `Home: ${server.home || "—"}`,
-    ].filter(Boolean).join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     // Row creation
     const tr = document.createElement("tr");
@@ -293,7 +305,6 @@ export function renderServersTable() {
 
     updateFreshnessCell(tr, server, now);
   });
-
 }
 
 export function updateAccount(data) {
@@ -421,49 +432,119 @@ export function updateLog(data) {
 }
 
 export function updateLogHistory(data) {
-  const tbody = document.getElementById("log-history-body");
-  const noHistory = document.getElementById("no-history");
-  tbody.innerHTML = "";
-  if (!data.logs || data.logs.length === 0) {
-    noHistory.style.display = "block";
+  if (data.command_reply !== 'find_log') {
+    console.debug("Skipping updateLogHistory — not a find_log message");
     return;
   }
-  noHistory.style.display = "none";
+
+  console.log('Received find_log message:', data); // keep for debug
+
+  // Normalize job IDs (handle string/number, missing values)
+  const msgJobId = Number(data.job_id || data.id || '') || null;
+
+  // Get current viewed job ID (try state first, then DOM fallback)
+  const currentJobId = Number(
+    appState.currentJobId ||
+    document.querySelector('#job-detail-panel [data-job-id]')?.dataset.jobId ||
+    document.querySelector('[data-job-id]')?.dataset.jobId ||
+    ''
+  ) || null;
+
+  console.debug(`Current job view: ${currentJobId ?? 'none'}, message job_id: ${msgJobId ?? 'none'}`);
+
+  // Skip only if BOTH IDs exist and don't match
+  if (currentJobId && msgJobId && msgJobId !== currentJobId) {
+    console.debug(`Ignoring log update for job ${msgJobId} (current view: ${currentJobId})`);
+    return;
+  }
+
+  // Fallback: if no current view, assume it's for the message's job (common for broadcasts)
+  if (!currentJobId && msgJobId) {
+    console.debug(`No current job view — assuming logs are for job ${msgJobId}`);
+  }
+
+  const tbody = document.getElementById("log-history-body");
+  const noHistory = document.getElementById("no-history");
+
+  if (!tbody) {
+    console.debug("Log history table not in DOM — skipping update");
+    return;
+  }
+
+  // Show loading state
+  tbody.innerHTML = '<tr><td colspan="4" class="text-center text-grey">Loading logs...</td></tr>';
+
+  // Guard: no logs or invalid data
+  if (!data || !Array.isArray(data.logs) || data.logs.length === 0) {
+    tbody.innerHTML = '';
+    if (noHistory) noHistory.style.display = "block";
+    return;
+  }
+
+  if (noHistory) noHistory.style.display = "none";
+
+  // Efficient DOM update with fragment
+  const fragment = document.createDocumentFragment();
+
   data.logs.forEach((log) => {
     const row = document.createElement("tr");
     row.style.cursor = "pointer";
+
     row.innerHTML = `
-        <td>${log.id}</td>
-        <td>${formatDate(log.started) || "—"}</td>
-        <td>${formatDuration(log.started, log.ended) || "—"}</td>
-        <td>${log.exit_code === 0 ? "Success" : (log.exit_code ?? "—")}</td>
-      `;
+      <td>${escapeHtml(String(log.id || '—'))}</td>
+      <td>${formatDate(log.started) || "—"}</td>
+      <td>${formatDuration(log.started, log.ended) || "—"}</td>
+      <td>${getStatusText(log.exit_code, log.signal)}</td>
+    `;
+
     row.addEventListener("click", () => {
-      const jobId = document.getElementById("log-modal").dataset.jobId;
+      const modal = document.getElementById("log-modal");
+      if (!modal) {
+        console.warn("Log modal not found");
+        return;
+      }
+
+      const jobId = modal.dataset.jobId;
+      if (!jobId) {
+        console.warn("No jobId in modal dataset — cannot load log");
+        return;
+      }
+
       appState.ws.send(
         JSON.stringify({
           command: "read_log",
           id: jobId,
           log_id: log.id,
-        }),
+        })
       );
-      document.getElementById("log-history-modal").classList.remove("active");
-      //document.querySelector("#log-modal .modal-title").textContent = `Run: ${id} (Job ID: ${id})`;
+
+      const historyModal = document.getElementById("log-history-modal");
+      if (historyModal) historyModal.classList.remove("active");
     });
-    tbody.appendChild(row);
+
+    fragment.appendChild(row);
   });
+
+  tbody.innerHTML = '';
+  tbody.appendChild(fragment);
 }
 
-/*
-export function updateJobsClusters(data) {
-  hideLoading("monitor-loading");
-  document.getElementById("monitor-content").style.display = "block";
-  if (data.success) {
-    appState.monitorData.tree = buildTree(data);
-    renderJobsTable();
-  }
+// Helpers (add these at the bottom of ui-handlers.js if not already present)
+function escapeHtml(unsafe) {
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
-*/
+
+function getStatusText(exitCode, signal) {
+  if (exitCode === 0) return "Success";
+  if (exitCode != null) return `Failed (${exitCode})`;
+  if (signal != null) return `Killed (signal ${signal})`;
+  return "—";
+}
 
 export function updateJobsClusters(data) {
   hideLoading("monitor-loading");
@@ -512,14 +593,13 @@ export function updateCalendars(data) {
   hideLoading("calendars-loading");
 
   const content = document.getElementById("calendars-content");
-  if (content) content.style.display = "block";   // ← always show the content area
+  if (content) content.style.display = "block"; // ← always show the content area
 
   appState.calendarsData = data.cals || [];
   renderCalendarsTable();
 }
 
 export function toggleCronsRow(calendarId) {
-
   const cronsRow = document.querySelector(
     `tr[data-cal-id="${calendarId}"].crons-row`,
   );
@@ -582,8 +662,8 @@ export function renderCalendarsTable() {
     calRow.dataset.depth = 0;
     calRow.style.setProperty("--depth", "0");
 
-    const toggleHtml = hasCrons 
-      ? `<span class="ordo-toggle"></span>` 
+    const toggleHtml = hasCrons
+      ? `<span class="ordo-toggle"></span>`
       : `<span class="ordo-toggle empty"></span>`;
 
     calRow.innerHTML = `
@@ -679,7 +759,12 @@ export function updateServers(data) {
   if (content) content.style.display = "block";
 
   // Always set data (even if success:0)
-  appState.serversData = data.success ? (data.servers || []) : [];
+  appState.serversData = data.servers.map((server) => ({
+    ...server,
+    ping: Number.isFinite(Number(server.ping)) ? Number(server.ping) : null,
+    // ... other fields you might want to coerce
+  }));
+  //appState.serversData = data.success ? (data.servers || []) : [];
 
   renderServersTable();
 }
@@ -775,7 +860,6 @@ export function applyClusterBroadcast(data) {
 
   // Refresh live timings (now sees fresh data)
   updateLiveTimings();
-
 }
 
 export function applyJobBroadcast(data) {
