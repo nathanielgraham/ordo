@@ -2647,6 +2647,7 @@ sub update_job_state {
 
 sub update_job_config {
    my ( $self, $user, $d ) = @_;
+   print Dumper($d);
    my $job = $self->_job_info( $user, $d );
    return { success => 0, message => 'job not found' } unless $job->{id};
 
@@ -2673,8 +2674,33 @@ sub update_job_config {
       $on_fail_id = shift @{ $self->_resolve_cluster_ids( $user, [ $d->{on_fail} ] ) };
    }
 
-   my @fields      = qw(retrys loops delay description server_id script);
+   my @fields      = qw(retrys loops delay description script);
    my $update_hash = { map { $_ => $d->{$_} } grep { exists $d->{$_} } @fields };
+
+   if ( $needs_ids || $needs_any_ids ) {
+      $self->_write_job_needs( $user, { 
+         needs_all => $needs_ids, 
+         needs_any => $needs_any_ids, 
+         id => $job->{id}, 
+         cluster_id => $job->{cluster_id} 
+      } );
+   }
+
+   # on_fail update   
+   $update_hash->{on_fail_id} =
+       $on_fail_id
+     ? $on_fail_id
+     : undef;
+
+   # server update
+   if ( $d->{server_id} ) {
+      my $res = $self->sqlite->db->select( 'server', ['id'], { id => $d->{server_id}, org_id => $user->org_id } )->hash;
+      $update_hash->{server_id} = $res->{id} if $res->{id};
+   }
+   elsif ( $d->{server} ) {
+      my $res = $self->sqlite->db->select( 'server', ['id'], { name => $d->{server}, org_id => $user->org_id } )->hash;
+      $update_hash->{server_id} = $res->{id} if $res->{id};
+   }
 
    if ( $d->{json} ) {
       eval { my $data = decode_json( $d->{json} ); };
@@ -2691,6 +2717,7 @@ sub update_job_config {
    $update_hash->{name}        = $d->{newname} if $d->{newname};
    $update_hash->{last_update} = time;
 
+   print Dumper($update_hash);
    $self->sqlite->db->update( 'job', $update_hash, { id => $job->{id} } );
    $self->sqlite->db->delete( 'job_needs', { job_id => $job->{id} } ) if $d->{remove_needs};
 
@@ -2700,12 +2727,6 @@ sub update_job_config {
    }
 
    return { success => 1 };
-}
-
-sub update_job {
-   my ( $self, $user, $d ) = @_;
-   my $rv = $self->_update_job( $user, $d );
-   return $rv;
 }
 
 sub _resolve_job_ids {
