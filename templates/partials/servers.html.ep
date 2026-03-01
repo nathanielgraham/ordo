@@ -12,11 +12,11 @@
       <!-- No big hero title — tab name is enough -->
 
       <!-- Actions toolbar -->
-<div class="servers-header">
-  <button class="btn btn-ghost btn-large neon-ghost" id="add-server-btn">
-    + Add Server
-  </button>
-</div>
+      <div class="servers-header">
+        <button class="btn btn-ghost btn-large neon-ghost" id="add-server-btn">
+          + Add Server
+        </button>
+      </div>
 
       <!-- Table -->
       <div class="table-container">
@@ -41,12 +41,13 @@
 
         <!-- Empty state -->
 
-<div id="no-servers" class="empty-state has-text-centered py-10">
-  <i class="fas fa-server fa-5x has-text-grey mb-4"></i>
-  <h3 class="has-text-grey-light">No servers configured yet</h3>
-  <p class="has-text-grey mt-2">Add your first server to start monitoring hardware and jobs.</p>
-</div>
-
+        <div id="no-servers" class="empty-state has-text-centered">
+          <i class="fas fa-server fa-5x has-text-grey"></i>
+          <h3 class="has-text-grey-light">No servers configured yet</h3>
+          <p class="has-text-grey mt-2">
+            Add your first server to start monitoring hardware and jobs.
+          </p>
+        </div>
       </div>
     </div>
 

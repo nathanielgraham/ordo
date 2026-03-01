@@ -20,6 +20,7 @@ use Email::Simple;
 use Email::Sender::Simple;
 use Email::Sender::Transport::SMTP;
 use POSIX qw(strftime);
+use Time::Local qw(timelocal);
 use Data::Dumper;
 
 $ENV{EMAIL_SENDER_SMTP_USER} = 'nathanielgraham1@gmail.com';
@@ -121,25 +122,15 @@ sub startup {
       sqlite => sub {
          state $sql = do {
             my $sqlite = Mojo::SQLite->new("$Bin/../db/ordo.db");
-
-            $sqlite->on(
-               connect => sub {
-                  my ( $sqlite, $dbh ) = @_;
-
-                  # Performance & reliability settings
-                  $dbh->do('PRAGMA journal_mode = WAL;');           # concurrency + speed
-                  $dbh->do('PRAGMA synchronous = NORMAL;');         # faster commits
-                  $dbh->do('PRAGMA busy_timeout = 5000;');          # wait up to 5s on lock
-                  $dbh->do('PRAGMA temp_store = MEMORY;');          # temp objects in RAM
-                  $dbh->do('PRAGMA wal_autocheckpoint = 1000;');    # checkpoint after ~1 MB WAL
-                  $dbh->do('PRAGMA cache_size = -20000;');          # 20 MB page cache
-                  $dbh->do('PRAGMA foreign_keys = ON;');            # keep your setting
-               }
-            );
-
-            $sqlite;
+            $sqlite->db->query('PRAGMA foreign_keys = ON;'); 
+            $sqlite->db->query('PRAGMA journal_mode = WAL;');           # concurrency + speed
+            $sqlite->db->query('PRAGMA synchronous = NORMAL;');         # faster commits
+            $sqlite->db->query('PRAGMA busy_timeout = 5000;');          # wait up to 5s on lock
+            $sqlite->db->query('PRAGMA temp_store = MEMORY;');          # temp objects in RAM
+            $sqlite->db->query('PRAGMA wal_autocheckpoint = 1000;');    # checkpoint after ~1 MB WAL
+            $sqlite->db->query('PRAGMA cache_size = -20000;');          # 20 MB page cache
+            $sqlite->db->query('PRAGMA foreign_keys = ON;');            # keep your setting
          };
-
          #$sql->db;
       }
    );
@@ -595,27 +586,27 @@ sub throttle_exceeded {
 sub increment_usage {
    my ( $self, $org_id, $command ) = @_;
 
-   my $month_year = strftime( '%Y-%m', localtime );
+   my $year_month = strftime( '%Y-%m', localtime );
 
    # Use Mojo::SQLite's clean, chainable API
    $self->sqlite->db->query(
       q{
       INSERT OR REPLACE INTO usage_counters
-      (org_id, month_year, call_count, last_updated)
+      (org_id, year_month, call_count, last_updated)
       VALUES (?, ?,
         COALESCE(
           (SELECT call_count
            FROM usage_counters
-           WHERE org_id = ? AND month_year = ?),
+           WHERE org_id = ? AND year_month = ?),
           0
         ) + 1,
         CURRENT_TIMESTAMP
       )
     },
       $org_id,
-      $month_year,
+      $year_month,
       $org_id,
-      $month_year
+      $year_month
    );
 }
 
@@ -1808,6 +1799,17 @@ sub _org_info {
    my ( $self, $user ) = @_;
    my $org = $self->sqlite->db->select( 'org', ['*'], { id => $user->org_id } )->hash;
    $org->{members} = $self->sqlite->db->select( 'user', [qw(id email level)], { org_id => $user->org_id } )->hashes->to_array;
+   $org->{api_calls_reset_date} = timelocal(0,0,0,1,(localtime)[4]+2,(localtime)[5]);
+   my $org_id = $user->org_id;
+
+   my $sql = <<~"SQL";
+     select max(year_month) as current_month_year, call_count from usage_counters where org_id = $org_id
+   SQL
+
+   my $usage = $self->sqlite->db->query($sql)->hash;
+   $org->{api_calls_this_month} = $usage->{call_count};
+   $org->{current_month_year} = $usage->{current_month_year};
+
    return $org;
 }
 

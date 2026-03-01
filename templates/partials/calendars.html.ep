@@ -24,7 +24,7 @@
       <!-- Calendars table -->
 
       <div class="table-container">
-        <table class="ordo-table ordo-table--tree" id="calendars-table">
+        <table class="ordo-table" id="calendars-table">
           <thead>
             <tr>
               <th>Name / Expression</th>

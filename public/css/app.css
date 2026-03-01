@@ -23,7 +23,8 @@
   box-sizing: border-box;
 }
 html {
-  font-size: clamp(14px, 1.8vw, 18px);
+  font-size: clamp(8px, 1.0vw, 12px);
+  /* font-size: clamp(14px, 1.8vw, 18px); */.
   font-weight: 500;
 }
 body,
@@ -142,7 +143,8 @@ select:focus {
 body {
   font-family: "Montserrat", sans-serif !important;
   font-weight: 500;
-  font-size: clamp(14px, 1.8vw, 18px) !important;
+  /* font-size: clamp(14px, 1.8vw, 18px) !important; */
+  font-size: clamp(10px, 1.2vw, 14px) !important;
 }
 
 .ordo-table,
@@ -2105,3 +2107,37 @@ footer {
   min-height: 380px;
 }
 
+/* billing */
+
+.progress-container {
+  position: relative;
+}
+.progress {
+  height: 1.2rem;
+  border-radius: 6px;
+}
+.progress.is-danger {
+  background: #ef5350;
+}
+.progress::-webkit-progress-value {
+  background: inherit;
+  border-radius: 6px;
+}
+.text-danger strong {
+  color: #ef5350;
+}
+.mt-large.pt-large.border-top {
+  border-top: 1px solid #444;
+  padding-top: 2rem;
+  margin-top: 2rem;
+}
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+@media (max-width: 768px) {
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}

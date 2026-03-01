@@ -2,15 +2,15 @@ PRAGMA foreign_keys=on;
 BEGIN TRANSACTION;
 DROP TABLE IF EXISTS usage_counters;
 CREATE TABLE IF NOT EXISTS usage_counters (
+  id INTEGER PRIMARY KEY NOT NULL,
   org_id        INTEGER NOT NULL,
-  month_year    TEXT NOT NULL,          -- '2025-02'
+  year_month    TEXT NOT NULL,          -- '2025-02'
   call_count    INTEGER DEFAULT 0,
   last_updated  DATETIME DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (org_id, month_year),
   FOREIGN KEY (org_id) REFERENCES org(id) ON DELETE CASCADE
 );
 
 -- Index for fast lookups
-CREATE INDEX IF NOT EXISTS idx_usage_counters_org_month 
-ON usage_counters (org_id, month_year);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_counters_org_month 
+ON usage_counters (org_id, year_month);
 COMMIT;

@@ -312,6 +312,7 @@ export function updateAccount(data) {
   hideLoading("account-loading");
   document.getElementById("account-content").style.display = "block";
   renderUserProfile();
+  renderAccountUsageAndTier();
 }
 
 export function renderUserProfile() {
@@ -339,6 +340,7 @@ export function updateOrgAndTeam(data) {
   renderOrgTeam();
   hideLoading("account-loading");
   document.getElementById("account-content").style.display = "block";
+  renderAccountUsageAndTier();
 }
 
 export function renderOrgTeam() {
@@ -369,15 +371,113 @@ export function renderOrgTeam() {
   }
 }
 
-/*
-export function updateLog(data) {
-  document.getElementById("log-content").textContent = data.out;
-  const jobId = data.job_id;
-  const runId = data.id || "unknown";
-  document.querySelector("#log-modal .modal-title").textContent =
-    `Job ${jobId} (Run ${runId})`;
+// Tier → limits mapping (adjust numbers as needed)
+const tierLimits = {
+  free:    { api_monthly: 1000,  servers: 3,   team_members: 2   },
+  starter: { api_monthly: 10000, servers: 20,  team_members: 20  },
+  pro:     { api_monthly: 50000, servers: Infinity, team_members: Infinity },
+  custom:  { api_monthly: Infinity, servers: Infinity, team_members: Infinity }
+};
+
+// Shared countdown formatter (used in account + future dashboard)
+function formatCountdown(resetTs) {
+  if (!resetTs) return "—";
+  const now = Math.floor(Date.now() / 1000);
+  let diff = resetTs - now;
+  if (diff <= 0) return "Reset now";
+
+  const days    = Math.floor(diff / 86400);
+  diff %= 86400;
+  const hours   = Math.floor(diff / 3600).toString().padStart(2, '0');
+  diff %= 3600;
+  const minutes = Math.floor(diff / 60).toString().padStart(2, '0');
+  const seconds = (diff % 60).toString().padStart(2, '0');
+
+  if (days > 0) return `resets in ${days}d ${hours}:${minutes}:${seconds}`;
+  return `resets in ${hours}:${minutes}:${seconds}`;
 }
-*/
+
+// Live countdown updater (call once on load)
+let countdownInterval = null;
+function startResetCountdown() {
+  if (countdownInterval) clearInterval(countdownInterval);
+  const resetEl = document.getElementById("api-reset-countdown");
+  if (!resetEl || !appState.orgData?.api_calls_reset_date) return;
+
+  countdownInterval = setInterval(() => {
+    resetEl.textContent = formatCountdown(appState.orgData.api_calls_reset_date);
+  }, 1000);
+}
+
+// Main render function for usage + tier
+function renderAccountUsageAndTier() {
+  const org = appState.orgData || {};
+  const user = appState.accountData || {};
+  const tier = org.tier || "free";
+  const limits = tierLimits[tier] || tierLimits.free;
+
+  // Tier display
+  const tierEl = document.getElementById("account-tier");
+  if (tierEl) {
+    tierEl.textContent = tier.charAt(0).toUpperCase() + tier.slice(1);
+    let tagClass = "is-warning";
+    if (tier === "starter") tagClass = "is-info";
+    if (tier === "pro")     tagClass = "is-success";
+    if (tier === "custom")  tagClass = "is-primary";
+    tierEl.className = `tag ${tagClass}`;
+  }
+
+  // API usage
+  const used = Number(org.api_calls_this_month) || 0;
+  const apiLimit = limits.api_monthly;
+  const pct = apiLimit === Infinity ? 0 : Math.min(100, Math.round((used / apiLimit) * 100));
+
+  const progress = document.getElementById("api-progress");
+  if (progress) {
+    progress.value = pct;
+    progress.max = 100;
+    progress.className = `progress ${pct > 90 ? "is-danger" : pct > 70 ? "is-warning" : "is-info"}`;
+  }
+
+  const usageText = document.getElementById("api-usage-text");
+  if (usageText) {
+    const limitDisplay = apiLimit === Infinity ? "∞" : apiLimit.toLocaleString();
+    usageText.textContent = `${used.toLocaleString()} / ${limitDisplay}`;
+    if (used > apiLimit) {
+      usageText.classList.add("text-danger");
+      usageText.innerHTML += ' <i class="fas fa-exclamation-triangle"></i> Over limit';
+    }
+  }
+
+  // Reset countdown
+  const resetEl = document.getElementById("api-reset-countdown");
+  if (resetEl) {
+    resetEl.textContent = formatCountdown(org.api_calls_reset_date);
+  }
+
+  // Servers usage
+  const serverCount = appState.serversData?.length || 0;
+  const serverText = document.getElementById("server-usage-text");
+  if (serverText) {
+    const serverLimit = limits.servers === Infinity ? "∞" : limits.servers;
+    serverText.textContent = `${serverCount} / ${serverLimit}`;
+  }
+  const serverWarn = document.getElementById("server-warning");
+  if (serverWarn) serverWarn.style.display = (serverCount > limits.servers) ? "block" : "none";
+
+  // Team usage
+  const teamCount = org.members?.length || 0;
+  const teamText = document.getElementById("team-usage-text");
+  if (teamText) {
+    const teamLimit = limits.team_members === Infinity ? "∞" : limits.team_members;
+    teamText.textContent = `${teamCount} / ${teamLimit}`;
+  }
+  const teamWarn = document.getElementById("team-warning");
+  if (teamWarn) teamWarn.style.display = (teamCount > limits.team_members) ? "block" : "none";
+
+  // Start live countdown
+  startResetCountdown();
+}
 
 export function updateLog(data) {
   const loading = document.getElementById("log-loading");

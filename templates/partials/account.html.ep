@@ -4,14 +4,15 @@
     <div id="account-loading" class="text-center">
       <i class="fas fa-spinner fa-spin"></i> Loading...
     </div>
-
     <div id="account-content" style="display: none">
-      <div class="grid-2">
-        <!-- Profile Card -->
+      <div class="grid-2 gap-large">
+        <!-- Combined Profile + Organization + Billing/Usage Card -->
         <div class="card-simple">
           <h3 class="title-medium">
-            <i class="fas fa-user mr-2"></i> Your Profile
+            <i class="fas fa-user mr-2"></i> Profile & Organization
           </h3>
+
+          <!-- Profile fields -->
           <div class="profile-grid">
             <div>
               <p class="label-bold">Email</p>
@@ -55,69 +56,110 @@
               </div>
             </div>
           </div>
-          <div class="actions-right">
-            <button class="btn btn-primary" id="save-profile">
-              <i class="fas fa-save mr-2"></i> Save Profile
-            </button>
+
+          <!-- Organization + Billing/Usage section -->
+          <div class="mt-large pt-large border-top">
+            <h4 class="title-medium mb-medium">
+              <i class="fas fa-building mr-2"></i> Organization & Billing
+            </h4>
+
+            <div class="profile-grid">
+              <div>
+                <p class="label-bold">Org ID</p>
+                <p id="org-id"></p>
+              </div>
+              <div>
+                <p class="label-bold">Subscription Tier</p>
+                <p id="account-tier" class="tag">—</p>
+              </div>
+              <div class="full-width">
+                <p class="label-bold">Organization Name</p>
+                <input class="input" type="text" id="edit-org-name" placeholder="Organization name" />
+              </div>
+              <div class="full-width">
+                <p class="label-bold">Description</p>
+                <textarea class="textarea" id="edit-org-desc" placeholder="Organization description"></textarea>
+              </div>
+              <div>
+                <p class="label-bold">Creation Time</p>
+                <p id="org-creation"></p>
+              </div>
+            </div>
+
+            <!-- Usage Meters -->
+            <div class="mt-large">
+              <h5 class="label-bold mb-medium">Usage & Limits (Free Tier)</h5>
+
+              <!-- API Calls -->
+              <div class="mb-medium">
+                <p class="label-bold">API Calls This Month</p>
+                <div class="progress-container">
+                  <progress id="api-progress" class="progress" value="0" max="100">0%</progress>
+                  <p id="api-usage-text" class="text-grey mt-1">0 / 1,000</p>
+                </div>
+                <p id="api-reset-countdown" class="help-text small mt-1">Resets in —</p>
+              </div>
+
+              <!-- Servers -->
+              <div class="mb-medium">
+                <p class="label-bold">Servers</p>
+                <p id="server-usage-text">0 / 3</p>
+                <div id="server-warning" class="text-danger small" style="display:none;">
+                  <i class="fas fa-exclamation-triangle mr-1"></i> Over limit — upgrade recommended
+                </div>
+              </div>
+
+              <!-- Team Members -->
+              <div class="mb-medium">
+                <p class="label-bold">Team Members</p>
+                <p id="team-usage-text">0 / 2</p>
+                <div id="team-warning" class="text-danger small" style="display:none;">
+                  <i class="fas fa-exclamation-triangle mr-1"></i> Over limit — upgrade recommended
+                </div>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="actions-right mt-large">
+              <button class="btn btn-primary" id="save-profile">
+                <i class="fas fa-save mr-2"></i> Save Profile
+              </button>
+              <button class="btn btn-primary" id="save-org">
+                <i class="fas fa-save mr-2"></i> Save Organization
+              </button>
+              <a href="#pricing" class="btn btn-info ml-medium">
+                <i class="fas fa-arrow-up mr-2"></i> View Plans & Upgrade
+              </a>
+            </div>
           </div>
         </div>
 
-        <!-- Organization Card -->
+        <!-- Team Members (kept separate for readability) -->
         <div class="card-simple">
           <h3 class="title-medium">
-            <i class="fas fa-building mr-2"></i> Organization
+            <i class="fas fa-users mr-2"></i> Team Members
           </h3>
-          <div class="profile-grid">
-            <div>
-              <p class="label-bold">Org ID</p>
-              <p id="org-id"></p>
-            </div>
-            <div>
-              <p class="label-bold">Name</p>
-              <input class="input" type="text" id="edit-org-name" placeholder="Organization name" />
-            </div>
-            <div class="full-width">
-              <p class="label-bold">Description</p>
-              <textarea class="textarea" id="edit-org-desc" placeholder="Organization description"></textarea>
-            </div>
-            <div>
-              <p class="label-bold">Creation Time</p>
-              <p id="org-creation"></p>
-            </div>
+          <div class="table-container">
+            <table class="data-table" id="team-table">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>ID</th>
+                  <th>Level</th>
+                  <th>Creation Time</th>
+                </tr>
+              </thead>
+              <tbody id="team-body"></tbody>
+            </table>
           </div>
-          <div class="actions-right">
-            <button class="btn btn-primary" id="save-org">
-              <i class="fas fa-save mr-2"></i> Save Organization
+          <p id="no-team" class="text-grey text-center" style="display: none">
+            No team members yet.
+          </p>
+          <div class="mt-medium">
+            <button class="btn btn-success" id="invite-team">
+              <i class="fas fa-user-plus mr-2"></i> Invite Team Member
             </button>
           </div>
-        </div>
-      </div>
-
-      <!-- Team Members -->
-      <div class="card-simple mt-large">
-        <h3 class="title-medium">
-          <i class="fas fa-users mr-2"></i> Team Members
-        </h3>
-        <div class="table-container">
-          <table class="data-table" id="team-table">
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>ID</th>
-                <th>Level</th>
-                <th>Creation Time</th>
-              </tr>
-            </thead>
-            <tbody id="team-body"></tbody>
-          </table>
-        </div>
-        <p id="no-team" class="text-grey text-center" style="display: none">
-          No team members yet.
-        </p>
-        <div class="mt-medium">
-          <button class="btn btn-success" id="invite-team">
-            <i class="fas fa-user-plus mr-2"></i> Invite Team Member
-          </button>
         </div>
       </div>
     </div>
