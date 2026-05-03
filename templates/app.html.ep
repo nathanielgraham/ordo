@@ -81,13 +81,29 @@
     <div class="navbar-spacer"></div>
 
     <main class="container">
-      <%= include 'partials/about' %> <%= include 'partials/docs' %> <%= include
-      'partials/pricing' %> <%= include 'partials/account' %> <%= include
-      'partials/servers' %> <%= include 'partials/jobs_clusters' %> <%= include
-      'partials/calendars' %>
+      <%= include 'partials/about' %> 
+      <%= include 'partials/docs' %> 
+      <%= include 'partials/pricing' %>
+      <%= include 'partials/servers' %>
+      <%= include 'partials/jobs_clusters' %> 
+      <%= include 'partials/calendars' %>
+      <%= include 'partials/dashboard' %>
+      <%= include 'partials/settings' %> 
     </main>
 
     <%= include 'partials/modals' %>
+
+<footer class="footer bg-dark py-large mt-auto">
+  <div class="content-center text-center text-grey">
+    <p>
+      Ordo — Modern Job Scheduler | © 2026
+      <span class="mx-large">•</span>
+      <a href="#pricing" class="text-cyan">Plans & Pricing</a>
+      <span class="mx-large">•</span>
+      <a href="mailto:support@ordo.app" class="text-cyan">Contact Support</a>
+    </p>
+  </div>
+</footer>
 
     <script type="module" src="/js/app.js?v=<%= time %>"></script>
   </body>

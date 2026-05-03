@@ -140,22 +140,16 @@ export function renderServersTable() {
   const table = document.getElementById("servers-table");
   const noServers = document.getElementById("no-servers");
 
-  if (!tbody || !table || !noServers) {
-    console.error("[renderServersTable] MISSING DOM ELEMENTS");
-    return;
-  }
+  if (!tbody || !table || !noServers) return;
 
-  // ==================== EMPTY STATE ====================
   if (!appState.serversData || appState.serversData.length === 0) {
     table.style.display = "none";
     noServers.style.display = "block";
     return;
   }
 
-  // Show table, hide empty state
   table.style.display = "table";
   noServers.style.display = "none";
-
   tbody.innerHTML = "";
 
   const now = Math.floor(Date.now() / 1000);
@@ -309,10 +303,38 @@ export function renderServersTable() {
 
 export function updateAccount(data) {
   appState.accountData = data;
-  hideLoading("account-loading");
-  document.getElementById("account-content").style.display = "block";
-  renderUserProfile();
-  renderAccountUsageAndTier();
+  const loading = document.getElementById("settings-loading");
+  const content = document.getElementById("settings-content");
+  if (loading) loading.style.display = "none";
+  if (content) content.style.display = "block";
+  renderUserProfile();          // ← call your profile render
+  renderAccountUsageAndTier();  // ← your usage function
+}
+
+export function updateOrgAndTeam(data) {
+  appState.orgData = data;
+  const teamBody = document.getElementById("team-body");
+  const noTeam = document.getElementById("no-team");
+  if (!teamBody || !noTeam) return; // ← guard
+
+  teamBody.innerHTML = "";
+  if (data.members?.length) {
+    data.members.forEach(member => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${member.email || "—"}</td>
+        <td>${member.id || "—"}</td>
+        <td>${member.level || "—"}</td>
+        <td>${formatDate(member.creation_time) || "—"}</td>
+      `;
+      teamBody.appendChild(row);
+    });
+    noTeam.style.display = "none";
+  } else {
+    noTeam.style.display = "block";
+  }
+  renderOrgTeam();              // ← if you have a separate render
+  renderAccountUsageAndTier();  // refresh usage
 }
 
 export function renderUserProfile() {
@@ -324,7 +346,6 @@ export function renderUserProfile() {
   document.getElementById("account-level").textContent =
     appState.accountData.level || "—";
   document.getElementById("edit-name").value = appState.accountData.name || "";
-  document.getElementById("edit-mode").value = appState.accountData.mode || "";
   document.getElementById("account-creation").textContent =
     formatDate(appState.accountData.creation_time) || "—";
   document.getElementById("account-update").textContent =
@@ -333,14 +354,6 @@ export function renderUserProfile() {
     appState.accountData.remote_address || "—";
   document.getElementById("account-token").value =
     appState.accountData.token || "—";
-}
-
-export function updateOrgAndTeam(data) {
-  appState.orgData = data;
-  renderOrgTeam();
-  hideLoading("account-loading");
-  document.getElementById("account-content").style.display = "block";
-  renderAccountUsageAndTier();
 }
 
 export function renderOrgTeam() {
@@ -691,12 +704,17 @@ export function updateJobsClusters(data) {
 
 export function updateCalendars(data) {
   hideLoading("calendars-loading");
-
   const content = document.getElementById("calendars-content");
-  if (content) content.style.display = "block"; // ← always show the content area
+  if (content) content.style.display = "block";
 
-  appState.calendarsData = data.cals || [];
-  renderCalendarsTable();
+  if (data.success && Array.isArray(data.cals)) {
+    appState.calendarsData = data.cals;
+  } else {
+    appState.calendarsData = [];
+    console.log("No calendars found:", data.message || "empty response");
+  }
+
+  renderCalendarsTable();  // ensure this handles []
 }
 
 export function toggleCronsRow(calendarId) {
@@ -732,6 +750,98 @@ export function toggleCronsRow(calendarId) {
 }
 
 export function renderCalendarsTable() {
+  const tbody = document.getElementById("calendars-body");
+  const table = document.getElementById("calendars-table");
+  const noCalendars = document.getElementById("no-calendars");
+
+  // Guard: missing DOM elements
+  if (!tbody || !table || !noCalendars) {
+    console.warn("[renderCalendarsTable] Missing required DOM elements");
+    return;
+  }
+
+  const calendars = appState.calendarsData || [];
+
+  // Handle empty / no success case
+  if (calendars.length === 0) {
+    table.style.display = "none";
+    noCalendars.style.display = "block";
+    console.debug("[renderCalendarsTable] No calendars to display");
+    return;
+  }
+
+  // Show table, hide empty state
+  table.style.display = "table";
+  noCalendars.style.display = "none";
+  tbody.innerHTML = ""; // Clear previous rows
+
+  calendars.forEach((cal) => {
+    const hasCrons = Array.isArray(cal.crons) && cal.crons.length > 0;
+    const isCollapsed = appState.collapsedCalendars.has(String(cal.id));
+
+    // Calendar row
+    const calRow = document.createElement("tr");
+    calRow.className = `ordo-calendar-row ${isCollapsed ? "collapsed" : ""}`;
+    calRow.dataset.id = cal.id;
+    calRow.dataset.depth = "0";
+    calRow.style.setProperty("--depth", "0");
+
+    const toggleHtml = hasCrons
+      ? `<span class="ordo-toggle"></span>`
+      : `<span class="ordo-toggle empty"></span>`;
+
+    calRow.innerHTML = `
+      <td>${toggleHtml}<i class="fas fa-folder mr-2 has-text-info"></i>${cal.name || "Unnamed Calendar"}</td>
+      <td>${cal.tz || "—"}</td>
+      <td>${cal.description || "—"}</td>
+      <td>${cal.crons?.length || 0}</td>
+      <td>${cal.cluster_ids?.length || 0}</td>
+      <td>—</td>
+      <td>—</td>
+      <td>—</td>
+      <td>${generateCalendarActions(cal.id, hasCrons)}</td>
+    `;
+    tbody.appendChild(calRow);
+
+    // Cron rows (if any)
+    if (hasCrons) {
+      cal.crons.forEach((cron, idx) => {
+        const isLast = idx === cal.crons.length - 1;
+        const cronRow = document.createElement("tr");
+        cronRow.className = `ordo-cron-row ${isCollapsed ? "hidden" : ""}`;
+        cronRow.dataset.id = `cron-${cal.id}-${cron.id}`;
+        cronRow.dataset.depth = "1";
+        cronRow.dataset.parent = cal.id;
+        cronRow.dataset.lastChild = isLast ? "true" : "false";
+        cronRow.style.setProperty("--depth", "1");
+
+        const cronIcon = '<i class="fas fa-clock mr-2 has-text-cyan"></i>';
+        cronRow.innerHTML = `
+          <td>${cronIcon}${cron.name || cron.expression || "—"}</td>
+          <td>${cron.english || "—"}</td>
+          <td>${cron.description || "—"}</td>
+          <td>—</td>
+          <td>—</td>
+          <td>${cron.begin ? formatDate(cron.begin) : "Immediate"}</td>
+          <td>${cron.expire ? formatDate(cron.expire) : "Never"}</td>
+          <td>${formatDate(cron.next_start) || "—"}</td>
+          <td>${generateCronActions(cal.id, cron.id)}</td>
+        `;
+        tbody.appendChild(cronRow);
+      });
+    }
+  });
+
+  console.debug(`[renderCalendarsTable] Rendered ${calendars.length} calendars, ${calendars.reduce((sum, c) => sum + (c.crons?.length || 0), 0)} crons`);
+
+  // Re-apply collapse states (in case of re-render)
+  appState.collapsedCalendars.forEach(calId => {
+    const row = document.querySelector(`tr[data-id="${calId}"]`);
+    if (row) row.classList.add("collapsed");
+  });
+}
+
+export function renderCalendarsTable2() {
   const tbody = document.getElementById("calendars-body");
   const table = document.getElementById("calendars-table");
   const noCalendars = document.getElementById("no-calendars");
@@ -853,6 +963,22 @@ function generateCronActions(calId, cronId) {
 }
 
 export function updateServers(data) {
+  hideLoading("servers-loading");
+  const content = document.getElementById("servers-content");
+  if (content) content.style.display = "block";
+
+  // Handle both success cases
+  if (data.success && Array.isArray(data.servers)) {
+    appState.serversData = data.servers;
+  } else {
+    appState.serversData = [];  // empty = no crash
+    console.log("No servers found:", data.message || "empty response");
+  }
+
+  renderServersTable();  // your render must handle empty array gracefully
+}
+
+export function updateServers2(data) {
   hideLoading("servers-loading");
 
   const content = document.getElementById("servers-content");
@@ -1070,6 +1196,30 @@ export function loadDoc(file) {
         `<p class="has-text-danger has-text-centered">Error: ${err.message}</p>`;
     });
 }
+
+document.getElementById("refresh-usage")?.addEventListener("click", () => {
+  appState.ws.send(JSON.stringify({ command: "read_org" }));
+  showToast("Refreshing usage...", "info");
+});
+
+// Internal tabs in Settings
+document.addEventListener('click', (e) => {
+  const tabBtn = e.target.closest('.internal-tab');
+  if (!tabBtn) return;
+
+  const tabId = tabBtn.dataset.tab;
+  const container = tabBtn.closest('#settings-content');
+  if (!container) return;
+
+  // Remove active from all buttons and contents
+  container.querySelectorAll('.internal-tab').forEach(b => b.classList.remove('active'));
+  container.querySelectorAll('.internal-tab-content').forEach(c => c.style.display = 'none');
+
+  // Activate clicked
+  tabBtn.classList.add('active');
+  const content = container.querySelector(`#tab-${tabId}`);
+  if (content) content.style.display = 'block';
+});
 
 // Mobile TOC toggle
 document.getElementById("docs-toc-toggle")?.addEventListener("click", () => {

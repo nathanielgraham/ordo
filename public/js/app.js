@@ -30,11 +30,4 @@ document.addEventListener("DOMContentLoaded", () => {
       document.body.classList.remove("scrolled");
     }
   });
-
-  setInterval(() => {
-    const timeEl = document.getElementById("current-time");
-    if (timeEl) {
-      timeEl.textContent = new Date().toLocaleString();
-    }
-  }, 1000);
 });
