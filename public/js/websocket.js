@@ -13,6 +13,7 @@ import {
   applyCalBroadcast,
   applyServerBroadcast,
   showToast,
+  renderDashboard
 } from "./ui-handlers.js";
 
 export function checkLoginAndConnect() {
@@ -41,6 +42,7 @@ export function connectWS(token) {
     try {
       const data = JSON.parse(e.data);
 
+      // ====================== LOGIN & INITIAL LOADS ======================
       if (data.command_reply === "login_user" && data.success) {
         console.log("Login success - requesting initial loads");
         appState.ws.send(JSON.stringify({ command: "read_user" }));
@@ -50,6 +52,7 @@ export function connectWS(token) {
         appState.ws.send(JSON.stringify({ command: "find_monitor" }));
       }
 
+      // ====================== DIRECT COMMAND REPLIES ======================
       if (data.command_reply === "read_user") updateAccount(data);
       if (data.command_reply === "read_org") updateOrgAndTeam(data);
       if (data.command_reply === "read_log") updateLog(data);
@@ -58,12 +61,30 @@ export function connectWS(token) {
       if (data.command_reply === "find_cal") updateCalendars(data);
       if (data.command_reply === "find_monitor") updateServers(data);
 
+      // ====================== DASHBOARD UPDATES ======================
+      const isDashboardActive = document.getElementById('dashboard')?.classList.contains('active');
+
+      if (isDashboardActive) {
+        if (data.command_reply === "find_cluster" || 
+            data.broadcast === "clusters_changed" || 
+            data.broadcast === "jobs_changed") {
+          renderDashboard();
+        }
+
+        if (data.command_reply === "find_monitor" || 
+            data.broadcast === "servers_changed") {
+          renderDashboard();
+        }
+      }
+
+      // ====================== BROADCASTS (other tabs) ======================
       if (data.broadcast === "clusters_changed") applyClusterBroadcast(data);
       if (data.broadcast === "jobs_changed") applyJobBroadcast(data);
       if (data.broadcast === "cals_changed") applyCalBroadcast(data);
       if (data.broadcast === "servers_changed") applyServerBroadcast(data);
       if (data.broadcast === "org_changed") updateOrgAndTeam(data);
 
+      // ====================== TOASTS ======================
       if (data.command_reply && data.message) {
         showToast(data.message, data.success ? "success" : "danger");
       }

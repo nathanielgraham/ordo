@@ -1,10 +1,62 @@
 // tabs.js – tab navigation + default activation
-import { loadDoc } from "./ui-handlers.js";
+import { loadDoc, refreshSettings, showPricingModal, renderDashboard } from "./ui-handlers.js";
 import { startLiveTimings, stopLiveTimings } from "./tree/tree-table.js";
+
+// ==================== UNIFIED TAB ACTIVATION ====================
+export function activateTab() {
+  const hash = window.location.hash.replace('#', '').trim();
+  console.log(`[ACTIVATE TAB] Raw hash = "${hash}"`);
+
+  if (hash) {
+    const parts = hash.split('/');
+    const tabName = parts[0];
+    let docSlug = parts[1];
+
+    console.log(`[ACTIVATE TAB] tab=${tabName}, slug=${docSlug}`);
+
+    // Activate main Docs tab
+    const tabLink = document.querySelector(`.nav-tab[data-tab="${tabName}"]`);
+    if (tabLink) tabLink.click();
+
+    if (tabName === 'docs' && docSlug) {
+      // Normalize slug to filename
+      let filename = docSlug.endsWith('.md') ? docSlug : `${docSlug}.md`;
+
+      // Special mappings
+      if (docSlug === 'rest-api' || docSlug === 'rest') filename = 'rest-api.md';
+      if (docSlug === 'video-tutorials') filename = 'video-tutorials.md';
+
+      console.log(`[ACTIVATE TAB] Attempting to load: ${filename}`);
+
+      setTimeout(() => {
+        const link = document.querySelector(`a[data-file="${filename}"]`);
+        if (link) {
+          console.log(`[ACTIVATE TAB] ✅ SUCCESS: Clicking ${filename}`);
+          link.click();
+        } else {
+          console.error(`[ACTIVATE TAB] ❌ Link not found for ${filename}`);
+          // Fallback
+          const fallback = document.querySelector('a[data-file="overview.md"]');
+          if (fallback) fallback.click();
+        }
+      }, 450);
+    }
+    return;
+  }
+
+  // Default for returning users
+  const isLoggedIn = document.body.classList.contains("is-logged-in");
+  if (isLoggedIn) {
+    document.querySelector('.nav-tab[data-tab="dashboard"]')?.click();
+  } else {
+    document.querySelector('.nav-tab[data-tab="about"]')?.click();
+  }
+}
 
 export function attachTabListeners() {
   const tabLinks = document.querySelectorAll(".nav-tab[data-tab]");
   console.log(`Found ${tabLinks.length} tab links`);
+
   tabLinks.forEach((link) => {
     link.addEventListener("click", (e) => {
       e.preventDefault();
@@ -12,43 +64,49 @@ export function attachTabListeners() {
 
       // === DEBUG START ===
       console.log("[DEBUG] Tab clicked:", tabId);
-      console.log(
-        "[DEBUG] All section elements in DOM:",
-        document.querySelectorAll("section"),
-      );
-      console.log(
-        "[DEBUG] All section IDs:",
-        Array.from(document.querySelectorAll("section"))
-          .map((s) => s.id)
-          .filter(Boolean),
-      );
-      console.log(
-        "[DEBUG] Direct getElementById('servers'):",
-        document.getElementById("servers"),
-      );
-      console.log(
-        "[DEBUG] Query selector for #servers:",
-        document.querySelector("#servers"),
-      );
-      console.log(
-        "[DEBUG] Query selector for section[id='servers']:",
-        document.querySelector("section[id='servers']"),
-      );
       // === DEBUG END ===
 
+      // Special handling for settings tab
+      if (tabId === "pricing") {
+        e.preventDefault();
+        showPricingModal();
+        return;
+      }
+
+      if (tabId === "dashboard") {
+        renderDashboard();
+      }
+
       if (tabId === "docs") {
-        const content = document.getElementById("docs-content");
-        if (content && !content.innerHTML.trim()) {
-          loadDoc("quickstart.md");
+        const docsContent = document.getElementById("docs-content");
+        if (
+          docsContent &&
+          (!docsContent.innerHTML || docsContent.innerHTML.trim() === "")
+        ) {
+          console.log("[TAB] Docs opened empty → loading overview.md");
+          loadDoc("overview.md");
         }
       }
-      // Dynamic import for tree timings
 
-if (tabId === "monitor" || tabId === "servers" || tabId === "calendars") {
-  startLiveTimings();
-} else {
-  stopLiveTimings();
-}
+      if (tabId === "settings") {
+        console.log("[DEBUG] Activating Settings tab — loading data");
+
+        const loading = document.getElementById("settings-loading");
+        const content = document.getElementById("settings-content");
+
+        if (loading) loading.style.display = "none";
+        if (content) content.style.display = "block";
+
+        // Load fresh data
+        refreshSettings();
+      }
+
+      // Live timings for other tabs
+      if (tabId === "monitor" || tabId === "servers" || tabId === "calendars") {
+        startLiveTimings();
+      } else {
+        stopLiveTimings();
+      }
 
       // Update active tab style
       tabLinks.forEach((l) => l.classList.remove("active"));
@@ -59,14 +117,11 @@ if (tabId === "monitor" || tabId === "servers" || tabId === "calendars") {
         .querySelectorAll(".tab-content")
         .forEach((s) => s.classList.remove("active"));
 
-      // Robust lookup with fallback
       let target = document.getElementById(tabId);
       if (!target) {
-        console.warn(
-          "[DEBUG] getElementById failed — trying querySelector fallback",
-        );
         target = document.querySelector(`section[id="${tabId}"]`);
       }
+
       if (target) {
         target.classList.add("active");
         console.log(`[DEBUG] Successfully activated #${tabId}`);
@@ -75,15 +130,4 @@ if (tabId === "monitor" || tabId === "servers" || tabId === "calendars") {
       }
     });
   });
-}
-
-export function activateDefaultTab() {
-  const isLoggedIn = document.body.classList.contains("is-logged-in");
-  const defaultTab = isLoggedIn ? "servers" : "about";
-  const link = document.querySelector(`.nav-tab[data-tab="${defaultTab}"]`);
-  if (link) {
-    link.click();
-  } else {
-    console.warn(`Default tab link not found: ${defaultTab}`);
-  }
 }

@@ -86,7 +86,6 @@
               class="input"
               type="text"
               id="server-user"
-              value="broom"
               placeholder="e.g. broom"
             />
           </div>

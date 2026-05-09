@@ -229,7 +229,7 @@ export function openServerModal(mode = "create", server = null) {
   document.getElementById("server-name").value = server?.name || "";
   document.getElementById("server-host").value =
     server?.host || server?.ip_address || "";
-  document.getElementById("server-user").value = server?.user || "broom";
+  //document.getElementById("server-user").value = server?.user;
   document.getElementById("server-port").value = server?.port || "22";
   document.getElementById("password-group").style.display =
     mode === "edit" ? "none" : "block";
@@ -952,13 +952,13 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("save-server")?.addEventListener("click", () => {
     const name = document.getElementById("server-name").value.trim();
     const host = document.getElementById("server-host").value.trim();
-    const user = document.getElementById("server-user").value.trim() || "broom";
+    const user = document.getElementById("server-user").value.trim();
     const port = Number(document.getElementById("server-port").value) || 22;
     const password =
       document.getElementById("server-password").value || undefined;
 
-    if (!name || !host) {
-      showToast("Name and Host required", "danger");
+    if (!name || !host || !user) {
+      showToast("Name, Host, and User required", "danger");
       return;
     }
 
@@ -1065,6 +1065,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
   // Copy token
+  /*
   document.getElementById("copy-token")?.addEventListener("click", () => {
     const tokenInput = document.getElementById("account-token");
     if (!tokenInput.value) {
@@ -1080,6 +1081,7 @@ document.addEventListener("DOMContentLoaded", () => {
       showToast("Failed to copy", "danger");
     }
   });
+  */
 
   // Save profile
   document.getElementById("save-profile")?.addEventListener("click", () => {

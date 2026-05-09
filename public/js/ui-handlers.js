@@ -1,4 +1,5 @@
 // ui-handlers.js
+import { sendWS } from "./websocket.js";
 import {
   appState,
   updateCollapsedClusters,
@@ -16,6 +17,8 @@ import {
 import {
   formatDate,
   formatDuration,
+  formatTplus,
+  formatTminus,
   formatUptime,
   formatRelativeTime,
   buildTree,
@@ -301,195 +304,186 @@ export function renderServersTable() {
   });
 }
 
+// ==================== TIER LIMITS ====================
+const tierLimits = {
+  free:    { api: 1000,  servers: 3,  members: 2 },
+  starter: { api: 50000, servers: 10, members: 5 },
+  pro:     { api: 100000,servers: 30, members: 10 },
+  custom:  { api: Infinity, servers: Infinity, members: Infinity }
+};
+
+// ==================== RENDER FUNCTIONS ====================
+
 export function updateAccount(data) {
-  appState.accountData = data;
-  const loading = document.getElementById("settings-loading");
-  const content = document.getElementById("settings-content");
-  if (loading) loading.style.display = "none";
-  if (content) content.style.display = "block";
-  renderUserProfile();          // ← call your profile render
-  renderAccountUsageAndTier();  // ← your usage function
+  if (data.command_reply === 'read_user') {
+    appState.accountData = data;
+    renderUserProfile(data);
+  }
 }
 
 export function updateOrgAndTeam(data) {
-  appState.orgData = data;
-  const teamBody = document.getElementById("team-body");
-  const noTeam = document.getElementById("no-team");
-  if (!teamBody || !noTeam) return; // ← guard
-
-  teamBody.innerHTML = "";
-  if (data.members?.length) {
-    data.members.forEach(member => {
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td>${member.email || "—"}</td>
-        <td>${member.id || "—"}</td>
-        <td>${member.level || "—"}</td>
-        <td>${formatDate(member.creation_time) || "—"}</td>
-      `;
-      teamBody.appendChild(row);
-    });
-    noTeam.style.display = "none";
-  } else {
-    noTeam.style.display = "block";
-  }
-  renderOrgTeam();              // ← if you have a separate render
-  renderAccountUsageAndTier();  // refresh usage
-}
-
-export function renderUserProfile() {
-  if (!appState.accountData || !appState.accountData.success) return;
-  document.getElementById("account-email").textContent =
-    appState.accountData.email || "—";
-  document.getElementById("account-id").textContent =
-    appState.accountData.id || "—";
-  document.getElementById("account-level").textContent =
-    appState.accountData.level || "—";
-  document.getElementById("edit-name").value = appState.accountData.name || "";
-  document.getElementById("account-creation").textContent =
-    formatDate(appState.accountData.creation_time) || "—";
-  document.getElementById("account-update").textContent =
-    formatDate(appState.accountData.update_time) || "—";
-  document.getElementById("account-remote").textContent =
-    appState.accountData.remote_address || "—";
-  document.getElementById("account-token").value =
-    appState.accountData.token || "—";
-}
-
-export function renderOrgTeam() {
-  if (!appState.orgData) return;
-  document.getElementById("org-id").textContent = appState.orgData.id || "—";
-  document.getElementById("edit-org-name").value = appState.orgData.name || "";
-  document.getElementById("edit-org-desc").value =
-    appState.orgData.description || "";
-  document.getElementById("org-creation").textContent =
-    formatDate(appState.orgData.creation_time) || "—";
-
-  const teamBody = document.getElementById("team-body");
-  teamBody.innerHTML = "";
-  if (appState.orgData.members?.length) {
-    appState.orgData.members.forEach((member) => {
-      const row = document.createElement("tr");
-      row.innerHTML = `
-          <td>${member.email || "—"}</td>
-          <td>${member.id || "—"}</td>
-          <td>${member.level || "—"}</td>
-          <td>${formatDate(member.creation_time) || "—"}</td>
-        `;
-      teamBody.appendChild(row);
-    });
-    document.getElementById("no-team").style.display = "none";
-  } else {
-    document.getElementById("no-team").style.display = "block";
+  if (data.command_reply === 'read_org') {
+    appState.orgData = data;
+    renderOrgAndBilling(data);
+    renderTeamMembers(data.members || []);
   }
 }
 
-// Tier → limits mapping (adjust numbers as needed)
-const tierLimits = {
-  free:    { api_monthly: 1000,  servers: 3,   team_members: 2   },
-  starter: { api_monthly: 10000, servers: 20,  team_members: 20  },
-  pro:     { api_monthly: 50000, servers: Infinity, team_members: Infinity },
-  custom:  { api_monthly: Infinity, servers: Infinity, team_members: Infinity }
-};
+function renderUserProfile(user) {
+  document.getElementById('account-email').textContent = user.email || '—';
+  document.getElementById('account-id').textContent = user.id || '—';
+  document.getElementById('account-level').textContent = user.level || '—';
+  document.getElementById('account-remote').textContent = user.remote_address || '—';
 
-// Shared countdown formatter (used in account + future dashboard)
-function formatCountdown(resetTs) {
-  if (!resetTs) return "—";
-  const now = Math.floor(Date.now() / 1000);
-  let diff = resetTs - now;
-  if (diff <= 0) return "Reset now";
+  const nameInput = document.getElementById('edit-name');
+  if (nameInput) nameInput.value = user.name || '';
 
-  const days    = Math.floor(diff / 86400);
-  diff %= 86400;
-  const hours   = Math.floor(diff / 3600).toString().padStart(2, '0');
-  diff %= 3600;
-  const minutes = Math.floor(diff / 60).toString().padStart(2, '0');
-  const seconds = (diff % 60).toString().padStart(2, '0');
-
-  if (days > 0) return `resets in ${days}d ${hours}:${minutes}:${seconds}`;
-  return `resets in ${hours}:${minutes}:${seconds}`;
+  const tokenInput = document.getElementById('account-token');
+  if (tokenInput) tokenInput.value = user.token || '';
 }
 
-// Live countdown updater (call once on load)
-let countdownInterval = null;
-function startResetCountdown() {
-  if (countdownInterval) clearInterval(countdownInterval);
-  const resetEl = document.getElementById("api-reset-countdown");
-  if (!resetEl || !appState.orgData?.api_calls_reset_date) return;
+function renderOrgAndBilling(org) {
+  document.getElementById('org-id').textContent = org.id || '—';
 
-  countdownInterval = setInterval(() => {
-    resetEl.textContent = formatCountdown(appState.orgData.api_calls_reset_date);
-  }, 1000);
-}
+  const nameInput = document.getElementById('edit-org-name');
+  if (nameInput) nameInput.value = org.name || '';
 
-// Main render function for usage + tier
-function renderAccountUsageAndTier() {
-  const org = appState.orgData || {};
-  const user = appState.accountData || {};
-  const tier = org.tier || "free";
-  const limits = tierLimits[tier] || tierLimits.free;
+  const descInput = document.getElementById('edit-org-desc');
+  if (descInput) descInput.value = org.description || '';
 
-  // Tier display
-  const tierEl = document.getElementById("account-tier");
+  // Tier
+  const tierEl = document.getElementById('account-tier');
   if (tierEl) {
-    tierEl.textContent = tier.charAt(0).toUpperCase() + tier.slice(1);
-    let tagClass = "is-warning";
-    if (tier === "starter") tagClass = "is-info";
-    if (tier === "pro")     tagClass = "is-success";
-    if (tier === "custom")  tagClass = "is-primary";
-    tierEl.className = `tag ${tagClass}`;
+    tierEl.textContent = (org.tier || 'free').toUpperCase();
   }
 
-  // API usage
-  const used = Number(org.api_calls_this_month) || 0;
-  const apiLimit = limits.api_monthly;
-  const pct = apiLimit === Infinity ? 0 : Math.min(100, Math.round((used / apiLimit) * 100));
+  // Servers
+  const serverCount = org.server_count !== undefined 
+    ? org.server_count 
+    : (appState.serversData ? appState.serversData.length : 0);
+  document.getElementById('server-usage-text').textContent = `${serverCount} / 3`;
 
-  const progress = document.getElementById("api-progress");
+  // Team Members
+  const memberCount = org.members ? org.members.length : 0;
+  document.getElementById('team-usage-text').textContent = `${memberCount} / 2`;
+
+  // API Usage
+  const apiUsed = Number(org.api_calls_this_month) || 0;
+  const apiMax = tierLimits[org.tier || 'free'].api || 1000;
+  document.getElementById('api-usage-text').textContent = 
+    `${apiUsed} / ${apiMax === Infinity ? '∞' : apiMax}`;
+
+  const progress = document.getElementById('api-progress');
   if (progress) {
-    progress.value = pct;
-    progress.max = 100;
-    progress.className = `progress ${pct > 90 ? "is-danger" : pct > 70 ? "is-warning" : "is-info"}`;
+    progress.value = apiMax === Infinity ? 0 : Math.min(100, Math.round((apiUsed / apiMax) * 100));
   }
 
-  const usageText = document.getElementById("api-usage-text");
-  if (usageText) {
-    const limitDisplay = apiLimit === Infinity ? "∞" : apiLimit.toLocaleString();
-    usageText.textContent = `${used.toLocaleString()} / ${limitDisplay}`;
-    if (used > apiLimit) {
-      usageText.classList.add("text-danger");
-      usageText.innerHTML += ' <i class="fas fa-exclamation-triangle"></i> Over limit';
+  document.getElementById('api-period').textContent = 
+    `Current period: ${org.current_month_year || '—'}`;
+}
+
+function renderTeamMembers(members) {
+  const tbody = document.getElementById('team-body');
+  const noTeam = document.getElementById('no-team');
+  if (!tbody) return;
+
+  tbody.innerHTML = '';
+
+  if (!members || members.length === 0) {
+    noTeam.style.display = 'block';
+    return;
+  }
+
+  noTeam.style.display = 'none';
+
+  members.forEach(m => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${m.email || '—'}</td>
+      <td>${m.id || '—'}</td>
+      <td>${m.level === 1 ? 'Admin' : 'Member'}</td>
+      <td>${m.creation_time ? new Date(m.creation_time * 1000).toLocaleDateString() : '—'}</td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+// ==================== ACTIONS ====================
+
+export async function refreshSettings() {
+  const btn = document.getElementById('refresh-settings');
+  if (btn) btn.disabled = true;
+
+  try {
+    await Promise.all([
+      sendWS({ command: 'read_user' }),
+      sendWS({ command: 'read_org' }),
+      sendWS({ command: 'find_monitor' })
+    ]);
+    showToast('Settings refreshed', 'success');
+  } catch (e) {
+    console.error(e);
+    showToast('Failed to refresh settings', 'danger');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+export async function saveAccount() {
+  const userPayload = { 
+    command: 'update_user',
+    name: document.getElementById('edit-name').value.trim() 
+  };
+
+  const orgPayload = { 
+    command: 'update_org',
+    name: document.getElementById('edit-org-name').value.trim(),
+    description: document.getElementById('edit-org-desc').value.trim()
+  };
+
+  try {
+    if (userPayload.name) {
+      await sendWS(userPayload);
     }
-  }
+    await sendWS(orgPayload);
 
-  // Reset countdown
-  const resetEl = document.getElementById("api-reset-countdown");
-  if (resetEl) {
-    resetEl.textContent = formatCountdown(org.api_calls_reset_date);
+    showToast('Account saved successfully', 'success');
+    await refreshSettings();
+  } catch (e) {
+    console.error(e);
+    showToast('Failed to save account', 'danger');
   }
+}
 
-  // Servers usage
-  const serverCount = appState.serversData?.length || 0;
-  const serverText = document.getElementById("server-usage-text");
-  if (serverText) {
-    const serverLimit = limits.servers === Infinity ? "∞" : limits.servers;
-    serverText.textContent = `${serverCount} / ${serverLimit}`;
+function copyToken() {
+  const tokenField = document.getElementById('account-token');
+  if (!tokenField?.value) return;
+
+  const text = tokenField.value;
+
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text)
+      .then(() => showToast('Token copied to clipboard', 'success'))
+      .catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
   }
-  const serverWarn = document.getElementById("server-warning");
-  if (serverWarn) serverWarn.style.display = (serverCount > limits.servers) ? "block" : "none";
+}
 
-  // Team usage
-  const teamCount = org.members?.length || 0;
-  const teamText = document.getElementById("team-usage-text");
-  if (teamText) {
-    const teamLimit = limits.team_members === Infinity ? "∞" : limits.team_members;
-    teamText.textContent = `${teamCount} / ${teamLimit}`;
+function fallbackCopy(text) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    document.execCommand('copy');
+    showToast('Token copied to clipboard', 'success');
+  } catch (e) {
+    showToast('Failed to copy token', 'danger');
   }
-  const teamWarn = document.getElementById("team-warning");
-  if (teamWarn) teamWarn.style.display = (teamCount > limits.team_members) ? "block" : "none";
-
-  // Start live countdown
-  startResetCountdown();
+  document.body.removeChild(textarea);
 }
 
 export function updateLog(data) {
@@ -978,23 +972,6 @@ export function updateServers(data) {
   renderServersTable();  // your render must handle empty array gracefully
 }
 
-export function updateServers2(data) {
-  hideLoading("servers-loading");
-
-  const content = document.getElementById("servers-content");
-  if (content) content.style.display = "block";
-
-  // Always set data (even if success:0)
-  appState.serversData = data.servers.map((server) => ({
-    ...server,
-    ping: Number.isFinite(Number(server.ping)) ? Number(server.ping) : null,
-    // ... other fields you might want to coerce
-  }));
-  //appState.serversData = data.success ? (data.servers || []) : [];
-
-  renderServersTable();
-}
-
 export function applyServerBroadcast(data) {
   // Ensure the array exists
   if (!appState.serversData) {
@@ -1250,6 +1227,7 @@ export function attachCalendarsTreeListeners() {
     const toggle = e.target.closest(".ordo-toggle");
     if (!toggle || toggle.classList.contains("empty")) return;
 
+
     const row = toggle.closest("tr");
     if (!row || !row.dataset.id) return;
 
@@ -1274,38 +1252,384 @@ export function attachCalendarsTreeListeners() {
   });
 }
 
-export function attachCalendarsTreeListeners2() {
-  const tbody = document.getElementById("calendars-body");
+// ==================== LOGIN MODAL ====================
+
+export function showLoginModal(redirectContext = '') {
+  const modal = document.getElementById('login-modal');
+  if (!modal) return;
+
+  modal.dataset.redirectContext = redirectContext;
+
+  document.getElementById('login-form-container').style.display = 'block';
+  document.getElementById('login-success').style.display = 'none';
+  document.getElementById('login-email').value = '';
+
+  modal.classList.add('active');
+  document.getElementById('login-email').focus();
+}
+
+function initLoginModalListeners() {
+  const modal = document.getElementById('login-modal');
+  if (!modal) return;
+
+  // Close button
+  modal.querySelector('.close-btn')?.addEventListener('click', () => {
+    modal.classList.remove('active');
+  });
+
+  // Form submit
+  const form = document.getElementById('login-form');
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('login-email').value.trim();
+      if (!email) return;
+
+      const btn = document.getElementById('send-magic-link-btn');
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+
+      try {
+        await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ email: email })
+        });
+
+        document.getElementById('login-form-container').style.display = 'none';
+        document.getElementById('login-success').style.display = 'block';
+      } catch (err) {
+        showToast('Failed to send magic link', 'danger');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send Magic Link';
+      }
+    });
+  }
+}
+
+// ==================== PRICING MODAL ====================
+export function showPricingModal() {
+  const modal = document.getElementById('pricing-modal');
+  if (!modal) return;
+
+  const isLoggedIn = document.body.classList.contains('is-logged-in');
+
+  // Highlight current plan only if logged in
+  if (isLoggedIn && appState.orgData?.tier) {
+    const currentTier = appState.orgData.tier.toLowerCase();
+    document.querySelectorAll('#pricing-modal .card-simple').forEach(card => {
+      card.style.borderColor = '';
+      card.style.boxShadow = '';
+      if (card.id === `plan-${currentTier}`) {
+        card.style.borderColor = 'var(--glow-cyan)';
+        card.style.boxShadow = '0 0 25px rgba(0, 255, 255, 0.4)';
+      }
+    });
+  }
+
+  modal.classList.add('active');
+}
+
+function initPricingModalListeners() {
+  const modal = document.getElementById('pricing-modal');
+  if (!modal) return;
+
+  modal.addEventListener('click', (e) => {
+    const upgradeBtn = e.target.closest('button[data-plan]');
+    if (upgradeBtn) {
+      const plan = upgradeBtn.dataset.plan;
+      modal.classList.remove('active');
+
+      const isLoggedIn = document.body.classList.contains('is-logged-in');
+
+      if (!isLoggedIn) {
+        showLoginModal('pricing');   // Ask to log in first
+      } else {
+        sendWS({ command: 'create_checkout_session', plan: plan });
+        showToast(`Redirecting to ${plan} checkout...`, 'info');
+      }
+      return;
+    }
+
+    if (e.target.id === 'contact-sales-btn') {
+      modal.classList.remove('active');
+      window.location.href = "mailto:ordoscheduler@proton.me?subject=Enterprise%20Inquiry";
+    }
+
+    if (e.target.classList.contains('close-btn')) {
+      modal.classList.remove('active');
+    }
+  });
+}
+
+// ==================== DASHBOARD CORE ====================
+export function renderDashboard() {
+  const tree = appState.monitorData?.tree || [];
+  const servers = appState.serversData || [];
+
+  updateKPIs(tree);
+  
+  // Running Now
+  document.getElementById('dash-running-count').textContent = countRunningJobs(tree);
+  document.getElementById('dash-running-list').innerHTML = getRunningJobsListHTML(tree, 8);
+
+  // Recently Failed
+  document.getElementById('dash-failed-count').textContent = countRecentFailedJobs(tree);
+  document.getElementById('dash-failed-list').innerHTML = getFailedJobsListHTML(tree, 5);
+
+  // Servers
+  document.getElementById('dash-servers-count').textContent = `${servers.length}/${servers.length}`;
+  renderMiniServersList(servers);
+
+  // Next Scheduled
+  updateNextScheduledClusters(tree);
+
+  // Recent Activity
+  renderRecentActivityTable(tree);
+}
+
+// ==================== KPI BAR ====================
+function updateKPIs(tree) {
+  const stats = calculate24hStats(tree);
+  
+  const srEl = document.getElementById('kpi-success-rate');
+  srEl.textContent = stats.successRate + '%';
+  srEl.className = stats.successRate >= 90 ? 'text-3xl font-bold text-green' :
+                   stats.successRate >= 70 ? 'text-3xl font-bold text-yellow' : 
+                   'text-3xl font-bold text-red';
+
+  document.getElementById('kpi-runs-today').textContent = stats.runsToday;
+  document.getElementById('kpi-held').textContent = stats.held;
+  document.getElementById('kpi-zombies').textContent = stats.zombies || '0';
+}
+
+// ==================== NEXT SCHEDULED ====================
+export function updateNextScheduledClusters(tree) {
+  const container = document.getElementById('dash-next-5');
+  const upcoming = collectNextScheduledClusters(tree, 6);
+
+  if (upcoming.length === 0) {
+    container.innerHTML = `<div class="text-grey text-sm py-8 text-center">No upcoming scheduled clusters</div>`;
+    return;
+  }
+
+  container.innerHTML = upcoming.map(item => `
+    <div class="flex justify-between items-center text-sm">
+      <span class="text-cyan font-medium">${formatTminus(item.next_start)}</span>
+      <span class="truncate">${item.name}</span>
+    </div>
+  `).join('');
+}
+
+// ==================== RECENT ACTIVITY ====================
+function renderRecentActivityTable(tree) {
+  const tbody = document.getElementById('dash-recent-body');
   if (!tbody) return;
 
-  tbody.addEventListener("click", (e) => {
-    const toggle = e.target.closest(".ordo-toggle");
-    if (!toggle || toggle.classList.contains("empty")) return;
+  const recent = collectRecentActivity(tree, 12);
 
-    const row = toggle.closest("tr");
-    if (!row || !row.classList.contains("ordo-calendar-row")) return;
+  tbody.innerHTML = recent.map(item => {
+    const action = getActivityAction(item);
+    return `
+      <tr class="cursor-pointer hover:bg-cyan/5" 
+          onclick="viewDashboardItem(${item.id}, ${item.is_cluster})">
+        <td class="text-grey text-sm" data-timestamp="${item.ended || item.started || item.last_update || 0}"></td>
+        <td class="font-medium">${item.name || '—'}</td>
+        <td><span class="tag ${action.class}">${action.text}</span></td>
+        <td class="text-sm text-grey">${item.server_name || '—'}</td>
+      </tr>`;
+  }).join('');
+}
 
-    const calId = row.dataset.id;
-    const isNowCollpsed = row.classList.toggle("collapsed");
+// ==================== CLICK HANDLER ====================
+window.viewDashboardItem = (id, isCluster) => {
+  if (isCluster) {
+    // Open Dependency Graph
+    document.getElementById('graph-title').textContent = `Cluster #${id}`;
+    document.getElementById('graph-modal').classList.add('active');
+    // You can expand this later to send a graph command
+  } else {
+    // Open latest log for job
+    sendWS({ command: 'read_log', id });
+  }
+};
 
-    // Persist
-    if (isNowCollapsed) {
-      appState.collapsedCalendars.add(calId);
-    } else {
-      appState.collapsedCalendars.delete(calId);
+// ==================== DASHBOARD HELPERS ====================
+
+function traverseTree(nodes, callback) {
+  if (!nodes) return;
+  if (!Array.isArray(nodes)) nodes = [nodes];
+
+  nodes.forEach(node => {
+    if (node) callback(node);
+    if (node?.jobs?.length) traverseTree(node.jobs, callback);
+    if (node?.children?.length) traverseTree(node.children, callback);
+  });
+}
+
+function countRunningJobs(tree) {
+  let count = 0;
+  traverseTree(tree, item => {
+    if (item.jobstate === 'running' || item.state === 'running') count++;
+  });
+  return count;
+}
+
+function countRecentFailedJobs(tree) {
+  let count = 0;
+  traverseTree(tree, item => {
+    if (item.jobstate === 'failed' || item.state === 'failed') count++;
+  });
+  return Math.min(count, 5); // cap for display
+}
+
+function getRunningJobsListHTML(tree, max = 8) {
+  let html = '';
+  let shown = 0;
+  const now = Math.floor(Date.now() / 1000);
+
+  traverseTree(tree, item => {
+    if ((item.jobstate === 'running' || item.state === 'running') && shown < max) {
+      const duration = item.started ? formatDuration(item.started, now) : 'just started';
+      const longRunning = item.started && (now - item.started > 1800) 
+        ? '<span class="text-orange text-xs"> (long running)</span>' 
+        : '';
+
+      html += `
+        <div class="flex justify-between items-center">
+          <span class="truncate">${item.name || 'Unnamed'}</span>
+          <span class="text-xs text-grey">${duration}${longRunning}</span>
+        </div>`;
+      shown++;
     }
-    updateCalendarCollapsed();
+  });
 
-    // Show/hide children using .hidden
-    document.querySelectorAll(`tr[data-parent="${calId}"]`).forEach((child) => {
-      child.classList.toggle("hidden", isNowCollapsed);
-    });
+  if (shown === 0) {
+    html = '<div class="text-grey text-sm py-4">No jobs currently running</div>';
+  } else if (countRunningJobs(tree) > max) {
+    html += `<div class="text-xs text-grey mt-2">+${countRunningJobs(tree) - max} more running...</div>`;
+  }
 
-    row.setAttribute(
-      "aria-expanded",
-      (
-        !isNowCollapsed && row.querySelector(".ordo-toggle:not(.empty)")
-      ).toString(),
-    );
+  return html;
+}
+
+function getFailedJobsListHTML(tree, max = 5) {
+  let html = '';
+  let shown = 0;
+  const failed = [];
+
+  traverseTree(tree, item => {
+    if (item.jobstate === 'failed' || item.state === 'failed') {
+      failed.push(item);
+    }
+  });
+
+  failed.sort((a, b) => (b.ended || b.started || 0) - (a.ended || a.started || 0));
+
+  failed.slice(0, max).forEach(item => {
+    const ago = item.ended ? formatRelativeTime(Math.floor(Date.now()/1000) - item.ended) : '';
+    html += `<div class="text-red text-sm">• ${item.name || 'Unnamed'} <span class="text-xs">${ago}</span></div>`;
+    shown++;
+  });
+
+  return html || '<div class="text-grey text-sm py-4">No recent failures</div>';
+}
+
+function calculate24hStats(tree) {
+  const now = Math.floor(Date.now() / 1000);
+  const dayAgo = now - 86400;
+  let success = 0, failed = 0, runsToday = 0, held = 0, zombies = 0;
+
+  traverseTree(tree, item => {
+    if (item.ended && item.ended > dayAgo) {
+      runsToday++;
+      if (item.jobstate === 'complete' || item.exit_code === 0) success++;
+      else if (item.jobstate === 'failed' || item.exit_code !== 0) failed++;
+    }
+    if (item.jobstate === 'hold') held++;
+    if (item.zombie_processes) zombies += item.zombie_processes;
+  });
+
+  const total = success + failed;
+  const successRate = total ? Math.round((success / total) * 100) : 100;
+
+  return { successRate, runsToday, held, zombies };
+}
+
+function collectNextScheduledClusters(tree, limit = 6) {
+  let list = [];
+  traverseTree(tree, item => {
+    if (item.is_cluster && item.cal_name && item.next_start && item.next_start > Date.now()/1000) {
+      list.push(item);
+    }
+  });
+  list.sort((a, b) => (a.next_start || 0) - (b.next_start || 0));
+  return list.slice(0, limit);
+}
+
+function collectRecentActivity(tree, limit = 12) {
+  let items = [];
+  traverseTree(tree, item => {
+    if (item.started || item.ended || item.last_update) items.push(item);
+  });
+
+  items.sort((a, b) => {
+    const ta = b.ended || b.started || b.last_update || 0;
+    const tb = a.ended || a.started || a.last_update || 0;
+    return ta - tb;
+  });
+
+  return items.slice(0, limit);
+}
+
+function getActivityAction(item) {
+  const s = (item.jobstate || item.state || '').toLowerCase();
+  if (s.includes('fail') || s === 'killed') return { text: 'Failed', class: 'failed' };
+  if (s === 'complete' || s === 'completed') return { text: 'Completed', class: 'complete' };
+  if (s === 'running') return { text: 'Started', class: 'running' };
+  if (s === 'starting') return { text: 'Starting', class: 'starting' };
+  if (s === 'hold') return { text: 'Held', class: 'hold' };
+  if (s === 'ice') return { text: 'Iced', class: 'ice' };
+  return { text: s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Updated', class: 'unknown' };
+}
+
+function renderMiniServersList(servers) {
+  const container = document.getElementById('dash-servers-list');
+  if (!container) return;
+  if (servers.length === 0) {
+    container.innerHTML = `<div class="text-grey">No servers connected</div>`;
+    return;
+  }
+  container.innerHTML = servers.slice(0, 3).map(s => `
+    <div class="flex justify-between text-sm">
+      <span>${s.name}</span>
+      <span class="text-cyan">${s.load_1?.toFixed(2) || '—'}</span>
+    </div>
+  `).join('');
+}
+
+// ==================== INITIALIZE ALL ====================
+
+export function initModals() {
+  initSettingsListeners();
+  initLoginModalListeners();
+  initPricingModalListeners();
+
+  // Logged-out "Log in" tab
+  document.getElementById('logged-out-login-tab')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    showLoginModal('');
+  });
+}
+
+export function initSettingsListeners() {
+  document.getElementById('refresh-settings')?.addEventListener('click', refreshSettings);
+  document.getElementById('save-account')?.addEventListener('click', saveAccount);
+  document.getElementById('copy-token')?.addEventListener('click', copyToken);
+  document.getElementById('view-plans-btn')?.addEventListener('click', showPricingModal);
+  document.getElementById('footer-pricing-link')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    showPricingModal();
   });
 }

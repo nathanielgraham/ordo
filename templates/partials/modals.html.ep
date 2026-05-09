@@ -1,5 +1,114 @@
 <!-- templates/partials/modals.html.ep -->
 
+<!-- Login Modal -->
+<div id="login-modal" class="app-modal">
+  <div class="modal-dialog" style="max-width: 440px;">
+    <div class="modal-header">
+      <h3 class="modal-title">Sign in to Ordo</h3>
+      <button class="close-btn"></button>
+    </div>
+    <div class="modal-body" style="padding: 2rem 1.5rem 1.5rem;">
+      <div id="login-form-container">
+        <p class="text-center text-grey mb-large">We'll send you a magic login link.</p>
+        
+        <form id="login-form" action="/login" method="POST">
+          <div class="mb-large">
+            <label class="label-bold block mb-small">Email Address</label>
+            <input type="email" name="email" id="login-email" class="input w-full" placeholder="you@example.com" required>
+          </div>
+          
+          <!-- Extra spacing to prevent dropdown overlap -->
+          <div style="margin-top: 1.5rem;">
+            <button type="submit" class="btn btn-primary w-full" id="send-magic-link-btn">
+              Send Magic Link
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div id="login-success" style="display: none; text-align: center; padding: 2rem 1rem;">
+        <i class="fas fa-envelope fa-3x text-cyan mb-medium"></i>
+        <h4>Check your inbox</h4>
+        <p class="text-grey">We've sent you a magic login link.<br>It may take up to 30 seconds.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Pricing Modal -->
+<div id="pricing-modal" class="app-modal">
+  <div class="modal-dialog" style="max-width: 1100px;">
+    <div class="modal-header">
+      <h3 class="modal-title">Plans & Pricing</h3>
+      <button class="close-btn"></button>
+    </div>
+    <div class="modal-body" style="padding: 2.5rem 1.5rem 2rem;">
+      <div class="grid-2 gap-large">
+
+        <!-- Free -->
+        <div class="card-simple text-center" id="plan-free">
+          <h4 class="title-medium">Free</h4>
+          <div class="mt-large mb-large">
+            <span class="text-5xl font-bold">$0</span><span class="text-grey">/mo</span>
+          </div>
+          <ul class="text-left" style="list-style:none; padding:0; line-height:1.8;">
+            <li>✓ 1,000 API calls/month</li>
+            <li>✓ 3 Servers</li>
+            <li>✓ 2 Team Members</li>
+          </ul>
+          <button class="btn btn-ghost neon-ghost w-full mt-large" disabled>Current Plan</button>
+        </div>
+
+        <!-- Starter -->
+        <div class="card-simple text-center" id="plan-starter">
+          <h4 class="title-medium">Starter</h4>
+          <div class="mt-large mb-large">
+            <span class="text-5xl font-bold">$19</span><span class="text-grey">/mo</span>
+          </div>
+          <ul class="text-left" style="list-style:none; padding:0; line-height:1.8;">
+            <li>✓ 50,000 API calls/month</li>
+            <li>✓ 10 Servers</li>
+            <li>✓ 5 Team Members</li>
+          </ul>
+          <button class="btn btn-primary w-full mt-large" data-plan="starter">Upgrade — $19/mo</button>
+        </div>
+
+        <!-- Pro -->
+        <div class="card-simple text-center" id="plan-pro">
+          <h4 class="title-medium">Pro</h4>
+          <div class="mt-large mb-large">
+            <span class="text-5xl font-bold">$49</span><span class="text-grey">/mo</span>
+          </div>
+          <ul class="text-left" style="list-style:none; padding:0; line-height:1.8;">
+            <li>✓ 100,000 API calls/month</li>
+            <li>✓ 30 Servers</li>
+            <li>✓ 10 Team Members</li>
+          </ul>
+          <button class="btn btn-primary w-full mt-large" data-plan="pro">Upgrade — $49/mo</button>
+        </div>
+
+        <!-- Enterprise -->
+        <div class="card-simple text-center" id="plan-enterprise" style="border-color: #a78bfa;">
+          <h4 class="title-medium">Enterprise</h4>
+          <div class="mt-large mb-large">
+            <span class="text-5xl font-bold">Custom</span>
+          </div>
+          <ul class="text-left" style="list-style:none; padding:0; line-height:1.8;">
+            <li>✓ Unlimited API calls</li>
+            <li>✓ Unlimited Servers</li>
+            <li>✓ Unlimited Team Members</li>
+            <li>✓ Dedicated support</li>
+          </ul>
+          <button class="btn btn-primary w-full mt-large" id="contact-sales-btn">
+            Contact Sales
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Log Modal -->
 <div id="log-modal" class="app-modal">
   <div class="modal-background"></div>

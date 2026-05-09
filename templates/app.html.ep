@@ -98,7 +98,7 @@
     <p>
       Ordo — Modern Job Scheduler | © 2026
       <span class="mx-large">•</span>
-      <a href="#pricing" class="text-cyan">Plans & Pricing</a>
+      <a href="#" id="footer-pricing-link">Plans & Pricing</a>
       <span class="mx-large">•</span>
       <a href="mailto:support@ordo.app" class="text-cyan">Contact Support</a>
     </p>

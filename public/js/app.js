@@ -1,33 +1,44 @@
-// app.js – minimal entry point & orchestration
+// app.js – Main entry point & orchestration
 import { validateCollapsedStorage } from "./state.js";
-import { attachTabListeners, activateDefaultTab } from "./tabs.js";
+import { attachTabListeners, activateTab } from "./tabs.js";
 import { checkLoginAndConnect } from "./websocket.js";
-import { attachTreeListeners } from "./tree/tree-listeners.js"; // ← correct
-import { startLiveTimings } from "./tree/tree-table.js"; // keep if timings here
+import { attachTreeListeners } from "./tree/tree-listeners.js";
 import { attachGlobalListeners } from "./dropdown-handlers.js";
-import { attachCalendarsTreeListeners } from "./ui-handlers.js";
+import { initModals, attachCalendarsTreeListeners } from "./ui-handlers.js";
 
+// ==================== HASH NAVIGATION ====================
+function activateFromHash() {
+  activateTab();
+}
+
+// ==================== MAIN INITIALIZATION ====================
 document.addEventListener("DOMContentLoaded", () => {
   console.log("DOM ready");
 
   validateCollapsedStorage();
 
-  attachTabListeners();
-  attachTreeListeners(); // tree-specific clicks
-  startLiveTimings();
-
-  attachGlobalListeners(); // global dropdown/modal/esc/outside
-
+  // Core setup
   attachCalendarsTreeListeners();
+  attachTabListeners();
+  attachTreeListeners();
+  attachGlobalListeners();
   checkLoginAndConnect();
-  activateDefaultTab();
+  initModals();
 
-  // Navbar scroll shadow
+  // === HASH / TAB ACTIVATION ===
+  activateFromHash();                    // immediate
+  setTimeout(activateFromHash, 400);     // after initial render
+
+  // Listen for manual URL changes
+  window.addEventListener("hashchange", activateFromHash);
+
+  // Scroll to top after navigation (fixes dashboard scroll issue)
+  setTimeout(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, 500);
+
+  // Navbar scroll shadow effect
   window.addEventListener("scroll", () => {
-    if (window.scrollY > 20) {
-      document.body.classList.add("scrolled");
-    } else {
-      document.body.classList.remove("scrolled");
-    }
+    document.body.classList.toggle("scrolled", window.scrollY > 20);
   });
 });

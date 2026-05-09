@@ -2122,11 +2122,6 @@ footer {
 .text-danger strong {
   color: #ef5350;
 }
-.mt-large.pt-large.border-top {
-  border-top: 1px solid #444;
-  padding-top: 2rem;
-  margin-top: 2rem;
-}
 .profile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -2268,3 +2263,134 @@ progress::-moz-progress-bar {
 .footer a:hover {
   text-shadow: 0 0 8px #0ff;
 }
+
+/* ====================== SETTINGS IMPROVEMENTS ====================== */
+.internal-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 3rem;
+  border-bottom: 2px solid #444;
+  padding-bottom: 0.75rem;
+  margin-bottom: 2.5rem;
+}
+
+.internal-tab {
+  background: none;
+  border: none;
+  color: var(--chrome-mid);
+  font-size: 1.15rem;
+  font-weight: 600;
+  padding: 0.5rem 0;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.25s ease;
+}
+
+.internal-tab:hover { color: #fff; }
+.internal-tab.active {
+  color: var(--glow-cyan);
+}
+.internal-tab.active::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: var(--glow-cyan);
+  box-shadow: 0 0 15px var(--glow-cyan-strong);
+  border-radius: 3px;
+}
+
+
+/* ====================== SETTINGS POLISH ====================== */
+
+/* Better Token Row */
+.token-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.token-row input {
+  flex: 1;
+  font-family: monospace;
+  font-size: 0.95rem;
+}
+
+/* Tier Styling */
+#account-tier {
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  background: rgba(0, 255, 255, 0.1);
+  border: 1px solid var(--glow-cyan);
+  color: var(--glow-cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Make Save Account button primary */
+#save-account {
+  background: var(--glow-cyan) !important;
+  color: #0a0a0a !important;
+  font-weight: 700;
+  border: 1px solid var(--glow-cyan) !important;
+  box-shadow: 0 0 15px rgba(0, 255, 255, 0.4);
+}
+
+#save-account:hover {
+  box-shadow: 0 0 25px rgba(0, 255, 255, 0.6);
+  transform: translateY(-1px);
+}
+
+/* Billing spacing improvements */
+#tab-billing .info-grid {
+  margin-bottom: 1.75rem;
+}
+
+#tab-billing .border-top {
+  margin-top: 2.25rem;
+  padding-top: 2.25rem;
+}
+
+#account-token {
+  font-family: monospace;
+  font-size: 0.95rem;
+  letter-spacing: 1px;
+}
+
+.description-row textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+/* General Settings Polish */
+.card-simple h3,
+.card-simple h4,
+.card-simple h5 {
+  margin-bottom: 1.75rem;
+}
+
+.info-grid {
+  margin-bottom: 1.5rem;
+}
+
+.progress-container {
+  margin: 1.25rem 0 1.75rem 0;
+}
+
+#team-table th {
+  background: #0f0f1f;
+  color: var(--glow-cyan) !important;
+}
+
+#login-email {
+  margin-bottom: 1.25rem;
+}
+
+#login-modal button {
+  margin-top: 0.5rem;
+}
+

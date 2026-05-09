@@ -275,6 +275,29 @@ export function resolveDepName(id, tree, isCluster = false) {
   }
 }
 
+// ==================== HASH REDIRECT UTILITY ====================
+
+/**
+ * Navigate to a specific tab (and optional submenu)
+ * Example: goToTab('docs', 'quickstart')
+ *          goToTab('settings')
+ */
+export function goToTab(tabName, subItem = null) {
+  let hash = tabName;
+  if (subItem) {
+    hash += '/' + subItem;
+  }
+
+  console.log(`[goToTab] Navigating to #${hash}`);
+  window.location.hash = hash;
+}
+
+// Optional: Also trigger immediately if needed
+export function goToTabAndActivate(tabName, subItem = null) {
+  goToTab(tabName, subItem);
+  // The hash handler will take care of activation
+}
+
 // utils.js or new const in ui-handlers.js
 export const commonTimezones = [
   "UTC",

@@ -1,27 +1,36 @@
 <!-- partials/settings.html.ep -->
 <section id="settings" class="tab-content" data-private="true">
   <div class="content-center">
+
     <div id="settings-loading" class="text-center py-large">
       <i class="fas fa-spinner fa-spin fa-3x"></i>
       <p class="mt-medium">Loading settings...</p>
     </div>
 
     <div id="settings-content" style="display: none">
-      <!-- Internal Tabs -->
-      <div class="internal-tabs mb-large flex gap-medium border-bottom pb-medium">
-        <button class="internal-tab active" data-tab="account-tab">Account</button>
-        <button class="internal-tab" data-tab="team">Team</button>
-        <button class="internal-tab" data-tab="billing">Billing & Usage</button>
+
+      <!-- Refresh Button -->
+      <div class="actions-right" style="margin-bottom: 2rem;">
+        <button id="refresh-settings" class="btn btn-ghost neon-ghost">
+          <i class="fas fa-sync-alt"></i> Refresh
+        </button>
       </div>
 
-      <!-- Account Tab (Profile + Org) -->
+      <!-- Internal Tabs -->
+      <div class="internal-tabs">
+        <button class="internal-tab active" data-tab="account-tab">Account</button>
+        <button class="internal-tab" data-tab="team">Members</button>
+        <button class="internal-tab" data-tab="billing">Billing</button>
+      </div>
+
+      <!-- Account Tab -->
       <div id="tab-account-tab" class="internal-tab-content">
         <div class="card-simple">
-          <h3 class="title-medium mb-large">
-            <i class="fas fa-user mr-medium"></i> Account
+          <h3 class="title-medium">
+            <i class="fas fa-user"></i> Account
           </h3>
 
-          <div class="info-grid mb-large">
+          <div class="info-grid">
             <div class="label-bold">Email</div>
             <div id="account-email"></div>
 
@@ -37,19 +46,19 @@
             <div class="label-bold">Remote Address</div>
             <div id="account-remote"></div>
 
-            <div class="full-width mt-large">
-              <p class="label-bold mb-small">Token (for API calls)</p>
-              <div class="input-group mb-medium">
-                <input class="input" type="text" id="account-token" readonly />
-              </div>
-              <button class="btn btn-ghost neon-ghost w-full" id="copy-token">
-                <i class="fas fa-copy mr-small"></i> Copy Token
+            <div class="label-bold">Token (API)</div>
+            <div class="token-row" style="grid-column: 2 / -1;">
+              <input class="input" type="text" id="account-token" readonly />
+              <button class="btn btn-ghost neon-ghost" id="copy-token" style="white-space: nowrap;">
+                <i class="fas fa-copy"></i> Copy
               </button>
             </div>
           </div>
 
-          <div class="border-top pt-large">
-            <h4 class="title-medium mb-medium">Organization</h4>
+          <div class="border-top" style="padding-top: 2.5rem; margin-top: 2rem;">
+            <h4 class="title-medium">
+              <i class="fas fa-building"></i> Organization
+            </h4>
             <div class="info-grid">
               <div class="label-bold">Org ID</div>
               <div id="org-id"></div>
@@ -57,114 +66,99 @@
               <div class="label-bold">Organization Name</div>
               <input class="input" type="text" id="edit-org-name" placeholder="Organization name" />
 
-              <div class="label-bold full-width">Description</div>
+              <div class="label-bold description-row">Description</div>
               <textarea class="textarea" id="edit-org-desc" rows="3" placeholder="Organization description"></textarea>
             </div>
           </div>
 
-          <div class="actions-right mt-large">
-            <button class="btn btn-ghost neon-ghost" id="save-profile">
-              <i class="fas fa-save mr-small"></i> Save Profile
-            </button>
-            <button class="btn btn-ghost neon-ghost ml-medium" id="save-org">
-              <i class="fas fa-save mr-small"></i> Save Organization
+          <div class="actions-right" style="margin-top: 2.5rem;">
+            <button class="btn btn-primary" id="save-account">
+              <i class="fas fa-save"></i> Save Account
             </button>
           </div>
         </div>
       </div>
 
-      <!-- Team Tab -->
+      <!-- Members Tab -->
       <div id="tab-team" class="internal-tab-content" style="display:none">
         <div class="card-simple">
-          <div class="flex justify-between items-center mb-large">
-            <h3 class="title-medium">
-              <i class="fas fa-users mr-medium"></i> Team Members
-            </h3>
+          <div class="actions-right">
             <button class="btn btn-ghost neon-ghost" id="invite-team">
-              <i class="fas fa-user-plus mr-small"></i> Invite Team Member
+              <i class="fas fa-user-plus"></i> Invite Team Member
             </button>
           </div>
 
           <div class="table-container">
-            <table class="data-table" id="team-table">
+            <table class="ordo-table" id="team-table">
               <thead>
                 <tr>
                   <th>Email</th>
                   <th>User ID</th>
-                  <th>Level</th>
-                  <th>Creation Time</th>
+                  <th>Role</th>
+                  <th>Created</th>
                 </tr>
               </thead>
               <tbody id="team-body"></tbody>
             </table>
           </div>
 
-          <p id="no-team" class="text-grey text-center py-large border-dashed border-gray mt-large" style="display: none">
-            <i class="fas fa-users-slash fa-3x mb-medium block"></i>
+          <p id="no-team" class="text-grey text-center py-large" style="display: none; border: 2px dashed #444; padding: 3rem; margin-top: 2rem;">
+            <i class="fas fa-users-slash fa-3x"></i><br><br>
             No team members yet.<br>
             Invite someone to collaborate.
           </p>
         </div>
       </div>
 
-      <!-- Billing & Usage Tab -->
+      <!-- Billing Tab -->
       <div id="tab-billing" class="internal-tab-content" style="display:none">
         <div class="card-simple">
-          <h3 class="title-medium mb-large">
-            <i class="fas fa-credit-card mr-medium"></i> Billing & Usage
+          <h3 class="title-medium">
+            <i class="fas fa-credit-card"></i> Billing & Usage
           </h3>
 
-          <div class="info-grid mb-large">
+          <div class="info-grid" style="margin-bottom: 2rem;">
             <div class="label-bold">Subscription Tier</div>
-            <div><p id="account-tier" class="tag"></p></div>
+            <p id="account-tier" style="margin: 0; font-weight: 700; color: var(--glow-cyan); text-transform: uppercase;"></p>
           </div>
 
-          <div class="border-top pt-large">
-            <h4 class="title-medium mb-medium">Usage & Limits</h4>
-
-            <div class="mb-large">
-              <p class="label-bold mb-small">API Calls This Month</p>
-              <div class="progress-container">
+          <div class="info-grid" style="margin-bottom: 2rem;">
+            <div class="label-bold">API Calls This Month</div>
+            <div>
+              <div class="progress-container" style="margin: 0.5rem 0 0.75rem 0;">
                 <progress id="api-progress" class="progress w-full" value="0" max="100">0%</progress>
-                <p id="api-usage-text" class="text-grey mt-small">0 / 1,000</p>
               </div>
-              <p id="api-reset-countdown" class="text-cyan font-medium mt-small">Resets in —</p>
-            </div>
-
-            <div class="grid-2 gap-large">
-              <div>
-                <p class="label-bold mb-small">Servers</p>
-                <p id="server-usage-text">0 / 3</p>
-                <div id="server-warning" class="text-danger small mt-small flex items-center" style="display:none;">
-                  <i class="fas fa-exclamation-triangle mr-small"></i> Over limit — consider upgrading
-                </div>
-              </div>
-              <div>
-                <p class="label-bold mb-small">Team Members</p>
-                <p id="team-usage-text">0 / 2</p>
-                <div id="team-warning" class="text-danger small mt-small flex items-center" style="display:none;">
-                  <i class="fas fa-exclamation-triangle mr-small"></i> Over limit — consider upgrading
-                </div>
-              </div>
-            </div>
-
-            <div class="mt-large pt-large border-top">
-              <h5 class="title-medium mb-medium">Subscription Management (Stripe)</h5>
-              <p class="text-grey mb-small">Next Billing Date: —</p>
-              <p class="text-grey mb-medium">Payment Method: —</p>
-              <button class="btn btn-ghost neon-ghost mt-medium" disabled>
-                Manage Subscription & Invoices
-              </button>
+              <p id="api-usage-text" class="text-grey">0 / 1,000</p>
+              <p id="api-period" class="text-cyan" style="margin-top: 0.5rem;">Current period: —</p>
             </div>
           </div>
 
-          <div class="actions-right mt-large flex gap-medium justify-center">
-            <a href="#pricing" class="btn btn-ghost neon-ghost">
-              <i class="fas fa-arrow-up mr-small"></i> View Plans & Upgrade
-            </a>
+          <div class="info-grid">
+            <div class="label-bold">Servers</div>
+            <div id="server-usage-text">0 / 3</div>
+
+            <div class="label-bold">Team Members</div>
+            <div id="team-usage-text">0 / 2</div>
+          </div>
+
+          <div class="border-top" style="padding-top: 2.5rem; margin-top: 2.5rem;">
+            <h5 class="title-medium">Subscription Management (Stripe)</h5>
+            <p class="text-grey">Next Billing Date: —</p>
+            <p class="text-grey">Payment Method: —</p>
+            <button class="btn btn-ghost neon-ghost" disabled style="margin-top: 1.5rem;">
+              Manage Subscription & Invoices
+            </button>
+          </div>
+
+
+          <div class="actions-right" style="margin-top: 2.5rem;">
+            <button class="btn btn-ghost neon-ghost" id="view-plans-btn">
+              <i class="fas fa-arrow-up"></i> View Plans & Upgrade
+            </button>
           </div>
         </div>
       </div>
+
     </div>
   </div>
 </section>

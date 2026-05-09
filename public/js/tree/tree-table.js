@@ -1,7 +1,7 @@
 // tree/tree-table.js – Pure rendering logic only
 import { appState, updateCollapsedClusters } from "../state.js";
 import { toggleSubtree } from "./tree-listeners.js";
-import { updateFreshnessCell } from "../ui-handlers.js";
+import { updateFreshnessCell, updateNextScheduledClusters } from "../ui-handlers.js";
 import {
   formatTplus,
   formatTminus,
@@ -10,7 +10,7 @@ import {
   findClusterById,
   findJobById,
   getFullPath,
-  resolveDepName,
+  resolveDepName
 } from "../utils.js";
 
 // Sort tree nodes (jobs before clusters at same level)
@@ -408,9 +408,11 @@ export function stopLiveTimings() {
   }
 }
 
+// tree/tree-table.js  →  update this function
 export function updateLiveTimings() {
   const now = Math.floor(Date.now() / 1000);
 
+  // Update main tree table timings
   document.querySelectorAll("#tree-body tr[data-id]").forEach((row) => {
     const id = row.dataset.id;
     const isClusterRow = row.classList.contains("ordo-cluster-row");
@@ -425,6 +427,7 @@ export function updateLiveTimings() {
     if (cells[7]) cells[7].textContent = formatTminus(item.next_start) || "—";
   });
 
+  // Update servers table freshness
   const serversContent = document.getElementById("servers-content");
   if (serversContent && serversContent.offsetParent !== null) {
     document.querySelectorAll("#servers-body tr").forEach((row) => {
@@ -434,6 +437,18 @@ export function updateLiveTimings() {
       if (!server) return;
       updateFreshnessCell(row, server, now);
     });
+  }
+
+  // ==================== DASHBOARD LIVE UPDATES ====================
+  if (document.getElementById('dashboard').classList.contains('active')) {
+    // Live "ago" times in Recent Activity
+    document.querySelectorAll('#dash-recent-body td[data-timestamp]').forEach(td => {
+      const ts = parseInt(td.dataset.timestamp);
+      if (ts) td.textContent = formatRelativeTime(Math.floor(Date.now()/1000) - ts);
+    });
+
+    // Live countdown for Next Scheduled Clusters
+    updateNextScheduledClusters();   // ← Updated call
   }
 }
 
