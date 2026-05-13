@@ -19,6 +19,7 @@ use Email::Valid;
 use IO::Socket::INET;
 use Term::ReadKey;
 use POSIX qw(ceil);
+use Data::Dumper;
 
 use feature qw(say);
 
@@ -38,6 +39,7 @@ unless ($socket) {
 $socket->close();
 
 my $config = &read_config;
+print Dumper($config);
 
 my $tz      = $config->{tz} || DateTime::TimeZone::Local->TimeZone->name;
 my $token   = $config->{token};
@@ -551,6 +553,8 @@ sub request {
 sub send_request {
    my $request = shift;
    my $json;
+print Dumper($api);
+print Dumper($request);
    eval { $json = $ua->get( $api => { Accept => 'application/json' } => json => $request )->result->json; };
    return $@ ? { success => 0, message => $@ } : $json;
 }

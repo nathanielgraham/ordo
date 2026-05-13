@@ -2,6 +2,43 @@
 
 import { appState } from "./state.js";
 
+
+// Debug helper - pretty print the monitor tree
+export function debugDumpMonitorTree(label = "after initial load") {
+  const tree = appState.monitorData?.tree || [];
+  
+  console.group(`%c[DEBUG] monitorData.tree ${label} — ${tree.length} top-level items`, 
+    'color: #00ffcc; font-weight: bold; font-size: 13px;');
+
+  console.log('Raw tree:', tree);
+
+  let jobCount = 0;
+  let runningCount = 0;
+  const runningJobs = [];
+
+  traverseTree(tree, (item) => {
+    if (!item.is_cluster) {
+      jobCount++;
+      if (String(item.jobstate).toLowerCase() === 'running') {
+        runningCount++;
+        runningJobs.push({
+          id: item.id,
+          name: item.name,
+          started: item.started,
+          runtime: item.started ? Math.floor(Date.now()/1000 - item.started) + "s" : "—"
+        });
+      }
+    }
+  });
+
+  console.log(`Total jobs: ${jobCount} | Running: ${runningCount}`);
+  if (runningJobs.length > 0) {
+    console.table(runningJobs);
+  }
+
+  console.groupEnd();
+}
+
 // Date & Time Formatting
 export function formatDate(epoch) {
   if (!epoch) return "—";
@@ -83,6 +120,74 @@ export function formatDuration(start, end) {
 }
 
 // Tree Data Helpers
+export function traverseTree(items, callback) {
+  if (!items) return;
+  const list = Array.isArray(items) ? items : [items];
+
+  for (const item of list) {
+    if (!item) continue;
+    callback(item);
+
+    if (item.jobs && Array.isArray(item.jobs)) {
+      traverseTree(item.jobs, callback);
+    }
+    if (item.children && Array.isArray(item.children)) {
+      traverseTree(item.children, callback);
+    }
+  }
+}
+
+export function removeJobById(tree, id) {
+  const targetId = Number(id);
+  if (!targetId || !tree) return false;
+
+  let removed = false;
+
+  traverseTree(tree, (item) => {
+    if (item.is_cluster && item.jobs && Array.isArray(item.jobs)) {
+      const originalLength = item.jobs.length;
+      
+      item.jobs = item.jobs.filter(job => Number(job.id) !== targetId);
+
+      if (item.jobs.length < originalLength) {
+        removed = true;
+      }
+    }
+  });
+
+  return removed;
+}
+
+export function findClusterById(tree, id) {
+  const targetId = Number(id);
+  if (!targetId || !tree) return null;
+
+  let found = null;
+
+  traverseTree(tree, (item) => {
+    if (item.is_cluster && Number(item.id) === targetId) {
+      found = item;
+    }
+  });
+
+  return found;
+}
+
+export function findJobById(tree, id) {
+  const targetId = Number(id);
+  if (!targetId || !tree) return null;
+
+  let found = null;
+
+  traverseTree(tree, (item) => {
+    if (!item.is_cluster && Number(item.id) === targetId) {
+      found = item;
+    }
+  });
+
+  return found;
+}
+
 export function buildTree(data) {
   const nodes = new Map();
   const root = { id: "root", children: [], depth: 0 };
@@ -130,25 +235,6 @@ export function findServerById(id) {
   return appState.serversData.find(s => s.id === Number(id)) || null;
 }
 
-export function findClusterById(items, id) {
-  if (!Array.isArray(items)) {
-    console.warn("[DEBUG] findClusterById: items is NOT an array - returning null");
-    return null;
-  }
-
-  id = Number(id);
-  for (let item of items) {
-    if (item.id === id && item.is_cluster) {
-      return item;
-    }
-    if (item.children) {
-      const found = findClusterById(item.children, id);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
 export function getFullPath(node) {
   if (!node) return "—";
 
@@ -170,66 +256,6 @@ export function getFullPath(node) {
   return path;
 }
 
-/*
-export function getFullPath(node, tree = []) {
-  console.log(`[DEBUG] getFullPath called with node:`, node, "tree length:", tree.length);
-
-  if (!node || !tree) {
-    console.warn("[DEBUG] getFullPath: invalid node or tree - returning fallback");
-    return node?.name + (node?.is_cluster ? "/" : "") || "—";
-  }
-
-  if (!node.parent_id) {
-    return node.name + (node.is_cluster ? "/" : "");
-  }
-
-  const parent = findClusterById(tree, node.parent_id);
-  if (!parent) {
-    console.warn("[DEBUG] getFullPath: parent not found for node", node);
-    return node.name + (node.is_cluster ? "/" : "");
-  }
-
-  return getFullPath(parent, tree) + node.name + (node.is_cluster ? "/" : "");
-}
-*/
-
-export function findJobById(items, id) {
-  id = Number(id);
-  for (let item of items) {
-    if (item.id === id && !item.is_cluster) return item;
-    if (item.children) {
-      const found = findJobById(item.children, id);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-// State & UI Mapping (pure)
-export function stateClass(state) {
-  if (!state) return "ordo-default";
-  const lowerState = state.toLowerCase();
-  if (["complete"].includes(lowerState)) return "ordo-complete";
-  if (["immutable", "ice", "pruned"].includes(lowerState)) return "ordo-immutable";
-  if (lowerState === "running") return "ordo-running";
-  if (["failed", "hold", "zombie", "killed"].includes(lowerState)) return "ordo-failed";
-  if (["ready", "waiting", "looping", "retrying"].includes(lowerState)) return "ordo-ready";
-  return "ordo-default";
-}
-
-/*
-export function getStateColor(state) {
-  if (!state) return "#97C2FC";
-  const lower = state.toLowerCase();
-  if (["complete", "success"].includes(lower)) return "#4CAF50";
-  if (lower === "running") return "#2196F3";
-  if (["failed", "killed", "zombie"].includes(lower)) return "#F44336";
-  if (["hold", "ice"].includes(lower)) return "#FF9800";
-  if (lower === "immutable") return "#9C27B0";
-  return "#9E9E9E";
-}
-*/
-
 // Data removal helpers (pure, recursive)
 export function removeClusterById(items, id) {
   id = Number(id);
@@ -240,20 +266,6 @@ export function removeClusterById(items, id) {
     }
     if (items[i].children) {
       if (removeClusterById(items[i].children, id)) return true;
-    }
-  }
-  return false;
-}
-
-export function removeJobById(items, id) {
-  id = Number(id);
-  for (let i = 0; i < items.length; i++) {
-    if (items[i].id === id && !items[i].is_cluster) {
-      items.splice(i, 1);
-      return true;
-    }
-    if (items[i].children) {
-      if (removeJobById(items[i].children, id)) return true;
     }
   }
   return false;

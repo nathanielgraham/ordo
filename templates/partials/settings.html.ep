@@ -10,7 +10,7 @@
     <div id="settings-content" style="display: none">
 
       <!-- Refresh Button -->
-      <div class="actions-right" style="margin-bottom: 2rem;">
+      <div class="actions-right">
         <button id="refresh-settings" class="btn btn-ghost neon-ghost">
           <i class="fas fa-sync-alt"></i> Refresh
         </button>
@@ -47,15 +47,15 @@
             <div id="account-remote"></div>
 
             <div class="label-bold">Token (API)</div>
-            <div class="token-row" style="grid-column: 2 / -1;">
+            <div class="token-row">
               <input class="input" type="text" id="account-token" readonly />
-              <button class="btn btn-ghost neon-ghost" id="copy-token" style="white-space: nowrap;">
+              <button class="btn btn-ghost neon-ghost" id="copy-token">
                 <i class="fas fa-copy"></i> Copy
               </button>
             </div>
           </div>
 
-          <div class="border-top" style="padding-top: 2.5rem; margin-top: 2rem;">
+          <div class="border-top mt-large pt-large">
             <h4 class="title-medium">
               <i class="fas fa-building"></i> Organization
             </h4>
@@ -66,12 +66,12 @@
               <div class="label-bold">Organization Name</div>
               <input class="input" type="text" id="edit-org-name" placeholder="Organization name" />
 
-              <div class="label-bold description-row">Description</div>
+              <div class="label-bold">Description</div>
               <textarea class="textarea" id="edit-org-desc" rows="3" placeholder="Organization description"></textarea>
             </div>
           </div>
 
-          <div class="actions-right" style="margin-top: 2.5rem;">
+          <div class="actions-right mt-large">
             <button class="btn btn-primary" id="save-account">
               <i class="fas fa-save"></i> Save Account
             </button>
@@ -102,11 +102,10 @@
             </table>
           </div>
 
-          <p id="no-team" class="text-grey text-center py-large" style="display: none; border: 2px dashed #444; padding: 3rem; margin-top: 2rem;">
-            <i class="fas fa-users-slash fa-3x"></i><br><br>
-            No team members yet.<br>
-            Invite someone to collaborate.
-          </p>
+          <div id="no-team" class="empty-state text-center py-large" style="display: none">
+            <i class="fas fa-users-slash fa-5x has-text-grey"></i>
+            <p class="has-text-grey-light mt-medium">No team members yet.<br>Invite someone to collaborate.</p>
+          </div>
         </div>
       </div>
 
@@ -117,19 +116,17 @@
             <i class="fas fa-credit-card"></i> Billing & Usage
           </h3>
 
-          <div class="info-grid" style="margin-bottom: 2rem;">
+          <div class="info-grid">
             <div class="label-bold">Subscription Tier</div>
-            <p id="account-tier" style="margin: 0; font-weight: 700; color: var(--glow-cyan); text-transform: uppercase;"></p>
+            <p id="account-tier" class="text-cyan"></p>
           </div>
 
-          <div class="info-grid" style="margin-bottom: 2rem;">
+          <div class="info-grid">
             <div class="label-bold">API Calls This Month</div>
             <div>
-              <div class="progress-container" style="margin: 0.5rem 0 0.75rem 0;">
-                <progress id="api-progress" class="progress w-full" value="0" max="100">0%</progress>
-              </div>
-              <p id="api-usage-text" class="text-grey">0 / 1,000</p>
-              <p id="api-period" class="text-cyan" style="margin-top: 0.5rem;">Current period: —</p>
+              <progress id="api-progress" class="progress w-full" value="0" max="100"></progress>
+              <p id="api-usage-text" class="text-grey"></p>
+              <p id="api-period" class="text-cyan"></p>
             </div>
           </div>
 
@@ -141,17 +138,16 @@
             <div id="team-usage-text">0 / 2</div>
           </div>
 
-          <div class="border-top" style="padding-top: 2.5rem; margin-top: 2.5rem;">
+          <div class="border-top mt-large pt-large">
             <h5 class="title-medium">Subscription Management (Stripe)</h5>
             <p class="text-grey">Next Billing Date: —</p>
             <p class="text-grey">Payment Method: —</p>
-            <button class="btn btn-ghost neon-ghost" disabled style="margin-top: 1.5rem;">
+            <button class="btn btn-ghost neon-ghost mt-large" disabled>
               Manage Subscription & Invoices
             </button>
           </div>
 
-
-          <div class="actions-right" style="margin-top: 2.5rem;">
+          <div class="actions-right mt-large">
             <button class="btn btn-ghost neon-ghost" id="view-plans-btn">
               <i class="fas fa-arrow-up"></i> View Plans & Upgrade
             </button>

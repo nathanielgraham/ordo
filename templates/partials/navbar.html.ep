@@ -1,5 +1,6 @@
 <!-- partials/navbar.html.ep -->
 <nav class="topnav" role="navigation" aria-label="Main navigation">
+
   <!-- Logo Row -->
   <div class="nav-logo-row">
     <div class="nav-brand">
@@ -11,27 +12,28 @@
 
   <!-- Tabs Row -->
   <div class="nav-tabs-row">
-    <!-- Private tabs (logged in) -->
 
-<div class="nav-tabs private-tabs" data-group="private">
-  <div class="tab-group operational">
-    <a href="#" class="nav-tab" data-tab="servers">servers</a>
-    <a href="#" class="nav-tab" data-tab="monitor">jobs & clusters</a>
-    <a href="#" class="nav-tab" data-tab="calendars">calendars</a>
-    <a href="#" class="nav-tab" data-tab="dashboard">dashboard</a>
-    <a href="#" class="nav-tab active" data-tab="settings">settings</a>
-    <a href="#" class="nav-tab" data-tab="docs">docs</a>
-  </div>
-</div>
+    <!-- Private tabs (logged in) -->
+    <div class="nav-tabs private-tabs" data-group="private">
+      <div class="tab-group">
+        <a href="#" class="nav-tab" data-tab="servers">servers</a>
+        <a href="#" class="nav-tab" data-tab="monitor">jobs & clusters</a>
+        <a href="#" class="nav-tab" data-tab="calendars">calendars</a>
+        <a href="#" class="nav-tab" data-tab="dashboard">dashboard</a>
+        <a href="#" class="nav-tab active" data-tab="settings">settings</a>
+        <a href="#" class="nav-tab" data-tab="docs">docs</a>
+      </div>
+    </div>
 
     <!-- Public tabs (logged out) -->
     <div class="nav-tabs public-tabs" data-group="public" hidden>
-      <div class="tab-group info">
+      <div class="tab-group">
         <a href="#" class="nav-tab active" data-tab="about">about</a>
         <a href="#" class="nav-tab" data-tab="docs">docs</a>
         <a href="#" class="nav-tab" data-tab="pricing">pricing</a>
         <a href="#" class="nav-tab" id="logged-out-login-tab">log in</a>
       </div>
     </div>
+
   </div>
 </nav>

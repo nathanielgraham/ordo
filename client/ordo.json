@@ -1,6 +1,6 @@
 {
-   "token" : "f42c017548aa56a607c6718fbb71ee386f9d2cb6",
-   "api" : "https://192.168.68.56/api",
+   "token" : "637325eeeb7c9eb16c4ea52f1c2d66a7785dfa5f",
+   "api" : "https://192.168.68.55/api",
    "aliases" : {
       "logs" : "find_log",
       "monitor" : "read_monitor",

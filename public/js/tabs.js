@@ -1,14 +1,23 @@
 // tabs.js – tab navigation + default activation
-import { loadDoc, refreshSettings, showPricingModal, renderDashboard } from "./ui-handlers.js";
+import {
+  loadDoc,
+  refreshSettings,
+  showPricingModal,
+  renderDashboard,
+  startDashboardLiveTimer,
+  stopDashboardLiveTimer,
+  loadDashboardStats,
+} from "./ui-handlers.js";
 import { startLiveTimings, stopLiveTimings } from "./tree/tree-table.js";
+import { appState } from "./state.js";
 
 // ==================== UNIFIED TAB ACTIVATION ====================
 export function activateTab() {
-  const hash = window.location.hash.replace('#', '').trim();
+  const hash = window.location.hash.replace("#", "").trim();
   console.log(`[ACTIVATE TAB] Raw hash = "${hash}"`);
 
   if (hash) {
-    const parts = hash.split('/');
+    const parts = hash.split("/");
     const tabName = parts[0];
     let docSlug = parts[1];
 
@@ -18,13 +27,14 @@ export function activateTab() {
     const tabLink = document.querySelector(`.nav-tab[data-tab="${tabName}"]`);
     if (tabLink) tabLink.click();
 
-    if (tabName === 'docs' && docSlug) {
+    if (tabName === "docs" && docSlug) {
       // Normalize slug to filename
-      let filename = docSlug.endsWith('.md') ? docSlug : `${docSlug}.md`;
+      let filename = docSlug.endsWith(".md") ? docSlug : `${docSlug}.md`;
 
       // Special mappings
-      if (docSlug === 'rest-api' || docSlug === 'rest') filename = 'rest-api.md';
-      if (docSlug === 'video-tutorials') filename = 'video-tutorials.md';
+      if (docSlug === "rest-api" || docSlug === "rest")
+        filename = "rest-api.md";
+      if (docSlug === "video-tutorials") filename = "video-tutorials.md";
 
       console.log(`[ACTIVATE TAB] Attempting to load: ${filename}`);
 
@@ -57,39 +67,55 @@ export function attachTabListeners() {
   const tabLinks = document.querySelectorAll(".nav-tab[data-tab]");
   console.log(`Found ${tabLinks.length} tab links`);
 
+  let currentTabId = null;
+
   tabLinks.forEach((link) => {
     link.addEventListener("click", (e) => {
       e.preventDefault();
+
       const tabId = link.dataset.tab;
+      const oldTabId = currentTabId;
+      currentTabId = tabId;
 
-      // === DEBUG START ===
-      console.log("[DEBUG] Tab clicked:", tabId);
-      // === DEBUG END ===
+      console.log("[DEBUG] Tab clicked:", tabId, "(previous:", oldTabId, ")");
 
-      // Special handling for settings tab
+      // Special cases
       if (tabId === "pricing") {
-        e.preventDefault();
         showPricingModal();
         return;
       }
 
+      // ==================== DASHBOARD ====================
       if (tabId === "dashboard") {
+        console.log("[DEBUG] Activating dashboard tab");
+
         renderDashboard();
+
+        // Force initial stats load on first visit
+        if (!appState.dashboardStatsLoaded) {
+          appState.dashboardStatsLoaded = true;
+          loadDashboardStats();
+        }
+
+        startDashboardLiveTimer();
+      } else if (oldTabId === "dashboard") {
+        appState.dashboardStatsLoaded = false;
+        stopDashboardLiveTimer();
       }
 
+      // Other tabs
       if (tabId === "docs") {
         const docsContent = document.getElementById("docs-content");
         if (
           docsContent &&
           (!docsContent.innerHTML || docsContent.innerHTML.trim() === "")
         ) {
-          console.log("[TAB] Docs opened empty → loading overview.md");
           loadDoc("overview.md");
         }
       }
 
       if (tabId === "settings") {
-        console.log("[DEBUG] Activating Settings tab — loading data");
+        console.log("[DEBUG] Activating Settings tab");
 
         const loading = document.getElementById("settings-loading");
         const content = document.getElementById("settings-content");
@@ -97,37 +123,29 @@ export function attachTabListeners() {
         if (loading) loading.style.display = "none";
         if (content) content.style.display = "block";
 
-        // Load fresh data
+        // Force refresh data
         refreshSettings();
       }
 
-      // Live timings for other tabs
+      // Live timings
       if (tabId === "monitor" || tabId === "servers" || tabId === "calendars") {
         startLiveTimings();
       } else {
         stopLiveTimings();
       }
 
-      // Update active tab style
+      // Switch active tab
       tabLinks.forEach((l) => l.classList.remove("active"));
       link.classList.add("active");
 
-      // Switch content visibility
+      // Switch content
       document
         .querySelectorAll(".tab-content")
         .forEach((s) => s.classList.remove("active"));
-
-      let target = document.getElementById(tabId);
-      if (!target) {
-        target = document.querySelector(`section[id="${tabId}"]`);
-      }
-
-      if (target) {
-        target.classList.add("active");
-        console.log(`[DEBUG] Successfully activated #${tabId}`);
-      } else {
-        console.error(`Tab content missing: #${tabId}`);
-      }
+      let target =
+        document.getElementById(tabId) ||
+        document.querySelector(`section[id="${tabId}"]`);
+      if (target) target.classList.add("active");
     });
   });
 }

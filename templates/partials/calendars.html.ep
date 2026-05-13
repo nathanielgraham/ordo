@@ -1,28 +1,24 @@
 <!-- partials/calendars.html.ep -->
 <section id="calendars" class="tab-content" data-private="true">
   <div class="content-center">
+
     <!-- Loading state -->
-    <div id="calendars-loading" class="text-center py-6">
+    <div id="calendars-loading" class="text-center py-large">
       <i class="fas fa-spinner fa-spin fa-3x"></i>
-      <p class="mt-2">Loading calendars...</p>
+      <p class="mt-medium">Loading calendars...</p>
     </div>
 
     <!-- Main content -->
     <div id="calendars-content" style="display: none">
-      <!-- Header actions -->
 
-      <!-- Actions toolbar - Calendars -->
-      <div class="calendars-header">
-        <button
-          class="btn btn-ghost btn-large neon-ghost"
-          id="create-calendar-btn"
-        >
+      <!-- Actions toolbar -->
+      <div class="actions-right">
+        <button class="btn btn-ghost neon-ghost" id="create-calendar-btn">
           + Create Calendar
         </button>
       </div>
 
       <!-- Calendars table -->
-
       <div class="table-container">
         <table class="ordo-table" id="calendars-table">
           <thead>
@@ -41,10 +37,10 @@
           <tbody id="calendars-body"></tbody>
         </table>
 
-        <div id="no-calendars" class="empty-state has-text-centered py-10">
-          <i class="fas fa-calendar-alt fa-5x has-text-grey mb-4"></i>
+        <div id="no-calendars" class="empty-state text-center py-large">
+          <i class="fas fa-calendar-alt fa-5x has-text-grey"></i>
           <h3 class="has-text-grey-light">No calendars configured yet</h3>
-          <p class="has-text-grey mt-2">
+          <p class="has-text-grey mt-medium">
             Create your first calendar to schedule recurring jobs.
           </p>
         </div>
@@ -63,52 +59,28 @@
       <section class="modal-body">
         <div class="form-group">
           <label class="label required" for="calendar-name">Name</label>
-          <input
-            class="input"
-            type="text"
-            id="calendar-name"
-            placeholder="e.g. nightly-runs"
-            required
-          />
+          <input class="input" type="text" id="calendar-name" placeholder="e.g. nightly-runs" required />
         </div>
 
         <div class="form-group">
           <label class="label required" for="calendar-tz">Timezone</label>
-          <select
-            id="calendar-tz"
-            placeholder="Type to search or select timezone..."
-            required
-          ></select>
-          <input
-            class="input mt-2"
-            type="text"
-            id="calendar-tz-custom"
-            placeholder="Custom TZ (e.g. Asia/Tokyo)"
-            style="display: none"
-          />
-          <p class="help-text small mt-1">
-            Defaults to your local timezone. Search for your city or region.
-          </p>
+          <select id="calendar-tz" placeholder="Type to search or select timezone..." required></select>
+          <input class="input mt-medium" type="text" id="calendar-tz-custom" placeholder="Custom TZ (e.g. Asia/Tokyo)" style="display: none" />
+          <p class="help-text small mt-small">Defaults to your local timezone. Search for your city or region.</p>
         </div>
 
         <div class="form-group">
           <label class="label" for="calendar-description">Description</label>
-          <textarea
-            class="textarea"
-            id="calendar-description"
-            rows="3"
-            placeholder="Optional description"
-          ></textarea>
+          <textarea class="textarea" id="calendar-description" rows="3" placeholder="Optional description"></textarea>
         </div>
       </section>
       <footer class="modal-footer">
         <button class="btn btn-primary" id="save-calendar">Save</button>
-        <button class="btn btn-secondary" data-dismiss="calendar-modal">
-          Cancel
-        </button>
+        <button class="btn btn-secondary" data-dismiss="calendar-modal">Cancel</button>
       </footer>
     </div>
   </div>
+
   <!-- Crons List Modal -->
   <div id="crons-modal" class="app-modal">
     <div class="modal-backdrop"></div>
@@ -118,9 +90,9 @@
         <button class="close-btn" data-dismiss="crons-modal"></button>
       </header>
       <section class="modal-body">
-        <div id="crons-loading" class="text-center py-6" style="display: none">
+        <div id="crons-loading" class="text-center py-large" style="display: none">
           <i class="fas fa-spinner fa-spin fa-2x"></i>
-          <p class="mt-2">Loading crons...</p>
+          <p class="mt-medium">Loading crons...</p>
         </div>
         <div id="crons-content" style="display: none">
           <table class="ordo-table" id="crons-table">
@@ -138,20 +110,14 @@
             </thead>
             <tbody id="crons-body"></tbody>
           </table>
-          <p
-            id="no-crons-message"
-            class="text-grey text-center py-4"
-            style="display: none"
-          >
+          <p id="no-crons-message" class="text-grey text-center py-large" style="display: none">
             No crons yet.
           </p>
         </div>
       </section>
       <footer class="modal-footer">
         <button class="btn btn-success" id="add-cron-btn">Add Cron</button>
-        <button class="btn btn-secondary" data-dismiss="crons-modal">
-          Close
-        </button>
+        <button class="btn btn-secondary" data-dismiss="crons-modal">Close</button>
       </footer>
     </div>
   </div>
@@ -166,58 +132,28 @@
       </header>
       <section class="modal-body">
         <div class="form-group">
-          <label class="label required" for="cron-expression"
-            >Cron Expression</label
-          >
-          <input
-            class="input"
-            type="text"
-            id="cron-expression"
-            placeholder="e.g. 0 0 12 * * ? *"
-            required
-          />
-          <p class="help-text small">
-            Quartz format (6 or 7 fields). Example: 0 0 12 * * ? * = noon every
-            day
-          </p>
+          <label class="label required" for="cron-expression">Cron Expression</label>
+          <input class="input" type="text" id="cron-expression" placeholder="e.g. 0 0 12 * * ? *" required />
+          <p class="help-text small">Quartz format (6 or 7 fields). Example: 0 0 12 * * ? * = noon every day</p>
         </div>
         <div class="form-group">
           <label class="label" for="cron-description">Description</label>
-          <input
-            class="input"
-            type="text"
-            id="cron-description"
-            placeholder="e.g. Daily backup"
-          />
+          <input class="input" type="text" id="cron-description" placeholder="e.g. Daily backup" />
         </div>
-        <div class="grid-2">
+        <div class="form-row">
           <div class="form-group">
             <label class="label" for="cron-begin">Begin (Unix timestamp)</label>
-            <input
-              class="input"
-              type="number"
-              id="cron-begin"
-              placeholder="e.g. 1704067200"
-            />
+            <input class="input" type="number" id="cron-begin" placeholder="e.g. 1704067200" />
           </div>
           <div class="form-group">
-            <label class="label" for="cron-expire"
-              >Expire (Unix timestamp)</label
-            >
-            <input
-              class="input"
-              type="number"
-              id="cron-expire"
-              placeholder="e.g. 1735689600"
-            />
+            <label class="label" for="cron-expire">Expire (Unix timestamp)</label>
+            <input class="input" type="number" id="cron-expire" placeholder="e.g. 1735689600" />
           </div>
         </div>
       </section>
       <footer class="modal-footer">
         <button class="btn btn-primary" id="save-cron">Save</button>
-        <button class="btn btn-secondary" data-dismiss="cron-modal">
-          Cancel
-        </button>
+        <button class="btn btn-secondary" data-dismiss="cron-modal">Cancel</button>
       </footer>
     </div>
   </div>

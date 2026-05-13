@@ -1,0 +1,97 @@
+<section id="dashboard" class="tab-content" data-private="true">
+  <div class="content-center">
+    <!-- KPI Bar -->
+    <div class="kpi-bar">
+      <div class="kpi-item">
+        <div id="kpi-success-rate" class="kpi-value">—</div>
+        <div class="kpi-label">Success Rate (24h)</div>
+      </div>
+      <div class="kpi-item">
+        <div id="kpi-runs-today" class="kpi-value">0</div>
+        <div class="kpi-label">Runs Today</div>
+      </div>
+      <div class="kpi-item">
+        <div id="kpi-failed-today" class="kpi-value">0</div>
+        <div class="kpi-label">Failed Today</div>
+      </div>
+      <div class="kpi-item">
+        <button id="resync-all-btn" class="btn btn-ghost neon-ghost btn-medium">
+          <i class="fas fa-sync-alt"></i> Resync Servers
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Cards -->
+    <div class="dashboard-cards">
+      <!-- Longest Running -->
+      <div class="card-simple">
+        <div class="card-top">
+          <div>
+            <div id="dash-running-count" class="count-big text-cyan">0</div>
+            <div class="text-grey">
+              Longest Running <span class="text-small">(top 5 shown)</span>
+            </div>
+          </div>
+          <i class="fas fa-hourglass-half icon-big"></i>
+        </div>
+        <div id="dash-running-list" class="card-content"></div>
+      </div>
+
+      <!-- Recently Failed -->
+      <div class="card-simple">
+        <div class="card-top">
+          <div>
+            <div id="dash-failed-count" class="count-big text-red">0</div>
+            <div class="text-grey">
+              Recently Failed <span class="text-small">(top 5 shown)</span>
+            </div>
+          </div>
+          <i class="fas fa-exclamation-triangle icon-big"></i>
+        </div>
+        <div id="dash-failed-list" class="card-content"></div>
+      </div>
+
+      <!-- Next Scheduled -->
+      <div class="card-simple">
+        <div class="card-top">
+          <div>
+            <div id="dash-next-count" class="count-big text-cyan">0</div>
+            <div class="text-grey">Next Scheduled</div>
+          </div>
+          <i class="fas fa-clock icon-big"></i>
+        </div>
+        <div id="dash-next-5" class="card-content"></div>
+      </div>
+
+      <!-- Overdue Clusters -->
+      <div class="card-simple">
+        <div class="card-top">
+          <div>
+            <div id="dash-overdue-count" class="count-big text-orange">0</div>
+            <div class="text-grey">Overdue Clusters</div>
+          </div>
+          <i class="fas fa-exclamation-circle icon-big"></i>
+        </div>
+        <div id="dash-overdue-list" class="card-content"></div>
+      </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="card-simple mt-large">
+      <h4 class="title-medium mb-medium">Recent Activity</h4>
+      <div class="table-container">
+        <table class="ordo-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Item</th>
+              <th>Action</th>
+              <th>Server</th>
+            </tr>
+          </thead>
+          <tbody id="dash-recent-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,7 +1,7 @@
 // tree/tree-table.js – Pure rendering logic only
 import { appState, updateCollapsedClusters } from "../state.js";
 import { toggleSubtree } from "./tree-listeners.js";
-import { updateFreshnessCell, updateNextScheduledClusters } from "../ui-handlers.js";
+import { updateFreshnessCell, renderDashboard, updateDashboardLiveCards, updateNextScheduledClusters } from "../ui-handlers.js";
 import {
   formatTplus,
   formatTminus,
@@ -393,12 +393,24 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
 }
 
 // Live timings
+
 let liveTimingInterval = null;
+
+// Cache DOM elements once
+let dashboardRecentTds = [];
+let runningNowContainer = null;
+let nextScheduledContainer = null;
 
 export function startLiveTimings() {
   if (liveTimingInterval) return;
+
+  // Cache elements on start
+  dashboardRecentTds = Array.from(document.querySelectorAll('#dash-recent-body td[data-timestamp]'));
+  runningNowContainer = document.getElementById('dash-running-list');
+  nextScheduledContainer = document.getElementById('dash-next-5');
+
   liveTimingInterval = setInterval(updateLiveTimings, 1000);
-  updateLiveTimings();
+  updateLiveTimings(); // immediate update
 }
 
 export function stopLiveTimings() {
@@ -406,49 +418,42 @@ export function stopLiveTimings() {
     clearInterval(liveTimingInterval);
     liveTimingInterval = null;
   }
+  // Clear caches
+  dashboardRecentTds = [];
+  runningNowContainer = null;
+  nextScheduledContainer = null;
 }
 
-// tree/tree-table.js  →  update this function
 export function updateLiveTimings() {
   const now = Math.floor(Date.now() / 1000);
 
-  // Update main tree table timings
-  document.querySelectorAll("#tree-body tr[data-id]").forEach((row) => {
-    const id = row.dataset.id;
-    const isClusterRow = row.classList.contains("ordo-cluster-row");
-    const item = isClusterRow
-      ? findClusterById(appState.monitorData.tree, id)
-      : findJobById(appState.monitorData.tree, id);
-    if (!item) return;
+  // Tree table (when visible)
+  const monitorTab = document.getElementById('monitor');
+  if (monitorTab && monitorTab.classList.contains('active')) {
+    document.querySelectorAll("#tree-body tr[data-id]").forEach((row) => {
+      const id = row.dataset.id;
+      const isClusterRow = row.classList.contains("ordo-cluster-row");
+      const item = isClusterRow
+        ? findClusterById(appState.monitorData.tree, id)
+        : findJobById(appState.monitorData.tree, id);
+      if (!item) return;
 
-    const cells = row.cells;
-    if (cells[5]) cells[5].textContent = formatTplus(item.started) || "—";
-    if (cells[6]) cells[6].textContent = formatDuration(item.started, item.ended) || "—";
-    if (cells[7]) cells[7].textContent = formatTminus(item.next_start) || "—";
-  });
+      const cells = row.cells;
+      if (cells[5]) cells[5].textContent = formatTplus(item.started) || "—";
+      if (cells[6]) cells[6].textContent = formatDuration(item.started, item.ended) || "—";
+      if (cells[7]) cells[7].textContent = formatTminus(item.next_start) || "—";
+    });
+  }
 
-  // Update servers table freshness
+  // Servers tab
   const serversContent = document.getElementById("servers-content");
   if (serversContent && serversContent.offsetParent !== null) {
     document.querySelectorAll("#servers-body tr").forEach((row) => {
       const updateTime = Number(row.dataset.updateTime);
       if (isNaN(updateTime) || updateTime <= 0) return;
       const server = appState.serversData.find((s) => Number(s.update_time) === updateTime);
-      if (!server) return;
-      updateFreshnessCell(row, server, now);
+      if (server) updateFreshnessCell(row, server, now);
     });
-  }
-
-  // ==================== DASHBOARD LIVE UPDATES ====================
-  if (document.getElementById('dashboard').classList.contains('active')) {
-    // Live "ago" times in Recent Activity
-    document.querySelectorAll('#dash-recent-body td[data-timestamp]').forEach(td => {
-      const ts = parseInt(td.dataset.timestamp);
-      if (ts) td.textContent = formatRelativeTime(Math.floor(Date.now()/1000) - ts);
-    });
-
-    // Live countdown for Next Scheduled Clusters
-    updateNextScheduledClusters();   // ← Updated call
   }
 }
 

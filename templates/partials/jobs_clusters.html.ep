@@ -1,36 +1,32 @@
+<!-- partials/jobs_clusters.html.ep -->
 <section id="monitor" class="tab-content" data-private="true">
-  <!-- Removed: class="tab-content" -->
+  <div class="content-center">
 
-  <div class="monitor-wrapper"> <!-- optional custom wrapper; can be just a plain div -->
-    <div id="monitor-loading" class="text-center py-6">
-      <!-- Replaced: has-text-centered → text-center (Tailwind) -->
-      <span><i class="fas fa-spinner fa-spin fa-3x"></i></span>
-      <!-- Removed: icon is-large -->
-
-      <p class="mt-2">Loading jobs & clusters...</p>
-      <!-- mt-2 is fine if you use Tailwind; otherwise use custom margin -->
+    <!-- Loading state -->
+    <div id="monitor-loading" class="text-center py-large">
+      <i class="fas fa-spinner fa-spin fa-3x"></i>
+      <p class="mt-medium">Loading jobs & clusters...</p>
     </div>
 
     <div id="monitor-content" style="display: none">
       <div class="table-container">
-<!-- Updated table opening tag -->
-<table class="ordo-table ordo-table--tree" id="tree-table" role="treegrid" aria-label="Jobs and Clusters Hierarchy">
-  <thead>
-    <tr>
-      <th>Path</th>
-      <th>State</th>
-      <th>Server</th>
-      <th>Deps</th>
-      <th>Stats</th>
-      <th>Last Run</th>
-      <th>Duration</th>
-      <th>Next Run</th>
-      <th>Calendar</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody id="tree-body"></tbody>
-</table>
+        <table class="ordo-table ordo-table--tree" id="tree-table" role="treegrid" aria-label="Jobs and Clusters Hierarchy">
+          <thead>
+            <tr>
+              <th>Path</th>
+              <th>State</th>
+              <th>Server</th>
+              <th>Deps</th>
+              <th>Stats</th>
+              <th>Last Run</th>
+              <th>Duration</th>
+              <th>Next Run</th>
+              <th>Calendar</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tree-body"></tbody>
+        </table>
       </div>
     </div>
   </div>

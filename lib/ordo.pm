@@ -2982,7 +2982,9 @@ sub _set_job_state {
         { id => $job->{cluster_id} } )->hash;
 
     if ( $d->{state} eq 'starting' ) {
+        $self->sqlite->db->update( 'job', { started => time }, { id => $job_id } );
         $self->_reset_job_stats( $user, { id => $job_id } );
+        #$update_hash->{started} = undef;
     }
 
     if ( scalar( grep { $d->{state} eq $_ } (qw(sleeping running)) ) ) {
@@ -5381,11 +5383,54 @@ sub delete_cal {
     return { success => $success, %$cal };
 }
 
+sub find_stats {
+    my ($self, $user, $d) = @_;
+
+    my $since = $d->{since} || (time() - 86400);
+
+    my $stats = $self->sqlite->db->query("
+        SELECT
+          COUNT(*) as runs_today,
+
+          SUM(CASE WHEN jl.exit_code != 0 
+                   OR (jl.signal IS NOT NULL AND jl.signal != 0)
+                   THEN 1 ELSE 0 END) as failed_runs_today,
+
+          MAX(CASE WHEN jl.ended > jl.started THEN jl.ended - jl.started ELSE 0 END) as longest_duration
+
+        FROM job_log jl
+        JOIN job j ON jl.job_id = j.id
+        JOIN cluster c ON j.cluster_id = c.id
+        WHERE jl.ended >= ?
+          AND c.org_id = ?
+    ", $since, $user->org_id)->hash;
+
+    my $runs_today     = $stats->{runs_today} // 0;
+    my $failed_today   = $stats->{failed_runs_today} // 0;
+    my $success_count  = $runs_today - $failed_today;
+
+    my $success_rate = $runs_today > 0 
+        ? sprintf("%.1f", 100.0 * $success_count / $runs_today) 
+        : 100;
+
+    return {
+        success            => 1,
+        command_reply      => 'find_stats',
+        success_rate       => $success_rate + 0,
+        runs_today         => $runs_today,
+        failed_runs_today  => $failed_today,
+        longest_duration   => $stats->{longest_duration} // 0,
+        calculated_at      => time()
+    };
+}
+
 # command routing
 
 sub routing {
     state %routing = (
 
+	# Stats
+	'find_stats' => ['find_stats', 1, [ {}, { since => 'i' } ], 1],
         # Org related
         'update_org' =>
           [ 'update_org', 1, [ {}, { description => 'd', name => 'n' } ], 1 ],

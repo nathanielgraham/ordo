@@ -1,15 +1,14 @@
 <!-- partials/about.html.ep -->
 <section id="about" class="tab-content" data-public="true">
+
   <!-- Hero -->
-  <section class="hero-section" style="background: linear-gradient(135deg, #00c9b1, #007a87)">
+  <div class="hero-section">
     <div class="hero-content text-center">
       <h1 class="title-large">
         <i class="fas fa-briefcase mr-3"></i>Ordo
       </h1>
       <p class="subtitle-italic">Automation that feels like your filesystem</p>
-      <h2 class="title-medium">
-        The modern job scheduler<br />for teams and individuals
-      </h2>
+      <h2 class="title-medium">The modern job scheduler<br />for teams and individuals</h2>
       <p class="subtitle-description">
         Hierarchical workflows • Real-time monitoring • Self-healing automation<br />
         Full Quartz scheduling • Easy migration from AutoSys/cron • Open core
@@ -19,10 +18,10 @@
         <a href="#video" class="btn btn-large btn-white">Watch Video</a>
       </div>
     </div>
-  </section>
+  </div>
 
   <!-- How It Works -->
-  <section class="section">
+  <div class="section">
     <div class="content-center">
       <h2 class="title-medium">How It Works</h2>
       <div class="grid-3">
@@ -34,10 +33,7 @@
         <div class="card-simple text-center">
           <span class="icon-large"><i class="fas fa-clock"></i></span>
           <h3>2. Schedule</h3>
-          <p>
-            Use calendars with extended cron syntax — daily, weekly, or
-            "last Friday of the month".
-          </p>
+          <p>Use calendars with extended cron syntax — daily, weekly, or "last Friday of the month".</p>
         </div>
         <div class="card-simple text-center">
           <span class="icon-large"><i class="fas fa-eye"></i></span>
@@ -46,61 +42,46 @@
         </div>
       </div>
     </div>
-  </section>
+  </div>
 
-  <!-- Key Benefits -->
-  <section class="section bg-dark">
+  <!-- Why Teams Love Ordo -->
+  <div class="section bg-dark">
     <div class="content-center">
       <h2 class="title-medium">Why Teams Love Ordo</h2>
       <div class="grid-3">
         <div class="card-simple text-center">
           <span class="icon-large"><i class="fas fa-sitemap"></i></span>
           <h3>Hierarchical Workflows</h3>
-          <p>
-            Nest jobs in clusters like files in folders. Dependencies
-            are natural — add explicit ones for precision.
-          </p>
+          <p>Nest jobs in clusters like files in folders. Dependencies are natural.</p>
         </div>
         <div class="card-simple text-center">
           <span class="icon-large"><i class="fas fa-tachometer-alt"></i></span>
           <h3>Real-Time Monitoring</h3>
-          <p>
-            Live countdowns, performance charts, and historical
-            trends.
-          </p>
+          <p>Live countdowns, performance charts, and historical trends.</p>
         </div>
         <div class="card-simple text-center">
           <span class="icon-large"><i class="fas fa-shield-alt"></i></span>
           <h3>Self-Healing Automation</h3>
-          <p>
-            On failure, run alerts, retries, or full recovery
-            clusters.
-          </p>
+          <p>On failure, run alerts, retries, or full recovery clusters.</p>
         </div>
       </div>
     </div>
-  </section>
+  </div>
 
-  <!-- Coming in v1 Teaser -->
-  <section class="section">
+  <!-- Coming in v1 -->
+  <div class="section">
     <div class="content-center">
       <h2 class="title-medium">Coming in v1</h2>
       <div class="grid-3">
         <div class="card-simple text-center">
           <span class="icon-large"><i class="fas fa-file-import"></i></span>
           <h3>Easy Migration</h3>
-          <p>
-            Import AutoSys JIL files or crontabs directly — escape
-            legacy systems fast.
-          </p>
+          <p>Import AutoSys JIL files or crontabs directly.</p>
         </div>
         <div class="card-simple text-center">
           <span class="icon-large"><i class="fas fa-chart-line"></i></span>
           <h3>Performance Insights</h3>
-          <p>
-            Historical CPU, memory, and duration charts for every job
-            and server.
-          </p>
+          <p>Historical CPU, memory, and duration charts for every job and server.</p>
         </div>
         <div class="card-simple text-center">
           <span class="icon-large"><i class="fas fa-project-diagram"></i></span>
@@ -109,10 +90,10 @@
         </div>
       </div>
     </div>
-  </section>
+  </div>
 
-  <!-- Screenshot / Video -->
-  <section class="section bg-dark" id="video">
+  <!-- Video / Screenshot -->
+  <div class="section bg-dark" id="video">
     <div class="content-center">
       <h2 class="title-medium">See Ordo in Action</h2>
       <div class="video-placeholder">
@@ -121,10 +102,10 @@
         <p>Coming soon — or watch the tutorial series!</p>
       </div>
     </div>
-  </section>
+  </div>
 
   <!-- Comparison Table -->
-  <section class="section">
+  <div class="section">
     <div class="content-center">
       <h2 class="title-medium">How Ordo Compares</h2>
       <div class="table-container">
@@ -196,26 +177,15 @@
         </table>
       </div>
     </div>
-  </section>
+  </div>
 
   <!-- Final CTA -->
-  <section class="hero-section" style="background: linear-gradient(135deg, #00c9b1, #007a87)">
+  <div class="hero-section">
     <div class="hero-content text-center">
       <h2 class="title-medium">Ready to simplify your automation?</h2>
       <p>Free tier available • $39/month Pro • Custom plans for special needs</p>
       <a href="/login" class="btn btn-large btn-white">Get Started Free</a>
     </div>
-  </section>
+  </div>
 
-  <!-- Footer -->
-  <footer class="footer">
-    <div class="content-center text-center">
-      <p>
-        <strong>Ordo</strong> — Open source job scheduler<br />
-        <a href="https://github.com/your-repo" target="_blank">
-          <i class="fab fa-github mr-2"></i>View on GitHub
-        </a>
-      </p>
-    </div>
-  </footer>
 </section>

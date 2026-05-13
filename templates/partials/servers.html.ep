@@ -1,26 +1,22 @@
-<!-- partials/servers.html.ep -->
 <section id="servers" class="tab-content" data-private="true">
   <div class="content-center">
+
     <!-- Loading state -->
-    <div id="servers-loading" class="text-center py-6">
+    <div id="servers-loading" class="text-center py-large">
       <i class="fas fa-spinner fa-spin fa-3x"></i>
-      <p class="mt-2">Loading servers...</p>
+      <p class="mt-medium">Loading servers...</p>
     </div>
 
     <!-- Main content -->
     <div id="servers-content" style="display: none">
-      <!-- No big hero title — tab name is enough -->
 
-      <!-- Actions toolbar -->
-      <div class="servers-header">
-        <button class="btn btn-ghost btn-large neon-ghost" id="add-server-btn">
+      <div class="actions-right">
+        <button class="btn btn-ghost neon-ghost" id="add-server-btn">
           + Add Server
         </button>
       </div>
 
-      <!-- Table -->
       <div class="table-container">
-        <!-- Updated table opening tag -->
         <table class="ordo-table" id="servers-table">
           <thead>
             <tr>
@@ -38,16 +34,12 @@
           </thead>
           <tbody id="servers-body"></tbody>
         </table>
+      </div>
 
-        <!-- Empty state -->
-
-        <div id="no-servers" class="empty-state has-text-centered">
-          <i class="fas fa-server fa-5x has-text-grey"></i>
-          <h3 class="has-text-grey-light">No servers configured yet</h3>
-          <p class="has-text-grey mt-2">
-            Add your first server to start monitoring hardware and jobs.
-          </p>
-        </div>
+      <div id="no-servers" class="empty-state text-center py-large">
+        <i class="fas fa-server fa-5x has-text-grey"></i>
+        <h3 class="has-text-grey-light">No servers configured yet</h3>
+        <p class="has-text-grey mt-medium">Add your first server to start monitoring hardware and jobs.</p>
       </div>
     </div>
 
@@ -62,64 +54,29 @@
         <section class="modal-body">
           <div class="form-group">
             <label class="label required" for="server-name">Name</label>
-            <input
-              class="input"
-              type="text"
-              id="server-name"
-              placeholder="e.g. snarf"
-              required
-            />
+            <input class="input" type="text" id="server-name" placeholder="e.g. snarf" required />
           </div>
           <div class="form-group">
             <label class="label required" for="server-host">Host / IP</label>
-            <input
-              class="input"
-              type="text"
-              id="server-host"
-              placeholder="e.g. 192.168.68.56"
-              required
-            />
+            <input class="input" type="text" id="server-host" placeholder="e.g. 192.168.68.56" required />
           </div>
           <div class="form-group">
             <label class="label" for="server-user">User</label>
-            <input
-              class="input"
-              type="text"
-              id="server-user"
-              placeholder="e.g. broom"
-            />
+            <input class="input" type="text" id="server-user" placeholder="e.g. broom" />
           </div>
           <div class="form-group">
             <label class="label" for="server-port">Port</label>
-            <input
-              class="input"
-              type="number"
-              id="server-port"
-              value="22"
-              min="1"
-              max="65535"
-            />
+            <input class="input" type="number" id="server-port" value="22" min="1" max="65535" />
           </div>
-          <div class="form-group" id="password-group">
-            <label class="label" for="server-password"
-              >Password (initial setup only)</label
-            >
-            <input
-              class="input"
-              type="password"
-              id="server-password"
-              placeholder="••••••••"
-            />
-            <p class="help-text small">
-              Used once for SSH key copy if needed. Not stored.
-            </p>
+          <div class="form-group">
+            <label class="label" for="server-password">Password (initial setup only)</label>
+            <input class="input" type="password" id="server-password" placeholder="••••••••" />
+            <p class="help-text small">Used once for SSH key copy if needed. Not stored.</p>
           </div>
         </section>
         <footer class="modal-footer">
           <button class="btn btn-primary" id="save-server">Save</button>
-          <button class="btn btn-secondary" data-dismiss="server-modal">
-            Cancel
-          </button>
+          <button class="btn btn-secondary" data-dismiss="server-modal">Cancel</button>
         </footer>
       </div>
     </div>

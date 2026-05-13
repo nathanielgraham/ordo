@@ -222,19 +222,36 @@ export function openJobModal(
 }
 
 // ==================== SERVER MODAL ====================
+export function openServerModal(mode = "create", serverData = null) {
+  const modal = document.getElementById('server-modal');
+  if (!modal) {
+    console.error("Server modal element not found");
+    return;
+  }
 
-export function openServerModal(mode = "create", server = null) {
-  document.getElementById("server-modal-title").textContent =
-    mode === "edit" ? "Edit Server" : "Add Server";
-  document.getElementById("server-name").value = server?.name || "";
-  document.getElementById("server-host").value =
-    server?.host || server?.ip_address || "";
-  //document.getElementById("server-user").value = server?.user;
-  document.getElementById("server-port").value = server?.port || "22";
-  document.getElementById("password-group").style.display =
-    mode === "edit" ? "none" : "block";
-  appState.currentEditServerId = server?.id || null;
-  document.getElementById("server-modal").classList.add("active");
+  const titleEl = document.getElementById('server-modal-title');
+  
+  if (mode === "edit" && serverData) {
+    titleEl.textContent = "Edit Server";
+    document.getElementById('server-name').value = serverData.name || '';
+    document.getElementById('server-host').value = serverData.host || serverData.ip_address || '';
+    document.getElementById('server-user').value = serverData.user || '';
+    document.getElementById('server-port').value = serverData.port || '22';
+    // Do NOT prefill password for security
+    appState.currentEditServerId = serverData.id;
+  } else {
+    // Create mode
+    titleEl.textContent = "Add Server";
+    document.getElementById('server-name').value = '';
+    document.getElementById('server-host').value = '';
+    document.getElementById('server-user').value = '';
+    document.getElementById('server-port').value = '22';
+    document.getElementById('server-password').value = '';
+    appState.currentEditServerId = null;
+  }
+
+  modal.classList.add('active');
+  document.getElementById('server-name').focus();
 }
 
 // ==================== CLUSTER MODAL ====================

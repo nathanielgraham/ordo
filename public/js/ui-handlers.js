@@ -22,11 +22,13 @@ import {
   formatUptime,
   formatRelativeTime,
   buildTree,
+  traverseTree,
   findClusterById,
   findJobById,
   getFullPath,
   removeJobById,
-  removeClusterById,
+  debugDumpMonitorTree,
+  removeClusterById
 } from "./utils.js";
 
 export function showLoading(containerId) {
@@ -411,21 +413,15 @@ function renderTeamMembers(members) {
 // ==================== ACTIONS ====================
 
 export async function refreshSettings() {
-  const btn = document.getElementById('refresh-settings');
-  if (btn) btn.disabled = true;
-
   try {
     await Promise.all([
       sendWS({ command: 'read_user' }),
       sendWS({ command: 'read_org' }),
       sendWS({ command: 'find_monitor' })
     ]);
-    showToast('Settings refreshed', 'success');
+    console.log('[Settings] Data refreshed');
   } catch (e) {
-    console.error(e);
-    showToast('Failed to refresh settings', 'danger');
-  } finally {
-    if (btn) btn.disabled = false;
+    console.error('[Settings] Refresh failed', e);
   }
 }
 
@@ -659,6 +655,7 @@ export function updateJobsClusters(data) {
 
   if (data.success) {
     appState.monitorData.tree = buildTree(data);
+    debugDumpMonitorTree();        // ← Add this line
 
     // ────────────────────────────────────────────────
     // Clean up any collapsed IDs that no longer exist in the current tree
@@ -1065,76 +1062,172 @@ export function applyClusterBroadcast(data) {
   updateLiveTimings();
 }
 
-export function applyJobBroadcast(data) {
-  if (data.updates) {
-    data.updates.forEach((update) => {
-      const id = Number(update.id);
+// ==================== DASHBOARD CORE ====================
+export function renderDashboard() {
+  const tree = appState.monitorData?.tree || [];
+  const servers = appState.serversData || [];
 
-      // Update in-memory tree (this was missing!)
-      const jobInTree = findJobById(appState.monitorData.tree, id);
-      if (jobInTree) {
-        Object.assign(jobInTree, update);
+  console.log('[Dashboard] Rendering from current state');
+
+  // Longest Running
+  document.getElementById('dash-running-list').innerHTML = getLongestRunningJobsHTML(tree, 5);
+  document.getElementById('dash-running-count').textContent = countRunningJobs(tree);
+
+  // Recently Failed
+  document.getElementById('dash-failed-list').innerHTML = getRecentlyFailedListHTML(tree, 5);
+  document.getElementById('dash-failed-count').textContent = countRecentFailedJobs(tree);
+
+  // Next Scheduled
+  updateNextScheduledClusters();
+  updateNextScheduledCount();
+
+  // Overdue
+  document.getElementById('dash-overdue-count').textContent = countOverdueClusters(tree);
+  document.getElementById('dash-overdue-list').innerHTML = getOverdueClustersListHTML(tree);
+
+  // Recent Activity
+  renderRecentActivityTable(tree);
+
+  console.log(`[Dashboard] Counts → Running: ${countRunningJobs(tree)}, Failed: ${countRecentFailedJobs(tree)}`);
+}
+
+export function updateDashboardLiveCards() {
+  const tree = appState.monitorData?.tree || [];
+  const now = Math.floor(Date.now() / 1000);
+
+  // Longest Running
+  const runningList = document.getElementById('dash-running-list');
+  if (runningList) runningList.innerHTML = getLongestRunningJobsHTML(tree, 5);
+
+  // Recently Failed
+  const failedList = document.getElementById('dash-failed-list');
+  if (failedList) failedList.innerHTML = getRecentlyFailedListHTML(tree, 5);
+
+  // Next Scheduled & Overdue
+  updateNextScheduledClusters();
+  updateNextScheduledCount();
+
+  // Recent Activity "ago" times
+  document.querySelectorAll('#dash-recent-body td[data-timestamp]').forEach(td => {
+    const ts = parseInt(td.dataset.timestamp);
+    if (ts) td.textContent = formatRelativeTime(now - ts);
+  });
+}
+
+// ==================== SAFE BROADCAST HANDLER ====================
+export function applyJobBroadcast(data) {
+  if (!data.updates || !Array.isArray(data.updates)) return;
+
+  console.log(`[ApplyJobBroadcast] Processing ${data.updates.length} updates`);
+
+  data.updates.forEach((update) => {
+    const id = Number(update.id);
+    if (!id) return;
+
+    if (update.is_cluster || update.is_cluster === true) return;
+
+    const newState = String(update.jobstate || '').toLowerCase().trim();
+    const newStarted = update.started || update.start;
+
+    let jobInTree = findJobById(appState.monitorData.tree, id);
+
+    if (jobInTree) {
+      // === NORMAL UPDATE PATH ===
+      if (newStarted !== undefined && newStarted !== null) {
+        const old = Number(jobInTree.started || 0);
+        const fresh = Number(newStarted);
+        if (fresh > old) {
+          console.log(`[ApplyJobBroadcast] 🔄 Job ${update.name} (id=${id}) started refreshed ${old} → ${fresh}`);
+          jobInTree.started = fresh;
+        }
       }
 
-      // Update DOM row
-      const rowId = `row-job-${id}`;
-      const existingRow = document.getElementById(rowId);
-      if (existingRow) {
-        updateRow(existingRow, { ...update, is_cluster: false });
+      if (["complete", "failed", "killed", "zombie"].includes(newState)) {
+        console.log(`[ApplyJobBroadcast] Job ${update.name} (id=${id}) → ${newState} (clearing started)`);
+        jobInTree.started = null;
+      }
+
+      Object.assign(jobInTree, update);
+      console.log(`[ApplyJobBroadcast] Updated existing job ${update.name} (id=${id})`);
+    } 
+    else {
+      // === SUSPICIOUS CASE ===
+      console.warn(`🚨 [ApplyJobBroadcast] Job ${update.name} (id=${id}) not found in tree! This should not happen on updates.`);
+
+      const parentId = Number(update.cluster_id || update.parent_id);
+      if (parentId) {
+        console.log(`[ApplyJobBroadcast] Falling back to insert for job ${update.name} (id=${id})`);
+        insertRow({ ...update, is_cluster: false }, parentId);
       } else {
-        // Find parent cluster and insert under it
-        const parentClusterId = update.cluster_id || update.parent_id;
-        if (parentClusterId) {
-          insertRow({ ...update, is_cluster: false }, parentClusterId);
-        }
+        console.error(`[ApplyJobBroadcast] Cannot insert job ${update.name} (id=${id}) - no parent cluster found`);
+      }
+    }
+
+    // Update main table row
+    const row = document.getElementById(`row-job-${id}`);
+    if (row) updateRow(row, { ...update, is_cluster: false });
+  });
+
+  updateLiveTimings();
+
+  if (document.getElementById('dashboard')?.classList.contains('active')) {
+    renderDashboard();
+  }
+}
+
+export function applyCalBroadcast(data) {
+  if (!data.updates && !data.deletes) {
+    console.warn('[applyCalBroadcast] Received empty payload');
+    return;
+  }
+
+  console.log(`[applyCalBroadcast] Processing ${data.updates?.length || 0} updates, ${data.deletes?.length || 0} deletes`);
+
+  // Handle updates
+  if (data.updates && Array.isArray(data.updates)) {
+    data.updates.forEach((cal) => {
+      const calId = Number(cal.id);
+      if (!calId) return;
+
+      const existingCal = findCalendarById(appState.calendarsData, calId);
+
+      if (existingCal) {
+        console.log(`[applyCalBroadcast] Updating calendar "${cal.name || 'unknown'}" (id=${calId})`);
+        Object.assign(existingCal, cal);
+      } else {
+        console.log(`[applyCalBroadcast] Inserting new calendar "${cal.name || 'unknown'}" (id=${calId})`);
+        appState.calendarsData.push(cal);
       }
     });
   }
 
-  if (data.deletes) {
-    const uniqueDeletes = [
-      ...new Set(data.deletes.map((d) => Number(d.id || d))),
-    ];
-    uniqueDeletes.forEach((id) => {
-      removeJobById(appState.monitorData.tree, id); // make sure this helper exists
-      const row = document.getElementById(`row-job-${id}`);
+  // Handle deletes
+  if (data.deletes && Array.isArray(data.deletes)) {
+    data.deletes.forEach((del) => {
+      const calId = Number(del.id || del);
+      if (!calId) return;
+
+      console.log(`[applyCalBroadcast] Deleting calendar id=${calId}`);
+
+      // Remove from appState
+      appState.calendarsData = appState.calendarsData.filter(c => Number(c.id) !== calId);
+
+      // Remove from DOM if rendered
+      const row = document.getElementById(`row-cal-${calId}`);
       if (row) row.remove();
     });
   }
 
-  updateLiveTimings();
+  // Refresh calendars UI if the tab is active
+  if (document.getElementById('calendars')?.classList.contains('active')) {
+    renderCalendarsTable();
+  }
+
+  console.log(`[applyCalBroadcast] Finished. Total calendars in memory: ${appState.calendarsData.length}`);
 }
 
-export function applyCalBroadcast(data) {
-  if (!appState.calendarsData) {
-    appState.calendarsData = [];
-  }
-
-  if (data.updates) {
-    data.updates.forEach((update) => {
-      const id = Number(update.id);
-
-      const idx = appState.calendarsData.findIndex((c) => Number(c.id) === id);
-
-      if (idx !== -1) {
-        appState.calendarsData[idx] = {
-          ...appState.calendarsData[idx],
-          ...update,
-        };
-      } else {
-        appState.calendarsData.push(update);
-      }
-    });
-  }
-
-  if (data.deletes) {
-    const deleteIds = data.deletes.map((d) => Number(d.id || d));
-    appState.calendarsData = appState.calendarsData.filter(
-      (c) => !deleteIds.includes(Number(c.id)),
-    );
-  }
-
-  renderCalendarsTable();
+function findCalendarById(calendars, calId) {
+  return calendars.find(c => Number(c.id) === Number(calId));
 }
 
 export function loadDoc(file) {
@@ -1363,51 +1456,367 @@ function initPricingModalListeners() {
   });
 }
 
-// ==================== DASHBOARD CORE ====================
-export function renderDashboard() {
+function debugDumpTreeContext() {
   const tree = appState.monitorData?.tree || [];
-  const servers = appState.serversData || [];
+  console.groupCollapsed(`[Tree Debug] ${new Date().toLocaleTimeString()} - ${tree.length} top-level items`);
 
-  updateKPIs(tree);
-  
-  // Running Now
-  document.getElementById('dash-running-count').textContent = countRunningJobs(tree);
-  document.getElementById('dash-running-list').innerHTML = getRunningJobsListHTML(tree, 8);
+  let runningCount = 0;
+  let staleRunning = [];
 
-  // Recently Failed
-  document.getElementById('dash-failed-count').textContent = countRecentFailedJobs(tree);
-  document.getElementById('dash-failed-list').innerHTML = getFailedJobsListHTML(tree, 5);
+  traverseTree(tree, (item) => {
+    if (item.is_cluster) return;
+    if ((item.jobstate || '').toLowerCase() === 'running') {
+      runningCount++;
+      const age = item.started 
+        ? Math.floor(Date.now()/1000) - Number(item.started) 
+        : 0;
+      if (age > 30) {  // suspiciously old
+        staleRunning.push({
+          id: item.id,
+          name: item.name,
+          started: item.started,
+          ageSeconds: age,
+          state: item.jobstate
+        });
+      }
+    }
+  });
 
-  // Servers
-  document.getElementById('dash-servers-count').textContent = `${servers.length}/${servers.length}`;
-  renderMiniServersList(servers);
+  console.log(`Running jobs found: ${runningCount}`);
+  if (staleRunning.length > 0) {
+    console.warn(`⚠️  Suspiciously old running jobs:`, staleRunning);
+  } else {
+    console.log("✅ No suspiciously stale running jobs");
+  }
 
-  // Next Scheduled
-  updateNextScheduledClusters(tree);
-
-  // Recent Activity
-  renderRecentActivityTable(tree);
+  console.groupEnd();
 }
 
-// ==================== KPI BAR ====================
-function updateKPIs(tree) {
-  const stats = calculate24hStats(tree);
-  
-  const srEl = document.getElementById('kpi-success-rate');
-  srEl.textContent = stats.successRate + '%';
-  srEl.className = stats.successRate >= 90 ? 'text-3xl font-bold text-green' :
-                   stats.successRate >= 70 ? 'text-3xl font-bold text-yellow' : 
-                   'text-3xl font-bold text-red';
+// ==================== DASHBOARD ====================
 
-  document.getElementById('kpi-runs-today').textContent = stats.runsToday;
-  document.getElementById('kpi-held').textContent = stats.held;
-  document.getElementById('kpi-zombies').textContent = stats.zombies || '0';
+// KPI Bar Updater
+export function updateKPIBar(stats = {}) {
+  console.log('[updateKPIBar] Updating with:', stats);
+
+  const successEl = document.getElementById('kpi-success-rate');
+  if (successEl) {
+    let rate = 100;
+    if (typeof stats.success_rate === 'number') rate = stats.success_rate;
+    else if (stats.runs_today > 0) {
+      const failed = stats.failed_runs_today || 0;
+      rate = Math.round(100 * (stats.runs_today - failed) / stats.runs_today);
+    }
+    successEl.textContent = rate + '%';
+  }
+
+  const runsEl = document.getElementById('kpi-runs-today');
+  if (runsEl) runsEl.textContent = stats.runs_today || 0;
+
+  const failedEl = document.getElementById('kpi-failed-today');
+  if (failedEl) failedEl.textContent = stats.failed_runs_today || 0;
 }
 
-// ==================== NEXT SCHEDULED ====================
-export function updateNextScheduledClusters(tree) {
+// Broadcast-driven updates
+export function updateDashboardFromBroadcast(data) {
+  if (!data) return;
+
+  // Handle find_stats reply
+  if (data.command_reply === 'find_stats') {
+    console.log('[find_stats] Reply received:', data);
+    appState.dashboardStats = data;
+    if (document.getElementById('dashboard')?.classList.contains('active')) {
+      updateKPIBar(data);
+    }
+    return;
+  }
+
+  // Handle jobs_changed incremental counter (only once)
+  if (data.broadcast === "jobs_changed" && data.updates?.length) {
+    updateDashboardCountersFromBroadcast(data.updates);
+  }
+
+  // Light UI refresh if dashboard is visible
+  if (document.getElementById('dashboard')?.classList.contains('active')) {
+    renderDashboard();
+  }
+}
+
+// Global deduplication tracker (outside any function)
+let lastProcessedJobUpdate = new Map();   // job_id → timestamp
+
+export function updateDashboardCountersFromBroadcast(updates = []) {
+  if (!appState.dashboardStats || !Array.isArray(updates) || updates.length === 0) {
+    return;
+  }
+
+  let newRuns = 0;
+  let newFailed = 0;
+  const now = Date.now();
+
+  updates.forEach(item => {
+    if (!item || item.is_cluster || !item.jobstate || typeof item.jobstate !== 'string') {
+      return;
+    }
+
+    const jobId = Number(item.id);
+    if (!jobId) return;
+
+    // === DEDUPLICATION: Ignore same job update within 800ms ===
+    const lastTime = lastProcessedJobUpdate.get(jobId) || 0;
+    if (now - lastTime < 800) {
+      console.log(`[Counter] Ignored duplicate update for job ${jobId}`);
+      return;
+    }
+    lastProcessedJobUpdate.set(jobId, now);
+
+    const state = item.jobstate.toLowerCase().trim();
+
+    if (state === 'complete' || state === 'completed') {
+      newRuns++;
+    } else if (state === 'failed' || state === 'killed' || state === 'zombie') {
+      newRuns++;
+      newFailed++;
+    }
+  });
+
+  if (newRuns > 0 || newFailed > 0) {
+    appState.dashboardStats.runs_today = (appState.dashboardStats.runs_today || 0) + newRuns;
+    appState.dashboardStats.failed_runs_today = (appState.dashboardStats.failed_runs_today || 0) + newFailed;
+
+    console.log(`[Counter] +${newRuns} runs, +${newFailed} failed → Total runs: ${appState.dashboardStats.runs_today}`);
+
+    if (document.getElementById('dashboard')?.classList.contains('active')) {
+      updateKPIBar(appState.dashboardStats);
+    }
+  }
+}
+
+
+export function getNextScheduledListHTML(tree) {
+  console.log('[NextScheduled] Scanning for upcoming clusters...');
+
+  const upcoming = collectNextScheduledClusters(tree);
+
+  console.log(`[NextScheduled] Found ${upcoming.length} upcoming clusters`);
+
+  if (upcoming.length === 0) {
+    return `<div class="empty-state">No upcoming scheduled clusters</div>`;
+  }
+
+  return upcoming.map(cluster => {
+    const tminus = formatTminus(cluster.next_start) || '—';
+
+    return `
+      <div class="mini-item">
+        <div class="mini-item-name">${cluster.name}</div>
+        <div class="mini-item-time">${tminus}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Initial stats load - called once after login or when dashboard tab is first activated
+export function loadDashboardStats() {
+  const since = getStartOfTodayUnix();
+  
+  console.log(`[find_stats] Requesting initial stats (since: ${since})`);
+
+  sendWS({
+    command: "find_stats",
+    since: since
+  });
+}
+
+// Resync Button
+export function initResyncButton() {
+  const btn = document.getElementById('resync-all-btn');
+  if (!btn) return;
+
+  btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    const originalHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resyncing...';
+
+    sendWS({ command: 'sync' });
+    sendWS({ command: 'find_stats', since: getStartOfTodayUnix() });
+    sendWS({ command: 'find_cluster', name: 'root' });
+
+    setTimeout(() => {
+      if (btn.disabled) {
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+      }
+    }, 15000);
+  });
+}
+
+function getStartOfTodayUnix() {
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.floor(startOfDay.getTime() / 1000);
+}
+
+
+export function getRecentlyFailedListHTML(tree, max = 5) {
+  //console.log('[FailedJobs] === SCAN START ===');
+
+  const jobMap = new Map();   // jobId → most recent failure
+
+  traverseTree(tree, (item) => {
+    if (item.is_cluster || !item.jobstate) return;
+
+    const state = (item.jobstate || '').toLowerCase().trim();
+    if (!['failed', 'killed', 'zombie'].includes(state) || !item.ended) return;
+
+    const jobId = Number(item.id);
+    const endedTs = Number(item.ended);
+    const agoSeconds = Math.floor(Date.now() / 1000) - endedTs;
+    const agoDisplay = formatRelativeTime(agoSeconds) || 'just now';
+
+    const existing = jobMap.get(jobId);
+
+    // Keep only the most recently failed version for this job ID
+    if (!existing || endedTs > Number(existing.ended || 0)) {
+      jobMap.set(jobId, {
+        ...item,
+        agoSeconds: agoSeconds,
+        agoDisplay: agoDisplay
+      });
+    }
+
+    //console.log(`[FailedJobs] Found "${item.name}" (id=${jobId}) | ended=${item.ended} | ${agoDisplay}`);
+  });
+
+  const failedJobs = Array.from(jobMap.values());
+  
+  // Sort by most recent failure first
+  failedJobs.sort((a, b) => a.agoSeconds - b.agoSeconds);
+
+  //console.log(`[FailedJobs] Final unique list: ${failedJobs.length} jobs`);
+
+  if (failedJobs.length === 0) {
+    return `<div class="empty-state">No recent failures</div>`;
+  }
+
+  return failedJobs.slice(0, max).map(job => `
+    <div class="mini-item">
+      <div class="mini-item-name">${job.name || 'Unnamed Job'}</div>
+      <div class="mini-item-time">${job.agoDisplay}</div>
+    </div>
+  `).join('');
+}
+
+export function getLongestRunningJobsHTML(tree, max = 5) {
+  console.log('[LongestRunning] === SCAN START ===');
+
+  const jobMap = new Map();
+  const now = Math.floor(Date.now() / 1000);
+
+  traverseTree(tree, (item) => {
+    if (item.is_cluster || !item.jobstate) return;
+
+    const state = String(item.jobstate).toLowerCase().trim();
+    if (state !== 'running') return;
+
+    const jobId = Number(item.id);
+    if (!jobId) return;
+
+    let startedTs = Number(item.started || 0);
+    if (startedTs < 1000000000) return;
+
+    // Ignore jobs that appear to have started before the page load (stale)
+    if (startedTs < (now - 3600)) {   // older than 1 hour
+      console.log(`[LongestRunning] Ignoring stale job ${item.name} (id=${jobId}) started=${startedTs}`);
+      return;
+    }
+
+    const runtimeSeconds = now - startedTs;
+    const runtimeDisplay = formatTplus(startedTs) || '—';
+
+    const existing = jobMap.get(jobId);
+
+    console.log(`[LongestRunning] Job "${item.name}" (id=${jobId}) | started=${startedTs} | runtime=${runtimeSeconds}s`);
+
+    if (!existing || startedTs > Number(existing.started || 0)) {
+      jobMap.set(jobId, {
+        name: item.name || 'Unnamed',
+        started: startedTs,
+        runtimeSeconds,
+        runtimeDisplay
+      });
+      console.log(`[LongestRunning] → KEPT NEWER (started=${startedTs})`);
+    } else {
+      console.log(`[LongestRunning] → IGNORED older (started=${startedTs})`);
+    }
+  });
+
+  const runningJobs = Array.from(jobMap.values())
+    .sort((a, b) => b.runtimeSeconds - a.runtimeSeconds);
+
+  console.log(`[LongestRunning] FINAL unique list: ${runningJobs.length} jobs`);
+
+  if (runningJobs.length === 0) {
+    return `<div class="empty-state">No jobs currently running</div>`;
+  }
+
+  return runningJobs.slice(0, max).map(job => `
+    <div class="mini-item">
+      <div class="mini-item-name">${job.name}</div>
+      <div class="mini-item-time">${job.runtimeDisplay}</div>
+    </div>
+  `).join('');
+}
+
+function getOverdueClustersListHTML(tree) {
+  const now = Math.floor(Date.now() / 1000);
+  let html = '';
+  let count = 0;
+
+  traverseTree(tree, item => {
+    if (item.is_cluster && item.next_start && item.next_start < now && item.jobstate !== 'running') {
+      const overdueBy = formatRelativeTime(now - item.next_start);
+      html += `
+        <div class="flex justify-between items-center py-1 border-b border-dark last:border-none">
+          <span class="truncate">${item.name}</span>
+          <span class="text-orange text-xs">overdue ${overdueBy}</span>
+        </div>`;
+      count++;
+    }
+  });
+
+  return count === 0 
+    ? '<div class="text-grey text-sm py-8 text-center">No overdue clusters ✓</div>' 
+    : html;
+}
+
+function countOverdueClusters(tree) {
+  let count = 0;
+  const now = Math.floor(Date.now() / 1000);
+  traverseTree(tree, item => {
+    if (item.is_cluster && 
+        item.next_start && 
+        item.next_start < now && 
+        item.jobstate !== 'running') {
+      count++;
+    }
+  });
+  return count;
+}
+
+function updateNextScheduledCount() {
+  const nextClusters = collectNextScheduledClusters(appState.monitorData?.tree || []);
+  const countEl = document.getElementById('dash-next-count');
+  if (countEl) {
+    countEl.textContent = nextClusters.length;
+  }
+}
+
+export function updateNextScheduledClusters() {
   const container = document.getElementById('dash-next-5');
-  const upcoming = collectNextScheduledClusters(tree, 6);
+  if (!container) return;
+
+  const upcoming = collectNextScheduledClusters(appState.monitorData?.tree || [], 6);
 
   if (upcoming.length === 0) {
     container.innerHTML = `<div class="text-grey text-sm py-8 text-center">No upcoming scheduled clusters</div>`;
@@ -1415,31 +1824,116 @@ export function updateNextScheduledClusters(tree) {
   }
 
   container.innerHTML = upcoming.map(item => `
-    <div class="flex justify-between items-center text-sm">
+    <div class="flex justify-between items-center text-sm py-1">
       <span class="text-cyan font-medium">${formatTminus(item.next_start)}</span>
       <span class="truncate">${item.name}</span>
     </div>
   `).join('');
 }
 
+export function getRunningJobsListHTML(tree, max = 8) {
+  let html = '';
+  let shown = 0;
+
+  traverseTree(tree, item => {
+    if ((item.jobstate === 'running' || item.state === 'running') && shown < max) {
+      const duration = item.started ? formatTplus(item.started) : 'just started';
+      html += `
+        <div class="flex justify-between items-center py-1">
+          <span class="truncate">${item.name || 'Unnamed'}</span>
+          <span class="text-xs">${duration}</span>
+        </div>`;
+      shown++;
+    }
+  });
+
+  if (shown === 0) {
+    html = '<div class="text-grey text-sm py-6 text-center">No jobs currently running</div>';
+  }
+
+  return html;
+}
+
 // ==================== RECENT ACTIVITY ====================
-function renderRecentActivityTable(tree) {
+
+export function renderRecentActivityTable(tree) {
   const tbody = document.getElementById('dash-recent-body');
   if (!tbody) return;
 
-  const recent = collectRecentActivity(tree, 12);
+  tbody.innerHTML = '';
 
-  tbody.innerHTML = recent.map(item => {
-    const action = getActivityAction(item);
-    return `
-      <tr class="cursor-pointer hover:bg-cyan/5" 
-          onclick="viewDashboardItem(${item.id}, ${item.is_cluster})">
-        <td class="text-grey text-sm" data-timestamp="${item.ended || item.started || item.last_update || 0}"></td>
-        <td class="font-medium">${item.name || '—'}</td>
-        <td><span class="tag ${action.class}">${action.text}</span></td>
-        <td class="text-sm text-grey">${item.server_name || '—'}</td>
+  const activities = collectRecentActivity(tree, 12);
+
+  if (activities.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="4" class="text-center text-grey py-12">
+          No recent activity
+        </td>
       </tr>`;
-  }).join('');
+    return;
+  }
+
+  activities.forEach(item => {
+    const row = document.createElement('tr');
+    const stateClassName = (item.jobstate || 'unknown').toLowerCase();
+
+    row.innerHTML = `
+      <td data-timestamp="${item.timestamp}">
+        ${item.timeAgo}
+      </td>
+      <td class="font-medium">${item.name || 'Unnamed'}</td>
+      <td>
+        <span class="state-badge ${stateClassName}">
+          ${item.action}
+        </span>
+      </td>
+      <td class="text-grey">${item.server || '—'}</td>
+    `;
+
+    tbody.appendChild(row);
+  });
+}
+
+// ==================== HELPER ====================
+
+function collectRecentActivity(tree, max = 12) {
+  const activities = [];
+  const now = Math.floor(Date.now() / 1000);
+
+  traverseTree(tree, item => {
+    // === SKIP ROOT CLUSTER ===
+    if (!item || 
+        item.name === 'root' || 
+        item.parent_id === null && item.name?.toLowerCase() === 'root') {
+      return;
+    }
+
+    const timestamp = item.ended || item.last_update || item.started || item.creation_time || 0;
+    if (!timestamp) return;
+
+    let action = '—';
+    const js = (item.jobstate || '').toLowerCase();
+
+    if (js === 'failed' || js === 'killed') action = 'Failed';
+    else if (js === 'complete' || js === 'completed') action = 'Completed';
+    else if (js === 'running' || js === 'starting') action = 'Started';
+    else if (js === 'hold') action = 'Held';
+    else if (js === 'ice') action = 'Iced';
+
+    activities.push({
+      name: item.name || 'Unnamed',
+      action: action,
+      server: item.server_name || item.server || '—',
+      timestamp: timestamp,
+      timeAgo: formatRelativeTime(now - timestamp),
+      jobstate: item.jobstate || 'unknown'
+    });
+  });
+
+  // Most recent first
+  activities.sort((a, b) => b.timestamp - a.timestamp);
+  return activities.slice(0, max);
 }
 
 // ==================== CLICK HANDLER ====================
@@ -1454,19 +1948,6 @@ window.viewDashboardItem = (id, isCluster) => {
     sendWS({ command: 'read_log', id });
   }
 };
-
-// ==================== DASHBOARD HELPERS ====================
-
-function traverseTree(nodes, callback) {
-  if (!nodes) return;
-  if (!Array.isArray(nodes)) nodes = [nodes];
-
-  nodes.forEach(node => {
-    if (node) callback(node);
-    if (node?.jobs?.length) traverseTree(node.jobs, callback);
-    if (node?.children?.length) traverseTree(node.children, callback);
-  });
-}
 
 function countRunningJobs(tree) {
   let count = 0;
@@ -1484,57 +1965,6 @@ function countRecentFailedJobs(tree) {
   return Math.min(count, 5); // cap for display
 }
 
-function getRunningJobsListHTML(tree, max = 8) {
-  let html = '';
-  let shown = 0;
-  const now = Math.floor(Date.now() / 1000);
-
-  traverseTree(tree, item => {
-    if ((item.jobstate === 'running' || item.state === 'running') && shown < max) {
-      const duration = item.started ? formatDuration(item.started, now) : 'just started';
-      const longRunning = item.started && (now - item.started > 1800) 
-        ? '<span class="text-orange text-xs"> (long running)</span>' 
-        : '';
-
-      html += `
-        <div class="flex justify-between items-center">
-          <span class="truncate">${item.name || 'Unnamed'}</span>
-          <span class="text-xs text-grey">${duration}${longRunning}</span>
-        </div>`;
-      shown++;
-    }
-  });
-
-  if (shown === 0) {
-    html = '<div class="text-grey text-sm py-4">No jobs currently running</div>';
-  } else if (countRunningJobs(tree) > max) {
-    html += `<div class="text-xs text-grey mt-2">+${countRunningJobs(tree) - max} more running...</div>`;
-  }
-
-  return html;
-}
-
-function getFailedJobsListHTML(tree, max = 5) {
-  let html = '';
-  let shown = 0;
-  const failed = [];
-
-  traverseTree(tree, item => {
-    if (item.jobstate === 'failed' || item.state === 'failed') {
-      failed.push(item);
-    }
-  });
-
-  failed.sort((a, b) => (b.ended || b.started || 0) - (a.ended || a.started || 0));
-
-  failed.slice(0, max).forEach(item => {
-    const ago = item.ended ? formatRelativeTime(Math.floor(Date.now()/1000) - item.ended) : '';
-    html += `<div class="text-red text-sm">• ${item.name || 'Unnamed'} <span class="text-xs">${ago}</span></div>`;
-    shown++;
-  });
-
-  return html || '<div class="text-grey text-sm py-4">No recent failures</div>';
-}
 
 function calculate24hStats(tree) {
   const now = Math.floor(Date.now() / 1000);
@@ -1568,21 +1998,6 @@ function collectNextScheduledClusters(tree, limit = 6) {
   return list.slice(0, limit);
 }
 
-function collectRecentActivity(tree, limit = 12) {
-  let items = [];
-  traverseTree(tree, item => {
-    if (item.started || item.ended || item.last_update) items.push(item);
-  });
-
-  items.sort((a, b) => {
-    const ta = b.ended || b.started || b.last_update || 0;
-    const tb = a.ended || a.started || a.last_update || 0;
-    return ta - tb;
-  });
-
-  return items.slice(0, limit);
-}
-
 function getActivityAction(item) {
   const s = (item.jobstate || item.state || '').toLowerCase();
   if (s.includes('fail') || s === 'killed') return { text: 'Failed', class: 'failed' };
@@ -1609,12 +2024,33 @@ function renderMiniServersList(servers) {
   `).join('');
 }
 
+// ==================== DEDICATED DASHBOARD TIMER ====================
+let dashboardLiveInterval = null;
+
+export function startDashboardLiveTimer() {
+  if (dashboardLiveInterval) return;
+
+  dashboardLiveInterval = setInterval(() => {
+    if (document.getElementById('dashboard')?.classList.contains('active')) {
+      updateDashboardLiveCards();
+    }
+  }, 1000);
+}
+
+export function stopDashboardLiveTimer() {
+  if (dashboardLiveInterval) {
+    clearInterval(dashboardLiveInterval);
+    dashboardLiveInterval = null;
+  }
+}
+
 // ==================== INITIALIZE ALL ====================
 
 export function initModals() {
   initSettingsListeners();
   initLoginModalListeners();
   initPricingModalListeners();
+  initResyncButton();
 
   // Logged-out "Log in" tab
   document.getElementById('logged-out-login-tab')?.addEventListener('click', (e) => {
