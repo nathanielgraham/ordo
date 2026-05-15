@@ -188,6 +188,7 @@ export function findJobById(tree, id) {
   return found;
 }
 
+/*
 export function buildTree(data) {
   const nodes = new Map();
   const root = { id: "root", children: [], depth: 0 };
@@ -230,6 +231,7 @@ export function buildTree(data) {
 
   return root.children;
 }
+*/
 
 export function findServerById(id) {
   return appState.serversData.find(s => s.id === Number(id)) || null;
@@ -344,4 +346,103 @@ export const commonTimezones = [
   "Pacific/Honolulu",
   // Add more as needed
 ];
+
+// ==================== FLAT MAPS ARCHITECTURE ====================
+
+export function populateMapsFromClusters(clustersArray) {
+  if (!clustersArray || !Array.isArray(clustersArray)) return;
+
+  if (!appState.clustersMap) appState.clustersMap = new Map();
+  if (!appState.jobsMap) appState.jobsMap = new Map();
+
+  appState.clustersMap.clear();   // ← Important: start fresh
+  appState.jobsMap.clear();
+
+  clustersArray.forEach(cluster => {
+    const cid = Number(cluster.id);
+    if (!cid) return;
+
+    appState.clustersMap.set(cid, { ...cluster });
+
+    if (cluster.jobs && Array.isArray(cluster.jobs)) {
+      cluster.jobs.forEach(job => {
+        const jid = Number(job.id);
+        if (jid) {
+          appState.jobsMap.set(jid, { ...job, cluster_id: cid });
+        }
+      });
+    }
+  });
+
+  console.log(`[populateMapsFromClusters] Built → ${appState.clustersMap.size} clusters, ${appState.jobsMap.size} jobs`);
+}
+
+// Build hierarchical tree from maps (used on initial load + rare resync)
+export function buildTreeFromMaps() {
+  console.log('[buildTreeFromMaps] Rebuilding tree from Maps...');
+
+  const rootClusters = [];
+
+  appState.clustersMap.forEach(cluster => {
+    if (cluster.parent_id == null) {   // root-level clusters
+      const node = { 
+        ...cluster, 
+        is_cluster: true, 
+        children: [], 
+        jobs: [] 
+      };
+      
+      attachChildrenAndJobs(node);
+      rootClusters.push(node);
+    }
+  });
+
+  console.log(`[buildTreeFromMaps] Built tree with ${rootClusters.length} root clusters`);
+  return rootClusters;
+}
+
+function attachChildrenAndJobs(parent) {
+  // Child clusters
+  appState.clustersMap.forEach(cluster => {
+    if (Number(cluster.parent_id) === Number(parent.id)) {
+      const child = { 
+        ...cluster, 
+        is_cluster: true, 
+        children: [], 
+        jobs: [] 
+      };
+      attachChildrenAndJobs(child);
+      parent.children.push(child);
+    }
+  });
+
+  // Attach jobs as BOTH .jobs and .children for maximum compatibility
+  const jobsForThisCluster = Array.from(appState.jobsMap.values())
+    .filter(job => Number(job.cluster_id) === Number(parent.id))
+    .map(job => ({ 
+      ...job, 
+      is_cluster: false,
+      depth: (parent.depth || 0) + 1 
+    }));
+
+  parent.jobs = jobsForThisCluster;                    // keep for legacy
+  parent.children = [...(parent.children || []), ...jobsForThisCluster];  // ← ADD THIS LINE
+
+  console.log(`[buildTreeFromMaps] Cluster ${parent.name} (${parent.id}) got ${jobsForThisCluster.length} jobs`);
+}
+
+// Fast lookups
+export function findJobByIdFast(id) {
+  return appState.jobsMap.get(Number(id)) || null;
+}
+
+export function findClusterByIdFast(id) {
+  return appState.clustersMap.get(Number(id)) || null;
+}
+
+// Legacy compatibility
+export function buildTree(data) {
+  populateMapsFromClusters(data);
+  return buildTreeFromMaps();
+}
 

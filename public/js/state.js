@@ -1,5 +1,46 @@
 // state.js – shared mutable application state
+export const appState = {
+  ws: null,
 
+  // === AUTHORITATIVE DATA SOURCES (NEW) ===
+  jobsMap: new Map(),           // job.id → job object
+  clustersMap: new Map(),       // cluster.id → cluster object
+
+  // === LEGACY / DISPLAY LAYER ===
+  monitorData: { tree: [] },    // still maintained incrementally for now
+
+  // === ACCOUNT & ORG ===
+  accountData: null,
+  orgData: null,
+
+  // === OTHER DATA ===
+  calendarsData: [],
+  serversData: [],
+  dashboardStats: {},
+
+  // === UI / MODAL STATE (IMPORTANT - DO NOT REMOVE) ===
+  currentEditItem: null,
+  currentParentId: null,
+  currentParentName: null,
+  currentAttachClusterId: null,
+  currentEditCalId: null,
+  currentEditServerId: null,
+
+  // === TAB & COLLAPSE STATE ===
+  currentTab: "about",          // safe default
+
+  collapsedClusters: new Set(
+    JSON.parse(localStorage.getItem("ordo_collapsed_clusters") || "[]")
+  ),
+  collapsedCalendars: new Set(
+    JSON.parse(localStorage.getItem("ordo_collapsed_calendars") || "[]")
+  ),
+
+  // Dashboard flag
+  dashboardStatsLoaded: false,
+};
+
+/*
 export const appState = {
   ws: null,
   monitorData: { tree: [] },
@@ -20,6 +61,7 @@ export const appState = {
     JSON.parse(localStorage.getItem("ordo_collapsed_calendars") || "[]")
   ),
 };
+*/
 
 // New persistence functions
 const CAL_COLLAPSE_KEY = "ordo_collapsed_calendars";

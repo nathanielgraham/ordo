@@ -14,10 +14,17 @@ import {
   applyServerBroadcast,
   showToast,
   renderDashboard,
+  refreshDashboardCards,
   loadDashboardStats,
   updateDashboardCountersFromBroadcast,
   updateDashboardFromBroadcast,
+  updateNextScheduledClusters,
+  incrementDashboardStatsFromJob,
+  getOverdueClustersListHTML,
   updateKPIBar,
+  renderRecentActivityTable,
+  getLongestRunningJobsHTML,
+  getRecentlyFailedListHTML,
 } from "./ui-handlers.js";
 
 export function checkLoginAndConnect() {
@@ -93,13 +100,20 @@ export function connectWS(token) {
         const btn = document.getElementById("resync-all-btn");
         if (btn) {
           btn.disabled = false;
-          btn.innerHTML = '<i class="fas fa-sync-alt"></i> Resync';
+          btn.innerHTML = '<i class="fas fa-sync-alt"></i> Resync Servers';
         }
 
         // Update zombies count if returned
         if (data.zombie_count !== undefined) {
           const zombiesEl = document.getElementById("kpi-zombies");
           if (zombiesEl) zombiesEl.textContent = data.zombie_count;
+        }
+        // Clear old counted jobs (optional but good hygiene)
+        if (
+          appState._countedTerminalJobs &&
+          appState._countedTerminalJobs.size > 200
+        ) {
+          appState._countedTerminalJobs.clear();
         }
 
         // The toast will be shown automatically by your existing code
@@ -114,31 +128,43 @@ export function connectWS(token) {
           document.getElementById("dashboard")?.classList.contains("active")
         ) {
           updateKPIBar(data);
+          renderDashboard();
         }
       }
 
       // ====================== BROADCASTS ======================
+      // === BROADCAST HANDLERS ===
       if (data.broadcast === "clusters_changed") {
         applyClusterBroadcast(data);
-        // Only light refresh for clusters (no counter increment)
+
         if (
           document.getElementById("dashboard")?.classList.contains("active")
         ) {
-          renderDashboard();
+          updateNextScheduledClusters();
+          document.getElementById("dash-overdue-list").innerHTML =
+            getOverdueClustersListHTML();
         }
       }
 
       if (data.broadcast === "jobs_changed") {
         applyJobBroadcast(data);
 
+        // Incremental KPI updates with deduplication
         if (data.updates && data.updates.length > 0) {
-          updateDashboardCountersFromBroadcast(data.updates);
+          data.updates.forEach((job) => {
+            incrementDashboardStatsFromJob(job);
+          });
         }
 
+        // Update visible cards if dashboard is active
         if (
           document.getElementById("dashboard")?.classList.contains("active")
         ) {
-          renderDashboard();
+          document.getElementById("dash-running-list").innerHTML =
+            getLongestRunningJobsHTML(5);
+          document.getElementById("dash-failed-list").innerHTML =
+            getRecentlyFailedListHTML(5);
+          renderRecentActivityTable();
         }
       }
 

@@ -4753,7 +4753,7 @@ sub find_log {
     my $logs = $self->sqlite->db->select(
         'job_log', ['*'],
         { job_id   => $job->{id} },
-        { order_by => { -desc => 'started' } }
+        { order_by => { -desc => 'started' }, limit => 20 }
     );
 
     while ( my $log = $logs->hash ) {

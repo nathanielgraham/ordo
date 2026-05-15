@@ -92,10 +92,10 @@ export function attachTabListeners() {
         renderDashboard();
 
         // Force initial stats load on first visit
-        if (!appState.dashboardStatsLoaded) {
-          appState.dashboardStatsLoaded = true;
-          loadDashboardStats();
-        }
+        //if (!appState.dashboardStatsLoaded) {
+        //  appState.dashboardStatsLoaded = true;
+        //  loadDashboardStats();
+        //}
 
         startDashboardLiveTimer();
       } else if (oldTabId === "dashboard") {
