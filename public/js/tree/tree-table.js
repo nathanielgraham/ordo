@@ -399,6 +399,7 @@ let liveTimingInterval = null;
 // Cache DOM elements once
 let dashboardRecentTds = [];
 let runningNowContainer = null;
+let failedNowContainer = null;
 let nextScheduledContainer = null;
 
 export function startLiveTimings() {
@@ -407,6 +408,7 @@ export function startLiveTimings() {
   // Cache elements on start
   dashboardRecentTds = Array.from(document.querySelectorAll('#dash-recent-body td[data-timestamp]'));
   runningNowContainer = document.getElementById('dash-running-list');
+  failedNowContainer = document.getElementById('dash-failed-list');
   nextScheduledContainer = document.getElementById('dash-next-5');
 
   liveTimingInterval = setInterval(updateLiveTimings, 1000);
@@ -421,6 +423,7 @@ export function stopLiveTimings() {
   // Clear caches
   dashboardRecentTds = [];
   runningNowContainer = null;
+  failedNowContainer = null;
   nextScheduledContainer = null;
 }
 

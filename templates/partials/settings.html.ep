@@ -1,14 +1,12 @@
 <!-- partials/settings.html.ep -->
 <section id="settings" class="tab-content" data-private="true">
   <div class="content-center">
-
     <div id="settings-loading" class="text-center py-large">
       <i class="fas fa-spinner fa-spin fa-3x"></i>
       <p class="mt-medium">Loading settings...</p>
     </div>
 
     <div id="settings-content" style="display: none">
-
       <!-- Refresh Button -->
       <div class="actions-right">
         <button id="refresh-settings" class="btn btn-ghost neon-ghost">
@@ -18,7 +16,9 @@
 
       <!-- Internal Tabs -->
       <div class="internal-tabs">
-        <button class="internal-tab active" data-tab="account-tab">Account</button>
+        <button class="internal-tab active" data-tab="account-tab">
+          Account
+        </button>
         <button class="internal-tab" data-tab="team">Members</button>
         <button class="internal-tab" data-tab="billing">Billing</button>
       </div>
@@ -26,9 +26,7 @@
       <!-- Account Tab -->
       <div id="tab-account-tab" class="internal-tab-content">
         <div class="card-simple">
-          <h3 class="title-medium">
-            <i class="fas fa-user"></i> Account
-          </h3>
+          <h3 class="title-medium"><i class="fas fa-user"></i> Account</h3>
 
           <div class="info-grid">
             <div class="label-bold">Email</div>
@@ -41,16 +39,32 @@
             <div id="account-level"></div>
 
             <div class="label-bold">Name</div>
-            <input class="input" type="text" id="edit-name" placeholder="Your name" />
+            <input
+              class="input"
+              type="text"
+              id="edit-name"
+              placeholder="Your name"
+            />
 
             <div class="label-bold">Remote Address</div>
             <div id="account-remote"></div>
 
             <div class="label-bold">Token (API)</div>
-            <div class="token-row">
-              <input class="input" type="text" id="account-token" readonly />
+
+            <div class="token-row flex items-center gap-3">
+              <input
+                class="input flex-1"
+                type="text"
+                id="account-token"
+                readonly
+              />
+
               <button class="btn btn-ghost neon-ghost" id="copy-token">
                 <i class="fas fa-copy"></i> Copy
+              </button>
+
+              <button class="btn btn-danger" id="regenerate-token">
+                <i class="fas fa-sync-alt"></i> Regenerate
               </button>
             </div>
           </div>
@@ -64,10 +78,20 @@
               <div id="org-id"></div>
 
               <div class="label-bold">Organization Name</div>
-              <input class="input" type="text" id="edit-org-name" placeholder="Organization name" />
+              <input
+                class="input"
+                type="text"
+                id="edit-org-name"
+                placeholder="Organization name"
+              />
 
               <div class="label-bold">Description</div>
-              <textarea class="textarea" id="edit-org-desc" rows="3" placeholder="Organization description"></textarea>
+              <textarea
+                class="textarea"
+                id="edit-org-desc"
+                rows="3"
+                placeholder="Organization description"
+              ></textarea>
             </div>
           </div>
 
@@ -80,7 +104,7 @@
       </div>
 
       <!-- Members Tab -->
-      <div id="tab-team" class="internal-tab-content" style="display:none">
+      <div id="tab-team" class="internal-tab-content" style="display: none">
         <div class="card-simple">
           <div class="actions-right">
             <button class="btn btn-ghost neon-ghost" id="invite-team">
@@ -102,15 +126,21 @@
             </table>
           </div>
 
-          <div id="no-team" class="empty-state text-center py-large" style="display: none">
+          <div
+            id="no-team"
+            class="empty-state text-center py-large"
+            style="display: none"
+          >
             <i class="fas fa-users-slash fa-5x has-text-grey"></i>
-            <p class="has-text-grey-light mt-medium">No team members yet.<br>Invite someone to collaborate.</p>
+            <p class="has-text-grey-light mt-medium">
+              No team members yet.<br />Invite someone to collaborate.
+            </p>
           </div>
         </div>
       </div>
 
       <!-- Billing Tab -->
-      <div id="tab-billing" class="internal-tab-content" style="display:none">
+      <div id="tab-billing" class="internal-tab-content" style="display: none">
         <div class="card-simple">
           <h3 class="title-medium">
             <i class="fas fa-credit-card"></i> Billing & Usage
@@ -124,7 +154,12 @@
           <div class="info-grid">
             <div class="label-bold">API Calls This Month</div>
             <div>
-              <progress id="api-progress" class="progress w-full" value="0" max="100"></progress>
+              <progress
+                id="api-progress"
+                class="progress w-full"
+                value="0"
+                max="100"
+              ></progress>
               <p id="api-usage-text" class="text-grey"></p>
               <p id="api-period" class="text-cyan"></p>
             </div>
@@ -154,7 +189,6 @@
           </div>
         </div>
       </div>
-
     </div>
   </div>
 </section>

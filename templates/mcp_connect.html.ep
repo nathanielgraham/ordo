@@ -1,0 +1,77 @@
+% layout 'default';
+% title 'Ordo MCP Connector';
+
+<div class="max-w-4xl mx-auto p-8">
+    <div class="text-center mb-10">
+        <h1 class="text-5xl font-bold text-cyan-400 mb-3">Ordo MCP Connector</h1>
+        <p class="text-xl text-gray-400">Connect your Ordo job scheduler to Grok</p>
+    </div>
+
+    <!-- Authentication Section -->
+    <div class="bg-zinc-900 border border-amber-500/30 rounded-2xl p-8 mb-10">
+        <h2 class="text-2xl font-semibold text-amber-400 mb-6 flex items-center gap-3">
+            <span>🔑</span> How to Connect
+        </h2>
+        
+        <div class="bg-black rounded-xl p-6 mb-6 font-mono text-sm">
+            <div class="text-green-400 mb-2">Endpoint:</div>
+            <div class="text-white break-all"><%= url_for('/mcp')->to_abs %></div>
+        </div>
+
+        <p class="text-gray-300 mb-4">
+            Just tell Grok in the chat:
+        </p>
+        
+        <div class="bg-zinc-950 border border-zinc-700 rounded-xl p-5 text-cyan-300 font-medium">
+            Connect to my Ordo at <%= url_for('/mcp')->to_abs %> with token "YOUR_TOKEN_HERE"
+        </div>
+
+        <p class="text-xs text-gray-500 mt-4">
+            Replace <code>YOUR_TOKEN_HERE</code> with your actual Ordo API token.<br>
+            You can get it by running <code>read_user</code> or from the Settings page.
+        </p>
+    </div>
+
+    <!-- What Grok Can Do -->
+    <div class="mb-12">
+        <h2 class="text-2xl font-semibold mb-6 text-white">What Grok Can Do With Ordo</h2>
+        <div class="grid md:grid-cols-2 gap-6">
+            <div class="bg-zinc-900 rounded-2xl p-6 border border-zinc-700">
+                <ul class="space-y-3 text-gray-300">
+                    <li>✅ List and monitor all jobs &amp; clusters</li>
+                    <li>✅ Create complex jobs (Shell, Python, Perl)</li>
+                    <li>✅ Build monitoring &amp; alerting jobs</li>
+                    <li>✅ Read logs and debug failures</li>
+                    <li>✅ Manage calendars and schedules</li>
+                </ul>
+            </div>
+            <div class="bg-zinc-900 rounded-2xl p-6 border border-zinc-700">
+                <ul class="space-y-3 text-gray-300">
+                    <li>✅ Start, stop, and manage jobs/clusters</li>
+                    <li>✅ Sync servers and fix zombie processes</li>
+                    <li>✅ Check organization usage &amp; rate limits</li>
+                    <li>✅ Create dependency chains</li>
+                    <li>✅ Automate repetitive system tasks</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Test -->
+    <div class="bg-zinc-900 border border-zinc-700 rounded-2xl p-8">
+        <h3 class="text-xl font-semibold mb-4">Quick Test</h3>
+        <pre class="bg-black p-5 rounded-xl text-sm overflow-auto text-gray-400">curl -X POST <%= url_for('/mcp')->to_abs %> \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "YOUR_TOKEN_HERE"
+  }'</pre>
+        <p class="text-xs text-gray-500 mt-4">
+            This should return a list of all available tools.
+        </p>
+    </div>
+
+    <div class="text-center text-gray-500 text-sm mt-12">
+        Ordo MCP Connector • v1.0<br>
+        Self-hosted • Secure • Powerful
+    </div>
+</div>

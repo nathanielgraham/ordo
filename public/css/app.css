@@ -431,9 +431,6 @@ main.content {
   padding: 6rem 1.5rem;
   color: #fff;
 }
-.btn-white:hover {
-  background: #f0f0f0;
-}
 .comparison-table td,
 .comparison-table th {
   padding: 1rem;
@@ -467,9 +464,10 @@ main.content {
   font-size: 1.25rem;
 }
 .btn-white {
-  background: #fff;
+  background: #f0f0f0;
   color: #000;
 }
+
 .card-simple {
   text-align: center;
 }
@@ -2566,4 +2564,38 @@ progress::-moz-progress-bar {
   font-size: 0.78rem;
   opacity: 0.75;
   margin-left: 5px;
+}
+
+
+
+
+/* ====================== ABOUT / LANDING PAGE ====================== */
+
+.hero-neon {
+  padding: 6rem 1rem 4rem;
+  background: linear-gradient(135deg, #0a1422, #000);
+  color: #fff;
+}
+
+.hero-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-top: 2rem;
+}
+
+.feature-card {
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 12px;
+  padding: 2rem 1.5rem;
+  height: 100%;
+  transition: all 0.3s ease;
+}
+
+.feature-card:hover {
+  border-color: var(--glow-cyan);
+  box-shadow: 0 0 25px rgba(0, 255, 255, 0.25);
+  transform: translateY(-4px);
 }

@@ -9,7 +9,8 @@ if (window.__uiHandlersLoaded) {
 }
 // =====================================================================
 
-import { sendWS } from "./websocket.js";
+import { openConfirmModal } from "./modals.js";
+import { sendWS, checkLoginAndConnect } from "./websocket.js";
 import {
   appState,
   updateCollapsedClusters,
@@ -42,6 +43,97 @@ import {
   buildTreeFromMaps,
   removeClusterById,
 } from "./utils.js";
+
+// ====================== CENTRAL COMMAND REPLY ROUTER ======================
+export function handleCommandReply(data) {
+  if (!data || !data.command_reply) return;
+
+  switch (data.command_reply) {
+    case "login_user":
+      // Login success is handled directly in websocket.js for initial loads
+      // We keep it outside for now to preserve existing flow
+      break;
+
+    case "read_user":
+      updateAccount(data);
+      break;
+
+    case "read_org":
+      updateOrgAndTeam(data);
+      break;
+
+    case "read_log":
+      updateLog(data);
+      break;
+
+    case "find_log":
+      updateLogHistory(data);
+      break;
+
+    case "find_cluster":
+      updateJobsClusters(data);
+      break;
+
+    case "find_cal":
+      updateCalendars(data);
+      break;
+
+    case "find_monitor":
+      updateServers(data);
+      break;
+
+    case "find_stats":
+      console.log("[find_stats] Reply received:", data);
+      appState.dashboardStats = data;
+      if (document.getElementById("dashboard")?.classList.contains("active")) {
+        updateKPIBar(data);
+        renderDashboard();
+      }
+      break;
+
+    case "sync":
+      const btn = document.getElementById("resync-all-btn");
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync-alt"></i> Resync Servers';
+      }
+      if (data.zombie_count !== undefined) {
+        const zombiesEl = document.getElementById("kpi-zombies");
+        if (zombiesEl) zombiesEl.textContent = data.zombie_count;
+      }
+      break;
+
+    case "new_token":
+      if (data.success && data.token) {
+        // Update visible token field
+        const tokenField = document.getElementById("account-token");
+        if (tokenField) {
+          tokenField.value = data.token;
+        }
+
+        // Update browser cookie
+        document.cookie = `ordo_token=${data.token}; path=/; SameSite=Lax; max-age=${60 * 60 * 24 * 365 * 10}`;
+
+        // Reconnect WebSocket with new token
+        // if (appState.ws) {
+        //  appState.ws.close();
+        // }
+        checkLoginAndConnect();
+
+        // setTimeout(() => {
+        //  checkLoginAndConnect(); // This will pick up the new cookie
+        // }, 300);
+      } else {
+        showToast(data.message || "Failed to generate new token", "error");
+      }
+      break;
+
+    default:
+      console.debug(
+        `[handleCommandReply] Unhandled command_reply: ${data.command_reply}`,
+      );
+  }
+}
 
 export function showLoading(containerId) {
   const loading = document.getElementById(containerId);
@@ -504,119 +596,125 @@ function fallbackCopy(text) {
 }
 
 export function updateLog(data) {
+  if (data.command_reply !== "read_log") return;
+
+  const modal = document.getElementById("log-modal");
+  if (!modal) {
+    console.warn("[updateLog] Log modal not found");
+    return;
+  }
+
+  modal.classList.add("active");
+  modal.dataset.jobId = data.job_id || data.id;
+
   const loading = document.getElementById("log-loading");
   const pre = document.getElementById("log-content");
 
-  loading.style.display = "none";
-  pre.style.display = "block";
-
-  pre.textContent = data.out || "(no output captured)";
-  pre.scrollTop = pre.scrollHeight;
+  if (loading) loading.style.display = "none";
+  if (pre) {
+    pre.style.display = "block";
+    pre.textContent = data.out || data.output || "(no output captured)";
+    pre.scrollTop = pre.scrollHeight;
+  }
 
   const jobName = data.job_name || "Unnamed Job";
   const jobId = data.job_id || "—";
-  const runId = data.id || "latest"; // prefer log_id, fallback to id
+  const runId = data.id || data.log_id || "latest";
   const serverName = data.server_name || "—";
 
-  // Replace the current status calculation with this:
-
+  // Status calculation
   let status = "Success";
-  let statusClass = "success"; // for optional coloring later
-
+  let statusClass = "success";
   if (data.signal != null && data.signal !== 0) {
     status = `Terminated (signal ${data.signal})`;
-    statusClass = "warning"; // or "danger" if you want red
+    statusClass = "warning";
   } else if (data.exit_code != null && data.exit_code !== 0) {
     status = `Failed (exit ${data.exit_code})`;
     statusClass = "danger";
-  } else if (data.exit_code === 0) {
-    status = "Success";
-    statusClass = "success";
-  } else {
-    status = "—";
-    statusClass = "unknown";
   }
 
-  // Then in title:
-  document.getElementById("log-modal-title").textContent =
-    `Job: ${jobName} • ID: ${jobId} • Run: ${runId} (${status})`;
+  // Update title
+  const titleEl = document.getElementById("log-modal-title");
+  if (titleEl) {
+    titleEl.textContent = `Job: ${jobName} • ID: ${jobId} • Run: ${runId} (${status})`;
+    titleEl.className = `modal-title ${statusClass}`;
+  }
 
-  // Optional: add a CSS class to the title for color
-  document.getElementById("log-modal-title").className =
-    `modal-title ${statusClass}`;
-
-  // Two-line subtitle
+  // Subtitle
   const startDate = data.started ? formatDate(data.started) : "—";
-  const duration = formatDuration(data.started, data.ended);
+  const duration = formatDuration(data.started, data.ended) || "—";
   const pid = data.pid || "—";
 
-  document.getElementById("log-modal-subtitle").innerHTML =
-    `Path: ${data.job_path || "—"} • Server: ${serverName}<br>` +
-    `Started: ${startDate} • Duration: ${duration} • PID: ${pid}`;
+  const subtitleEl = document.getElementById("log-modal-subtitle");
+  if (subtitleEl) {
+    subtitleEl.innerHTML = `
+      Path: ${data.job_path || "—"} • Server: ${serverName}<br>
+      Started: ${startDate} • Duration: ${duration} • PID: ${pid}
+    `;
+  }
 }
 
-export function updateLogHistory(data) {
-  if (data.command_reply !== "find_log") {
-    console.debug("Skipping updateLogHistory — not a find_log message");
-    return;
-  }
+export function showLogHistoryModal(jobId) {
+  console.log("[showLogHistoryModal] Opening for job", jobId);
 
-  console.log("Received find_log message:", data); // keep for debug
-
-  // Normalize job IDs (handle string/number, missing values)
-  const msgJobId = Number(data.job_id || data.id || "") || null;
-
-  // Get current viewed job ID (try state first, then DOM fallback)
-  const currentJobId =
-    Number(
-      appState.currentJobId ||
-        document.querySelector("#job-detail-panel [data-job-id]")?.dataset
-          .jobId ||
-        document.querySelector("[data-job-id]")?.dataset.jobId ||
-        "",
-    ) || null;
-
-  console.debug(
-    `Current job view: ${currentJobId ?? "none"}, message job_id: ${msgJobId ?? "none"}`,
+  const modalBody = document.querySelector("#log-history-modal .modal-body");
+  console.log(
+    "[showLogHistoryModal] modal-body children count before:",
+    modalBody?.children.length || 0,
   );
 
-  // Skip only if BOTH IDs exist and don't match
-  if (currentJobId && msgJobId && msgJobId !== currentJobId) {
-    console.debug(
-      `Ignoring log update for job ${msgJobId} (current view: ${currentJobId})`,
-    );
-    return;
-  }
+  const modal = document.getElementById("log-history-modal");
+  if (!modal) return console.warn("[showLogHistoryModal] Modal not found");
 
-  // Fallback: if no current view, assume it's for the message's job (common for broadcasts)
-  if (!currentJobId && msgJobId) {
-    console.debug(
-      `No current job view — assuming logs are for job ${msgJobId}`,
-    );
-  }
+  modal.classList.add("active");
+  modal.dataset.jobId = jobId;
 
+  // ONLY clear the tbody — protect everything else
   const tbody = document.getElementById("log-history-body");
   const noHistory = document.getElementById("no-history");
 
+  if (tbody) {
+    tbody.innerHTML =
+      '<tr><td colspan="4" class="text-center text-grey">Loading logs...</td></tr>';
+  }
+  if (noHistory) noHistory.style.display = "none";
+
+  sendWS({
+    command: "find_log",
+    id: jobId,
+  });
+}
+
+export function updateLogHistory(data) {
+  if (data.command_reply !== "find_log") return;
+
+  console.log(
+    "[updateLogHistory] Called — modal-body innerHTML length before:",
+    document.querySelector("#log-history-modal .modal-body")?.innerHTML
+      .length || 0,
+  );
+
+  const tbody = document.getElementById("log-history-body");
+  const noHistory = document.getElementById("no-history");
+  const modal = document.getElementById("log-history-modal");
+
   if (!tbody) {
-    console.debug("Log history table not in DOM — skipping update");
+    console.warn("[updateLogHistory] tbody not found");
     return;
   }
 
-  // Show loading state
-  tbody.innerHTML =
-    '<tr><td colspan="4" class="text-center text-grey">Loading logs...</td></tr>';
+  if (modal) modal.classList.add("active");
 
-  // Guard: no logs or invalid data
-  if (!data || !Array.isArray(data.logs) || data.logs.length === 0) {
-    tbody.innerHTML = "";
+  // Critical: Only clear tbody, never the table or modal-body
+  tbody.innerHTML = "";
+
+  if (!data.logs || !Array.isArray(data.logs) || data.logs.length === 0) {
     if (noHistory) noHistory.style.display = "block";
     return;
   }
 
   if (noHistory) noHistory.style.display = "none";
 
-  // Efficient DOM update with fragment
   const fragment = document.createDocumentFragment();
 
   data.logs.forEach((log) => {
@@ -631,34 +729,17 @@ export function updateLogHistory(data) {
     `;
 
     row.addEventListener("click", () => {
-      const modal = document.getElementById("log-modal");
-      if (!modal) {
-        console.warn("Log modal not found");
-        return;
-      }
-
-      const jobId = modal.dataset.jobId;
-      if (!jobId) {
-        console.warn("No jobId in modal dataset — cannot load log");
-        return;
-      }
-
-      appState.ws.send(
-        JSON.stringify({
-          command: "read_log",
-          id: jobId,
-          log_id: log.id,
-        }),
-      );
-
-      const historyModal = document.getElementById("log-history-modal");
-      if (historyModal) historyModal.classList.remove("active");
+      if (modal) modal.classList.remove("active");
+      sendWS({
+        command: "read_log",
+        id: data.job_id || data.id,
+        log_id: log.id,
+      });
     });
 
     fragment.appendChild(row);
   });
 
-  tbody.innerHTML = "";
   tbody.appendChild(fragment);
 }
 
@@ -684,14 +765,18 @@ export function updateJobsClusters(data) {
   document.getElementById("monitor-content").style.display = "block";
 
   if (!data.success || !data.clusters) {
-    console.warn("[updateJobsClusters] Received unsuccessful or empty response");
+    console.warn(
+      "[updateJobsClusters] Received unsuccessful or empty response",
+    );
     return;
   }
 
-  console.log(`[updateJobsClusters] Processing ${data.clusters.length} clusters`);
+  console.log(
+    `[updateJobsClusters] Processing ${data.clusters.length} clusters`,
+  );
 
   // === 1. Populate authoritative Maps (this must happen first) ===
-  populateMapsFromClusters(data.clusters);   // ← pass .clusters array, not full data
+  populateMapsFromClusters(data.clusters); // ← pass .clusters array, not full data
 
   // === 2. Build tree from the fresh Maps ===
   appState.monitorData.tree = buildTreeFromMaps();
@@ -1046,7 +1131,9 @@ export function applyServerBroadcast(data) {
 export function applyClusterBroadcast(data) {
   if (!data.updates || !Array.isArray(data.updates)) return;
 
-  console.log(`[ApplyClusterBroadcast] Processing ${data.updates.length} cluster updates`);
+  console.log(
+    `[ApplyClusterBroadcast] Processing ${data.updates.length} cluster updates`,
+  );
 
   data.updates.forEach((update) => {
     const id = Number(update.id);
@@ -1060,7 +1147,7 @@ export function applyClusterBroadcast(data) {
 
     // 2. Update clustersMap (critical for dashboard)
     if (!appState.clustersMap) appState.clustersMap = new Map();
-    
+
     const existing = appState.clustersMap.get(id);
     if (existing) {
       Object.assign(existing, update);
@@ -1078,9 +1165,9 @@ export function applyClusterBroadcast(data) {
   updateLiveTimings();
 
   // Force dashboard refresh if active
-  if (document.getElementById('dashboard')?.classList.contains('active')) {
-    console.log('[ApplyClusterBroadcast] Dashboard active → refreshing cards');
-    refreshDashboardCards('clusters_changed');
+  if (document.getElementById("dashboard")?.classList.contains("active")) {
+    console.log("[ApplyClusterBroadcast] Dashboard active → refreshing cards");
+    refreshDashboardCards("clusters_changed");
   }
 }
 
@@ -1535,7 +1622,6 @@ function debugDumpTreeContext() {
 
 // ==================== DASHBOARD MAIN RENDER ====================
 export function renderDashboard() {
-
   document.getElementById("dash-running-list").innerHTML =
     getLongestRunningJobsHTML(5);
   document.getElementById("dash-failed-list").innerHTML =
@@ -1643,58 +1729,66 @@ export function getOverdueClustersListHTML() {
   const now = Math.floor(Date.now() / 1000);
   const overdue = [];
 
-  appState.clustersMap.forEach(cluster => {
+  appState.clustersMap.forEach((cluster) => {
     const next = Number(cluster.next_start);
     if (!next || isNaN(next)) return;
 
     if (next < now) {
-      const name = cluster.name || 'Unnamed';
+      const name = cluster.name || "Unnamed";
       const reason = `overdue ${formatRelativeTime(now - next)}`;
       overdue.push({ name, reason, next_start: next });
     }
   });
 
   // Update the count badge
-  const countEl = document.getElementById('dash-overdue-count');
+  const countEl = document.getElementById("dash-overdue-count");
   if (countEl) countEl.textContent = overdue.length;
 
   if (overdue.length === 0) {
     return `<div class="empty-state text-grey text-sm py-8 text-center">No overdue clusters ✓</div>`;
   }
 
-  return overdue.map(item => `
+  return overdue
+    .map(
+      (item) => `
     <div class="mini-item">
       <div class="mini-item-name">${item.name}</div>
       <div class="mini-item-time text-orange overdue-time" data-timestamp="${item.next_start}">
         ${item.reason}
       </div>
     </div>
-  `).join('');
+  `,
+    )
+    .join("");
 }
 
 export function updateNextScheduledClusters() {
-  const container = document.getElementById('dash-next-5');
+  const container = document.getElementById("dash-next-5");
   if (!container) return;
 
   const upcoming = collectNextScheduledClusters(5);
-  const countEl = document.getElementById('dash-next-count');
+  const countEl = document.getElementById("dash-next-count");
   if (countEl) countEl.textContent = upcoming.length;
 
   if (upcoming.length === 0) {
     container.innerHTML = `<div class="empty-state">No upcoming scheduled clusters</div>`;
   } else {
-    container.innerHTML = upcoming.map(item => `
+    container.innerHTML = upcoming
+      .map(
+        (item) => `
       <div class="mini-item dash-next-item">
         <div class="mini-item-name">${item.name}</div>
         <div class="mini-item-time countdown" data-nextStart="${item.next_start}">
-          ${formatTminus(item.next_start) || '—'}
+          ${formatTminus(item.next_start) || "—"}
         </div>
       </div>
-    `).join('');
+    `,
+      )
+      .join("");
   }
 
   // Trigger overdue refresh + count update
-  const overdueList = document.getElementById('dash-overdue-list');
+  const overdueList = document.getElementById("dash-overdue-list");
   if (overdueList) {
     overdueList.innerHTML = getOverdueClustersListHTML();
   }
@@ -1708,11 +1802,13 @@ export function collectNextScheduledClusters(limit = 6) {
     const next = Number(cluster.next_start);
     if (!next || isNaN(next)) return;
 
-    const state = String(cluster.jobstate || '').toLowerCase().trim();
+    const state = String(cluster.jobstate || "")
+      .toLowerCase()
+      .trim();
 
     // Only include clusters that are truly scheduled in the future
     // and not currently overdue or on hold
-    if (next > now && state !== 'hold') {
+    if (next > now && state !== "hold") {
       upcoming.push({
         id: cluster.id,
         name: cluster.name || "Unnamed",
@@ -1757,7 +1853,8 @@ export function updateDashboardLiveCards() {
   if (runningList) runningList.innerHTML = getLongestRunningJobsHTML(5);
 
   const failedList = document.getElementById("dash-failed-list");
-  if (failedList) failedList.innerHTML = getRecentlyFailedListHTML(5);
+  getRecentlyFailedListHTML(5);
+  //if (failedList) failedList.innerHTML = getRecentlyFailedListHTML(5);
 
   // Next Scheduled & Overdue
   updateNextScheduledClusters();
@@ -1771,40 +1868,45 @@ export function updateDashboardLiveCards() {
 // ==================== BROADCAST REACTIVE UPDATES ====================
 
 export function updateDashboardLiveTimings() {
-  if (!document.getElementById('dashboard')?.classList.contains('active')) return;
+  if (!document.getElementById("dashboard")?.classList.contains("active"))
+    return;
 
   const now = Math.floor(Date.now() / 1000);
 
   // Live countdowns and timers
-  document.querySelectorAll('#dash-next-5 .countdown, .dash-next-item .countdown').forEach(el => {
-    const next = parseInt(el.dataset.nextStart || el.dataset.nextstart);
-    if (next) el.textContent = formatTminus(next) || '—';
-  });
+  document
+    .querySelectorAll("#dash-next-5 .countdown, .dash-next-item .countdown")
+    .forEach((el) => {
+      const next = parseInt(el.dataset.nextStart || el.dataset.nextstart);
+      if (next) el.textContent = formatTminus(next) || "—";
+    });
 
-  document.querySelectorAll('#dash-running-list .runtime').forEach(el => {
+  document.querySelectorAll("#dash-running-list .runtime").forEach((el) => {
     const started = parseInt(el.dataset.started);
-    if (started) el.textContent = formatTplus(started) || '—';
+    if (started) el.textContent = formatTplus(started) || "—";
   });
 
   // Overdue card auto-refresh
   let overdueDetected = false;
-  appState.clustersMap.forEach(cluster => {
+  appState.clustersMap.forEach((cluster) => {
     const next = Number(cluster.next_start);
     if (next && next <= now) overdueDetected = true;
   });
 
   if (overdueDetected) {
-    const overdueList = document.getElementById('dash-overdue-list');
+    const overdueList = document.getElementById("dash-overdue-list");
     if (overdueList) {
       overdueList.innerHTML = getOverdueClustersListHTML();
     }
   }
 
   // Recent Activity "ago" times
-  document.querySelectorAll('#dash-recent-body td[data-timestamp]').forEach(td => {
-    const ts = parseInt(td.dataset.timestamp);
-    if (ts) td.textContent = formatRelativeTime(now - ts);
-  });
+  document
+    .querySelectorAll("#dash-recent-body td[data-timestamp]")
+    .forEach((td) => {
+      const ts = parseInt(td.dataset.timestamp);
+      if (ts) td.textContent = formatRelativeTime(now - ts);
+    });
 }
 
 export function refreshDashboardCards(source = "") {
@@ -1945,7 +2047,6 @@ export function updateDashboardCountersFromBroadcast(updates = []) {
 }
 
 export function getNextScheduledListHTML(tree) {
-
   const upcoming = collectNextScheduledClusters(tree);
 
   console.log(`[NextScheduled] Found ${upcoming.length} upcoming clusters`);
@@ -2317,6 +2418,22 @@ export function initSettingsListeners() {
     ?.addEventListener("click", (e) => {
       e.preventDefault();
       showPricingModal();
+    });
+
+  // Regenerate Token - Direct Force Reconnect
+  document
+    .getElementById("regenerate-token")
+    .addEventListener("click", function () {
+      openConfirmModal(
+        "Confirm Token Regeneration",
+        "This will immediately invalidate your current API token. " +
+          "All active MCP connections (including Grok) will stop working until they are updated with the new token. " +
+          "Are you sure you want to continue?",
+        () => {
+          sendWS({ command: "new_token" });
+        },
+        () => showToast("Token regeneration cancelled", "info"),
+      );
     });
 }
 

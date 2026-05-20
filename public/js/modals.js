@@ -1,6 +1,10 @@
 // modals.js
 import { appState } from "./state.js";
-import { showToast, renderCalendarsTable } from "./ui-handlers.js";
+import {
+  showToast,
+  renderCalendarsTable,
+  showLogHistoryModal,
+} from "./ui-handlers.js";
 import { sendWS } from "./websocket.js";
 import {
   getFullPath,
@@ -223,35 +227,36 @@ export function openJobModal(
 
 // ==================== SERVER MODAL ====================
 export function openServerModal(mode = "create", serverData = null) {
-  const modal = document.getElementById('server-modal');
+  const modal = document.getElementById("server-modal");
   if (!modal) {
     console.error("Server modal element not found");
     return;
   }
 
-  const titleEl = document.getElementById('server-modal-title');
-  
+  const titleEl = document.getElementById("server-modal-title");
+
   if (mode === "edit" && serverData) {
     titleEl.textContent = "Edit Server";
-    document.getElementById('server-name').value = serverData.name || '';
-    document.getElementById('server-host').value = serverData.host || serverData.ip_address || '';
-    document.getElementById('server-user').value = serverData.user || '';
-    document.getElementById('server-port').value = serverData.port || '22';
+    document.getElementById("server-name").value = serverData.name || "";
+    document.getElementById("server-host").value =
+      serverData.host || serverData.ip_address || "";
+    document.getElementById("server-user").value = serverData.user || "";
+    document.getElementById("server-port").value = serverData.port || "22";
     // Do NOT prefill password for security
     appState.currentEditServerId = serverData.id;
   } else {
     // Create mode
     titleEl.textContent = "Add Server";
-    document.getElementById('server-name').value = '';
-    document.getElementById('server-host').value = '';
-    document.getElementById('server-user').value = '';
-    document.getElementById('server-port').value = '22';
-    document.getElementById('server-password').value = '';
+    document.getElementById("server-name").value = "";
+    document.getElementById("server-host").value = "";
+    document.getElementById("server-user").value = "";
+    document.getElementById("server-port").value = "22";
+    document.getElementById("server-password").value = "";
     appState.currentEditServerId = null;
   }
 
-  modal.classList.add('active');
-  document.getElementById('server-name').focus();
+  modal.classList.add("active");
+  document.getElementById("server-name").focus();
 }
 
 // ==================== CLUSTER MODAL ====================
@@ -286,10 +291,10 @@ export function openClusterModal(
   }
 
   const nameEl = document.getElementById("cluster-name");
-  if (nameEl) nameEl.value = isEdit ? (item?.name || "") : "new-cluster";
+  if (nameEl) nameEl.value = isEdit ? item?.name || "" : "new-cluster";
 
   const descEl = document.getElementById("cluster-description");
-  if (descEl) descEl.value = isEdit ? (item?.description || "") : "";
+  if (descEl) descEl.value = isEdit ? item?.description || "" : "";
 
   const loopsEl = document.getElementById("cluster-loops");
   if (loopsEl) loopsEl.value = isEdit ? (item?.loops ?? 0) : "0";
@@ -306,9 +311,20 @@ export function openClusterModal(
   );
 
   // Initialize Tom Selects (safe)
-  initDependencySelect("cluster-needs", "clear-cluster-needs", item?.needs_ids || []);
-  initDependencySelect("cluster-needs-any", "clear-cluster-needs-any", item?.needs_any_ids || []);
-  initSingleSelect("cluster-on-fail", item?.on_fail_id ? [item.on_fail_id] : []);
+  initDependencySelect(
+    "cluster-needs",
+    "clear-cluster-needs",
+    item?.needs_ids || [],
+  );
+  initDependencySelect(
+    "cluster-needs-any",
+    "clear-cluster-needs-any",
+    item?.needs_any_ids || [],
+  );
+  initSingleSelect(
+    "cluster-on-fail",
+    item?.on_fail_id ? [item.on_fail_id] : [],
+  );
 
   // Finally show the modal
   const modal = document.getElementById("cluster-modal");
@@ -361,7 +377,12 @@ export function openAttachCalendarModal(
 }
 
 // ==================== CONFIRM MODAL ====================
-export function openConfirmModal(title = "Confirm", message = "Are you sure?", onConfirm = null, onCancel = null) {
+export function openConfirmModal(
+  title = "Confirm",
+  message = "Are you sure?",
+  onConfirm = null,
+  onCancel = null,
+) {
   const modal = document.getElementById("confirm-modal");
   if (!modal) {
     console.error("[openConfirmModal] Modal not found");
@@ -377,7 +398,7 @@ export function openConfirmModal(title = "Confirm", message = "Are you sure?", o
 
   // Get buttons
   const yesBtn = document.getElementById("confirm-yes");
-  const noBtn  = document.getElementById("confirm-no");
+  const noBtn = document.getElementById("confirm-no");
 
   if (!yesBtn) {
     console.error("[openConfirmModal] #confirm-yes button missing");
@@ -937,11 +958,13 @@ document.addEventListener("DOMContentLoaded", () => {
     modal.classList.remove("active");
 
     // Special cleanup
-    if (modal.id === "log-history-modal") {
-      const logBody = modal.querySelector(".modal-body");
-      if (logBody) logBody.innerHTML = "";
-    }
 
+    if (modal.id === "log-history-modal") {
+      const tbody = modal.querySelector("#log-history-body");
+      if (tbody) {
+        tbody.innerHTML = ""; // Safe — only clears rows
+      }
+    }
     if (modal.id === "graph-modal" && window.cy) {
       window.cy.destroy();
       window.cy = null;
@@ -1065,21 +1088,30 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // View Log History
   document.getElementById("view-history")?.addEventListener("click", () => {
-    const jobId = document.getElementById("log-modal").dataset.jobId;
-    if (jobId && appState.ws?.readyState === WebSocket.OPEN) {
-      appState.ws.send(JSON.stringify({ command: "find_log", id: jobId }));
-      document.getElementById("log-history-modal").classList.add("active");
-    } else {
-      showToast("Not connected or no job ID", "danger");
+    const jobId = document.getElementById("log-modal")?.dataset.jobId;
+
+    if (!jobId) {
+      showToast("No job ID found", "danger");
+      return;
     }
+
+    showLogHistoryModal(jobId);
   });
 
   document
     .getElementById("close-log-history")
     ?.addEventListener("click", () => {
-      document.getElementById("log-history-modal").classList.remove("active");
+      const modal = document.getElementById("log-history-modal");
+      if (modal) modal.classList.remove("active");
     });
+
+  //  document
+  //    .getElementById("close-log-history")
+  //    ?.addEventListener("click", () => {
+  //      document.getElementById("log-history-modal").classList.remove("active");
+  //    });
 
   // Copy token
   /*

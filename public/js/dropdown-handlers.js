@@ -81,25 +81,27 @@ export function positionMenu(dropdown) {
 
   // Floating UI autoUpdate
   cleanupAutoUpdate = window.floatingUI.autoUpdate(trigger, menu, () => {
-    window.floatingUI.computePosition(trigger, menu, {
-      placement: "bottom-end",
-      middleware: [
-        window.floatingUI.offset({ mainAxis: 8, alignmentAxis: -32 }), // left shift to expose ellipsis
-        window.floatingUI.flip(),
-        window.floatingUI.shift({ padding: 8 })
-      ],
-    }).then(({ x, y }) => {
-      Object.assign(menu.style, {
-        left: `${x}px`,
-        top: `${y}px`,
-        width: "auto"
+    window.floatingUI
+      .computePosition(trigger, menu, {
+        placement: "bottom-end",
+        middleware: [
+          window.floatingUI.offset({ mainAxis: 8, alignmentAxis: -32 }), // left shift to expose ellipsis
+          window.floatingUI.flip(),
+          window.floatingUI.shift({ padding: 8 }),
+        ],
+      })
+      .then(({ x, y }) => {
+        Object.assign(menu.style, {
+          left: `${x}px`,
+          top: `${y}px`,
+          width: "auto",
+        });
       });
-    });
   });
 }
 
 export function closeAllDropdowns() {
-  document.querySelectorAll(".dropdown.active").forEach(d => {
+  document.querySelectorAll(".dropdown.active").forEach((d) => {
     d.classList.remove("active");
 
     const menu = d.querySelector(".dropdown-menu");
@@ -118,13 +120,22 @@ function handleTreeActionClick(e, actionItem, row, action) {
   const isCluster = row.classList.contains("ordo-cluster-row");
   const type = isCluster ? "cluster" : "job";
   const id = Number(row.dataset.id);
-  const name = row.querySelector("td:first-child")?.textContent.trim().replace(/\/$/, "") || "";
+  const name =
+    row
+      .querySelector("td:first-child")
+      ?.textContent.trim()
+      .replace(/\/$/, "") || "";
 
   switch (action) {
     case "attach-calendar":
       const node = findClusterById(appState.monitorData.tree, id);
       if (!node) return showToast("Cluster not found", "error");
-      openAttachCalendarModal(id, name, node.cal_name || "", node.cal_id || null);
+      openAttachCalendarModal(
+        id,
+        name,
+        node.cal_name || "",
+        node.cal_id || null,
+      );
       break;
     case "edit-cluster":
       openClusterModal("edit", id);
@@ -146,8 +157,12 @@ function handleTreeActionClick(e, actionItem, row, action) {
       showToast(`Starting ${type}...`, "info");
       break;
     case "kill":
-      openConfirmModal("Confirm Kill", `Are you sure you want to kill ${name || "this " + type}?`,
-        () => sendCommand("kill", id, type), () => showToast("Kill cancelled", "info"));
+      openConfirmModal(
+        "Confirm Kill",
+        `Are you sure you want to kill ${name || "this " + type}?`,
+        () => sendCommand("kill", id, type),
+        () => showToast("Kill cancelled", "info"),
+      );
       break;
     case "hold":
       sendCommand("hold", id, type);
@@ -174,20 +189,46 @@ function handleTreeActionClick(e, actionItem, row, action) {
       showToast(`Resetting ${type}...`, "info");
       break;
     case "delete":
-      openConfirmModal("Confirm Deletion", `Are you sure you want to delete ${name || "this " + type}?`,
-        () => sendCommand("delete", id, type), () => showToast("Deletion cancelled", "info"));
+      openConfirmModal(
+        "Confirm Deletion",
+        `Are you sure you want to delete ${name || "this " + type}?`,
+        () => sendCommand("delete", id, type),
+        () => showToast("Deletion cancelled", "info"),
+      );
       break;
+
     case "view-log":
-      if (!isCluster) {
-        const jobId = id;
-        const modal = document.getElementById("log-modal");
+      if (isCluster) {
+        console.warn("View Log called on a cluster — not supported");
+        break;
+      }
+
+      const jobId = id;
+      if (!jobId) {
+        showToast("No job ID found", "danger");
+        break;
+      }
+
+      const modal = document.getElementById("log-modal");
+      if (modal) {
         modal.dataset.jobId = jobId;
         modal.classList.add("active");
-        if (appState.ws?.readyState === WebSocket.OPEN) {
-          appState.ws.send(JSON.stringify({ command: "read_log", id: jobId }));
-        }
+      }
+
+      if (appState.ws?.readyState === WebSocket.OPEN) {
+          const rl = JSON.stringify({
+            command: "read_log",
+            id: jobId,
+          });
+        console.log("READLOG", rl);
+        appState.ws.send(
+	  rl
+        );
+      } else {
+        showToast("Not connected to server", "danger");
       }
       break;
+
     default:
       console.warn("Unhandled tree action:", action);
   }
@@ -197,15 +238,20 @@ function handleTreeActionClick(e, actionItem, row, action) {
 function handleServerActionClick(e, actionItem, row, action) {
   e.preventDefault();
   const serverId = Number(actionItem.dataset.id);
-  if (isNaN(serverId) || serverId <= 0) return showToast("Invalid server ID", "danger");
+  if (isNaN(serverId) || serverId <= 0)
+    return showToast("Invalid server ID", "danger");
   const server = findServerById(serverId);
   switch (action) {
     case "edit-server":
       openServerModal("edit", server);
       break;
     case "delete-server":
-      openConfirmModal("Confirm Delete Server", `Are you sure you want to delete server "${server?.name || "this server"}"?`,
-        () => sendWS({ command: "delete_monitor", id: serverId }), () => showToast("Delete cancelled", "info"));
+      openConfirmModal(
+        "Confirm Delete Server",
+        `Are you sure you want to delete server "${server?.name || "this server"}"?`,
+        () => sendWS({ command: "delete_monitor", id: serverId }),
+        () => showToast("Delete cancelled", "info"),
+      );
       break;
     default:
       console.warn("Unhandled server action:", action);
@@ -235,8 +281,12 @@ function handleCalendarsActionClick(e, actionItem, row, action) {
       break;
     case "delete-calendar":
       if (!isCalendarRow) return showToast("Invalid action for cron", "danger");
-      openConfirmModal("Confirm Delete Calendar", `Are you sure you want to delete calendar "${name}"?`,
-        () => sendWS({ command: "delete_cal", id: calId }), () => showToast("Deletion cancelled", "info"));
+      openConfirmModal(
+        "Confirm Delete Calendar",
+        `Are you sure you want to delete calendar "${name}"?`,
+        () => sendWS({ command: "delete_cal", id: calId }),
+        () => showToast("Deletion cancelled", "info"),
+      );
       break;
     case "add-cron":
       if (!isCalendarRow) return showToast("Invalid action for cron", "danger");
@@ -244,16 +294,22 @@ function handleCalendarsActionClick(e, actionItem, row, action) {
       break;
     case "edit-cron":
       if (!isCronRow) return showToast("Invalid action for calendar", "danger");
-      if (!cronId || isNaN(cronId)) return showToast("Invalid cron ID", "danger");
-      const cal = appState.calendarsData.find(c => Number(c.id) === calId);
-      const cron = cal?.crons?.find(cr => Number(cr.id) === cronId);
+      if (!cronId || isNaN(cronId))
+        return showToast("Invalid cron ID", "danger");
+      const cal = appState.calendarsData.find((c) => Number(c.id) === calId);
+      const cron = cal?.crons?.find((cr) => Number(cr.id) === cronId);
       if (!cron) return showToast("Cron not found", "danger");
       openCronModal("edit", calId, cron);
       break;
     case "delete-cron":
-      if (!isCronRow || !cronId || isNaN(cronId)) return showToast("Invalid cron ID", "danger");
-      openConfirmModal("Confirm Delete Cron", `Are you sure you want to delete this cron expression?`,
-        () => sendWS({ command: "delete_cron", id: cronId }), () => showToast("Deletion cancelled", "info"));
+      if (!isCronRow || !cronId || isNaN(cronId))
+        return showToast("Invalid cron ID", "danger");
+      openConfirmModal(
+        "Confirm Delete Cron",
+        `Are you sure you want to delete this cron expression?`,
+        () => sendWS({ command: "delete_cron", id: cronId }),
+        () => showToast("Deletion cancelled", "info"),
+      );
       break;
     default:
       console.warn("Unhandled calendar action:", action);
@@ -272,8 +328,10 @@ export function handleActionClick(e) {
 
   let handler = null;
   if (row.closest("#tree-body")) handler = handleTreeActionClick;
-  else if (row.closest("#calendars-table, #calendars-body, #calendars-content")) handler = handleCalendarsActionClick;
-  else if (row.closest("#servers-table, #servers-body, #servers-content")) handler = handleServerActionClick;
+  else if (row.closest("#calendars-table, #calendars-body, #calendars-content"))
+    handler = handleCalendarsActionClick;
+  else if (row.closest("#servers-table, #servers-body, #servers-content"))
+    handler = handleServerActionClick;
 
   if (handler) handler(e, actionItem, row, action);
 }
@@ -284,4 +342,3 @@ export function attachGlobalListeners() {
 
   document.addEventListener("click", handleActionClick);
 }
-

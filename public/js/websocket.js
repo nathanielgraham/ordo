@@ -25,24 +25,72 @@ import {
   renderRecentActivityTable,
   getLongestRunningJobsHTML,
   getRecentlyFailedListHTML,
+  handleCommandReply,
 } from "./ui-handlers.js";
 
 export function checkLoginAndConnect() {
   console.log("[WS Init] checkLoginAndConnect called");
 
   const token = document.cookie.match(/ordo_token=([^;]+)/)?.[1];
+
   if (token) {
-    console.log("[WS Init] Token found → connecting");
     document.body.classList.add("is-logged-in");
-    connectWS(token);
+
+    // If we already have an open connection, just re-auth it
+    if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+      appState.ws.send(JSON.stringify({ command: "login_user", token }));
+      //sendWS({ command: "login_user", token: token });
+      //sendWS({ command: "delete_monitor", id: serverId })
+    } else {
+      connectWS(token);
+    }
   } else {
-    console.log("[WS Init] No token found");
     document.body.classList.remove("is-logged-in");
   }
 }
 
+export function checkLoginAndConnect2() {
+    console.log("[WS Init] checkLoginAndConnect called");
+
+    const token = document.cookie.match(/ordo_token=([^;]+)/)?.[1];
+
+    if (!token) {
+        console.log("[WS Init] No token found");
+        document.body.classList.remove("is-logged-in");
+        return;
+    }
+
+    console.log("[WS Init] Token found → forcing reconnect");
+
+    document.body.classList.add("is-logged-in");
+
+    // Aggressive cleanup of old connection
+    if (window.ws) {
+        try { window.ws.close(1000, "Token regenerated"); } catch(e) {}
+        window.ws = null;
+    }
+    if (appState && appState.ws) {
+        appState.ws = null;
+    }
+
+    // Short delay then reconnect
+    setTimeout(() => {
+        console.log("[WS Init] Creating new WebSocket with new token");
+        connectWS(token);
+    }, 400);
+}
+
 export function connectWS(token) {
   console.log("[WS Init] connectWS called");
+
+  // Extra safety: make sure we don't have a lingering connection
+  if (window.ws) {
+    console.log("[WS Init] Old WS still existed, clearing it");
+    try {
+      window.ws.close();
+    } catch (e) {}
+    window.ws = null;
+  }
 
   if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
     console.log("[WS Init] WebSocket already open, skipping");
@@ -63,10 +111,8 @@ export function connectWS(token) {
       const data = JSON.parse(e.data);
 
       // ====================== LOGIN & INITIAL LOADS ======================
-
       if (data.command_reply === "login_user" && data.success) {
         console.log("Login success - requesting initial loads");
-
         appState.ws.send(JSON.stringify({ command: "read_user" }));
         appState.ws.send(JSON.stringify({ command: "read_org" }));
         appState.ws.send(
@@ -74,8 +120,6 @@ export function connectWS(token) {
         );
         appState.ws.send(JSON.stringify({ command: "find_cal" }));
         appState.ws.send(JSON.stringify({ command: "find_monitor" }));
-
-        // ADD THIS LINE:
         appState.ws.send(
           JSON.stringify({
             command: "find_stats",
@@ -86,57 +130,14 @@ export function connectWS(token) {
         );
       }
 
-      // ====================== DIRECT COMMAND REPLIES ======================
-      if (data.command_reply === "read_user") updateAccount(data);
-      if (data.command_reply === "read_org") updateOrgAndTeam(data);
-      if (data.command_reply === "read_log") updateLog(data);
-      if (data.command_reply === "find_log") updateLogHistory(data);
-      if (data.command_reply === "find_cluster") updateJobsClusters(data);
-      if (data.command_reply === "find_cal") updateCalendars(data);
-      if (data.command_reply === "find_monitor") updateServers(data);
-
-      if (data.command_reply === "sync") {
-        // Reset button
-        const btn = document.getElementById("resync-all-btn");
-        if (btn) {
-          btn.disabled = false;
-          btn.innerHTML = '<i class="fas fa-sync-alt"></i> Resync Servers';
-        }
-
-        // Update zombies count if returned
-        if (data.zombie_count !== undefined) {
-          const zombiesEl = document.getElementById("kpi-zombies");
-          if (zombiesEl) zombiesEl.textContent = data.zombie_count;
-        }
-        // Clear old counted jobs (optional but good hygiene)
-        if (
-          appState._countedTerminalJobs &&
-          appState._countedTerminalJobs.size > 200
-        ) {
-          appState._countedTerminalJobs.clear();
-        }
-
-        // The toast will be shown automatically by your existing code
-      }
-
-      // ====================== STATS ======================
-      if (data.command_reply === "find_stats") {
-        console.log("[find_stats] Reply received:", data);
-        appState.dashboardStats = data;
-
-        if (
-          document.getElementById("dashboard")?.classList.contains("active")
-        ) {
-          updateKPIBar(data);
-          renderDashboard();
-        }
+      // ====================== CENTRAL COMMAND REPLY HANDLER ======================
+      if (data.command_reply) {
+        handleCommandReply(data);
       }
 
       // ====================== BROADCASTS ======================
-      // === BROADCAST HANDLERS ===
       if (data.broadcast === "clusters_changed") {
         applyClusterBroadcast(data);
-
         if (
           document.getElementById("dashboard")?.classList.contains("active")
         ) {
@@ -148,15 +149,9 @@ export function connectWS(token) {
 
       if (data.broadcast === "jobs_changed") {
         applyJobBroadcast(data);
-
-        // Incremental KPI updates with deduplication
         if (data.updates && data.updates.length > 0) {
-          data.updates.forEach((job) => {
-            incrementDashboardStatsFromJob(job);
-          });
+          data.updates.forEach((job) => incrementDashboardStatsFromJob(job));
         }
-
-        // Update visible cards if dashboard is active
         if (
           document.getElementById("dashboard")?.classList.contains("active")
         ) {
