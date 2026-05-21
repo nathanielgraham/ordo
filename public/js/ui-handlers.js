@@ -135,12 +135,10 @@ export function handleCommandReply(data) {
         if (tokenField) {
           tokenField.value = data.token;
         }
-
       } else {
         showToast(data.message || "Failed to rotate exec token", "error");
       }
       break;
-
 
     default:
       console.debug(
@@ -760,6 +758,90 @@ export function updateLogHistory(data) {
   tbody.appendChild(fragment);
 }
 
+export function renderCalendarsTable() {
+  const tbody = document.getElementById("calendars-body");
+  const table = document.getElementById("calendars-table");
+  const noCalendars = document.getElementById("no-calendars");
+
+  if (!tbody || !table || !noCalendars) return;
+
+  const calendars = appState.calendarsData || [];
+
+  if (calendars.length === 0) {
+    table.style.display = "none";
+    noCalendars.style.display = "block";
+    return;
+  }
+
+  table.style.display = "table";
+  noCalendars.style.display = "none";
+  tbody.innerHTML = "";
+
+  calendars.forEach((cal) => {
+    const calId = String(cal.id);
+    const hasCrons = Array.isArray(cal.crons) && cal.crons.length > 0;
+    const isCollapsed = appState.collapsedCalendars.has(calId);
+
+    // Calendar row
+    const calRow = document.createElement("tr");
+    calRow.className = `ordo-calendar-row ${isCollapsed ? "collapsed" : ""}`;
+    calRow.dataset.id = calId;
+    calRow.dataset.depth = "0";
+    calRow.style.setProperty("--depth", "0");
+
+    calRow.innerHTML = `
+      <td>
+        ${hasCrons 
+          ? `<span class="ordo-toggle"></span>` 
+          : `<span class="ordo-toggle empty"></span>`}
+        <i class="fas fa-folder mr-2 has-text-info"></i>
+        ${escapeHtml(cal.name || "Unnamed Calendar")}
+      </td>
+      <td>${escapeHtml(cal.tz || "—")}</td>
+      <td>${escapeHtml(cal.description || "—")}</td>
+      <td>${cal.crons?.length || 0}</td>
+      <td>${cal.cluster_ids?.length || 0}</td>
+      <td>—</td>
+      <td>—</td>
+      <td>—</td>
+      <td>${generateCalendarActions(cal.id, hasCrons)}</td>
+    `;
+    tbody.appendChild(calRow);
+
+    // Cron rows
+    if (hasCrons) {
+      cal.crons.forEach((cron, idx) => {
+        const isLast = idx === cal.crons.length - 1;
+        const cronRow = document.createElement("tr");
+        cronRow.className = `ordo-cron-row ${isCollapsed ? "hidden" : ""}`;
+        cronRow.dataset.id = `cron-${calId}-${cron.id}`;
+        cronRow.dataset.depth = "1";
+        cronRow.dataset.parent = calId;
+        cronRow.dataset.lastChild = isLast ? "true" : "false";
+        cronRow.style.setProperty("--depth", "1");
+
+        cronRow.innerHTML = `
+          <td>
+            <i class="fas fa-clock mr-2 has-text-cyan"></i>
+            ${escapeHtml(cron.name || cron.expression || "—")}
+          </td>
+          <td>${escapeHtml(cron.english || "—")}</td>
+          <td>${escapeHtml(cron.description || "—")}</td>
+          <td>—</td>
+          <td>—</td>
+          <td>${cron.begin ? formatDate(cron.begin) : "Immediate"}</td>
+          <td>${cron.expire ? formatDate(cron.expire) : "Never"}</td>
+          <td>${formatDate(cron.next_start) || "—"}</td>
+          <td>${generateCronActions(cal.id, cron.id)}</td>
+        `;
+        tbody.appendChild(cronRow);
+      });
+    }
+  });
+
+  console.log(`[renderCalendarsTable] Rendered ${calendars.length} calendars`);
+}
+
 // Helpers (add these at the bottom of ui-handlers.js if not already present)
 function escapeHtml(unsafe) {
   return String(unsafe)
@@ -882,7 +964,7 @@ export function toggleCronsRow(calendarId) {
   }
 }
 
-export function renderCalendarsTable() {
+export function renderCalendarsTableOld() {
   const tbody = document.getElementById("calendars-body");
   const table = document.getElementById("calendars-table");
   const noCalendars = document.getElementById("no-calendars");
@@ -976,86 +1058,6 @@ export function renderCalendarsTable() {
   });
 }
 
-export function renderCalendarsTable2() {
-  const tbody = document.getElementById("calendars-body");
-  const table = document.getElementById("calendars-table");
-  const noCalendars = document.getElementById("no-calendars");
-
-  if (!tbody || !table || !noCalendars) return;
-
-  const calendars = appState.calendarsData || [];
-
-  if (calendars.length === 0) {
-    table.style.display = "none";
-    noCalendars.style.display = "block";
-    return;
-  }
-
-  // Show table, hide empty state
-  table.style.display = "table";
-  noCalendars.style.display = "none";
-
-  tbody.innerHTML = "";
-
-  calendars.forEach((cal) => {
-    const hasCrons = cal.crons && cal.crons.length > 0;
-    const isCollapsed = appState.collapsedCalendars.has(String(cal.id));
-
-    const calRow = document.createElement("tr");
-    calRow.className = `ordo-calendar-row ${isCollapsed ? "collapsed" : ""}`;
-    calRow.dataset.id = cal.id;
-    calRow.dataset.depth = 0;
-    calRow.style.setProperty("--depth", "0");
-
-    const toggleHtml = hasCrons
-      ? `<span class="ordo-toggle"></span>`
-      : `<span class="ordo-toggle empty"></span>`;
-
-    calRow.innerHTML = `
-      <td>${toggleHtml}<i class="fas fa-folder mr-2 has-text-info"></i>${cal.name || "—"}</td>
-      <td>${cal.tz || "—"}</td>
-      <td>${cal.description || "—"}</td>
-      <td>${cal.crons?.length || 0}</td>
-      <td>${cal.cluster_ids?.length || 0}</td>
-      <td>—</td>
-      <td>—</td>
-      <td>—</td>
-      <td>${generateCalendarActions(cal.id, hasCrons)}</td>
-    `;
-
-    tbody.appendChild(calRow);
-
-    if (hasCrons) {
-      (cal.crons || []).forEach((cron, idx) => {
-        const isLast = idx === cal.crons.length - 1;
-        const cronRow = document.createElement("tr");
-        cronRow.className = `ordo-cron-row ${isCollapsed ? "hidden" : ""}`;
-        cronRow.dataset.id = `cron-${cal.id}-${cron.id}`;
-        cronRow.dataset.depth = 1;
-        cronRow.dataset.parent = cal.id;
-        cronRow.dataset.lastChild = isLast ? "true" : "false";
-        cronRow.style.setProperty("--depth", "1");
-
-        const cronIcon = '<i class="fas fa-clock mr-2 has-text-cyan"></i>';
-
-        cronRow.innerHTML = `
-          <td>${cronIcon}${cron.name || "—"}</td>
-          <td>${cron.english || "—"}</td>
-          <td>${cron.description || "—"}</td>
-          <td>—</td>
-          <td>—</td>
-          <td>${cron.begin ? formatDate(cron.begin) : "Immediate"}</td>
-          <td>${cron.expire ? formatDate(cron.expire) : "Never"}</td>
-          <td>${formatDate(cron.next_start) || "—"}</td>
-          <td>${generateCronActions(cal.id, cron.id)}</td>
-        `;
-
-        tbody.appendChild(cronRow);
-      });
-    }
-  });
-}
-
 // Helper: calendar dropdown actions
 function generateCalendarActions(calId, hasCrons) {
   return `
@@ -1146,46 +1148,65 @@ export function applyServerBroadcast(data) {
 }
 
 export function applyClusterBroadcast(data) {
-  if (!data.updates || !Array.isArray(data.updates)) return;
+  if (!data) return;
 
-  console.log(
-    `[ApplyClusterBroadcast] Processing ${data.updates.length} cluster updates`,
-  );
+  console.log(`[applyClusterBroadcast] updates:${data.updates?.length || 0} deletes:${data.deletes?.length || 0}`);
 
-  data.updates.forEach((update) => {
-    const id = Number(update.id);
-    if (!id) return;
+  // === DELETES - Very important ===
+  if (data.deletes && Array.isArray(data.deletes)) {
+    data.deletes.forEach((del) => {
+      const id = Number(del.id || del);
+      if (!id) return;
 
-    // 1. Update tree (for main Jobs & Clusters tab)
-    const clusterInTree = findClusterById(appState.monitorData.tree, id);
-    if (clusterInTree) {
-      Object.assign(clusterInTree, update);
-    }
+      console.log(`[Delete Cluster] Removing cluster ${id}`);
 
-    // 2. Update clustersMap (critical for dashboard)
-    if (!appState.clustersMap) appState.clustersMap = new Map();
+      // Remove from DOM
+      removeRow(id, true);
 
-    const existing = appState.clustersMap.get(id);
-    if (existing) {
-      Object.assign(existing, update);
-    } else {
-      appState.clustersMap.set(id, { ...update });
-    }
+      // Remove from Maps
+      appState.clustersMap.delete(id);
 
-    // 3. Update DOM row
-    const row = document.getElementById(`row-cluster-${id}`);
-    if (row) {
-      updateRow(row, { ...update, is_cluster: true });
-    }
-  });
+      // Remove any child jobs that belonged to it
+      const jobsToRemove = [];
+      appState.jobsMap.forEach((job, jobId) => {
+        if (Number(job.cluster_id) === id) {
+          jobsToRemove.push(jobId);
+        }
+      });
+
+      jobsToRemove.forEach(jobId => {
+        removeRow(jobId, false);
+        appState.jobsMap.delete(jobId);
+      });
+
+      console.log(`[Delete Cluster] Removed cluster ${id} + ${jobsToRemove.length} child jobs`);
+    });
+  }
+
+  // === UPDATES ===
+  if (data.updates && Array.isArray(data.updates)) {
+    data.updates.forEach((update) => {
+      const id = Number(update.id);
+      if (!id) return;
+
+      let cluster = appState.clustersMap.get(id);
+      if (cluster) {
+        Object.assign(cluster, update);
+      } else {
+        appState.clustersMap.set(id, { ...update, is_cluster: true });
+      }
+
+      const row = document.getElementById(`row-cluster-${id}`);
+      if (row) {
+        updateRow(row, { ...update, is_cluster: true });
+      } else {
+        const parentId = Number(update.parent_id);
+        insertRow({ ...update, is_cluster: true }, parentId);
+      }
+    });
+  }
 
   updateLiveTimings();
-
-  // Force dashboard refresh if active
-  if (document.getElementById("dashboard")?.classList.contains("active")) {
-    console.log("[ApplyClusterBroadcast] Dashboard active → refreshing cards");
-    refreshDashboardCards("clusters_changed");
-  }
 }
 
 // ==================== DASHBOARD CORE ====================
@@ -1238,130 +1259,105 @@ export function countOverdueClusters() {
   return count;
 }
 
-// ==================== SAFE BROADCAST HANDLER ====================
 export function applyJobBroadcast(data) {
-  if (!data.updates || !Array.isArray(data.updates)) return;
+  if (!data) return;
 
-  // Safety guard
-  if (data.updates.some((u) => u.jobs || u.cal_name !== undefined)) {
-    console.warn("[ApplyJobBroadcast] Received cluster data — skipping");
-    return;
+  console.log(`[applyJobBroadcast] updates:${data.updates?.length || 0} deletes:${data.deletes?.length || 0}`);
+
+  // === DELETES - Thorough cleanup ===
+  if (data.deletes && Array.isArray(data.deletes)) {
+    data.deletes.forEach((del) => {
+      const id = Number(del.id || del);
+      if (!id) return;
+
+      console.log(`[Delete Job] Removing job ${id}`);
+
+      // Remove from DOM
+      removeRow(id, false);
+
+      // Remove from authoritative Map
+      appState.jobsMap.delete(id);
+
+      // Optional: remove from tree if you want extra safety
+      // (usually not needed if tree is rebuilt from maps, but harmless)
+    });
   }
-  console.log(`[ApplyJobBroadcast] Processing ${data.updates.length} updates`);
 
-  data.updates.forEach((update) => {
-    if (update.is_cluster) return;
+  // === UPDATES / NEW JOBS ===
+  if (data.updates && Array.isArray(data.updates)) {
+    data.updates.forEach((update) => {
+      if (update.is_cluster) return;   // safety
 
-    const id = Number(update.id);
-    const newState = String(update.jobstate || "")
-      .toLowerCase()
-      .trim();
-    const newStarted = Number(update.started || update.start || 0);
+      const id = Number(update.id);
+      if (!id) return;
 
-    // 1. Update authoritative Map
-    let job = appState.jobsMap.get(id);
-    if (job) {
-      if (newStarted > 0 && newStarted > Number(job.started || 0)) {
-        job.started = newStarted;
+      // Update or insert into Map
+      let job = appState.jobsMap.get(id);
+      if (job) {
+        Object.assign(job, update);
+      } else {
+        job = { ...update, is_cluster: false };
+        appState.jobsMap.set(id, job);
       }
-      if (["complete", "failed", "killed", "zombie"].includes(newState)) {
-        job.started = null;
-      }
-      Object.assign(job, update);
-    } else {
-      appState.jobsMap.set(id, { ...update, is_cluster: false });
-    }
 
-    // 2. Update tree object (for main table)
-    let jobInTree = findJobById(appState.monitorData.tree, id);
-    if (jobInTree) {
-      Object.assign(jobInTree, update); // full sync
-      console.log(
-        `[ApplyJobBroadcast] Updated job in tree: ${update.name} (id=${id}) → state=${newState}`,
-      );
-    } else {
-      const parentId = Number(update.cluster_id || update.parent_id);
-      if (parentId) {
-        console.log(
-          `[ApplyJobBroadcast] Inserting new job ${update.name} (id=${id})`,
-        );
-        insertRow({ ...update, is_cluster: false }, parentId);
+      // Update tree object
+      const jobInTree = findJobById(appState.monitorData.tree, id);
+      if (jobInTree) {
+        Object.assign(jobInTree, update);
       }
-    }
 
-    // 3. Force DOM row update (this is the key missing piece)
-    const row = document.getElementById(`row-job-${id}`);
-    if (row) {
-      updateRow(row, { ...update, is_cluster: false });
-    }
-  });
+      // Update or insert DOM row
+      let row = document.getElementById(`row-job-${id}`);
+      if (row) {
+        updateRow(row, job);
+      } else {
+        const parentId = Number(update.cluster_id || update.parent_id);
+        insertRow(job, parentId);
+      }
+    });
+  }
+
   updateLiveTimings();
 
-  // Dashboard cards refresh
   if (document.getElementById("dashboard")?.classList.contains("active")) {
     refreshDashboardCards("jobs_changed");
   }
 }
 
 export function applyCalBroadcast(data) {
-  if (!data.updates && !data.deletes) {
-    console.warn("[applyCalBroadcast] Received empty payload");
-    return;
-  }
+  if (!data) return;
 
-  console.log(
-    `[applyCalBroadcast] Processing ${data.updates?.length || 0} updates, ${data.deletes?.length || 0} deletes`,
-  );
-
-  // Handle updates
-  if (data.updates && Array.isArray(data.updates)) {
-    data.updates.forEach((cal) => {
-      const calId = Number(cal.id);
-      if (!calId) return;
-
-      const existingCal = findCalendarById(appState.calendarsData, calId);
-
-      if (existingCal) {
-        console.log(
-          `[applyCalBroadcast] Updating calendar "${cal.name || "unknown"}" (id=${calId})`,
-        );
-        Object.assign(existingCal, cal);
-      } else {
-        console.log(
-          `[applyCalBroadcast] Inserting new calendar "${cal.name || "unknown"}" (id=${calId})`,
-        );
-        appState.calendarsData.push(cal);
-      }
-    });
-  }
+  console.log(`[applyCalBroadcast] updates:${data.updates?.length || 0}, deletes:${data.deletes?.length || 0}`);
 
   // Handle deletes
   if (data.deletes && Array.isArray(data.deletes)) {
     data.deletes.forEach((del) => {
-      const calId = Number(del.id || del);
-      if (!calId) return;
-
-      console.log(`[applyCalBroadcast] Deleting calendar id=${calId}`);
-
-      // Remove from appState
-      appState.calendarsData = appState.calendarsData.filter(
-        (c) => Number(c.id) !== calId,
-      );
-
-      // Remove from DOM if rendered
-      const row = document.getElementById(`row-cal-${calId}`);
-      if (row) row.remove();
+      const id = Number(del.id || del);
+      if (!id) return;
+      appState.calendarsData = appState.calendarsData.filter(c => Number(c.id) !== id);
     });
   }
 
-  // Refresh calendars UI if the tab is active
+  // Handle updates / new calendars
+  if (data.updates && Array.isArray(data.updates)) {
+    data.updates.forEach((calUpdate) => {
+      const id = Number(calUpdate.id);
+      if (!id) return;
+
+      const existingIndex = appState.calendarsData.findIndex(c => Number(c.id) === id);
+
+      if (existingIndex !== -1) {
+        appState.calendarsData[existingIndex] = { ...appState.calendarsData[existingIndex], ...calUpdate };
+      } else {
+        appState.calendarsData.push({ ...calUpdate });
+      }
+    });
+  }
+
+  // Refresh UI if tab is active
   if (document.getElementById("calendars")?.classList.contains("active")) {
     renderCalendarsTable();
   }
-
-  console.log(
-    `[applyCalBroadcast] Finished. Total calendars in memory: ${appState.calendarsData.length}`,
-  );
 }
 
 function findCalendarById(calendars, calId) {
@@ -1463,11 +1459,9 @@ export function attachCalendarsTreeListeners() {
     if (!toggle || toggle.classList.contains("empty")) return;
 
     const row = toggle.closest("tr");
-    if (!row || !row.dataset.id) return;
+    if (!row?.dataset.id) return;
 
     const calId = String(row.dataset.id);
-
-    // Toggle collapsed state (same logic as main tree)
     const isNowCollapsed = !appState.collapsedCalendars.has(calId);
 
     if (isNowCollapsed) {
@@ -1476,13 +1470,32 @@ export function attachCalendarsTreeListeners() {
       appState.collapsedCalendars.delete(calId);
     }
 
-    // Re-render the whole table (simplest and most reliable)
+    // Re-render is the most reliable way for calendars
     renderCalendarsTable();
+  });
+}
 
-    // Save to localStorage
-    if (typeof updateCalendarCollapsed === "function") {
-      updateCalendarCollapsed();
+export function attachCalendarsTreeListeners2() {
+  const tbody = document.getElementById("calendars-body");
+  if (!tbody) return;
+
+  tbody.addEventListener("click", (e) => {
+    const toggle = e.target.closest(".ordo-toggle");
+    if (!toggle || toggle.classList.contains("empty")) return;
+
+    const row = toggle.closest("tr");
+    if (!row?.dataset.id) return;
+
+    const calId = String(row.dataset.id);
+    const isNowCollapsed = !appState.collapsedCalendars.has(calId);
+
+    if (isNowCollapsed) {
+      appState.collapsedCalendars.add(calId);
+    } else {
+      appState.collapsedCalendars.delete(calId);
     }
+
+    renderCalendarsTable();   // full re-render is safest and simplest
   });
 }
 
@@ -1701,44 +1714,45 @@ export function getLongestRunningJobsHTML(max = 5) {
 
 export function getRecentlyFailedListHTML(max = 5) {
   const now = Math.floor(Date.now() / 1000);
-  const jobMap = new Map();
+  const failed = [];
 
   appState.jobsMap.forEach((job) => {
-    const state = String(job.jobstate || "")
-      .toLowerCase()
-      .trim();
+    const state = String(job.jobstate || "").toLowerCase().trim();
     if (!["failed", "killed", "zombie"].includes(state) || !job.ended) return;
 
-    const jobId = Number(job.id);
     const endedTs = Number(job.ended);
-    const ago = formatRelativeTime(now - endedTs) || "just now";
+    const agoSeconds = now - endedTs;
+    if (agoSeconds < 0) return;
 
-    const existing = jobMap.get(jobId);
-    if (!existing || endedTs > Number(existing.endedTs || 0)) {
-      jobMap.set(jobId, { name: job.name || "Unnamed", endedTs, ago });
-    }
+    failed.push({
+      id: job.id,
+      name: job.name || "Unnamed",
+      endedTs: endedTs,
+      agoSeconds: agoSeconds
+    });
   });
 
-  const failed = Array.from(jobMap.values())
-    .sort((a, b) => b.endedTs - a.endedTs)
-    .slice(0, max);
+  // Sort most recent first
+  failed.sort((a, b) => b.endedTs - a.endedTs);
+  const topFailed = failed.slice(0, max);
 
   const countEl = document.getElementById("dash-failed-count");
-  if (countEl) countEl.textContent = failed.length;
+  if (countEl) countEl.textContent = topFailed.length;
 
-  if (failed.length === 0) {
+  if (topFailed.length === 0) {
     return `<div class="empty-state">No recent failures</div>`;
   }
 
-  return failed
-    .map(
-      (item) => `
-    <div class="mini-item">
-      <div class="mini-item-name">${item.name}</div>
-      <div class="mini-item-time text-red">${item.ago}</div>
-    </div>
-  `,
-    )
+  return topFailed
+    .map((item) => `
+      <div class="mini-item">
+        <div class="mini-item-name">${item.name}</div>
+        <div class="mini-item-time text-red failed-time" 
+             data-ended="${item.endedTs}">
+          ${formatRelativeTime(item.agoSeconds)}
+        </div>
+      </div>
+    `)
     .join("");
 }
 
@@ -1845,10 +1859,13 @@ export function collectNextScheduledClusters(limit = 6) {
 let dashboardLiveTimer = null;
 
 export function startDashboardLiveTimer() {
-  if (dashboardLiveTimer) return;
-  console.log("[DashboardLiveTimer] Starting (1s interval)");
-  dashboardLiveTimer = setInterval(updateDashboardLiveTimings, 1000);
-  updateDashboardLiveTimings(); // immediate first update
+  if (dashboardLiveTimer) clearInterval(dashboardLiveTimer);
+
+  dashboardLiveTimer = setInterval(() => {
+    if (document.getElementById("dashboard")?.classList.contains("active")) {
+      updateDashboardLiveTimings();
+    }
+  }, 1000);
 }
 
 export function stopDashboardLiveTimer() {
@@ -1883,7 +1900,6 @@ export function updateDashboardLiveCards() {
 }
 
 // ==================== BROADCAST REACTIVE UPDATES ====================
-
 export function updateDashboardLiveTimings() {
   if (!document.getElementById("dashboard")?.classList.contains("active"))
     return;
@@ -1924,9 +1940,65 @@ export function updateDashboardLiveTimings() {
       const ts = parseInt(td.dataset.timestamp);
       if (ts) td.textContent = formatRelativeTime(now - ts);
     });
+
+  // === NEW: Recently Failed live times ===
+  document.querySelectorAll("#dash-failed-list .failed-time").forEach((el) => {
+    const endedTs = parseInt(el.dataset.ended);
+    if (endedTs) {
+      const ago = now - endedTs;
+      el.textContent = formatRelativeTime(ago);
+    }
+  });
 }
 
-export function refreshDashboardCards(source = "") {
+// ==================== DASHBOARD CORE ====================
+
+export function refreshDashboard() {
+  if (!document.getElementById("dashboard")?.classList.contains("active")) return;
+
+  console.log("[refreshDashboard] Full refresh");
+
+  // Rebuild all visual cards from current Maps (single source of truth)
+  document.getElementById("dash-running-list").innerHTML = getLongestRunningJobsHTML(5);
+  document.getElementById("dash-failed-list").innerHTML = getRecentlyFailedListHTML(5);
+  document.getElementById("dash-overdue-list").innerHTML = getOverdueClustersListHTML();
+
+  updateNextScheduledClusters();
+  renderRecentActivityTable();
+  updateDashboardLiveTimings();
+}
+
+// ==================== DASHBOARD REFRESH ====================
+
+export function refreshDashboardCards(reason = "") {
+  if (!document.getElementById("dashboard")?.classList.contains("active")) 
+    return;
+
+  console.log(`[refreshDashboardCards] Triggered by: ${reason}`);
+
+  // Rebuild all cards from current authoritative Maps
+  const runningList = document.getElementById("dash-running-list");
+  const failedList = document.getElementById("dash-failed-list");
+  const overdueList = document.getElementById("dash-overdue-list");
+  const nextList = document.getElementById("dash-next-5");
+
+  if (runningList) runningList.innerHTML = getLongestRunningJobsHTML(5);
+  if (failedList) failedList.innerHTML = getRecentlyFailedListHTML(5);
+  if (overdueList) overdueList.innerHTML = getOverdueClustersListHTML();
+
+  // Next Scheduled
+  updateNextScheduledClusters();
+
+  // Recent Activity
+  renderRecentActivityTable();
+
+  // Immediate live timing update
+  updateDashboardLiveTimings();
+
+  console.log("[refreshDashboardCards] All cards refreshed");
+}
+
+export function refreshDashboardCards2(source = "") {
   if (!document.getElementById("dashboard")?.classList.contains("active"))
     return;
 

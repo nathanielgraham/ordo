@@ -15,6 +15,18 @@ import {
 } from "./utils.js";
 
 // ==================== TOM SELECT HELPERS ====================
+// Helper to get values from TomSelect multi-selects
+function TomSelectGetValues(selectId) {
+  const el = document.getElementById(selectId);
+  if (!el || !el.tomselect) {
+    console.warn(`[TomSelectGetValues] Element ${selectId} or TomSelect not found`);
+    return [];
+  }
+  const value = el.tomselect.getValue();
+  if (!value) return [];
+  return String(value).split(",").filter(Boolean).map(id => Number(id.trim()));
+}
+
 function initDependencySelect(selectId, clearBtnId, preSelectedIds = []) {
   const select = document.getElementById(selectId);
   if (!select) return console.warn(`Select not found: ${selectId}`);
@@ -153,76 +165,62 @@ function resetAllModals() {
 export function openJobModal(
   mode = "create",
   itemId = null,
-  parentId = null,
+  clusterId = null,      // renamed for clarity
   parentName = null,
 ) {
+  const modal = document.getElementById("job-modal");
+  if (!modal) return;
+
   let item = null;
   if (mode === "edit" && itemId) {
-    item = findJobById(appState.monitorData.tree, itemId);
+    item = appState.jobsMap.get(Number(itemId)) || 
+           findJobById(appState.monitorData.tree, itemId);
   }
-  appState.currentEditItem = item;
-  appState.currentParentId = parentId;
-  appState.currentParentName = parentName;
 
   const isEdit = mode === "edit";
-  document.getElementById("job-modal-title").textContent = isEdit
-    ? "Edit Job"
-    : "New Job";
+
+  modal.dataset.editId = isEdit ? String(itemId) : "";
+  modal.dataset.clusterId = clusterId || "";        // ← Use clusterId
+
+  // Title & Context
+  document.getElementById("job-modal-title").textContent = isEdit ? "Edit Job" : "New Job";
   document.getElementById("job-context").textContent = isEdit
-    ? `ID: ${item?.id || "—"}`
-    : parentName
-      ? `In cluster: ${parentName}`
-      : "In root";
+    ? `Editing: ${item?.name || "—"}`
+    : parentName ? `In cluster: ${parentName}` : "In root";
 
-  document.getElementById("job-name").value = isEdit
-    ? item?.name || ""
-    : "new-job";
-  document.getElementById("job-description").value = isEdit
-    ? item?.description || ""
-    : "";
-  document.getElementById("job-script").value = isEdit
-    ? item?.script || ""
-    : "";
-  document.getElementById("job-loops").value = isEdit
-    ? (item?.loops ?? 0)
-    : "0";
-  document.getElementById("job-retrys").value = isEdit
-    ? (item?.retrys ?? 0)
-    : "0";
-  document.getElementById("job-delay").value = isEdit
-    ? (item?.delay ?? 0)
-    : "0";
+  // Form fields
+  document.getElementById("job-name").value = item?.name || "new-job";
+  document.getElementById("job-script").value = item?.script || "";
+  document.getElementById("job-description").value = item?.description || "";
+  document.getElementById("job-loops").value = item?.loops ?? 0;
+  document.getElementById("job-retrys").value = item?.retrys ?? 0;
+  document.getElementById("job-delay").value = item?.delay ?? 0;
 
-  // Populate server select
+  // Server
   const serverSelect = document.getElementById("job-server");
   serverSelect.innerHTML = '<option value="">None / Clear</option>';
-  appState.serversData.forEach((s) => {
-    const opt = document.createElement("option");
-    opt.value = s.name;
-    opt.textContent = s.name;
-    if (isEdit && s.name === item?.server_name) opt.selected = true;
+  appState.serversData.forEach(s => {
+    const opt = new Option(s.name, s.name);
+    if (item?.server_name === s.name) opt.selected = true;
     serverSelect.appendChild(opt);
   });
 
-  // Populate dependencies
-  populateJobDependencies("job-needs", item?.needs_ids || []);
-  populateJobDependencies("job-needs-any", item?.needs_any_ids || []);
-  populateClusterDependencies(
-    "job-on-fail",
-    item?.on_fail_id ? [item.on_fail_id] : [],
-  );
+  // Dependencies
+  const needsIds = item?.needs_ids || [];
+  const needsAnyIds = item?.needs_any_ids || [];
+  const onFailId = item?.on_fail_id || null;
 
-  // Initialize Tom Select
-  initDependencySelect("job-needs", "clear-job-needs", item?.needs_ids || []);
-  initDependencySelect(
-    "job-needs-any",
-    "clear-job-needs-any",
-    item?.needs_any_ids || [],
-  );
-  initSingleSelect("job-on-fail", item?.on_fail_id ? [item.on_fail_id] : []);
+  populateJobDependencies("job-needs", needsIds);
+  populateJobDependencies("job-needs-any", needsAnyIds);
+  populateClusterDependencies("job-on-fail", onFailId ? [onFailId] : []);
+
+  initDependencySelect("job-needs", "clear-job-needs", needsIds);
+  initDependencySelect("job-needs-any", "clear-job-needs-any", needsAnyIds);
+  initSingleSelect("job-on-fail", onFailId ? [onFailId] : []);
   initSingleSelect("job-server", item?.server_name ? [item.server_name] : []);
 
-  document.getElementById("job-modal").classList.add("active");
+  modal.classList.add("active");
+  document.getElementById("job-name").focus();
 }
 
 // ==================== SERVER MODAL ====================
@@ -266,69 +264,60 @@ export function openClusterModal(
   parentId = null,
   parentName = null,
 ) {
-  let item = null;
-  if (mode === "edit" && itemId) {
-    item = findClusterById(appState.monitorData.tree, itemId);
-  }
+  const modal = document.getElementById("cluster-modal");
+  if (!modal) return;
 
-  appState.currentEditItem = item;
-  appState.currentParentId = parentId;
-  appState.currentParentName = parentName;
+  let item = null;
+
+  if (mode === "edit" && itemId) {
+    const numericId = Number(itemId);
+    
+    // Prefer the most up-to-date data from clustersMap
+    item = appState.clustersMap.get(numericId);
+    
+    // Fallback to tree if needed
+    if (!item) {
+      item = findClusterById(appState.monitorData.tree, numericId);
+    }
+  }
 
   const isEdit = mode === "edit";
 
-  // Safe element access
-  const titleEl = document.getElementById("cluster-modal-title");
-  if (titleEl) titleEl.textContent = isEdit ? "Edit Cluster" : "New Cluster";
+  // Critical dataset
+  modal.dataset.editId = isEdit ? String(itemId) : "";
+  modal.dataset.parentId = parentId || "";
 
-  const contextEl = document.getElementById("cluster-context");
-  if (contextEl) {
-    contextEl.textContent = isEdit
-      ? `ID: ${item?.id || "—"}`
-      : parentName
-        ? `In cluster: ${parentName}`
-        : "In root";
-  }
+  // Title & Context
+  document.getElementById("cluster-modal-title").textContent = isEdit
+    ? "Edit Cluster"
+    : "New Cluster";
 
-  const nameEl = document.getElementById("cluster-name");
-  if (nameEl) nameEl.value = isEdit ? item?.name || "" : "new-cluster";
+  document.getElementById("cluster-context").textContent = isEdit
+    ? `Editing: ${item?.name || "—"} (ID: ${item?.id || "—"})`
+    : parentName ? `In cluster: ${parentName}` : "In root";
 
-  const descEl = document.getElementById("cluster-description");
-  if (descEl) descEl.value = isEdit ? item?.description || "" : "";
+  // Form fields — use fresh item data
+  document.getElementById("cluster-name").value = item?.name || "new-cluster";
+  document.getElementById("cluster-description").value = item?.description || "";
+  document.getElementById("cluster-loops").value = item?.loops ?? 0;
+  document.getElementById("cluster-clonable").checked = !!item?.clonable;
 
-  const loopsEl = document.getElementById("cluster-loops");
-  if (loopsEl) loopsEl.value = isEdit ? (item?.loops ?? 0) : "0";
+  // Dependencies
+  const needsIds = item?.needs_ids || [];
+  const needsAnyIds = item?.needs_any_ids || [];
+  const onFailId = item?.on_fail_id || null;
 
-  const clonableEl = document.getElementById("cluster-clonable");
-  if (clonableEl) clonableEl.checked = isEdit && !!item?.clonable;
+  populateClusterDependencies("cluster-needs", needsIds);
+  populateClusterDependencies("cluster-needs-any", needsAnyIds);
+  populateClusterDependencies("cluster-on-fail", onFailId ? [onFailId] : []);
 
-  // Populate dependencies (safe)
-  populateClusterDependencies("cluster-needs", item?.needs_ids || []);
-  populateClusterDependencies("cluster-needs-any", item?.needs_any_ids || []);
-  populateClusterDependencies(
-    "cluster-on-fail",
-    item?.on_fail_id ? [item.on_fail_id] : [],
-  );
+  // TomSelects
+  initDependencySelect("cluster-needs", "clear-cluster-needs", needsIds);
+  initDependencySelect("cluster-needs-any", "clear-cluster-needs-any", needsAnyIds);
+  initSingleSelect("cluster-on-fail", onFailId ? [onFailId] : []);
 
-  // Initialize Tom Selects (safe)
-  initDependencySelect(
-    "cluster-needs",
-    "clear-cluster-needs",
-    item?.needs_ids || [],
-  );
-  initDependencySelect(
-    "cluster-needs-any",
-    "clear-cluster-needs-any",
-    item?.needs_any_ids || [],
-  );
-  initSingleSelect(
-    "cluster-on-fail",
-    item?.on_fail_id ? [item.on_fail_id] : [],
-  );
-
-  // Finally show the modal
-  const modal = document.getElementById("cluster-modal");
-  if (modal) modal.classList.add("active");
+  modal.classList.add("active");
+  document.getElementById("cluster-name").focus();
 }
 
 // ==================== ATTACH CALENDAR MODAL ====================
@@ -624,19 +613,22 @@ export function openCalendarModal(mode = "create", calId = null) {
       option: (data) => `<div>${data.text}</div>`,
       item: (data) => `<div class="item">${data.text}</div>`,
     },
-    onInitialize: function () {
-      // Default to browser's local timezone on create
-      if (!isEdit) {
-        const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        if (this.options[localTz]) {
-          this.setValue(localTz);
-        } else {
-          // Fallback: show custom input pre-filled
-          document.getElementById("calendar-tz-custom").value = localTz;
-          document.getElementById("calendar-tz-custom").style.display = "block";
-        }
-      }
-    },
+
+onInitialize: function () {
+  if (!isEdit) {
+    const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    console.log("[openCalendarModal] Setting default timezone to:", localTz);
+    
+    if (this.options[localTz]) {
+      this.setValue(localTz);
+    } else {
+      this.setValue(""); 
+      document.getElementById("calendar-tz-custom").value = localTz;
+      document.getElementById("calendar-tz-custom").style.display = "block";
+    }
+  }
+},
+
   });
 
   tzSelect.tomselect = tom;
@@ -685,51 +677,46 @@ export function openCalendarModal(mode = "create", calId = null) {
 }
 
 // ==================== CRONS LIST MODAL ====================
-// modals.js (most recent version)
 export function openCronsModal(calId) {
-  console.log("[DEBUG] openCronsModal called – calId:", calId);
-  const cal = appState.calendarsData.find((c) => c.id === Number(calId));
+  const cal = appState.calendarsData.find((c) => Number(c.id) === Number(calId));
   if (!cal) {
-    console.warn("[DEBUG] Calendar not found for calId:", calId);
     showToast("Calendar not found", "danger");
     return;
   }
-  console.log(
-    "[DEBUG] Found calendar:",
-    cal.name,
-    "with",
-    cal.crons?.length || 0,
-    "crons",
-  );
+
   const modal = document.getElementById("crons-modal");
-  if (!modal) {
-    console.error("[DEBUG] #crons-modal not found");
-    showToast("Crons modal not found", "danger");
-    return;
-  }
-  modal.dataset.calId = calId;
-  document.getElementById("crons-modal-title").textContent =
-    `Crons for ${cal.name}`;
+  if (!modal) return;
+
+  modal.dataset.calId = String(calId);
+  document.getElementById("crons-modal-title").textContent = `Crons for ${cal.name || "Calendar"}`;
+
   const loading = document.getElementById("crons-loading");
   const content = document.getElementById("crons-content");
   const body = document.getElementById("crons-body");
   const noCronsMsg = document.getElementById("no-crons-message");
+
   loading.style.display = "block";
   content.style.display = "none";
   body.innerHTML = "";
-  if (cal.crons.length > 0) {
-    cal.crons.forEach((cron) => {
+
+  const crons = cal.crons || [];
+
+  if (crons.length > 0) {
+    crons.forEach((cron) => {
       const tr = document.createElement("tr");
+      tr.className = "crons-row";
       tr.innerHTML = `
         <td>${cron.id}</td>
-        <td>${cron.name}</td>
-        <td>${cron.english || "—"}</td>
-        <td>${cron.begin ? new Date(cron.begin * 1000).toLocaleString() : "Immediate"}</td>
-        <td>${cron.expire ? new Date(cron.expire * 1000).toLocaleString() : "Never"}</td>
-        <td>${cron.description || "—"}</td>
-        <td>${formatDate(cron.next_start)}</td>
+        <td>${escapeHtml(cron.name || cron.expression || "—")}</td>
+        <td>${escapeHtml(cron.english || "—")}</td>
+        <td>${cron.begin ? formatDate(cron.begin) : "Immediate"}</td>
+        <td>${cron.expire ? formatDate(cron.expire) : "Never"}</td>
+        <td>${escapeHtml(cron.description || "—")}</td>
+        <td>${formatDate(cron.next_start) || "—"}</td>
         <td>
-          <button class="btn btn-sm btn-danger delete-cron" data-cron-id="${cron.id}" data-cal-id="${cal.id}">
+          <button class="btn btn-sm btn-danger delete-cron" 
+                  data-cron-id="${cron.id}" 
+                  data-cal-id="${cal.id}">
             <i class="fas fa-trash"></i>
           </button>
         </td>
@@ -740,6 +727,7 @@ export function openCronsModal(calId) {
   } else {
     noCronsMsg.style.display = "block";
   }
+
   loading.style.display = "none";
   content.style.display = "block";
   modal.classList.add("active");
@@ -788,74 +776,172 @@ function saveAttachCalendar() {
   document.getElementById("attach-calendar-modal").classList.remove("active");
 }
 
-function saveJob() {
-  const isEdit = !!appState.currentEditItem;
-  const newName = document.getElementById("job-name").value.trim();
+export function saveJob() {
+  const modal = document.getElementById("job-modal");
+  const isEdit = !!modal.dataset.editId;
+  const id = isEdit ? Number(modal.dataset.editId) : null;
+
   const payload = {
     command: isEdit ? "update_job_config" : "create_job",
-    id: isEdit ? Number(appState.currentEditItem.id) : undefined,
-    parent_id: !isEdit ? appState.currentParentId : undefined,
-    name: !isEdit ? newName : undefined,
-    newname: isEdit && newName ? newName : undefined,
-    description:
-      document.getElementById("job-description").value.trim() || undefined,
-    script: document.getElementById("job-script").value.trim() || undefined,
-    server: document.getElementById("job-server").value || undefined,
-    loops: Number(document.getElementById("job-loops").value) || 0,
-    retrys: Number(document.getElementById("job-retrys").value) || 0,
-    delay: Number(document.getElementById("job-delay").value) || 0,
-    needs_ids:
-      document.getElementById("job-needs").tomselect?.getValue().map(Number) ||
-      [],
-    needs_any_ids:
-      document
-        .getElementById("job-needs-any")
-        .tomselect?.getValue()
-        .map(Number) || [],
-    on_fail_id: document.getElementById("job-on-fail").tomselect?.getValue()
-      ? Number(document.getElementById("job-on-fail").tomselect.getValue())
-      : null,
+    name: (document.getElementById("job-name").value || "").trim(),
+    script: (document.getElementById("job-script").value || "").trim(),
+    server: (document.getElementById("job-server").value || "").trim(),
+    description: (document.getElementById("job-description").value || "").trim(),
+    retrys: parseInt(document.getElementById("job-retrys").value) || 0,
+    loops: parseInt(document.getElementById("job-loops").value) || 0,
+    delay: parseInt(document.getElementById("job-delay").value) || 0,
   };
+
+  // Dependencies
+  const needs = TomSelectGetValues("job-needs");
+  const needsAny = TomSelectGetValues("job-needs-any");
+  const onFailId = document.getElementById("job-on-fail")?.value;
+
+  if (needs.length) payload.needs_ids = needs.map(Number);
+  if (needsAny.length) payload.needs_any_ids = needsAny.map(Number);
+  if (onFailId && onFailId !== "") payload.on_fail_id = Number(onFailId);
+
+  // Parent only for new jobs
+  if (!isEdit) {
+    let parentId = modal.dataset.parentId || modal.dataset.clusterId;
+    if (!parentId) {
+      const selected = document.querySelector("#tree-body tr.selected");
+      if (selected?.classList.contains("ordo-cluster-row")) parentId = selected.dataset.id;
+    }
+    if (parentId) payload.parent_id = Number(parentId);
+  } else {
+    payload.id = id;
+    
+    // IMPORTANT: For renaming, use 'newname'
+    const newName = payload.name;
+    if (newName) {
+      payload.newname = newName;
+      delete payload.name;        // remove 'name' when editing
+    }
+  }
+
+  if (!payload.name && !isEdit) {
+    showToast("Job name is required", "danger");
+    return;
+  }
+
+  console.log("[saveJob] Final payload:", payload);
   sendWS(payload);
+
+  modal.classList.remove("active");
   showToast(isEdit ? "Job updated" : "Job created", "success");
-  document.getElementById("job-modal").classList.remove("active");
-  resetAllModals();
 }
 
-function saveCluster() {
-  const isEdit = !!appState.currentEditItem;
-  const newName = document.getElementById("cluster-name").value.trim();
+// ==================== SAVE CLUSTER ====================
+export function saveCluster() {
+  const modal = document.getElementById("cluster-modal");
+  const isEdit = !!modal.dataset.editId;
+  const id = isEdit ? Number(modal.dataset.editId) : null;
+
   const payload = {
     command: isEdit ? "update_cluster" : "create_cluster",
-    id: isEdit ? Number(appState.currentEditItem.id) : undefined,
-    parent_id: !isEdit ? appState.currentParentId : undefined,
-    name: !isEdit ? newName : undefined,
-    newname: isEdit && newName ? newName : undefined,
-    description:
-      document.getElementById("cluster-description").value.trim() || undefined,
-    loops: Number(document.getElementById("cluster-loops").value) || 0,
-    needs_ids:
-      document
-        .getElementById("cluster-needs")
-        .tomselect?.getValue()
-        .map(Number) || [],
-    needs_any_ids:
-      document
-        .getElementById("cluster-needs-any")
-        .tomselect?.getValue()
-        .map(Number) || [],
-    clonable: document.getElementById("cluster-clonable").checked,
-    on_fail_id: document.getElementById("cluster-on-fail").tomselect?.getValue()
-      ? Number(document.getElementById("cluster-on-fail").tomselect.getValue())
-      : null,
+    name: (document.getElementById("cluster-name").value || "").trim(),
+    description: (document.getElementById("cluster-description").value || "").trim(),
+    loops: parseInt(document.getElementById("cluster-loops").value) || 0,
+    clonable: document.getElementById("cluster-clonable")?.checked || false,
   };
+
+  // Dependencies
+  const needs = TomSelectGetValues("cluster-needs");
+  const needsAny = TomSelectGetValues("cluster-needs-any");
+  const onFailId = document.getElementById("cluster-on-fail")?.value;
+
+  if (needs.length) payload.needs_ids = needs.map(Number);
+  if (needsAny.length) payload.needs_any_ids = needsAny.map(Number);
+  if (onFailId && onFailId !== "") {
+    payload.on_fail_id = Number(onFailId);
+  }
+
+  // ==================== PARENT_ID (only for new clusters) ====================
+  if (!isEdit) {
+    let parentId = modal.dataset.parentId || modal.dataset.clusterId;
+
+    if (!parentId) {
+      const selectedRow = document.querySelector("#tree-body tr.selected");
+      if (selectedRow?.classList.contains("ordo-cluster-row")) {
+        parentId = selectedRow.dataset.id;
+      }
+    }
+
+    if (parentId) {
+      payload.parent_id = Number(parentId);
+      console.log(`[saveCluster] ✓ New cluster → parent_id = ${payload.parent_id}`);
+    } else {
+      console.error("[saveCluster] ❌ No parent_id found for new cluster!");
+      showToast("Please select a parent cluster first", "danger");
+      return;
+    }
+  } else {
+    // === EDIT MODE ===
+    payload.id = id;
+
+    // Rename handling - backend expects 'newname' on update
+    const newName = payload.name;
+    if (newName) {
+      payload.newname = newName;
+      delete payload.name;           // remove original 'name' field
+    }
+  }
+
+  if (!payload.name && !isEdit) {
+    showToast("Cluster name is required", "danger");
+    return;
+  }
+
+  console.log("[saveCluster] Final payload:", payload);
   sendWS(payload);
-  showToast(isEdit ? "Cluster updated" : "Cluster created", "success");
-  document.getElementById("cluster-modal").classList.remove("active");
-  resetAllModals();
+
+  modal.classList.remove("active");
+  showToast(isEdit ? "Cluster updated successfully" : "Cluster created successfully", "success");
 }
 
-function saveCalendar() {
+export function saveCalendar() {
+  const modal = document.getElementById("calendar-modal");
+  const isEdit = !!modal.dataset.editId;
+  const id = isEdit ? Number(modal.dataset.editId) : null;
+
+  const tzSelect = document.getElementById("calendar-tz");
+  let tzValue = tzSelect.tomselect ? tzSelect.tomselect.getValue() : tzSelect.value;
+
+  // Fallback to custom input if nothing selected
+  if (!tzValue || tzValue === "") {
+    tzValue = document.getElementById("calendar-tz-custom").value.trim();
+  }
+
+  const payload = {
+    command: isEdit ? "update_cal" : "create_cal",
+    name: (document.getElementById("calendar-name").value || "").trim(),
+    tz: tzValue || "UTC",                    // ← This was the main bug
+    description: (document.getElementById("calendar-description").value || "").trim(),
+  };
+
+  if (!payload.name) {
+    showToast("Calendar name is required", "danger");
+    return;
+  }
+
+  if (isEdit) {
+    payload.id = id;
+    const newName = payload.name;
+    if (newName) {
+      payload.newname = newName;
+      delete payload.name;
+    }
+  }
+
+  console.log("[saveCalendar] Sending payload:", payload);
+  sendWS(payload);
+
+  modal.classList.remove("active");
+  showToast(isEdit ? "Calendar updated" : "Calendar created", "success");
+}
+
+function saveCalendar2() {
   const name = document.getElementById("calendar-name")?.value.trim();
   const tom = document.getElementById("calendar-tz")?.tomselect;
   let tz = tom?.getValue() || "";

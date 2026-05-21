@@ -132,9 +132,6 @@ select:focus {
   border-color: var(--glow-cyan);
   box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
 }
-.state-badge::before {
-  font-size: 1.1em !important;
-}
 .tag {
   background: 0 0 !important;
   border: 1px solid currentColor;
@@ -181,8 +178,6 @@ h1 {
 h2 {
   font-size: clamp(22px, 4vw, 36px) !important;
 }
-.state-badge,
-.stats-badge,
 .tag {
   font-size: clamp(12px, 1.5vw, 15px) !important;
 }
@@ -427,6 +422,13 @@ main.content {
 .state-badge.unknown {
   color: #b0bec5;
 }
+
+/* Spinner Animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 .hero-section {
   padding: 6rem 1.5rem;
   color: #fff;

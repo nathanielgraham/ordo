@@ -1,16 +1,23 @@
 // tree/tree-table.js – Pure rendering logic only
 import { appState, updateCollapsedClusters } from "../state.js";
 import { toggleSubtree } from "./tree-listeners.js";
-import { updateFreshnessCell, renderDashboard, updateDashboardLiveCards, updateNextScheduledClusters } from "../ui-handlers.js";
+import {
+  updateFreshnessCell,
+  renderDashboard,
+  updateDashboardLiveCards,
+  updateNextScheduledClusters,
+} from "../ui-handlers.js";
 import {
   formatTplus,
   formatTminus,
   formatDuration,
   formatRelativeTime,
+  findClusterByIdFast,
+  findJobByIdFast,
   findClusterById,
   findJobById,
   getFullPath,
-  resolveDepName
+  resolveDepName,
 } from "../utils.js";
 
 // Sort tree nodes (jobs before clusters at same level)
@@ -28,7 +35,13 @@ function sortTreeNodes(nodes) {
 }
 
 // Shared row content generator
-function generateRowContent(item, depth = 0, parentId = null, index = 0, siblingCount = 1) {
+function generateRowContent(
+  item,
+  depth = 0,
+  parentId = null,
+  index = 0,
+  siblingCount = 1,
+) {
   const isCluster = item.is_cluster;
   const hasChildren = isCluster && item.children?.length > 0;
   const stateLower = (item.jobstate || "").toLowerCase().trim();
@@ -36,9 +49,7 @@ function generateRowContent(item, depth = 0, parentId = null, index = 0, sibling
   const isLastInSiblings = index === siblingCount - 1;
 
   // Toggle & icon
-  const toggleHtml = isCluster
-    ? `<span class="ordo-toggle"></span>`
-    : "";
+  const toggleHtml = isCluster ? `<span class="ordo-toggle"></span>` : "";
   const icon = isCluster
     ? '<i class="fas fa-folder mr-2 has-text-info"></i>'
     : '<i class="fas fa-cog mr-2 has-text-grey"></i>';
@@ -52,12 +63,16 @@ function generateRowContent(item, depth = 0, parentId = null, index = 0, sibling
   let depsTooltipLines = [];
   if (item.needs_ids?.length) {
     depsCount += item.needs_ids.length;
-    const lines = item.needs_ids.map((id) => `• ${resolveDepName(id, appState.monitorData.tree, isCluster)}`);
+    const lines = item.needs_ids.map(
+      (id) => `• ${resolveDepName(id, appState.monitorData.tree, isCluster)}`,
+    );
     depsTooltipLines.push(`Needs (blocking):\n${lines.join("\n")}`);
   }
   if (item.needs_any_ids?.length) {
     depsCount += item.needs_any_ids.length;
-    const lines = item.needs_any_ids.map((id) => `• ${resolveDepName(id, appState.monitorData.tree, isCluster)}`);
+    const lines = item.needs_any_ids.map(
+      (id) => `• ${resolveDepName(id, appState.monitorData.tree, isCluster)}`,
+    );
     depsTooltipLines.push(`Needs Any (flexible):\n${lines.join("\n")}`);
   }
   if (item.on_fail_id) {
@@ -67,7 +82,9 @@ function generateRowContent(item, depth = 0, parentId = null, index = 0, sibling
     depsTooltipLines.push(`On Fail:\n• ${path}`);
   }
   const depsDisplay = depsCount > 0 ? depsCount : "—";
-  const depsTitle = depsTooltipLines.length ? depsTooltipLines.join("\n\n") : "";
+  const depsTitle = depsTooltipLines.length
+    ? depsTooltipLines.join("\n\n")
+    : "";
 
   // Stats
   let statsDisplay = "—";
@@ -97,12 +114,18 @@ function generateRowContent(item, depth = 0, parentId = null, index = 0, sibling
     if (item.fname) {
       statsTooltipLines.push(`• Command: ${item.fname}`);
     }
-    if (item.jobstate === "running" && item.pid !== null && item.pctcpu == null) {
+    if (
+      item.jobstate === "running" &&
+      item.pid !== null &&
+      item.pctcpu == null
+    ) {
       statsTooltipLines.push("");
       statsTooltipLines.push("Full stats not collected – run update_stats.pl");
     }
   }
-  const statsTitle = statsTooltipLines.length ? statsTooltipLines.join("\n") : "";
+  const statsTitle = statsTooltipLines.length
+    ? statsTooltipLines.join("\n")
+    : "";
 
   // Actions HTML
   const menuItem = (text, disabled = false, action = null) => {
@@ -130,7 +153,9 @@ function generateRowContent(item, depth = 0, parentId = null, index = 0, sibling
       </div>
     `;
   } else if (isCluster) {
-    const runDisabled = (stateLower === "running" && !item.clonable) || ["immutable", "ice", "hold"].includes(stateLower);
+    const runDisabled =
+      (stateLower === "running" && !item.clonable) ||
+      ["immutable", "ice", "hold"].includes(stateLower);
     const killDisabled = stateLower !== "running";
     const holdDisabled = ["hold", "immutable", "ice"].includes(stateLower);
     const releaseDisabled = stateLower !== "hold";
@@ -169,7 +194,9 @@ function generateRowContent(item, depth = 0, parentId = null, index = 0, sibling
       </div>
     `;
   } else {
-    const runDisabled = (stateLower === "running" && !item.clonable) || ["immutable", "ice", "hold"].includes(stateLower);
+    const runDisabled =
+      (stateLower === "running" && !item.clonable) ||
+      ["immutable", "ice", "hold"].includes(stateLower);
     const killDisabled = stateLower !== "running";
     const holdDisabled = ["hold", "immutable", "ice"].includes(stateLower);
     const releaseDisabled = stateLower !== "hold";
@@ -226,8 +253,16 @@ function generateRowContent(item, depth = 0, parentId = null, index = 0, sibling
 }
 
 // Build single row (initial and new)
-function buildSingleRow(row, item, depth = 0, parentId = null, index = 0, siblingCount = 1) {
-  const { html, isCollapsed, isLastInSiblings, hasChildren } = generateRowContent(item, depth, parentId, index, siblingCount);
+function buildSingleRow(
+  row,
+  item,
+  depth = 0,
+  parentId = null,
+  index = 0,
+  siblingCount = 1,
+) {
+  const { html, isCollapsed, isLastInSiblings, hasChildren } =
+    generateRowContent(item, depth, parentId, index, siblingCount);
 
   row.id = item.is_cluster ? `row-cluster-${item.id}` : `row-job-${item.id}`;
   row.className = item.is_cluster ? "ordo-cluster-row" : "ordo-job-row";
@@ -248,88 +283,109 @@ function buildSingleRow(row, item, depth = 0, parentId = null, index = 0, siblin
   if (isCollapsed) {
     row.classList.add("collapsed");
   }
-  row.setAttribute("aria-expanded", hasChildren ? (!isCollapsed).toString() : "false");
+  row.setAttribute(
+    "aria-expanded",
+    hasChildren ? (!isCollapsed).toString() : "false",
+  );
 }
 
 // ==================== FIXED updateRow ====================
-function updateRow(row, item) {
+export function updateRow(row, item) {
   if (!row || !item) return;
-
-  console.log(`[updateRow] ${item.is_cluster ? 'CLUSTER' : 'JOB'} ID=${item.id} | next_start=`, item.next_start);
 
   const depth = Number(row.dataset.depth) || 0;
   const parentId = row.dataset.parent || null;
+
   const { html, isCollapsed } = generateRowContent(item, depth, parentId);
 
+  // Only replace innerHTML — preserve collapse class and data attributes
   row.innerHTML = html;
-  row.className = item.is_cluster ? "ordo-cluster-row" : "ordo-job-row";
 
-  if (isCollapsed) row.classList.add("collapsed");
-  else row.classList.remove("collapsed");
+  if (isCollapsed) {
+    row.classList.add("collapsed");
+  } else {
+    row.classList.remove("collapsed");
+  }
 
-  // === FIXED: Always update Next Run for clusters ===
-  if (item.is_cluster && item.next_start !== undefined && item.next_start !== null) {
-    const nextRunCell = row.querySelector("td:nth-child(8)"); // Next Run column
-
+  // Critical: Always update Next Run column for clusters
+  if (item.is_cluster && item.next_start !== undefined) {
+    const nextRunCell = row.cells[7]; // 8th column (0-based)
     if (nextRunCell) {
-      const formatted = formatTminus(item.next_start);
-      console.log(`[updateRow] → Setting Next Run to: "${formatted}"`);
-
-      nextRunCell.textContent = formatted;
+      nextRunCell.textContent = formatTminus(item.next_start) || "—";
       nextRunCell.dataset.nextStart = item.next_start;
     }
   }
+
+  // Update live timing cells safely
+  const cells = row.cells;
+  if (cells[5]) cells[5].textContent = formatTplus(item.started) || "—";
+  if (cells[6])
+    cells[6].textContent = formatDuration(item.started, item.ended) || "—";
 }
 
-// ==================== FIXED insertRow ====================
-function insertRow(item, parentId = null) {
+export function insertRow(item, parentId = null) {
   const tbody = document.getElementById("tree-body");
   if (!tbody) return;
 
+  const isCluster = !!item.is_cluster;
+  const rowId = isCluster ? `row-cluster-${item.id}` : `row-job-${item.id}`;
+
+  // Avoid duplicate rows
+  if (document.getElementById(rowId)) {
+    console.warn(`[insertRow] Row ${rowId} already exists, updating instead`);
+    const existingRow = document.getElementById(rowId);
+    updateRow(existingRow, item);
+    return;
+  }
+
   const newRow = document.createElement("tr");
-  const rowId = item.is_cluster ? `row-cluster-${item.id}` : `row-job-${item.id}`;
   newRow.id = rowId;
 
-  const depth = parentId 
-    ? (Number(document.getElementById(`row-cluster-${parentId}`)?.dataset.depth) || 0) + 1 
-    : 0;
-
-  buildSingleRow(newRow, item, depth, parentId, 0, 1);
-
-  // === FIXED: Set Next Run for new clusters ===
-  if (item.is_cluster && item.next_start !== undefined && item.next_start !== null) {
-    const nextRunCell = newRow.querySelector("td:nth-child(8)");
-    if (nextRunCell) {
-      const formatted = formatTminus(item.next_start);
-      nextRunCell.textContent = formatted;
-      nextRunCell.dataset.nextStart = item.next_start;
+  // Determine correct depth
+  let depth = 0;
+  if (parentId) {
+    const parentRow = document.getElementById(`row-cluster-${parentId}`);
+    if (parentRow) {
+      depth = Number(parentRow.dataset.depth || 0) + 1;
+    } else {
+      console.warn(`[insertRow] Parent ${parentId} not found in DOM`);
     }
   }
 
-  // Your existing insert logic
-  let insertBefore = null;
-  if (parentId) {
-    const siblings = document.querySelectorAll(`tr[data-parent="${parentId}"]`);
-    if (siblings.length > 0) insertBefore = siblings[siblings.length - 1].nextSibling;
-  }
+  buildSingleRow(newRow, item, depth, parentId);
 
-  if (insertBefore) {
-    tbody.insertBefore(newRow, insertBefore);
-  } else if (parentId) {
+  // === SMART INSERTION ===
+  if (parentId) {
     const parentRow = document.getElementById(`row-cluster-${parentId}`);
-    if (parentRow) parentRow.after(newRow);
+    if (parentRow) {
+      // Find the last child of this parent
+      let insertAfter = parentRow;
+      let sibling = parentRow.nextElementSibling;
+
+      while (sibling && String(sibling.dataset.parent) === String(parentId)) {
+        insertAfter = sibling;
+        sibling = sibling.nextElementSibling;
+      }
+
+      insertAfter.after(newRow);
+      console.log(`[insertRow] ✓ Inserted ${isCluster ? 'cluster' : 'job'} "${item.name}" as child of ${parentId}`);
+    } else {
+      tbody.appendChild(newRow); // fallback
+    }
   } else {
     tbody.appendChild(newRow);
+    console.log(`[insertRow] ✓ Inserted top-level item "${item.name}"`);
   }
 
-  if (item.is_cluster && appState.collapsedClusters.has(String(item.id))) {
+  // Re-apply collapse state if needed
+  if (isCluster && appState.collapsedClusters.has(String(item.id))) {
     newRow.classList.add("collapsed");
     toggleSubtree(item.id, true);
   }
 }
 
 // Remove row
-function removeRow(id, isCluster) {
+export function removeRow(id, isCluster) {
   const rowId = isCluster ? `row-cluster-${id}` : `row-job-${id}`;
   const row = document.getElementById(rowId);
   if (row) row.remove();
@@ -384,7 +440,7 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
 
     if (item.is_cluster && appState.collapsedClusters.has(String(item.id))) {
       row.classList.add("collapsed");
-      toggleSubtree(item.id, true);  // hides children subtree
+      toggleSubtree(item.id, true); // hides children subtree
     }
     if (item.children && item.children.length > 0) {
       buildRows(item.children, tbody, depth + 1, item.id);
@@ -406,10 +462,12 @@ export function startLiveTimings() {
   if (liveTimingInterval) return;
 
   // Cache elements on start
-  dashboardRecentTds = Array.from(document.querySelectorAll('#dash-recent-body td[data-timestamp]'));
-  runningNowContainer = document.getElementById('dash-running-list');
-  failedNowContainer = document.getElementById('dash-failed-list');
-  nextScheduledContainer = document.getElementById('dash-next-5');
+  dashboardRecentTds = Array.from(
+    document.querySelectorAll("#dash-recent-body td[data-timestamp]"),
+  );
+  runningNowContainer = document.getElementById("dash-running-list");
+  failedNowContainer = document.getElementById("dash-failed-list");
+  nextScheduledContainer = document.getElementById("dash-next-5");
 
   liveTimingInterval = setInterval(updateLiveTimings, 1000);
   updateLiveTimings(); // immediate update
@@ -431,19 +489,21 @@ export function updateLiveTimings() {
   const now = Math.floor(Date.now() / 1000);
 
   // Tree table (when visible)
-  const monitorTab = document.getElementById('monitor');
-  if (monitorTab && monitorTab.classList.contains('active')) {
+  const monitorTab = document.getElementById("monitor");
+  if (monitorTab && monitorTab.classList.contains("active")) {
+    // Inside updateLiveTimings(), in the monitorTab block:
     document.querySelectorAll("#tree-body tr[data-id]").forEach((row) => {
       const id = row.dataset.id;
-      const isClusterRow = row.classList.contains("ordo-cluster-row");
-      const item = isClusterRow
-        ? findClusterById(appState.monitorData.tree, id)
-        : findJobById(appState.monitorData.tree, id);
+      const isCluster = row.classList.contains("ordo-cluster-row");
+
+      const item = isCluster ? findClusterByIdFast(id) : findJobByIdFast(id);
+
       if (!item) return;
 
       const cells = row.cells;
       if (cells[5]) cells[5].textContent = formatTplus(item.started) || "—";
-      if (cells[6]) cells[6].textContent = formatDuration(item.started, item.ended) || "—";
+      if (cells[6])
+        cells[6].textContent = formatDuration(item.started, item.ended) || "—";
       if (cells[7]) cells[7].textContent = formatTminus(item.next_start) || "—";
     });
   }
@@ -454,11 +514,11 @@ export function updateLiveTimings() {
     document.querySelectorAll("#servers-body tr").forEach((row) => {
       const updateTime = Number(row.dataset.updateTime);
       if (isNaN(updateTime) || updateTime <= 0) return;
-      const server = appState.serversData.find((s) => Number(s.update_time) === updateTime);
+      const server = appState.serversData.find(
+        (s) => Number(s.update_time) === updateTime,
+      );
       if (server) updateFreshnessCell(row, server, now);
     });
   }
 }
 
-// Export for incremental use
-export { updateRow, insertRow, removeRow };

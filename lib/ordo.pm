@@ -5650,47 +5650,6 @@ sub routing {
          'read_job',                                            1,
          [ {}, { name => 'n', id => 'i', cluster_id => 'i' } ], 0
       ],
-      'update_job' => [
-         'update_job',
-         1,
-         [
-            {},
-            {
-               id            => 'i',
-               name          => 'n',
-               newname       => 'n',
-               description   => 'd',
-               started       => 'i',
-               ended         => 'i',
-               needs         => 'a:s',
-               needs_ids     => 'a:i',
-               json          => 'j',
-               mode          => 'm',
-               signal        => 'sig',
-               server_id     => 'i?',
-               mem           => 'f',
-               cpu           => 'f',
-               retrys        => 'i',
-               log_id        => 'i',
-               loops         => 'i',
-               delay         => 'i',
-               needs_any_ids => 'a:i',
-               needs_any     => 'a:s',
-               on_fail       => 'p',
-               on_fail_id    => 'i?',
-               script        => 'c',
-               server        => 'srv',
-               remove_needs  => 'i',
-               state         => 'st',
-               ppid          => 'i',
-               pid           => 'i',
-               exit_code     => 'i',
-            }
-         ],
-         1
-      ],
-
-      # Replace the old 'update_job' entry with these two
 
       'update_job_config' => [
          'update_job_config',
