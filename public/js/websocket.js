@@ -14,7 +14,6 @@ import {
   applyServerBroadcast,
   showToast,
   renderDashboard,
-  refreshDashboardCards,
   loadDashboardStats,
   updateDashboardCountersFromBroadcast,
   updateDashboardFromBroadcast,

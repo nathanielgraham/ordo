@@ -2624,3 +2624,52 @@ progress::-moz-progress-bar {
   box-shadow: 0 0 25px rgba(0, 255, 255, 0.25);
   transform: translateY(-4px);
 }
+
+/* ==================== TOM SELECT DROPDOWN STYLING (Global) ==================== */
+
+.ts-dropdown {
+  background: #1e1e1e !important;
+  border: 1px solid #444 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 8px 25px rgba(0, 255, 255, 0.15) !important;
+  color: #e0e0e0 !important;
+  z-index: 4100 !important;
+  max-height: 65vh !important;
+}
+
+.ts-dropdown .option {
+  padding: 0.5rem 1rem !important;
+  color: #e0e0e0 !important;
+}
+
+.ts-dropdown .option:hover,
+.ts-dropdown .option.active,
+.ts-dropdown .option.selected {
+  background: rgba(0, 255, 255, 0.18) !important;
+  color: #00ffff !important;
+}
+
+/* Selected item in control */
+.ts-control .item {
+  background: #2a2a3a !important;
+  border: 1px solid #555 !important;
+  color: #b0e0ff !important;
+}
+
+/* Remove button */
+.ts-control .item .remove {
+  color: #ff3366 !important;
+}
+
+/* Scrollbar */
+.ts-dropdown .ts-dropdown-content::-webkit-scrollbar {
+  width: 6px;
+}
+.ts-dropdown .ts-dropdown-content::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 3px;
+}
+.ts-dropdown .ts-dropdown-content::-webkit-scrollbar-thumb:hover {
+  background: #777;
+}
+

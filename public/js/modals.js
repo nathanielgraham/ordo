@@ -4,6 +4,7 @@ import {
   showToast,
   renderCalendarsTable,
   showLogHistoryModal,
+  initModalTomSelect,
 } from "./ui-handlers.js";
 import { sendWS } from "./websocket.js";
 import {
@@ -11,7 +12,7 @@ import {
   findClusterById,
   findJobById,
   commonTimezones,
-  formatDate,
+  formatDate
 } from "./utils.js";
 
 // ==================== TOM SELECT HELPERS ====================
@@ -25,84 +26,6 @@ function TomSelectGetValues(selectId) {
   const value = el.tomselect.getValue();
   if (!value) return [];
   return String(value).split(",").filter(Boolean).map(id => Number(id.trim()));
-}
-
-function initDependencySelect(selectId, clearBtnId, preSelectedIds = []) {
-  const select = document.getElementById(selectId);
-  if (!select) return console.warn(`Select not found: ${selectId}`);
-  if (select.tomselect) select.tomselect.destroy();
-
-  const ts = new TomSelect(select, {
-    plugins: ["remove_button"],
-    persist: false,
-    maxItems: null,
-    create: false,
-    sortField: "text",
-    valueField: "value",
-    labelField: "text",
-    render: {
-      option: (data, escape) =>
-        `<div class="py-1 px-2 text-gray-200 hover:bg-cyan-900/30">${escape(data.text)}</div>`,
-      item: (data, escape) =>
-        `<div class="item bg-gray-800 text-cyan-200 border border-cyan-800 rounded px-2 py-1 m-1 flex items-center shadow-sm">${escape(data.text)}</div>`,
-    },
-    onInitialize: function () {
-      this.control.classList.add(
-        "bg-gray-900",
-        "border-cyan-700",
-        "focus-within:ring-2",
-        "focus-within:ring-cyan-500",
-      );
-    },
-  });
-  select.tomselect = ts;
-
-  if (preSelectedIds.length > 0) {
-    ts.addItems(preSelectedIds.map(String), true);
-  }
-
-  const clearBtn = document.getElementById(clearBtnId);
-  if (clearBtn) {
-    clearBtn.addEventListener("click", () => ts.clear(true));
-  }
-}
-
-function initSingleSelect(selectId, preSelectedIds = []) {
-  const select = document.getElementById(selectId);
-  if (!select) return;
-  if (select.tomselect) select.tomselect.destroy();
-
-  const ts = new TomSelect(select, {
-    maxItems: 1,
-    plugins: ["remove_button"],
-    persist: false,
-    create: false,
-    sortField: "text",
-    valueField: "value",
-    labelField: "text",
-    render: {
-      option: (data) =>
-        `<div class="py-1 px-2 text-gray-200">${data.text}</div>`,
-      item: (data) => `
-        <div class="item bg-gray-800 text-cyan-200 border border-cyan-800 rounded px-2 py-1 m-1 flex items-center justify-between shadow-sm">
-          ${data.text}
-        </div>`,
-    },
-    onInitialize: function () {
-      this.control.classList.add(
-        "bg-gray-900",
-        "border-cyan-700",
-        "focus-within:ring-2",
-        "focus-within:ring-cyan-500",
-      );
-    },
-  });
-
-  select.tomselect = ts;
-
-  if (preSelectedIds.length > 0) {
-    ts.addItems(preSelectedIds.map(String), true);
-  }
 }
 
 // ==================== SHARED HELPERS ====================
@@ -165,7 +88,7 @@ function resetAllModals() {
 export function openJobModal(
   mode = "create",
   itemId = null,
-  clusterId = null,      // renamed for clarity
+  parentId = null,
   parentName = null,
 ) {
   const modal = document.getElementById("job-modal");
@@ -173,22 +96,21 @@ export function openJobModal(
 
   let item = null;
   if (mode === "edit" && itemId) {
-    item = appState.jobsMap.get(Number(itemId)) || 
+    item = appState.jobsMap.get(Number(itemId)) ||
            findJobById(appState.monitorData.tree, itemId);
   }
 
   const isEdit = mode === "edit";
 
   modal.dataset.editId = isEdit ? String(itemId) : "";
-  modal.dataset.clusterId = clusterId || "";        // ← Use clusterId
+  modal.dataset.parentId = parentId || "";
 
-  // Title & Context
   document.getElementById("job-modal-title").textContent = isEdit ? "Edit Job" : "New Job";
   document.getElementById("job-context").textContent = isEdit
     ? `Editing: ${item?.name || "—"}`
     : parentName ? `In cluster: ${parentName}` : "In root";
 
-  // Form fields
+  // Basic fields
   document.getElementById("job-name").value = item?.name || "new-job";
   document.getElementById("job-script").value = item?.script || "";
   document.getElementById("job-description").value = item?.description || "";
@@ -197,27 +119,31 @@ export function openJobModal(
   document.getElementById("job-delay").value = item?.delay ?? 0;
 
   // Server
-  const serverSelect = document.getElementById("job-server");
-  serverSelect.innerHTML = '<option value="">None / Clear</option>';
-  appState.serversData.forEach(s => {
-    const opt = new Option(s.name, s.name);
-    if (item?.server_name === s.name) opt.selected = true;
-    serverSelect.appendChild(opt);
-  });
+  initModalTomSelect("job-server", {
+    maxItems: 1,
+    options: appState.serversData.map(s => ({
+      value: s.name,
+      text: s.name
+    }))
+  }).setValue(item?.server_name ? [item.server_name] : []);
+
+  // Build dependency options (exclude root)
+  const clusterOptions = Array.from(appState.clustersMap.values())
+    .filter(c => c.name !== "root")
+    .map(c => ({
+      value: String(c.id),
+      text: c.name || `Cluster ${c.id}`
+    }));
 
   // Dependencies
-  const needsIds = item?.needs_ids || [];
-  const needsAnyIds = item?.needs_any_ids || [];
-  const onFailId = item?.on_fail_id || null;
+  initModalTomSelect("job-needs", { maxItems: null, options: clusterOptions })
+    .setValue((item?.needs_ids || []).map(String));
 
-  populateJobDependencies("job-needs", needsIds);
-  populateJobDependencies("job-needs-any", needsAnyIds);
-  populateClusterDependencies("job-on-fail", onFailId ? [onFailId] : []);
+  initModalTomSelect("job-needs-any", { maxItems: null, options: clusterOptions })
+    .setValue((item?.needs_any_ids || []).map(String));
 
-  initDependencySelect("job-needs", "clear-job-needs", needsIds);
-  initDependencySelect("job-needs-any", "clear-job-needs-any", needsAnyIds);
-  initSingleSelect("job-on-fail", onFailId ? [onFailId] : []);
-  initSingleSelect("job-server", item?.server_name ? [item.server_name] : []);
+  initModalTomSelect("job-on-fail", { maxItems: 1, options: clusterOptions })
+    .setValue(item?.on_fail_id ? [String(item.on_fail_id)] : []);
 
   modal.classList.add("active");
   document.getElementById("job-name").focus();
@@ -268,53 +194,48 @@ export function openClusterModal(
   if (!modal) return;
 
   let item = null;
-
   if (mode === "edit" && itemId) {
-    const numericId = Number(itemId);
-    
-    // Prefer the most up-to-date data from clustersMap
-    item = appState.clustersMap.get(numericId);
-    
-    // Fallback to tree if needed
-    if (!item) {
-      item = findClusterById(appState.monitorData.tree, numericId);
-    }
+    item = appState.clustersMap.get(Number(itemId)) ||
+           findClusterById(appState.monitorData.tree, itemId);
   }
 
   const isEdit = mode === "edit";
 
-  // Critical dataset
   modal.dataset.editId = isEdit ? String(itemId) : "";
   modal.dataset.parentId = parentId || "";
 
-  // Title & Context
-  document.getElementById("cluster-modal-title").textContent = isEdit
-    ? "Edit Cluster"
-    : "New Cluster";
-
+  document.getElementById("cluster-modal-title").textContent = isEdit ? "Edit Cluster" : "New Cluster";
   document.getElementById("cluster-context").textContent = isEdit
-    ? `Editing: ${item?.name || "—"} (ID: ${item?.id || "—"})`
+    ? `Editing: ${item?.name || "—"}`
     : parentName ? `In cluster: ${parentName}` : "In root";
 
-  // Form fields — use fresh item data
+  // Basic fields
   document.getElementById("cluster-name").value = item?.name || "new-cluster";
   document.getElementById("cluster-description").value = item?.description || "";
   document.getElementById("cluster-loops").value = item?.loops ?? 0;
   document.getElementById("cluster-clonable").checked = !!item?.clonable;
 
-  // Dependencies
-  const needsIds = item?.needs_ids || [];
-  const needsAnyIds = item?.needs_any_ids || [];
-  const onFailId = item?.on_fail_id || null;
+  // Options (exclude root and self)
+  const clusterOptions = Array.from(appState.clustersMap.values())
+    .filter(c => Number(c.id) !== 1 && Number(c.id) !== Number(itemId))
+    .map(c => ({
+      value: String(c.id),
+      text: c.name || `Cluster ${c.id}`
+    }));
 
-  populateClusterDependencies("cluster-needs", needsIds);
-  populateClusterDependencies("cluster-needs-any", needsAnyIds);
-  populateClusterDependencies("cluster-on-fail", onFailId ? [onFailId] : []);
+  // Initialize TomSelects (persistent)
+  initModalTomSelect("cluster-needs", { maxItems: null, options: clusterOptions });
+  initModalTomSelect("cluster-needs-any", { maxItems: null, options: clusterOptions });
+  initModalTomSelect("cluster-on-fail", { maxItems: 1, options: clusterOptions });
 
-  // TomSelects
-  initDependencySelect("cluster-needs", "clear-cluster-needs", needsIds);
-  initDependencySelect("cluster-needs-any", "clear-cluster-needs-any", needsAnyIds);
-  initSingleSelect("cluster-on-fail", onFailId ? [onFailId] : []);
+  // Restore values
+  if (isEdit && item) {
+    document.getElementById("cluster-needs").tomselect?.setValue((item.needs_ids || []).map(String));
+    document.getElementById("cluster-needs-any").tomselect?.setValue((item.needs_any_ids || []).map(String));
+    if (item.on_fail_id) {
+      document.getElementById("cluster-on-fail").tomselect?.setValue([String(item.on_fail_id)]);
+    }
+  }
 
   modal.classList.add("active");
   document.getElementById("cluster-name").focus();
@@ -322,6 +243,50 @@ export function openClusterModal(
 
 // ==================== ATTACH CALENDAR MODAL ====================
 export function openAttachCalendarModal(
+  clusterId,
+  clusterName,
+  currentCalName = "",
+  currentCalId = null,
+) {
+  appState.currentAttachClusterId = clusterId;
+
+  const clusterNameEl = document.getElementById("attach-cluster-name");
+  if (clusterNameEl) {
+    clusterNameEl.textContent = clusterName || `Cluster #${clusterId}`;
+  }
+
+  const select = document.getElementById("calendar-select");
+  if (!select) return console.error("[Attach Calendar] #calendar-select not found");
+
+  // Destroy previous instance
+  if (select.tomselect) {
+    select.tomselect.destroy();
+  }
+
+  // Create TomSelect with body dropdown
+  const ts = new TomSelect(select, {
+    maxItems: 1,
+    dropdownParent: "body",           // Break out of modal
+    plugins: ["remove_button"],       // Enable the red X
+    placeholder: "Select calendar or type to search...",
+    options: appState.calendarsData.map((cal) => ({
+      value: String(cal.id),
+      text: cal.name || `Calendar ${cal.id}`,
+    })),
+    sortField: "text",
+    onInitialize: function () {
+      if (currentCalId != null) {
+        this.setValue(String(currentCalId));
+      }
+    },
+  });
+
+  select.tomselect = ts;   // Store reference
+
+  document.getElementById("attach-calendar-modal").classList.add("active");
+}
+
+export function openAttachCalendarModal2(
   clusterId,
   clusterName,
   currentCalName = "",
@@ -445,105 +410,6 @@ function populateTimezoneSelect() {
   });
 }
 
-function populateJobDependencies(selectId, selectedIds = []) {
-  const select = document.getElementById(selectId);
-  if (!select) {
-    console.warn(`[populateJobDependencies] Select not found: ${selectId}`);
-    return;
-  }
-  select.innerHTML = '<option value="">None / Clear all</option>';
-  let optionCount = 0;
-  function addJobs(nodes) {
-    nodes.forEach((node) => {
-      console.log(
-        "[DEBUG addJobs] checking node:",
-        node.id,
-        node.name,
-        node.is_cluster ? "cluster" : "job",
-      );
-      // Skip root
-      if (node.parent_id === null && node.name === "root") {
-        console.log("[DEBUG addJobs] skipping root");
-        // Still recurse into children/jobs
-      } else if (!node.is_cluster) {
-        // Add job
-        const opt = document.createElement("option");
-        opt.value = node.id;
-        opt.textContent = getFullPath(node);
-        if (selectedIds.includes(Number(node.id))) opt.selected = true;
-        select.appendChild(opt);
-        optionCount++;
-        console.log("[DEBUG addJobs] Added job option:", node.id, node.name);
-      }
-      // Recurse children
-      if (node.children) addJobs(node.children);
-      // Recurse jobs array (if present on cluster)
-      if (node.jobs && Array.isArray(node.jobs)) {
-        node.jobs.forEach((job) => {
-          const opt = document.createElement("option");
-          opt.value = job.id;
-          opt.textContent = getFullPath(job);
-          if (selectedIds.includes(Number(job.id))) opt.selected = true;
-          select.appendChild(opt);
-          optionCount++;
-          console.log(
-            "[DEBUG addJobs] Added job from cluster jobs array:",
-            job.id,
-            job.name,
-          );
-        });
-      }
-    });
-  }
-  addJobs(appState.monitorData.tree || []);
-  console.log(
-    `[populateJobDependencies] ${selectId} finished with ${optionCount} options added (total: ${select.options.length})`,
-  );
-}
-
-function populateClusterDependencies(selectId, selectedIds = []) {
-  const select = document.getElementById(selectId);
-  if (!select) {
-    console.warn(`[populateClusterDependencies] Select not found: ${selectId}`);
-    return;
-  }
-  select.innerHTML = '<option value="">None / Clear all</option>';
-  let optionCount = 0;
-  function addClusters(nodes) {
-    nodes.forEach((node) => {
-      console.log(
-        "[DEBUG addClusters] checking node:",
-        node.id,
-        node.name,
-        node.is_cluster ? "cluster" : "job",
-      );
-      // Skip root
-      if (node.parent_id === null && node.name === "root") {
-        console.log("[DEBUG addClusters] skipping root");
-      } else if (node.is_cluster) {
-        // Add cluster
-        const opt = document.createElement("option");
-        opt.value = node.id;
-        opt.textContent = getFullPath(node);
-        if (selectedIds.includes(Number(node.id))) opt.selected = true;
-        select.appendChild(opt);
-        optionCount++;
-        console.log(
-          "[DEBUG addClusters] Added cluster option:",
-          node.id,
-          node.name,
-        );
-      }
-      // Recurse children
-      if (node.children) addClusters(node.children);
-    });
-  }
-  addClusters(appState.monitorData.tree || []);
-  console.log(
-    `[populateClusterDependencies] ${selectId} finished with ${optionCount} options added (total: ${select.options.length})`,
-  );
-}
-
 // utils.js or modals.js
 function getTimezoneOptions() {
   const options = [];
@@ -594,86 +460,65 @@ function getTimezoneOptions() {
 }
 
 export function openCalendarModal(mode = "create", calId = null) {
+  const modal = document.getElementById("calendar-modal");
+  if (!modal) return;
+
   const isEdit = mode === "edit";
+
+  modal.dataset.editId = isEdit ? String(calId) : "";
+
   document.getElementById("calendar-modal-title").textContent = isEdit
     ? "Edit Calendar"
     : "Create Calendar";
 
-  // Populate Tom Select for timezone
-  const tzSelect = document.getElementById("calendar-tz");
-  if (tzSelect.tomselect) tzSelect.tomselect.destroy(); // clean up previous
-
-  const tom = new TomSelect(tzSelect, {
-    maxItems: 1,
-    plugins: ["remove_button"],
-    placeholder: "Type to search or select timezone...",
-    searchField: ["text", "value"],
-    options: getTimezoneOptions(), // large list - see below
-    render: {
-      option: (data) => `<div>${data.text}</div>`,
-      item: (data) => `<div class="item">${data.text}</div>`,
-    },
-
-onInitialize: function () {
-  if (!isEdit) {
-    const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    console.log("[openCalendarModal] Setting default timezone to:", localTz);
-    
-    if (this.options[localTz]) {
-      this.setValue(localTz);
-    } else {
-      this.setValue(""); 
-      document.getElementById("calendar-tz-custom").value = localTz;
-      document.getElementById("calendar-tz-custom").style.display = "block";
-    }
-  }
-},
-
-  });
-
-  tzSelect.tomselect = tom;
-
-  // Show/hide custom input based on selection
-  tom.on("change", () => {
-    const customInput = document.getElementById("calendar-tz-custom");
-    if (tom.getValue() === "") {
-      customInput.style.display = "block";
-      customInput.required = true;
-    } else {
-      customInput.style.display = "none";
-      customInput.required = false;
-      customInput.value = "";
-    }
-  });
-
+  // Basic fields
   document.getElementById("calendar-name").value = "";
-  document.getElementById("calendar-tz").value = "";
-  document.getElementById("calendar-tz-custom").value = "";
-  document.getElementById("calendar-tz-custom").style.display = "none";
   document.getElementById("calendar-description").value = "";
 
-  // ... rest of modal population (name, description, edit pre-fill)
+  // Timezone TomSelect
+  const tzOptions = getTimezoneOptions(); // your existing function
+
+  initModalTomSelect("calendar-tz", {
+    maxItems: 1,
+    placeholder: "Type to search or select timezone...",
+    options: tzOptions
+  });
+
+  // Restore values on edit
   if (isEdit && calId) {
-    const cal = appState.calendarsData.find((c) => c.id === Number(calId));
+    const cal = appState.calendarsData.find(c => Number(c.id) === Number(calId));
     if (cal) {
-      appState.currentEditCalId = Number(calId);
       document.getElementById("calendar-name").value = cal.name || "";
-      // Set Tom Select value (or custom)
-      if (tom.options[cal.tz]) {
-        tom.setValue(cal.tz);
-      } else {
-        tom.setValue("");
-        document.getElementById("calendar-tz-custom").value = cal.tz || "";
-        document.getElementById("calendar-tz-custom").style.display = "block";
+      document.getElementById("calendar-description").value = cal.description || "";
+
+      const tzTS = document.getElementById("calendar-tz").tomselect;
+      if (tzTS) {
+        if (tzTS.options[cal.tz]) {
+          tzTS.setValue(cal.tz);
+        } else {
+          tzTS.setValue("");
+          document.getElementById("calendar-tz-custom").value = cal.tz || "";
+          document.getElementById("calendar-tz-custom").style.display = "block";
+        }
       }
-      document.getElementById("calendar-description").value =
-        cal.description || "";
     }
   } else {
-    appState.currentEditCalId = null;
+    // New calendar → default to user's local timezone
+    const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const tzTS = document.getElementById("calendar-tz").tomselect;
+    if (tzTS) {
+      if (tzTS.options[localTz]) {
+        tzTS.setValue(localTz);
+      } else {
+        tzTS.setValue("");
+        document.getElementById("calendar-tz-custom").value = localTz;
+        document.getElementById("calendar-tz-custom").style.display = "block";
+      }
+    }
   }
 
-  document.getElementById("calendar-modal").classList.add("active");
+  modal.classList.add("active");
+  document.getElementById("calendar-name").focus();
 }
 
 // ==================== CRONS LIST MODAL ====================
@@ -792,34 +637,29 @@ export function saveJob() {
     delay: parseInt(document.getElementById("job-delay").value) || 0,
   };
 
-  // Dependencies
-  const needs = TomSelectGetValues("job-needs");
-  const needsAny = TomSelectGetValues("job-needs-any");
-  const onFailId = document.getElementById("job-on-fail")?.value;
+  // Read current TomSelect values
+  payload.needs_ids = document.getElementById("job-needs").tomselect?.getValue().map(Number) || [];
+  payload.needs_any_ids = document.getElementById("job-needs-any").tomselect?.getValue().map(Number) || [];
 
-  if (needs.length) payload.needs_ids = needs.map(Number);
-  if (needsAny.length) payload.needs_any_ids = needsAny.map(Number);
-  if (onFailId && onFailId !== "") payload.on_fail_id = Number(onFailId);
+  const onFailValue = document.getElementById("job-on-fail").tomselect?.getValue();
+  if (onFailValue) payload.on_fail_id = Number(onFailValue);
 
-  // Parent only for new jobs
+  // ==================== PARENT / RENAME HANDLING ====================
   if (!isEdit) {
-    let parentId = modal.dataset.parentId || modal.dataset.clusterId;
-    if (!parentId) {
-      const selected = document.querySelector("#tree-body tr.selected");
-      if (selected?.classList.contains("ordo-cluster-row")) parentId = selected.dataset.id;
-    }
+    let parentId = modal.dataset.parentId;
     if (parentId) payload.parent_id = Number(parentId);
   } else {
     payload.id = id;
     
-    // IMPORTANT: For renaming, use 'newname'
+    // Rename handling
     const newName = payload.name;
     if (newName) {
       payload.newname = newName;
-      delete payload.name;        // remove 'name' when editing
+      delete payload.name;        // backend wants newname on update
     }
   }
 
+  // Validation - check the right field
   if (!payload.name && !isEdit) {
     showToast("Job name is required", "danger");
     return;
@@ -843,51 +683,32 @@ export function saveCluster() {
     name: (document.getElementById("cluster-name").value || "").trim(),
     description: (document.getElementById("cluster-description").value || "").trim(),
     loops: parseInt(document.getElementById("cluster-loops").value) || 0,
-    clonable: document.getElementById("cluster-clonable")?.checked || false,
+    clonable: document.getElementById("cluster-clonable").checked || false,
   };
 
-  // Dependencies
-  const needs = TomSelectGetValues("cluster-needs");
-  const needsAny = TomSelectGetValues("cluster-needs-any");
-  const onFailId = document.getElementById("cluster-on-fail")?.value;
+  // Read current TomSelect values
+  payload.needs_ids = document.getElementById("cluster-needs").tomselect?.getValue().map(Number) || [];
+  payload.needs_any_ids = document.getElementById("cluster-needs-any").tomselect?.getValue().map(Number) || [];
 
-  if (needs.length) payload.needs_ids = needs.map(Number);
-  if (needsAny.length) payload.needs_any_ids = needsAny.map(Number);
-  if (onFailId && onFailId !== "") {
-    payload.on_fail_id = Number(onFailId);
-  }
+  const onFailValue = document.getElementById("cluster-on-fail").tomselect?.getValue();
+  if (onFailValue) payload.on_fail_id = Number(onFailValue);
 
-  // ==================== PARENT_ID (only for new clusters) ====================
+  // ==================== PARENT / RENAME HANDLING ====================
   if (!isEdit) {
-    let parentId = modal.dataset.parentId || modal.dataset.clusterId;
-
-    if (!parentId) {
-      const selectedRow = document.querySelector("#tree-body tr.selected");
-      if (selectedRow?.classList.contains("ordo-cluster-row")) {
-        parentId = selectedRow.dataset.id;
-      }
-    }
-
-    if (parentId) {
-      payload.parent_id = Number(parentId);
-      console.log(`[saveCluster] ✓ New cluster → parent_id = ${payload.parent_id}`);
-    } else {
-      console.error("[saveCluster] ❌ No parent_id found for new cluster!");
-      showToast("Please select a parent cluster first", "danger");
-      return;
-    }
+    let parentId = modal.dataset.parentId;
+    if (parentId) payload.parent_id = Number(parentId);
   } else {
-    // === EDIT MODE ===
     payload.id = id;
-
-    // Rename handling - backend expects 'newname' on update
+    
+    // Rename handling
     const newName = payload.name;
     if (newName) {
       payload.newname = newName;
-      delete payload.name;           // remove original 'name' field
+      delete payload.name;        // backend expects newname on update
     }
   }
 
+  // Validation
   if (!payload.name && !isEdit) {
     showToast("Cluster name is required", "danger");
     return;
@@ -897,7 +718,7 @@ export function saveCluster() {
   sendWS(payload);
 
   modal.classList.remove("active");
-  showToast(isEdit ? "Cluster updated successfully" : "Cluster created successfully", "success");
+  showToast(isEdit ? "Cluster updated" : "Cluster created", "success");
 }
 
 export function saveCalendar() {
@@ -908,7 +729,7 @@ export function saveCalendar() {
   const tzSelect = document.getElementById("calendar-tz");
   let tzValue = tzSelect.tomselect ? tzSelect.tomselect.getValue() : tzSelect.value;
 
-  // Fallback to custom input if nothing selected
+  // Fallback to custom field
   if (!tzValue || tzValue === "") {
     tzValue = document.getElementById("calendar-tz-custom").value.trim();
   }
@@ -916,7 +737,7 @@ export function saveCalendar() {
   const payload = {
     command: isEdit ? "update_cal" : "create_cal",
     name: (document.getElementById("calendar-name").value || "").trim(),
-    tz: tzValue || "UTC",                    // ← This was the main bug
+    tz: tzValue || "UTC",
     description: (document.getElementById("calendar-description").value || "").trim(),
   };
 
@@ -934,44 +755,11 @@ export function saveCalendar() {
     }
   }
 
-  console.log("[saveCalendar] Sending payload:", payload);
+  console.log("[saveCalendar] Final payload:", payload);
   sendWS(payload);
 
   modal.classList.remove("active");
   showToast(isEdit ? "Calendar updated" : "Calendar created", "success");
-}
-
-function saveCalendar2() {
-  const name = document.getElementById("calendar-name")?.value.trim();
-  const tom = document.getElementById("calendar-tz")?.tomselect;
-  let tz = tom?.getValue() || "";
-  const customTz = document.getElementById("calendar-tz-custom")?.value.trim();
-
-  if (tz === "" && customTz) {
-    tz = customTz;
-  }
-
-  const description = document
-    .getElementById("calendar-description")
-    ?.value.trim();
-
-  if (!name) return showToast("Name is required", "danger");
-  if (!tz) return showToast("Timezone is required", "danger");
-
-  const isEdit = !!appState.currentEditCalId;
-  const payload = {
-    command: isEdit ? "update_cal" : "create_cal",
-    id: isEdit ? appState.currentEditCalId : undefined,
-    newname: isEdit ? name : undefined,
-    name: !isEdit ? name : undefined,
-    tz,
-    description: description || undefined,
-  };
-
-  sendWS(payload);
-  showToast(isEdit ? "Calendar updated" : "Calendar created", "success");
-  document.getElementById("calendar-modal").classList.remove("active");
-  appState.currentEditCalId = null;
 }
 
 // ==================== SAVE CRON ====================

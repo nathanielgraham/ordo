@@ -44,6 +44,44 @@ import {
   removeClusterById,
 } from "./utils.js";
 
+// HELPERS
+/**
+ * Best version: Persistent + Modal-friendly TomSelect
+ */
+export function initModalTomSelect(selectId, config = {}) {
+  const el = document.getElementById(selectId);
+  if (!el) return null;
+
+  // Create once if it doesn't exist
+  if (!el.tomselect) {
+    const defaults = {
+      dropdownParent: "body",
+      plugins: ["remove_button"],
+      placeholder: "Select...",
+      searchField: ["text", "value"],
+      zIndex: 4100,
+      ...config
+    };
+
+    el.tomselect = new TomSelect(el, defaults);
+  }
+
+  const ts = el.tomselect;
+
+  // Update options if provided
+  if (config.options && Array.isArray(config.options)) {
+    ts.clearOptions();
+    ts.addOptions(config.options);
+  }
+
+  // Clear selection unless preserveValue is true
+  if (!config.preserveValue) {
+    ts.clear();
+  }
+
+  return ts;
+}
+
 // ====================== CENTRAL COMMAND REPLY ROUTER ======================
 export function handleCommandReply(data) {
   if (!data || !data.command_reply) return;
@@ -964,100 +1002,6 @@ export function toggleCronsRow(calendarId) {
   }
 }
 
-export function renderCalendarsTableOld() {
-  const tbody = document.getElementById("calendars-body");
-  const table = document.getElementById("calendars-table");
-  const noCalendars = document.getElementById("no-calendars");
-
-  // Guard: missing DOM elements
-  if (!tbody || !table || !noCalendars) {
-    console.warn("[renderCalendarsTable] Missing required DOM elements");
-    return;
-  }
-
-  const calendars = appState.calendarsData || [];
-
-  // Handle empty / no success case
-  if (calendars.length === 0) {
-    table.style.display = "none";
-    noCalendars.style.display = "block";
-    console.debug("[renderCalendarsTable] No calendars to display");
-    return;
-  }
-
-  // Show table, hide empty state
-  table.style.display = "table";
-  noCalendars.style.display = "none";
-  tbody.innerHTML = ""; // Clear previous rows
-
-  calendars.forEach((cal) => {
-    const hasCrons = Array.isArray(cal.crons) && cal.crons.length > 0;
-    const isCollapsed = appState.collapsedCalendars.has(String(cal.id));
-
-    // Calendar row
-    const calRow = document.createElement("tr");
-    calRow.className = `ordo-calendar-row ${isCollapsed ? "collapsed" : ""}`;
-    calRow.dataset.id = cal.id;
-    calRow.dataset.depth = "0";
-    calRow.style.setProperty("--depth", "0");
-
-    const toggleHtml = hasCrons
-      ? `<span class="ordo-toggle"></span>`
-      : `<span class="ordo-toggle empty"></span>`;
-
-    calRow.innerHTML = `
-      <td>${toggleHtml}<i class="fas fa-folder mr-2 has-text-info"></i>${cal.name || "Unnamed Calendar"}</td>
-      <td>${cal.tz || "—"}</td>
-      <td>${cal.description || "—"}</td>
-      <td>${cal.crons?.length || 0}</td>
-      <td>${cal.cluster_ids?.length || 0}</td>
-      <td>—</td>
-      <td>—</td>
-      <td>—</td>
-      <td>${generateCalendarActions(cal.id, hasCrons)}</td>
-    `;
-    tbody.appendChild(calRow);
-
-    // Cron rows (if any)
-    if (hasCrons) {
-      cal.crons.forEach((cron, idx) => {
-        const isLast = idx === cal.crons.length - 1;
-        const cronRow = document.createElement("tr");
-        cronRow.className = `ordo-cron-row ${isCollapsed ? "hidden" : ""}`;
-        cronRow.dataset.id = `cron-${cal.id}-${cron.id}`;
-        cronRow.dataset.depth = "1";
-        cronRow.dataset.parent = cal.id;
-        cronRow.dataset.lastChild = isLast ? "true" : "false";
-        cronRow.style.setProperty("--depth", "1");
-
-        const cronIcon = '<i class="fas fa-clock mr-2 has-text-cyan"></i>';
-        cronRow.innerHTML = `
-          <td>${cronIcon}${cron.name || cron.expression || "—"}</td>
-          <td>${cron.english || "—"}</td>
-          <td>${cron.description || "—"}</td>
-          <td>—</td>
-          <td>—</td>
-          <td>${cron.begin ? formatDate(cron.begin) : "Immediate"}</td>
-          <td>${cron.expire ? formatDate(cron.expire) : "Never"}</td>
-          <td>${formatDate(cron.next_start) || "—"}</td>
-          <td>${generateCronActions(cal.id, cron.id)}</td>
-        `;
-        tbody.appendChild(cronRow);
-      });
-    }
-  });
-
-  console.debug(
-    `[renderCalendarsTable] Rendered ${calendars.length} calendars, ${calendars.reduce((sum, c) => sum + (c.crons?.length || 0), 0)} crons`,
-  );
-
-  // Re-apply collapse states (in case of re-render)
-  appState.collapsedCalendars.forEach((calId) => {
-    const row = document.querySelector(`tr[data-id="${calId}"]`);
-    if (row) row.classList.add("collapsed");
-  });
-}
-
 // Helper: calendar dropdown actions
 function generateCalendarActions(calId, hasCrons) {
   return `
@@ -1147,26 +1091,30 @@ export function applyServerBroadcast(data) {
   renderServersTable(); // ← your server render function
 }
 
+
+
+// ==================== DASHBOARD CORE ====================
+
 export function applyClusterBroadcast(data) {
   if (!data) return;
 
   console.log(`[applyClusterBroadcast] updates:${data.updates?.length || 0} deletes:${data.deletes?.length || 0}`);
 
-  // === DELETES - Very important ===
+  // === DELETES - Aggressive & Safe ===
   if (data.deletes && Array.isArray(data.deletes)) {
     data.deletes.forEach((del) => {
       const id = Number(del.id || del);
       if (!id) return;
 
-      console.log(`[Delete Cluster] Removing cluster ${id}`);
+      console.log(`[Delete Cluster] Cleaning cluster ${id}`);
 
-      // Remove from DOM
+      // Remove from DOM (cluster row)
       removeRow(id, true);
 
-      // Remove from Maps
+      // Remove from clustersMap
       appState.clustersMap.delete(id);
 
-      // Remove any child jobs that belonged to it
+      // Remove any jobs that belonged to this cluster
       const jobsToRemove = [];
       appState.jobsMap.forEach((job, jobId) => {
         if (Number(job.cluster_id) === id) {
@@ -1179,7 +1127,10 @@ export function applyClusterBroadcast(data) {
         appState.jobsMap.delete(jobId);
       });
 
-      console.log(`[Delete Cluster] Removed cluster ${id} + ${jobsToRemove.length} child jobs`);
+      // Extra safety: remove from tree structure
+      if (appState.monitorData?.tree) {
+        removeClusterById(appState.monitorData.tree, id);
+      }
     });
   }
 
@@ -1189,27 +1140,35 @@ export function applyClusterBroadcast(data) {
       const id = Number(update.id);
       if (!id) return;
 
+      // Force is_cluster flag
+      update.is_cluster = true;
+
+      // Update or insert in clustersMap
       let cluster = appState.clustersMap.get(id);
       if (cluster) {
         Object.assign(cluster, update);
       } else {
-        appState.clustersMap.set(id, { ...update, is_cluster: true });
+        cluster = { ...update, is_cluster: true };
+        appState.clustersMap.set(id, cluster);
       }
 
-      const row = document.getElementById(`row-cluster-${id}`);
+      // Update tree
+      const clusterInTree = findClusterById(appState.monitorData.tree, id);
+      if (clusterInTree) Object.assign(clusterInTree, update);
+
+      // Update or insert DOM row
+      let row = document.getElementById(`row-cluster-${id}`);
       if (row) {
-        updateRow(row, { ...update, is_cluster: true });
+        updateRow(row, cluster);
       } else {
         const parentId = Number(update.parent_id);
-        insertRow({ ...update, is_cluster: true }, parentId);
+        insertRow(cluster, parentId);
       }
     });
   }
 
-  updateLiveTimings();
+  refreshDashboardCards("clusters_changed");
 }
-
-// ==================== DASHBOARD CORE ====================
 
 // Simple, fast counters using Maps
 export function countRunningJobs() {
@@ -1264,7 +1223,7 @@ export function applyJobBroadcast(data) {
 
   console.log(`[applyJobBroadcast] updates:${data.updates?.length || 0} deletes:${data.deletes?.length || 0}`);
 
-  // === DELETES - Thorough cleanup ===
+  // === DELETES - Strict cleanup ===
   if (data.deletes && Array.isArray(data.deletes)) {
     data.deletes.forEach((del) => {
       const id = Number(del.id || del);
@@ -1275,23 +1234,29 @@ export function applyJobBroadcast(data) {
       // Remove from DOM
       removeRow(id, false);
 
-      // Remove from authoritative Map
+      // Remove from jobsMap
       appState.jobsMap.delete(id);
 
-      // Optional: remove from tree if you want extra safety
-      // (usually not needed if tree is rebuilt from maps, but harmless)
+      // Extra safety: try to remove from tree as well
+      if (appState.monitorData?.tree) {
+        removeJobById(appState.monitorData.tree, id);
+      }
     });
   }
 
   // === UPDATES / NEW JOBS ===
   if (data.updates && Array.isArray(data.updates)) {
     data.updates.forEach((update) => {
-      if (update.is_cluster) return;   // safety
+      // Safety: skip if this is actually a cluster
+      if (update.is_cluster === true) return;
 
       const id = Number(update.id);
       if (!id) return;
 
-      // Update or insert into Map
+      // Force correct type flag
+      update.is_cluster = false;
+
+      // Update or insert in jobsMap
       let job = appState.jobsMap.get(id);
       if (job) {
         Object.assign(job, update);
@@ -1317,11 +1282,8 @@ export function applyJobBroadcast(data) {
     });
   }
 
-  updateLiveTimings();
-
-  if (document.getElementById("dashboard")?.classList.contains("active")) {
-    refreshDashboardCards("jobs_changed");
-  }
+  // === DASHBOARD REFRESH (debounced) ===
+  refreshDashboardCards("jobs_changed");
 }
 
 export function applyCalBroadcast(data) {
@@ -1969,57 +1931,34 @@ export function refreshDashboard() {
 }
 
 // ==================== DASHBOARD REFRESH ====================
+let dashboardRefreshTimeout = null;
 
 export function refreshDashboardCards(reason = "") {
   if (!document.getElementById("dashboard")?.classList.contains("active")) 
     return;
 
-  console.log(`[refreshDashboardCards] Triggered by: ${reason}`);
+  console.log(`[refreshDashboardCards] Queued by: ${reason}`);
 
-  // Rebuild all cards from current authoritative Maps
+  // Debounce the actual refresh
+  clearTimeout(dashboardRefreshTimeout);
+  dashboardRefreshTimeout = setTimeout(() => {
+    refreshDashboardCardsInternal();
+  }, 350);
+}
+
+function refreshDashboardCardsInternal() {
+  console.log("[refreshDashboardCardsInternal] Executing full refresh");
+
   const runningList = document.getElementById("dash-running-list");
   const failedList = document.getElementById("dash-failed-list");
   const overdueList = document.getElementById("dash-overdue-list");
-  const nextList = document.getElementById("dash-next-5");
 
   if (runningList) runningList.innerHTML = getLongestRunningJobsHTML(5);
   if (failedList) failedList.innerHTML = getRecentlyFailedListHTML(5);
   if (overdueList) overdueList.innerHTML = getOverdueClustersListHTML();
 
-  // Next Scheduled
   updateNextScheduledClusters();
-
-  // Recent Activity
   renderRecentActivityTable();
-
-  // Immediate live timing update
-  updateDashboardLiveTimings();
-
-  console.log("[refreshDashboardCards] All cards refreshed");
-}
-
-export function refreshDashboardCards2(source = "") {
-  if (!document.getElementById("dashboard")?.classList.contains("active"))
-    return;
-
-  // Full rebuilds
-  document.getElementById("dash-running-list").innerHTML =
-    getLongestRunningJobsHTML(5);
-  document.getElementById("dash-failed-list").innerHTML =
-    getRecentlyFailedListHTML(5);
-
-  // Overdue card - make sure it's rebuilt
-  const overdueList = document.getElementById("dash-overdue-list");
-  if (overdueList) {
-    overdueList.innerHTML = getOverdueClustersListHTML();
-  }
-
-  // Next Scheduled
-  updateNextScheduledClusters();
-
-  renderRecentActivityTable();
-
-  // Immediate live update after rebuild
   updateDashboardLiveTimings();
 }
 
