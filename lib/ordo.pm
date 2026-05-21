@@ -174,32 +174,34 @@ sub startup {
             $c->render( template => 'login' );
         }
     );
+=cut
 
-    $r->post(
-        '/login' => sub {
-            my $c     = shift;
-            my $email = $c->param('email') || '';
-            return $c->render( template => 'login', error => 'Invalid email' )
-              unless $email && Email::Valid->address($email);
+   $r->post(
+      '/login' => sub {
+         my $c     = shift;
+         my $email = $c->param('email') || '';
+         return $c->render( text => 'Invalid email', status => 404 )
+           unless $email && Email::Valid->address($email);
 
-            state $user = ordo::Model::User->new(
-                remote_address => $c->tx->remote_address );
-            my $res = $self->request( $user,
-                { command => 'register_user', email => $email } );
+         state $user =
+           ordo::Model::User->new( remote_address => $c->tx->remote_address );
+         my $res = $self->request( $user,
+            { command => 'register_user', email => $email } );
 
-            if ( $res->{success} ) {
-                $c->flash( message => "Login link sent to $email" );
-                $c->redirect_to('/login');
-            }
-            else {
-                $c->render(
-                    template => 'login',
-                    error    => $res->{message} || 'Failed'
-                );
-            }
-        }
-    );
+         #if ( $res->{success} ) {
+         #    $c->flash( message => "Login link sent to $email" );
+         #    $c->redirect_to('/login');
+         #}
+         #else {
+         #    $c->render(
+         #        template => 'login',
+         #        error    => $res->{message} || 'Failed'
+         #    );
+         #}
+      }
+   );
 
+=pod
     $r->get(
         '/logout' => sub {
             my $c = shift;
@@ -256,11 +258,11 @@ sub startup {
             $c->redirect_to('/#settings')
               ;    # Return to Settings after upgrade intent
          }
-         elsif ( !$u->{update_time} || $u->{creation_time} > time - 86400 ) {
+         #elsif ( !$u->{update_time} || $u->{creation_time} > time - 86400 ) {
 
             # New user (created in last 24 hours)
-            $c->redirect_to('/#docs/quickstart');    # Best onboarding
-         }
+         #$c->redirect_to('/#docs/quickstart');    # Best onboarding
+         #}
          else {
             $c->redirect_to('/#dashboard');    # Returning user → Dashboard
          }
@@ -289,7 +291,7 @@ sub startup {
             return 1;
          }
          else {
-            $c->redirect_to('/login');
+            #$c->redirect_to('/login');
             return undef;
          }
       }
@@ -418,14 +420,49 @@ sub startup {
          my $temp_user =
            ordo::Model::User->new( remote_address => $c->tx->remote_address );
 
+         # Public commands
          if ( $command eq 'register_user' || $command eq 'login_user' ) {
             my $res = $self->request( $temp_user, $json );
             $c->render( json => $res );
             return;
          }
 
+         # Try execution token first
+         if ($token) {
+            my $org = $self->sqlite->db->select( 'org', ['id'],
+               { execution_token => $token } )->hash;
+
+            if ($org) {
+               my $exec_user = ordo::Model::User->new(
+                  id                 => 0,
+                  level              => 1,
+                  org_id             => $org->{id},
+                  token              => $token,
+                  remote_address     => $c->tx->remote_address,
+               );
+
+               if ( $self->_is_execution_command($command) ) {
+                  my $res = $self->request( $exec_user, $json );
+                  $c->render( json => $res );
+               }
+               else {
+                  $c->render(
+                     json => {
+                        success => 0,
+                        message =>
+                          "Execution token not authorized for '$command'"
+                     },
+                     status => 403
+                  );
+               }
+               return;
+            }
+         }
+
+         # Normal user path
          my $auth = $self->request( $temp_user,
             { command => 'login_user', token => $token } );
+
          unless ( $auth->{success} ) {
             $c->render(
                json   => { success => 0, message => 'Unauthorized' },
@@ -518,6 +555,25 @@ sub startup {
          { token => $a->{token}, command => 'login_user' } );
       $self->_create_cron_object( $user, { id => $a->{cron_id} } );
    }
+}
+
+# HELPERS
+
+sub _get_execution_token {
+   my ( $self, $org_id ) = @_;
+   return undef unless $org_id;
+
+   my $row =
+     $self->sqlite->db->select( 'org', ['execution_token'], { id => $org_id } )
+     ->hash;
+
+   my $token = $row ? $row->{execution_token} : undef;
+   return $token;
+}
+
+sub _is_execution_command {
+   my ( $self, $command ) = @_;
+   return $command eq 'update_job_state' || $command eq 'update_sysinfo';
 }
 
 sub get_local_ip_address {
@@ -887,8 +943,7 @@ sub request {
                   }
 
                   # Execute as method
-                  $response =
-                    $self->$sub_name( $user, $clean_params_or_error );
+                  $response = $self->$sub_name( $user, $clean_params_or_error );
                }
             }
          }
@@ -2090,9 +2145,18 @@ sub create_user {
       }
       else {
          $org_id = $db->query("INSERT INTO org DEFAULT VALUES")->last_insert_id;
-      }
+         die "unable to create org" unless $org_id;
 
-      die "unable to create org" unless $org_id;
+         my $exec_token = $self->_new_token();
+         $db->update(
+            'org',
+            {
+               execution_token            => $exec_token,
+               execution_token_created_at => time()
+            },
+            { id => $org_id }
+         );
+      }
 
       # create root cluster
       my $root_id;
@@ -2108,7 +2172,6 @@ sub create_user {
             {
                org_id   => $org_id,
                name     => 'root',
-               mode     => 770,
                state_id => $self->job_states->{immutable}
             }
          )->last_insert_id;
@@ -2120,7 +2183,6 @@ sub create_user {
       $user_insert->{token}           = $user_token;
       $user_insert->{org_id}          = $org_id;
       $user_insert->{base_cluster_id} = $root_id;
-      $user_insert->{mode}            = 770;
       $user_id = $db->insert( 'user', $user_insert )->last_insert_id;
       die unless $user_id;
 
@@ -2138,7 +2200,9 @@ sub create_user {
       return { message => $@, success => 0 };
    }
    else {
-      $self->_broadcast_org( $user, [$org_id] );
+      #$self->_broadcast_org( $user, [$org_id] );
+
+      # $self->_broadcast_org( $user );
       return {
          success => 1,
          id      => $user_id,
@@ -2146,6 +2210,15 @@ sub create_user {
          message => "user $user_id created"
       };
    }
+}
+
+sub rotate_execution_token {
+   my ( $self, $user, $d ) = @_;
+   my $user_id = $d->{id} || $user->id;
+   my $token   = $self->_new_token();
+   $self->sqlite->db->update( 'org', { execution_token => $token }, { id => $user_id } )
+     ->hash;
+   return { success => 1, token => $token, message => 'New exec token generated' };
 }
 
 sub new_token {
@@ -4117,28 +4190,11 @@ sub _start_job {
 
    # don't start if dependencies not satisfied
 
-#if ( $d->{origin} eq 'auto' && $job->{state_id} == $self->job_states->{waiting} && !$self->_job_needs_met( $user, { id => $job->{id} })) {
-#if ( $job->{state_id} == $self->job_states->{waiting} && !$self->_job_needs_met( $user, { id => $job->{id} })) {
-
- #print "JOB: " . $job->{id} . "\n";
- #print "NEEDS: " . $self->_job_needs_met( $user, { id => $job->{id} } ) . "\n";
    unless ( $self->_job_needs_met( $user, { id => $job->{id} } ) ) {
       print "NEEDS: "
         . $self->_job_needs_met( $user, { id => $job->{id} } ) . "\n";
       return { success => 0, waiting => 1, message => 'dependency not met.' };
    }
-
-#unless ( $d->{force} ) {
-#   if ( $job->{state_id} == $self->job_states->{waiting} && !$self->_job_needs_met( $user, { id => $job->{id} } ) ) {
-#      return { success => 0, waiting => 1, message => 'dependency not met. use --force to start anyway' };
-#   }
-
-#   if ( !scalar( grep { $job->{state_id} == $self->job_states->{$_} } (qw(ready looping retrying)) ) ) {
-#      unless ( $d->{origin} eq 'user' ) {
-#         return { success => 0, message => 'job not ready. use --force to start anyway' };
-#      }
-#   }
-#}
 
    # reset counters on user start
    if ( $d->{origin} eq 'user' ) {
@@ -4171,30 +4227,33 @@ sub _start_job {
    my $needs  = join( ' ', keys %{ $job->{needs} } ) if $job->{needs};
    my $needed = join( ' ', @{ $job->{needed} } )     if $job->{needed};
 
-   my $token = $user->token;
-   my $opts  = {
-      token      => $token,
-      id         => $job->{id},
-      cluster_id => $job->{cluster_id},
-      server_id  => $job->{server_id},
-      script     => $job->{script},
-      api        => $self->local_url . '/api',
-   };
-   $opts->{origin}            = $d->{origin}        if $d->{origin};
-   $opts->{origin_job_id}     = $d->{origin_job_id} if $d->{origin_job_id};
-   $opts->{origin_cluster_id} = $d->{origin_cluster_id}
-     if $d->{origin_cluster_id};
+   # === Use Execution Token for all job launches ===
+   my $launch_token = $self->_get_execution_token($user->org_id)
+       || $user->token;   # fallback, in case something goes wrong
 
-   $opts->{delay}  = $job->{delay} if $job->{delay};
-   $opts->{json}   = $job->{delay} if $job->{delay};
-   $opts->{needs}  = $needs        if $needs;
-   $opts->{needed} = $needed       if $needed;
+   my $opts = {
+      token       => $launch_token,           # ← Always use execution token
+      id          => $job->{id},
+      cluster_id  => $job->{cluster_id},
+      server_id   => $job->{server_id},
+      script      => $job->{script},
+      api         => $self->local_url . '/api',
+   };
+
+   # Optional but recommended: keep original user for auditing
+   $opts->{user_id} = $user->id;   # ← Add this
+
+   $opts->{origin}          = $d->{origin}          if $d->{origin};
+   $opts->{origin_job_id}   = $d->{origin_job_id}   if $d->{origin_job_id};
+   $opts->{origin_cluster_id} = $d->{origin_cluster_id} if $d->{origin_cluster_id};
+   $opts->{delay}           = $job->{delay}         if $job->{delay};
+   $opts->{json}            = $job->{json}          if $job->{json};
+   $opts->{needs}           = $needs                if $needs;
+   $opts->{needed}          = $needed               if $needed;
 
    my $json = encode_json($opts);
-
-   # TODO: encode with MIME::Base64
-   my $json_hex = unpack( 'H*', $json );
-   my $cmd      = "perl ordo_node/bin/launcher.pl $json_hex";
+   my $json_hex = unpack('H*', $json);
+   my $cmd = "perl ordo_node/bin/launcher.pl $json_hex";
 
    $self->_set_job_state( $user, { id => $job->{id}, state => 'starting' } );
 
@@ -5558,6 +5617,7 @@ sub routing {
       'delete_me'     => [ 'delete_me',   1, [ { id    => 'i' }, {} ], 1 ],
       'login_user'    => [ 'login_user',  0, [ { token => 's' }, {} ], 0 ],
       'new_token'     => [ 'new_token',   1, [ {}, {} ], 0 ],
+      'rotate_execution_token' => [ 'rotate_execution_token',   1, [ {}, {} ], 0 ],
       'register_user' =>
         [ 'register_user', 0, [ { email => 'e' }, { team_member => 'i' } ], 1 ],
 

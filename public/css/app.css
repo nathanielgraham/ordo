@@ -1480,6 +1480,29 @@ tr.hidden {
   transform: translateY(-3px);
   color: #fff !important;
 }
+
+/* Neon Red Ghost Button */
+.btn-ghost.neon-red-ghost {
+  background: transparent !important;
+  border: 2px solid #ff3366 !important;
+  color: #ff3366 !important;
+  text-shadow: 0 0 12px #ff3366;
+  box-shadow: 0 0 15px rgba(255, 51, 102, 0.25);
+  padding: 0.8rem 2rem !important;
+  font-size: 1.1rem !important;
+  font-weight: 700;
+  border-radius: 8px !important;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.btn-ghost.neon-red-ghost:hover {
+  background: rgba(255, 51, 102, 0.15) !important;
+  box-shadow: 0 0 25px rgba(255, 51, 102, 0.6);
+  transform: translateY(-3px);
+  color: #fff !important;
+}
+
 .ordo-cron-row {
   opacity: 0.92;
 }
@@ -2353,7 +2376,7 @@ progress::-moz-progress-bar {
   padding-top: 2.25rem;
 }
 
-#account-token {
+#account-token, #execution-token {
   font-family: monospace;
   font-size: 0.95rem;
   letter-spacing: 1px;

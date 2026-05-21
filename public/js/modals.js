@@ -1107,31 +1107,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (modal) modal.classList.remove("active");
     });
 
-  //  document
-  //    .getElementById("close-log-history")
-  //    ?.addEventListener("click", () => {
-  //      document.getElementById("log-history-modal").classList.remove("active");
-  //    });
-
-  // Copy token
-  /*
-  document.getElementById("copy-token")?.addEventListener("click", () => {
-    const tokenInput = document.getElementById("account-token");
-    if (!tokenInput.value) {
-      showToast("No token to copy", "warning");
-      return;
-    }
-    tokenInput.select();
-    tokenInput.setSelectionRange(0, 99999);
-    try {
-      document.execCommand("copy");
-      showToast("Token copied!", "success");
-    } catch (err) {
-      showToast("Failed to copy", "danger");
-    }
-  });
-  */
-
   // Save profile
   document.getElementById("save-profile")?.addEventListener("click", () => {
     const name = document.getElementById("edit-name").value.trim();

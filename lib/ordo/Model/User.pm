@@ -11,6 +11,10 @@ has 'base_cluster_id' => ( is => 'rw', );
 
 has 'token' => ( is => 'rw', );
 
+has 'is_execution_token' => ( 
+   is => 'rw', 
+);
+
 has 'tx' => ( is => 'rw', );
 
 has 'level' => (

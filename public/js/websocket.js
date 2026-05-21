@@ -49,37 +49,6 @@ export function checkLoginAndConnect() {
   }
 }
 
-export function checkLoginAndConnect2() {
-    console.log("[WS Init] checkLoginAndConnect called");
-
-    const token = document.cookie.match(/ordo_token=([^;]+)/)?.[1];
-
-    if (!token) {
-        console.log("[WS Init] No token found");
-        document.body.classList.remove("is-logged-in");
-        return;
-    }
-
-    console.log("[WS Init] Token found → forcing reconnect");
-
-    document.body.classList.add("is-logged-in");
-
-    // Aggressive cleanup of old connection
-    if (window.ws) {
-        try { window.ws.close(1000, "Token regenerated"); } catch(e) {}
-        window.ws = null;
-    }
-    if (appState && appState.ws) {
-        appState.ws = null;
-    }
-
-    // Short delay then reconnect
-    setTimeout(() => {
-        console.log("[WS Init] Creating new WebSocket with new token");
-        connectWS(token);
-    }, 400);
-}
-
 export function connectWS(token) {
   console.log("[WS Init] connectWS called");
 
@@ -129,6 +98,10 @@ export function connectWS(token) {
           }),
         );
       }
+      else if (data.command_reply === "login_user" &! data.success) {
+        document.cookie = "ordo_token=; Path=/; Max-Age=0; SameSite=Strict";
+        checkLoginAndConnect();
+      }
 
       // ====================== CENTRAL COMMAND REPLY HANDLER ======================
       if (data.command_reply) {
@@ -149,17 +122,19 @@ export function connectWS(token) {
 
       if (data.broadcast === "jobs_changed") {
         applyJobBroadcast(data);
-        if (data.updates && data.updates.length > 0) {
+        if (data.updates && data.updates.length > 0) 
+        {
           data.updates.forEach((job) => incrementDashboardStatsFromJob(job));
         }
         if (
           document.getElementById("dashboard")?.classList.contains("active")
-        ) {
+        ) 
+        {
           document.getElementById("dash-running-list").innerHTML =
             getLongestRunningJobsHTML(5);
           document.getElementById("dash-failed-list").innerHTML =
             getRecentlyFailedListHTML(5);
-          renderRecentActivityTable();
+            renderRecentActivityTable();
         }
       }
 

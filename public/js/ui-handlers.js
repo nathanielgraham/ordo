@@ -128,6 +128,20 @@ export function handleCommandReply(data) {
       }
       break;
 
+    case "rotate_execution_token":
+      if (data.success && data.token) {
+        // Update visible token field
+        const tokenField = document.getElementById("execution-token");
+        if (tokenField) {
+          tokenField.value = data.token;
+        }
+
+      } else {
+        showToast(data.message || "Failed to rotate exec token", "error");
+      }
+      break;
+
+
     default:
       console.debug(
         `[handleCommandReply] Unhandled command_reply: ${data.command_reply}`,
@@ -447,6 +461,9 @@ function renderUserProfile(user) {
 
   const tokenInput = document.getElementById("account-token");
   if (tokenInput) tokenInput.value = user.token || "";
+
+  const execTokenInput = document.getElementById("execution-token");
+  if (execTokenInput) execTokenInput.value = user.token || "";
 }
 
 function renderOrgAndBilling(org) {
@@ -2435,6 +2452,19 @@ export function initSettingsListeners() {
         () => showToast("Token regeneration cancelled", "info"),
       );
     });
+
+  document.getElementById("rotate-exec-token").addEventListener("click", () => {
+    openConfirmModal(
+      "Rotate Execution Token?",
+      "This will invalidate the current token for all remote servers. " +
+        "Currently running jobs may lose the ability to report status. " +
+        "Are you sure you want to continue?",
+      () => {
+        sendWS({ command: "rotate_execution_token" });
+      },
+      () => showToast("Rotate token cancelled", "info"),
+    );
+  });
 }
 
 // ==================== END OF FILE MARKER ====================

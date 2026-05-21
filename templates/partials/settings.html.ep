@@ -5,7 +5,6 @@
       <i class="fas fa-spinner fa-spin fa-3x"></i>
       <p class="mt-medium">Loading settings...</p>
     </div>
-
     <div id="settings-content" style="display: none">
       <!-- Refresh Button -->
       <div class="actions-right">
@@ -27,17 +26,13 @@
       <div id="tab-account-tab" class="internal-tab-content">
         <div class="card-simple">
           <h3 class="title-medium"><i class="fas fa-user"></i> Account</h3>
-
           <div class="info-grid">
             <div class="label-bold">Email</div>
             <div id="account-email"></div>
-
             <div class="label-bold">User ID</div>
             <div id="account-id"></div>
-
             <div class="label-bold">Level</div>
             <div id="account-level"></div>
-
             <div class="label-bold">Name</div>
             <input
               class="input"
@@ -45,12 +40,10 @@
               id="edit-name"
               placeholder="Your name"
             />
-
             <div class="label-bold">Remote Address</div>
             <div id="account-remote"></div>
 
             <div class="label-bold">Token (API)</div>
-
             <div class="token-row flex items-center gap-3">
               <input
                 class="input flex-1"
@@ -58,13 +51,14 @@
                 id="account-token"
                 readonly
               />
-
               <button class="btn btn-ghost neon-ghost" id="copy-token">
                 <i class="fas fa-copy"></i> Copy
               </button>
-
-              <button class="btn btn-danger" id="regenerate-token">
-                <i class="fas fa-sync-alt"></i> Regenerate
+              <button
+                class="btn btn-ghost neon-red-ghost"
+                id="regenerate-token"
+              >
+                <i class="fas fa-redo"></i> Rotate
               </button>
             </div>
           </div>
@@ -92,7 +86,30 @@
                 rows="3"
                 placeholder="Organization description"
               ></textarea>
+
+              <!-- Execution Token -->
+              <div class="label-bold">Execution Token</div>
+              <div class="token-row flex items-center gap-3">
+                <input
+                  class="input flex-1"
+                  type="text"
+                  id="execution-token"
+                  readonly
+                />
+                <button
+                  class="btn btn-ghost neon-red-ghost"
+                  id="rotate-exec-token"
+                >
+                  <i class="fas fa-redo"></i> Rotate
+                </button>
+              </div>
             </div>
+
+            <p class="help-text small mt-small text-orange">
+              <strong>Warning:</strong> Rotating this token may disrupt
+              currently running jobs. It is safest to rotate when no jobs are
+              active.
+            </p>
           </div>
 
           <div class="actions-right mt-large">
