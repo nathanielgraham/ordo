@@ -358,11 +358,30 @@
   <div class="modal-dialog full">
     <header class="modal-header">
       <p class="modal-title">Dependency Graph: <span id="graph-title"></span></p>
+      
+      <!-- Zoom Controls (uses your existing CSS) -->
+      <div class="zoom-controls">
+        <button class="btn btn-sm btn-ghost" id="graph-fit-btn" title="Fit to Screen">
+          <i class="fas fa-expand"></i>
+        </button>
+        <button class="btn btn-sm btn-ghost" id="graph-zoom-in" title="Zoom In">
+          <i class="fas fa-plus"></i>
+        </button>
+        <button class="btn btn-sm btn-ghost" id="graph-zoom-out" title="Zoom Out">
+          <i class="fas fa-minus"></i>
+        </button>
+        <button class="btn btn-sm btn-ghost" id="graph-reset" title="Reset View">
+          <i class="fas fa-undo"></i>
+        </button>
+      </div>
+
       <button class="close-btn" data-dismiss="graph-modal"></button>
     </header>
     <section class="modal-body graph-body">
       <div id="graph-container"></div>
+      
       <div class="graph-legend">
+        <!-- Your existing legend stays exactly the same -->
         <div class="graph-legend-title">Legend</div>
         <div class="legend-item">
           <svg width="60" height="14" class="legend-svg">

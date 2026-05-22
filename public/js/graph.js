@@ -1,302 +1,223 @@
 // graph.js – dependency graph visualization (Cytoscape + Dagre)
-
 import { appState } from "./state.js";
 import { findClusterById, findJobById } from "./utils.js";
+import { openJobModal, openClusterModal } from "./modals.js";
+
+let currentCy = null;
 
 export function openDependencyGraph(clusterId, clusterName) {
-  // Update title
-  document.getElementById("graph-title").textContent =
-    `${clusterName || "Cluster"}`;
-
-  // Show modal
   const modal = document.getElementById("graph-modal");
-  modal.classList.add("active");
-
+  const titleEl = document.getElementById("graph-title");
   const container = document.getElementById("graph-container");
 
-  // Show loading spinner
-  container.innerHTML =
-    '<div class="has-text-centered p-6"><i class="fas fa-spinner fa-spin fa-3x"></i></div>';
+  if (!modal || !container) return;
 
-  // Force container to take full available height
-  container.style.height = "100%";
-  container.style.minHeight = "calc(100vh - 200px)"; // subtract header + padding/margins
+  titleEl.textContent = clusterName || `Cluster #${clusterId}`;
+  modal.classList.add("active");
 
-  // Force browser to reflow layout immediately (critical!)
-  void container.offsetHeight;
+  if (currentCy) {
+    currentCy.destroy();
+    currentCy = null;
+  }
 
-  // Log initial size (should already be better after reflow)
-  console.log(
-    "Initial container size after reflow:",
-    container.clientWidth,
-    container.clientHeight,
-  );
+  container.innerHTML = '<div class="has-text-centered p-6"><i class="fas fa-spinner fa-spin fa-3x"></i></div>';
+  // container.style.height = "calc(100vh - 180px)";
+  // container.style.minHeight = "600px";
+  container.style.height = "100%";   // Let CSS handle it
+  container.style.minHeight = "30rem";
 
-  // Delay Cytoscape init slightly — wait for modal CSS transitions to finish
+
   setTimeout(() => {
-    console.log(
-      "Delayed container size (before cy init):",
-      container.clientWidth,
-      container.clientHeight,
-    );
-
     const rootNode = findClusterById(appState.monitorData.tree, clusterId);
     if (!rootNode) {
-      container.innerHTML =
-        '<p class="has-text-danger has-text-centered">Cluster not found</p>';
+      container.innerHTML = '<p class="has-text-danger has-text-centered">Cluster not found</p>';
       return;
     }
 
-    const elements = [];
-    const added = new Set();
+    const elements = buildGraphElements(rootNode);
 
-    const getCyId = (node) => (node.is_cluster ? `c${node.id}` : `j${node.id}`);
-    const getLabel = (node) => (node.is_cluster ? `${node.name}/` : node.name);
-
-    function traverse(node) {
-      const cyId = getCyId(node);
-      if (added.has(cyId)) return cyId;
-      added.add(cyId);
-
-      let parentCyId = null;
-      if (node.parent_id) {
-        parentCyId = `c${node.parent_id}`;
-      } else if (node.cluster_id) {
-        parentCyId = `c${node.cluster_id}`;
-      }
-
-      if (node.is_cluster) {
-        elements.push({
-          data: { id: cyId, label: getLabel(node), parent: parentCyId },
-          classes: "cluster",
-        });
-      } else {
-        elements.push({
-          data: { id: cyId, label: getLabel(node), parent: parentCyId },
-          classes: "job",
-        });
-      }
-
-      // Children recursion
-      if (node.children) node.children.forEach(traverse);
-      if (node.jobs)
-        node.jobs.forEach((job) => traverse({ ...job, is_cluster: false }));
-
-      // Blocking needs (AND)
-      if (node.needs_ids?.length) {
-        node.needs_ids.forEach((depId) => {
-          const depIdNum = Number(depId);
-          let depNode = null;
-
-          if (!node.is_cluster) {
-            depNode = findJobById(appState.monitorData.tree, depIdNum);
-          }
-          if (node.is_cluster) {
-            depNode = findClusterById(appState.monitorData.tree, depIdNum);
-          }
-
-          if (depNode) {
-            traverse(depNode);
-            elements.push({
-              data: { source: cyId, target: getCyId(depNode), label: "needs" },
-              classes: "needs",
-            });
-          }
-        });
-      }
-
-      // Needs any (OR)
-      if (node.needs_any_ids?.length) {
-        node.needs_any_ids.forEach((depId) => {
-          const depIdNum = Number(depId);
-          let depNode = null;
-
-          if (!node.is_cluster) {
-            depNode = findJobById(appState.monitorData.tree, depIdNum);
-          }
-          if (node.is_cluster) {
-            depNode = findClusterById(appState.monitorData.tree, depIdNum);
-          }
-
-          if (depNode) {
-            traverse(depNode);
-            elements.push({
-              data: {
-                source: cyId,
-                target: getCyId(depNode),
-                label: "needs any",
-              },
-              classes: "needs_any",
-            });
-          }
-        });
-      }
-
-      // On fail (recovery) — typically node → recovery (failed → fallback)
-      if (node.on_fail_id) {
-        const failIdNum = Number(node.on_fail_id);
-        const failNode = findClusterById(appState.monitorData.tree, failIdNum);
-        if (failNode && node.is_cluster) {
-          traverse(failNode);
-          elements.push({
-            data: { source: cyId, target: getCyId(failNode), label: "on fail" },
-            classes: "on_fail",
-          });
-        }
-      }
-
-      return cyId;
-    }
-
-    traverse(rootNode);
-
-    // Final size check
-    console.log(
-      "Final container size before cy init:",
-      container.clientWidth,
-      container.clientHeight,
-    );
-
-    // Clean up previous graph
-    if (container.cy) container.cy.destroy();
-
-    // Safety timeout to stop layout if it hangs
-    const layoutTimeout = setTimeout(() => {
-      console.warn("Layout taking too long — stopping Cytoscape");
-      container.cy?.stop();
-      const spinner = container.querySelector(".has-text-centered");
-      if (spinner) spinner.remove();
-    }, 10000); // 10 seconds
-
-    // Initialize Cytoscape
-    container.cy = cytoscape({
+    currentCy = cytoscape({
       container: container,
       elements: elements,
-      style: [
-        {
-          selector: "node",
-          style: {
-            label: "data(label)",
-            "text-valign": "center",
-            color: "#fff",
-            "text-outline-width": 2,
-            "text-outline-color": "#000",
-            "font-size": 13,
-          },
-        },
-        {
-          selector: ".cluster",
-          style: {
-            "background-color": "#3273dc",
-            "background-opacity": 0.2,
-            "border-color": "#3273dc",
-            "border-width": 3,
-            shape: "roundrectangle",
-            padding: 60,
-            "text-valign": "top",
-            "text-margin-y": -20,
-            "font-weight": "bold",
-            "font-size": 15,
-          },
-        },
-        {
-          selector: ".job",
-          style: {
-            "background-color": "#48c774",
-            shape: "rectangle",
-          },
-        },
-
-        // Blocking needs (AND) → solid red, bold arrow
-        {
-          selector: ".needs",
-          style: {
-            width: 4,
-            "line-color": "#ff3366", // strong red
-            "target-arrow-color": "#ff3366",
-            "target-arrow-shape": "triangle",
-            "curve-style": "bezier",
-            "arrow-scale": 1.8, // bigger arrow for emphasis
-          },
-        },
-
-        // Needs any (OR) → dashed cyan (OR = permissive)
-        {
-          selector: ".needs_any",
-          style: {
-            width: 2,
-            "line-color": "#00ffff",
-            "target-arrow-color": "#00ffff",
-            "target-arrow-shape": "vee",
-            "line-style": "dashed",
-            "arrow-scale": 1.3,
-          },
-        },
-
-        // On fail (recovery) → solid yellow/orange with diamond arrow
-        {
-          selector: ".on_fail",
-          style: {
-            width: 3,
-            "line-color": "#ffaa00", // bright orange/yellow for warning/recovery
-            "target-arrow-color": "#ffaa00",
-            "target-arrow-shape": "diamond",
-            "curve-style": "bezier",
-            "arrow-scale": 1.5,
-            label: "data(label)", // keep label
-            "font-size": 10,
-            "text-background-color": "rgba(0,0,0,0.67)",
-            "text-background-opacity": 0.7,
-            "text-background-padding": "3px",
-            color: "#ffaa00",
-          },
-        },
-      ],
-
+      style: getGraphStyle(),
       layout: {
         name: "dagre",
-        rankDir: "TB",
-        nodeSep: 70,
-        rankSep: 200,
+        rankDir: "LR",
+        spacingFactor: 1.4,
+        nodeSep: 60,
         edgeSep: 30,
+        rankSep: 120
       },
       zoomingEnabled: true,
       panningEnabled: true,
       boxSelectionEnabled: false,
-      autoungrabify: true,
+      minZoom: 0.2,
+      maxZoom: 5,
     });
 
-    // Clean up timeout and spinner on success
-    container.cy.on("layoutstop", () => {
-      clearTimeout(layoutTimeout);
-      const spinner = container.querySelector(".has-text-centered");
-      if (spinner) spinner.remove();
-      container.cy.fit(container.cy.elements(), 100);
-      container.cy.center();
+    // Click to edit - More robust lookup
+    // Click to edit - FIXED ID EXTRACTION
+    currentCy.on('tap', 'node', (evt) => {
+      const node = evt.target;
+      let rawId = node.data('id');                    // e.g. "j123" or "c456"
+
+      // Extract numeric ID
+      const idStr = String(rawId).replace(/^[jc]/, '');   // remove 'j' or 'c' prefix
+      const id = Number(idStr);
+
+      const isCluster = node.data('is_cluster') === true || rawId.toString().startsWith('c');
+
+      console.log(`[Graph Click] rawId=${rawId}, extracted id=${id}, isCluster=${isCluster}`);
+
+      modal.classList.remove("active");
+
+      if (isCluster) {
+        openClusterModal("edit", id);
+      } else {
+        openJobModal("edit", id);
+      }
     });
 
-    container.cy.ready(() => {
-      clearTimeout(layoutTimeout);
-      const spinner = container.querySelector(".has-text-centered");
-      if (spinner) spinner.remove();
-    });
+    currentCy.on('mouseover', 'node', (evt) => evt.target.addClass('highlight'));
+    currentCy.on('mouseout', 'node', (evt) => evt.target.removeClass('highlight'));
 
     // Zoom controls (unchanged)
-    document.getElementById("zoom-in")?.addEventListener("click", () => {
-      container.cy.zoom(container.cy.zoom() * 1.2);
-    });
-    document.getElementById("zoom-out")?.addEventListener("click", () => {
-      container.cy.zoom(container.cy.zoom() / 1.2);
-    });
-    document.getElementById("zoom-fit")?.addEventListener("click", () => {
-      container.cy.fit(container.cy.elements(), 100);
-      container.cy.center();
-    });
+    document.getElementById("graph-fit-btn").onclick = () => currentCy.fit();
+    document.getElementById("graph-zoom-in").onclick = () => currentCy.zoom(currentCy.zoom() * 1.2);
+    document.getElementById("graph-zoom-out").onclick = () => currentCy.zoom(currentCy.zoom() * 0.8);
+    document.getElementById("graph-reset").onclick = () => { currentCy.fit(); currentCy.center(); };
 
-    // Ultimate fallback (if everything fails)
-    setTimeout(() => {
+    // Better spinner cleanup
+    const removeSpinner = () => {
       const spinner = container.querySelector(".has-text-centered");
       if (spinner) spinner.remove();
-    }, 12000);
-  }, 150); // 150ms delay — enough for modal to expand
+    };
+
+    currentCy.on("layoutstop", removeSpinner);
+    currentCy.ready(removeSpinner);
+
+
+  }, 180);
+}
+
+// ==================== BUILD WITH COMPOUND NODES ====================
+function buildGraphElements(rootNode) {
+  const elements = [];
+  const added = new Set();
+
+  function traverse(node, parentCyId = null) {
+    if (!node) return;
+    const cyId = node.is_cluster ? `c${node.id}` : `j${node.id}`;
+    if (added.has(cyId)) return;
+    added.add(cyId);
+
+    elements.push({
+      data: { 
+        id: cyId, 
+        label: node.is_cluster ? `${node.name}/` : node.name,
+        is_cluster: !!node.is_cluster,
+        parent: parentCyId
+      },
+      classes: node.is_cluster ? "cluster" : "job"
+    });
+
+    // Recurse children
+    if (node.children) node.children.forEach(child => traverse(child, cyId));
+    if (node.jobs) node.jobs.forEach(job => traverse({ ...job, is_cluster: false }, cyId));
+
+    // Edges (needs, needs_any, on_fail)
+    if (node.needs_ids?.length) {
+      node.needs_ids.forEach(depId => addEdge(cyId, depId, "needs"));
+    }
+    if (node.needs_any_ids?.length) {
+      node.needs_any_ids.forEach(depId => addEdge(cyId, depId, "needs_any"));
+    }
+    if (node.on_fail_id) {
+      addEdge(cyId, node.on_fail_id, "on_fail");
+    }
+  }
+
+  function addEdge(sourceId, targetIdRaw, type) {
+    const targetId = Number(targetIdRaw);
+    let targetNode = null;
+    if (type === "on_fail") {
+      targetNode = findClusterById(appState.monitorData.tree, targetId);
+    } else {
+      targetNode = findJobById(appState.monitorData.tree, targetId) || 
+                   findClusterById(appState.monitorData.tree, targetId);
+    }
+    if (targetNode) {
+      const targetCyId = targetNode.is_cluster ? `c${targetNode.id}` : `j${targetNode.id}`;
+      elements.push({
+        data: { source: sourceId, target: targetCyId },
+        classes: type
+      });
+    }
+  }
+
+  traverse(rootNode);
+  return elements;
+}
+
+// ==================== STYLES ====================
+function getGraphStyle() {
+  return [
+    {
+      selector: "node",
+      style: {
+        label: "data(label)",
+        "text-valign": "center",
+        color: "#fff",
+        "text-outline-width": 2,
+        "text-outline-color": "#111",
+        "font-size": 14,
+        "font-weight": "500",
+      }
+    },
+    {
+      selector: ".cluster",
+      style: {
+        "background-color": "#1e3a8a",
+        "background-opacity": 0.4,
+        "border-color": "#60a5fa",
+        "border-width": 6,
+        shape: "roundrectangle",
+        padding: 70,
+        "text-valign": "top",
+        "text-margin-y": -35,
+        "font-weight": "bold",
+        "font-size": 18,
+      }
+    },
+    // Job colors by state
+    {
+      selector: ".job",
+      style: {
+        shape: "rectangle",
+        width: 140,
+        height: 60,
+        "background-color": "#166534",   // default complete
+      }
+    },
+    { selector: ".job[state-id='1']", style: { "background-color": "#ca8a04" } }, // pending
+    { selector: ".job[state-id='2']", style: { "background-color": "#eab308" } }, // starting
+    { selector: ".job[state-id='3']", style: { "background-color": "#22c55e" } }, // running
+    { selector: ".job[state-id='4']", style: { "background-color": "#ef4444" } }, // failed
+    { selector: ".job[state-id='5']", style: { "background-color": "#8b5cf6" } }, // cancelled
+    { selector: ".job[state-id='6']", style: { "background-color": "#166534" } }, // complete
+
+    {
+      selector: ".highlight",
+      style: {
+        "border-color": "#67e8f9",
+        "border-width": 8,
+        "text-outline-color": "#67e8f9"
+      }
+    },
+
+    // Edges
+    { selector: ".needs", style: { width: 4, "line-color": "#f87171", "target-arrow-color": "#f87171", "target-arrow-shape": "triangle" }},
+    { selector: ".needs_any", style: { width: 3, "line-color": "#4ade80", "target-arrow-color": "#4ade80", "target-arrow-shape": "vee", "line-style": "dashed" }},
+    { selector: ".on_fail", style: { width: 3, "line-color": "#fbbf24", "target-arrow-color": "#fbbf24", "target-arrow-shape": "diamond" }}
+  ];
 }

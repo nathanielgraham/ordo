@@ -2673,3 +2673,50 @@ progress::-moz-progress-bar {
   background: #777;
 }
 
+/* ==================== GRAPH MODAL IMPROVEMENTS ==================== */
+
+#graph-modal .modal-dialog.full {
+  max-height: 95vh;
+  margin: 2.5vh auto;
+  width: 95vw;
+  max-width: 1400px;
+}
+
+#graph-modal .modal-body.graph-body {
+  padding: 1.5rem 2rem 5rem 2rem;           /* relative padding */
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 9rem);               /* relative to viewport */
+  overflow: hidden;
+}
+
+#graph-modal #graph-container {
+  flex: 1 1 auto;
+  min-height: 30rem;                        /* minimum usable height */
+  border: 1px solid #334155;
+  border-radius: 0.75rem;
+  background: #0f172a;
+  position: relative;
+}
+
+/* Legend */
+#graph-modal .graph-legend {
+  margin-top: 1.25rem;
+  flex-shrink: 0;
+  font-size: 0.9rem;
+}
+
+
+body, html {
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.main-content, .modal-body, .graph-body {
+  scrollbar-gutter: stable;   /* reserves space so scrollbar doesn't shift layout */
+}
+
+/* Make sure the top nav doesn't get covered */
+header, .navbar {
+  z-index: 1000;
+}

@@ -1,5 +1,6 @@
 // modals.js
 import { appState } from "./state.js";
+import { openDependencyGraph } from "./graph.js";
 import {
   showToast,
   renderCalendarsTable,
@@ -95,30 +96,35 @@ export function openJobModal(
   if (!modal) return;
 
   let item = null;
-  if (mode === "edit" && itemId) {
-    item = appState.jobsMap.get(Number(itemId)) ||
-           findJobById(appState.monitorData.tree, itemId);
+  const numericId = Number(itemId);
+
+  if (mode === "edit" && numericId) {
+    // Robust lookup from multiple sources
+    item = appState.jobsMap.get(numericId) ||
+           findJobById(appState.monitorData.tree, numericId);
   }
 
-  const isEdit = mode === "edit";
+  const isEdit = mode === "edit" && item !== null;
+  const currentClusterId = item?.cluster_id || parentId;
 
-  modal.dataset.editId = isEdit ? String(itemId) : "";
+  modal.dataset.editId = isEdit ? String(numericId) : "";
   modal.dataset.parentId = parentId || "";
 
+  // Title & Context
   document.getElementById("job-modal-title").textContent = isEdit ? "Edit Job" : "New Job";
   document.getElementById("job-context").textContent = isEdit
     ? `Editing: ${item?.name || "—"}`
     : parentName ? `In cluster: ${parentName}` : "In root";
 
   // Basic fields
-  document.getElementById("job-name").value = item?.name || "new-job";
-  document.getElementById("job-script").value = item?.script || "";
-  document.getElementById("job-description").value = item?.description || "";
-  document.getElementById("job-loops").value = item?.loops ?? 0;
-  document.getElementById("job-retrys").value = item?.retrys ?? 0;
-  document.getElementById("job-delay").value = item?.delay ?? 0;
+  document.getElementById("job-name").value = isEdit ? (item?.name || "") : "new-job";
+  document.getElementById("job-script").value = isEdit ? (item?.script || "") : "";
+  document.getElementById("job-description").value = isEdit ? (item?.description || "") : "";
+  document.getElementById("job-loops").value = isEdit ? (item?.loops ?? 0) : "0";
+  document.getElementById("job-retrys").value = isEdit ? (item?.retrys ?? 0) : "0";
+  document.getElementById("job-delay").value = isEdit ? (item?.delay ?? 0) : "0";
 
-  // Server
+  // ==================== SERVER ====================
   initModalTomSelect("job-server", {
     maxItems: 1,
     options: appState.serversData.map(s => ({
@@ -127,7 +133,31 @@ export function openJobModal(
     }))
   }).setValue(item?.server_name ? [item.server_name] : []);
 
-  // Build dependency options (exclude root)
+  // ==================== NEEDS / NEEDS_ANY: Same cluster jobs only, exclude self ====================
+  const jobOptions = Array.from(appState.jobsMap.values())
+    .filter(j => 
+      Number(j.cluster_id) === Number(currentClusterId) && 
+      Number(j.id) !== numericId
+    )
+    .map(j => ({
+      value: String(j.id),
+      text: j.name || `Job ${j.id}`
+    }));
+
+  const needsIds = item?.needs_ids || [];
+  const needsAnyIds = item?.needs_any_ids || [];
+
+  initModalTomSelect("job-needs", { 
+    maxItems: null, 
+    options: jobOptions 
+  }).setValue(needsIds.map(String));
+
+  initModalTomSelect("job-needs-any", { 
+    maxItems: null, 
+    options: jobOptions 
+  }).setValue(needsAnyIds.map(String));
+
+  // ==================== ON_FAIL: Clusters only ====================
   const clusterOptions = Array.from(appState.clustersMap.values())
     .filter(c => c.name !== "root")
     .map(c => ({
@@ -135,15 +165,10 @@ export function openJobModal(
       text: c.name || `Cluster ${c.id}`
     }));
 
-  // Dependencies
-  initModalTomSelect("job-needs", { maxItems: null, options: clusterOptions })
-    .setValue((item?.needs_ids || []).map(String));
-
-  initModalTomSelect("job-needs-any", { maxItems: null, options: clusterOptions })
-    .setValue((item?.needs_any_ids || []).map(String));
-
-  initModalTomSelect("job-on-fail", { maxItems: 1, options: clusterOptions })
-    .setValue(item?.on_fail_id ? [String(item.on_fail_id)] : []);
+  initModalTomSelect("job-on-fail", { 
+    maxItems: 1, 
+    options: clusterOptions 
+  }).setValue(item?.on_fail_id ? [String(item.on_fail_id)] : []);
 
   modal.classList.add("active");
   document.getElementById("job-name").focus();
@@ -670,6 +695,10 @@ export function saveJob() {
 
   modal.classList.remove("active");
   showToast(isEdit ? "Job updated" : "Job created", "success");
+
+  modal.classList.remove("active");
+  showToast(isEdit ? "Updated successfully" : "Created successfully", "success");
+
 }
 
 // ==================== SAVE CLUSTER ====================
