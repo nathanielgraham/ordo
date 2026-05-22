@@ -1,4 +1,36 @@
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes toastSlideIn {
+  0% {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ==================== ROOT SCALING SYSTEM (REMS) ==================== */
+
 :root {
+  --base-font: 18px;
+  --scale: 1;
+  --navbar-height: 5.4rem;
   --bg-primary: #0a0a0a;
   --bg-secondary: #1a1a1a;
   --bg-dark: #0f0f1f;
@@ -9,10 +41,6 @@
   --glow-cyan-medium: rgba(0, 255, 255, 0.5);
   --glow-cyan-strong: rgba(0, 255, 255, 0.8);
   --shadow-neon: 0 4px 20px rgba(0, 255, 255, 0.3);
-  --shadow-neon-strong: 0 8px 30px rgba(0, 255, 255, 0.4);
-/*  --navbar-height: clamp(10rem, 12vw + 4rem, 14rem); */
-/*  --navbar-height: clamp(9rem, 15vw + 5rem, 12rem); */
-  --navbar-height: clamp(7.65rem, 12.75vw + 4.25rem, 10.2rem); /* ~15% smaller overall */
 }
 
 *,
@@ -22,24 +50,18 @@
   padding: 0;
   box-sizing: border-box;
 }
-html {
-  font-size: clamp(8px, 1.0vw, 12px);
-  /* font-size: clamp(14px, 1.8vw, 18px); */.
-  font-weight: 500;
-}
 body,
 html {
-  height: 100%;
-  margin: 0;
   padding: 0;
   overflow-x: hidden;
 }
-
-body,
 html {
-  background: var(--bg-primary);
+  font-size: clamp(8px, 1vw, 12px);
+  margin: 0;
 }
-
+body {
+  height: 100%;
+}
 .title-large,
 .title-medium,
 h1,
@@ -72,25 +94,6 @@ small {
   box-shadow: var(--shadow-neon) !important;
   transform: translateY(-2px);
 }
-.nav-tab.active::after {
-  content: "";
-  position: absolute;
-  bottom: 8px;
-  left: 50%;
-  width: 80%;
-  height: 5px;
-  background: var(--glow-cyan);
-  border-radius: 3px;
-  box-shadow:
-    0 0 20px var(--glow-cyan-strong),
-    0 0 40px var(--glow-cyan-strong);
-  transform: translateX(-50%);
-  transition: all 0.3s ease;
-  z-index: 1;
-}
-.nav-actions {
-  flex: 0 0 auto;
-}
 .tab-content {
   display: none !important;
 }
@@ -107,7 +110,8 @@ body.scrolled .topnav {
 .close-btn::before {
   background: currentColor;
 }
-.btn {
+.btn,
+.ordo-table tbody tr {
   cursor: pointer;
 }
 #log-history-modal .modal-body {
@@ -140,10 +144,8 @@ select:focus {
 body {
   font-family: "Montserrat", sans-serif !important;
   font-weight: 500;
-  /* font-size: clamp(14px, 1.8vw, 18px) !important; */
   font-size: clamp(10px, 1.2vw, 14px) !important;
 }
-
 .ordo-table,
 .ordo-table td,
 .ordo-table th {
@@ -221,11 +223,6 @@ main.content {
   border-radius: 8px;
   box-shadow: 0 4px 15px rgba(0, 255, 255, 0.1);
 }
-.card-header {
-  background: #222;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #444;
-}
 .card-content {
   padding: 1rem;
 }
@@ -238,20 +235,6 @@ main.content {
 .table th {
   padding: 0.75rem;
   border-bottom: 1px solid #333;
-}
-.modal-card-head .delete {
-  line-height: 2rem;
-  text-align: center;
-  top: 0.75rem;
-}
-.modal-card-head .delete:focus,
-.modal-card-head .delete:hover {
-  color: #f0a;
-  transform: scale(1.2);
-  text-shadow: 0 0 8px #f0a;
-}
-.modal-background {
-  cursor: pointer;
 }
 .hero {
   background: linear-gradient(135deg, #00c9b1, #007a87);
@@ -268,29 +251,8 @@ main.content {
 .subtitle {
   color: #e0e0e0;
 }
-.modal-card-head {
-  justify-content: center;
-}
-.modal-card-title {
-  flex: 1;
-}
-.modal-card-body {
-  overflow: hidden;
-  padding: 0;
-}
-
 #graph-container {
   min-height: auto;
-}
-
-.modal-card-body::-webkit-scrollbar {
-  display: none;
-}
-.buttons.has-addons {
-  position: absolute;
-  top: 50%;
-  right: 3.5rem;
-  transform: translateY(-45%);
 }
 .deps-td.has-tooltip,
 .stats-td.has-tooltip {
@@ -326,12 +288,6 @@ main.content {
 .state-badge.success {
   color: #66bb6a;
 }
-.state-badge.pruned::before {
-  content: "";
-}
-.state-badge.pruned {
-  color: #a5d6a7;
-}
 .state-badge.running::before {
   content: "";
   animation: spin 1.5s linear infinite;
@@ -345,42 +301,6 @@ main.content {
 }
 .state-badge.starting {
   color: #64b5f6;
-}
-.state-badge.stopping::before {
-  content: "";
-}
-.state-badge.stopping {
-  color: #4fc3f7;
-}
-.state-badge.looping::before {
-  content: "";
-}
-.state-badge.looping {
-  color: #29b6f6;
-}
-.state-badge.retrying::before {
-  content: "";
-}
-.state-badge.retrying {
-  color: #039be5;
-}
-.state-badge.watching::before {
-  content: "";
-}
-.state-badge.watching {
-  color: #26c6da;
-}
-.state-badge.sleeping::before {
-  content: "";
-}
-.state-badge.sleeping {
-  color: #4dd0e1;
-}
-.state-badge.waiting::before {
-  content: "";
-}
-.state-badge.waiting {
-  color: #80deea;
 }
 .state-badge.ready::before {
   content: "";
@@ -422,31 +342,13 @@ main.content {
 .state-badge.unknown {
   color: #b0bec5;
 }
-
-/* Spinner Animation */
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-
 .hero-section {
   padding: 6rem 1.5rem;
   color: #fff;
 }
-.comparison-table td,
-.comparison-table th {
-  padding: 1rem;
-  border: 1px solid #444;
-  text-align: center;
-}
 .hero-content {
   max-width: 900px;
   margin: 0 auto;
-}
-.subtitle-italic {
-  font-style: italic;
-  font-size: 1.5rem;
-  margin-bottom: 2rem;
 }
 .title-medium {
   font-size: 2.5rem;
@@ -456,11 +358,6 @@ main.content {
   font-size: 1.25rem;
   margin-bottom: 2rem;
 }
-.hero-buttons {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-}
 .btn-large {
   padding: 1rem 2rem;
   font-size: 1.25rem;
@@ -469,43 +366,18 @@ main.content {
   background: #f0f0f0;
   color: #000;
 }
-
 .card-simple {
   text-align: center;
-}
-.icon-large {
-  font-size: 3rem;
-  margin-bottom: 1rem;
 }
 .bg-dark {
   background: #0a0a0a;
 }
-.comparison-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.video-placeholder {
-  background: #222;
-  padding: 4rem;
-  text-align: center;
-  border-radius: 8px;
-}
 .footer {
-  padding: 3rem 1rem;
   background: #000;
   color: #888;
 }
-.profile-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-.profile-grid .full-width {
-  grid-column: 1/-1;
-}
 .actions-right {
   display: flex;
-  justify-content: flex-end;
   margin-top: 1.5rem;
 }
 .label-bold {
@@ -516,22 +388,13 @@ main.content {
   background: #66bb6a;
   color: #fff;
 }
-.btn-info {
-  background: #42a5f5;
-  color: #fff;
-}
 .docs-grid {
-  display: grid;
-  grid-template-columns: 250px 1fr;
-  gap: 2rem;
   max-width: 1400px;
   margin: 0 auto;
   padding: 2rem 1rem;
 }
 .docs-sidebar {
-  position: sticky;
   top: var(--navbar-height, 60px);
-  align-self: start;
   height: fit-content;
 }
 .menu-label {
@@ -561,14 +424,6 @@ main.content {
   max-width: 900px;
   margin: 0 auto;
 }
-.select-wrapper::after {
-  top: 50%;
-  transform: translateY(-50%);
-  position: absolute;
-  right: 1rem;
-  content: "▼";
-  pointer-events: none;
-}
 .graph-body {
   padding: 0;
   position: relative;
@@ -583,7 +438,6 @@ main.content {
   font-weight: 700;
 }
 .input,
-.select-wrapper select,
 .textarea {
   width: 100%;
   padding: 0.5rem;
@@ -595,32 +449,15 @@ main.content {
 .textarea {
   min-height: 80px;
 }
-.select-wrapper {
-  position: relative;
-}
 .text-grey {
   color: #888;
 }
 .py-large {
   padding: 4rem 0;
 }
-.mt-medium {
-  margin-top: 2rem;
-}
-.mt-large {
-  margin-top: 4rem;
-}
 .title-large {
   font-size: 3rem;
   margin-bottom: 1rem;
-}
-.subtitle-medium {
-  font-size: 1.5rem;
-  color: #e0e0e0;
-}
-.subtitle-small {
-  font-size: 1.1rem;
-  color: #aaa;
 }
 .card-simple {
   background: #1a1a1a;
@@ -638,9 +475,7 @@ main.content {
 }
 .btn {
   padding: clamp(0.35rem, 1vw, 0.5rem) clamp(0.5rem, 1.5vw, 0.75rem);
-  border-radius: 6px;
   font-size: clamp(0.8rem, 2vw, 0.9rem);
-  transition: all 0.2s;
 }
 .btn-ghost {
   background: 0 0;
@@ -672,18 +507,19 @@ body:not(.is-logged-in) [data-private="true"] {
 .modal-header .close-btn::after {
   transform: rotate(-45deg);
 }
-#toast-container {
-  position: fixed;
-  top: 2rem;
-  right: 3rem;
-  z-index: 3000;
+#toast-container,
+.toast {
   display: flex;
-  flex-direction: column;
   gap: 12px;
   max-width: 420px;
-  position: fixed;
   z-index: 999999 !important;
-  pointer-events: none; /* allows clicks to pass through container */
+}
+#toast-container {
+  top: 2rem;
+  right: 3rem;
+  flex-direction: column;
+  position: fixed;
+  pointer-events: none;
 }
 .toast.show {
   opacity: 1;
@@ -731,37 +567,19 @@ body:not(.is-logged-in) [data-private="true"] {
   opacity: 1;
 }
 .toast {
-  display: flex;
   align-items: center;
-  gap: 12px;
   padding: 12px 48px 12px 16px;
   min-width: 280px;
-  max-width: 420px;
   white-space: normal;
   word-break: break-word;
   overflow: hidden;
-  pointer-events: all; /* only the toast itself is clickable */
-  z-index: 999999 !important;
+  pointer-events: all;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
   animation: toastSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .toast span {
   flex: 1 1 auto;
   min-width: 0;
-}
-
-@keyframes toastSlideIn {
-  from {
-    transform: translateX(120%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-.toast.short-message .close-btn {
-  right: 12px;
 }
 .stats-td {
   text-align: center;
@@ -813,13 +631,6 @@ body:not(.is-logged-in) [data-private="true"] {
   opacity: 0.95;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
-.stats-td .stats-hint {
-  color: #888;
-  font-style: italic;
-  font-size: 0.85rem;
-  margin-top: 4px;
-}
-.docs-content,
 .sidebar-menu {
   background: #1a1a1a;
   border: 1px solid #444;
@@ -835,7 +646,6 @@ body:not(.is-logged-in) [data-private="true"] {
   color: #0ff;
   margin: 2.5rem 0 1rem;
 }
-.docs-content ol,
 .docs-content ul {
   margin: 1.2rem 0 1.2rem 2rem;
 }
@@ -879,7 +689,6 @@ body:not(.is-logged-in) [data-private="true"] {
 .docs-content {
   line-height: 1.8;
   font-size: 1.05rem;
-  padding: 2.5rem;
 }
 .docs-content h1 {
   font-size: 2.4rem;
@@ -902,23 +711,6 @@ body:not(.is-logged-in) [data-private="true"] {
 }
 .docs-content pre::-webkit-scrollbar-thumb:hover {
   background: #666;
-}
-.clear-needs,
-.clear-needs-any {
-  background: #333;
-  color: #f77;
-  border: 1px solid #555;
-  border-radius: 6px;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.85rem;
-  transition: all 0.2s ease;
-}
-.clear-needs-any:hover,
-.clear-needs:hover {
-  background: #444;
-  border-color: #f77;
-  color: #fff;
-  box-shadow: 0 0 8px rgba(255, 119, 119, 0.3);
 }
 .close-btn {
   top: 1rem;
@@ -946,30 +738,19 @@ body:not(.is-logged-in) [data-private="true"] {
 }
 #cluster-modal #cluster-on-fail .remove,
 #job-modal #job-on-fail .remove,
-#job-modal #job-server .remove,
-tr[data-hidden="true"] {
+#job-modal #job-server .remove {
   display: none !important;
-}
-.custom-remove:hover {
-  color: #f77;
-}
-.custom-remove {
-  color: #f55;
-  font-size: 1.2rem;
-  margin-left: 0.6rem;
-  cursor: pointer;
 }
 .ordo-cluster-row.collapsed .ordo-toggle {
   transform: rotate(-90deg);
 }
 body,
 html {
-  background: var(--bg-primary);
   color: var(--chrome-light);
-  /* min-height: 100vh; */
 }
 html {
   font-family: "Montserrat", sans-serif;
+  font-size: clamp(14px, 2vw + 0.5rem, 18px);
 }
 .container {
   width: 100%;
@@ -1003,15 +784,9 @@ body:not(.is-logged-in) .public-tabs {
 body.is-logged-in .private-tabs {
   display: flex;
 }
-body:not(.is-logged-in) #global-refresh,
-body:not(.is-logged-in) .time-display {
-  display: none;
-}
 .tab-content {
   transition: opacity 0.3s ease;
   opacity: 0;
-  /* min-height: 100vh; */
-  background: var(--bg-primary);
 }
 .tab-content.active {
   opacity: 1;
@@ -1052,10 +827,6 @@ body:not(.is-logged-in) .time-display {
   justify-content: center;
   z-index: 1000;
 }
-tr[data-hidden="true"] ~ tr td:first-child::after,
-tr[data-hidden="true"] ~ tr td:first-child::before {
-  display: block !important;
-}
 .ordo-calendar-row.collapsed .ordo-toggle:not(.empty),
 .ordo-cluster-row.collapsed .ordo-toggle:not(.empty),
 .ordo-table--tree .ordo-cluster-row.collapsed .ordo-toggle:not(.empty) {
@@ -1082,30 +853,9 @@ tr[data-hidden="true"] ~ tr td:first-child::before {
   background: #d6304f !important;
   border-color: #d6304f !important;
 }
-.calendar-row,
-.ordo-table tbody tr {
-  cursor: pointer;
-}
-.calendar-row:hover,
 .crons-row {
   background: #1e1e1e;
-}
-.crons-row {
   transition: all 0.3s ease;
-}
-.crons-detail {
-  padding: 1.5rem;
-}
-.crons-detail h4 {
-  margin-bottom: 1rem;
-  color: #0ff;
-}
-.toggle-crons {
-  min-width: 110px;
-  transition: color 0.2s;
-}
-.toggle-crons:hover {
-  color: #0ff;
 }
 .crons-row.hidden,
 .ordo-table tr.hidden,
@@ -1114,10 +864,6 @@ tr.hidden {
 }
 .crons-row:not(.hidden) {
   display: table-row !important;
-}
-.crons-detail {
-  min-height: 100px;
-  border-top: 1px solid #444;
 }
 .delete-cron {
   background: 0 0;
@@ -1132,29 +878,6 @@ tr.hidden {
   color: #ff6b6b;
   transform: scale(1.15);
 }
-.ts-dropdown .ts-dropdown-content {
-  scrollbar-width: thin;
-  scrollbar-color: #555 #1e1e1e;
-}
-.ts-dropdown .ts-dropdown-content::-webkit-scrollbar {
-  width: 6px;
-}
-.ts-dropdown .ts-dropdown-content::-webkit-scrollbar-track {
-  background: #1e1e1e;
-}
-.ts-dropdown .ts-dropdown-content::-webkit-scrollbar-thumb {
-  background: #555;
-  border-radius: 3px;
-}
-.ts-dropdown .ts-dropdown-content::-webkit-scrollbar-thumb:hover {
-  background: #777;
-}
-.modal-card {
-  max-width: 90%;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-.modal-card-head,
 .modal-header {
   position: relative;
   background: #222;
@@ -1165,10 +888,6 @@ tr.hidden {
   gap: 0.6rem;
   min-height: 3.5rem;
 }
-.modal-card-head {
-  padding: 1.2rem 5rem 1rem 1.5rem;
-}
-.modal-card-title,
 .modal-subtitle,
 .modal-title {
   margin: 0;
@@ -1178,7 +897,6 @@ tr.hidden {
   text-overflow: ellipsis;
   max-width: 92%;
 }
-.modal-card-title,
 .modal-title {
   font-size: 1.5rem;
   font-weight: 700;
@@ -1191,7 +909,6 @@ tr.hidden {
   opacity: 0.92;
 }
 .close-btn,
-.modal-card-head .delete,
 .zoom-controls {
   position: absolute;
   top: 50%;
@@ -1206,8 +923,7 @@ tr.hidden {
   border-radius: 50%;
   transition: all 0.2s;
 }
-.close-btn,
-.modal-card-head .delete {
+.close-btn {
   right: 1.25rem;
   width: 1.8rem;
   height: 1.8rem;
@@ -1222,16 +938,13 @@ tr.hidden {
   padding: 0.35rem 0.75rem;
   font-size: 1.1rem;
 }
-.close-btn:hover,
-.modal-card-head .delete:hover {
+.close-btn:hover {
   color: #f36;
   background: rgba(255, 51, 102, 0.15);
   transform: translateY(-50%) scale(1.15);
 }
 .close-btn::after,
-.close-btn::before,
-.modal-card-head .delete::after,
-.modal-card-head .delete::before {
+.close-btn::before {
   content: "";
   position: absolute;
   width: 1.5rem;
@@ -1239,23 +952,15 @@ tr.hidden {
   background-color: currentColor;
   border-radius: 2px;
 }
-.close-btn::before,
-.modal-card-head .delete::before {
+.close-btn::before {
   transform: rotate(45deg);
 }
-.close-btn::after,
-.modal-card-head .delete::after {
+.close-btn::after {
   transform: rotate(-45deg);
 }
-.modal-body,
-.modal-card-body {
+.modal-body {
   position: relative;
   max-height: calc(90vh - 140px);
-}
-.modal-card-body {
-  flex: 1 1 auto;
-  overflow-y: auto;
-  padding: 1.5rem;
 }
 .modal-footer {
   padding: 1rem 1.5rem;
@@ -1266,7 +971,7 @@ tr.hidden {
   gap: 1rem;
 }
 #servers-content {
-  min-height: calc(100vh - var(--navbar-height) - 6rem); 
+  min-height: calc(100vh - var(--navbar-height) - 6rem);
 }
 .ordo-table,
 .table-container {
@@ -1336,6 +1041,9 @@ tr.hidden {
   box-sizing: border-box;
   white-space: nowrap;
   overflow: visible !important;
+  padding-left: calc(
+    var(--depth) * clamp(1.5rem, 2vw, 1.8rem) + 1.5rem
+  ) !important;
 }
 .ordo-table--tree td:first-child::after,
 .ordo-table--tree td:first-child::before {
@@ -1354,9 +1062,6 @@ tr.hidden {
   width: 1.8rem;
   height: 2px;
   transform: translateY(-50%);
-}
-.ordo-table--tree tr[data-last-child="true"] td:first-child::before {
-  bottom: 50%;
 }
 .ordo-table--tree td:first-child::after,
 .ordo-table--tree td:first-child::before {
@@ -1392,7 +1097,6 @@ tr.hidden {
 }
 .brand-logo-img {
   height: 68px !important;
-  width: auto;
   display: block !important;
   filter: none;
   transition: transform 0.3s ease;
@@ -1422,7 +1126,6 @@ tr.hidden {
   position: relative;
   transition: all 0.3s ease;
   overflow: visible !important;
-
 }
 .nav-tab:hover {
   color: #fff;
@@ -1443,38 +1146,24 @@ tr.hidden {
   font-size: 1.15rem;
   border: 0 !important;
 }
-.nav-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 1.5rem;
-  min-width: 150px;
-}
 .ordo-table tr {
   display: table-row;
 }
-.servers-header {
-  text-align: center;
-  padding: 1.5rem 0 1rem;
-}
-/* ==================== CALENDARS HEADER - MATCHES SERVERS EXACTLY ==================== */
-.calendars-header {
-  text-align: center;
-  padding: 1.5rem 0 1rem;
-}
-
-.btn-ghost.neon-ghost {
+.btn-ghost.neon-ghost,
+.btn-ghost.neon-red-ghost {
   background: 0 0 !important;
-  border: 2px solid var(--glow-cyan) !important;
-  color: var(--glow-cyan) !important;
-  text-shadow: 0 0 12px var(--glow-cyan-medium);
-  box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
   padding: 0.8rem 2rem !important;
   font-size: 1.1rem !important;
   font-weight: 700;
   border-radius: 8px !important;
   transition: all 0.3s ease;
   cursor: pointer;
+}
+.btn-ghost.neon-ghost {
+  border: 2px solid var(--glow-cyan) !important;
+  color: var(--glow-cyan) !important;
+  text-shadow: 0 0 12px var(--glow-cyan-medium);
+  box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
 }
 .btn-ghost.neon-ghost:hover {
   background: rgba(0, 255, 255, 0.15) !important;
@@ -1482,29 +1171,18 @@ tr.hidden {
   transform: translateY(-3px);
   color: #fff !important;
 }
-
-/* Neon Red Ghost Button */
 .btn-ghost.neon-red-ghost {
-  background: transparent !important;
-  border: 2px solid #ff3366 !important;
-  color: #ff3366 !important;
-  text-shadow: 0 0 12px #ff3366;
+  border: 2px solid #f36 !important;
+  color: #f36 !important;
+  text-shadow: 0 0 12px #f36;
   box-shadow: 0 0 15px rgba(255, 51, 102, 0.25);
-  padding: 0.8rem 2rem !important;
-  font-size: 1.1rem !important;
-  font-weight: 700;
-  border-radius: 8px !important;
-  transition: all 0.3s ease;
-  cursor: pointer;
 }
-
 .btn-ghost.neon-red-ghost:hover {
   background: rgba(255, 51, 102, 0.15) !important;
   box-shadow: 0 0 25px rgba(255, 51, 102, 0.6);
   transform: translateY(-3px);
   color: #fff !important;
 }
-
 .ordo-cron-row {
   opacity: 0.92;
 }
@@ -1524,7 +1202,6 @@ tr.hidden {
 .app-modal,
 .content-center,
 .dropdown-menu,
-.monitor-wrapper,
 .tab-content,
 .table-container,
 body {
@@ -1537,32 +1214,17 @@ body {
   margin-top: -0.5rem;
 }
 .brand-logo-img {
-  max-height: 68px;
   pointer-events: auto;
 }
 .nav-tabs {
-  display: flex;
-  justify-content: center;
   align-items: center;
-  gap: 3rem;
   width: 100%;
   z-index: 2;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
   padding: 0 2rem;
 }
 .nav-tabs::-webkit-scrollbar {
   display: none;
 }
-
-/* Logo image */
-.brand-logo-img {
-  max-height: 70px; /* adjust to your PNG size — prevents clipping */
-}
-
-/* Tabs */
 .nav-tabs {
   display: flex;
   justify-content: center;
@@ -1572,112 +1234,71 @@ body {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
-
-.nav-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-/* Logo size */
 .brand-logo-img {
   max-height: 70px;
 }
-
-
-/* 
 .navbar-spacer,
 main.container {
-  padding-top: var(--navbar-height) !important; */
+  padding-top: var(--navbar-height) !important;
 }
-/*
-
-
-/* Make root font responsive — foundation for rem scaling */
-html {
-  font-size: clamp(14px, 1.5vw + 0.5rem, 18px);
-}
-
-.brand-logo-img {
-  max-height: clamp(5rem, 8vw + 3rem, 7rem); /* logo shrinks/grows with screen */
-}
-
 .nav-tabs {
-  gap: clamp(1.5rem, 4vw, 3rem); /* tabs spacing scales */
+  gap: clamp(1.5rem, 4vw, 3rem);
 }
-
 .nav-tab {
   padding: clamp(0.6rem, 1vw, 0.8rem) clamp(1rem, 2vw, 1.4rem);
   font-size: clamp(1rem, 2vw, 1.25rem);
 }
-
-.ordo-table thead th,
-.ordo-table tbody td {
+.ordo-table tbody td,
+.ordo-table thead th {
   padding: clamp(0.6rem, 1vw, 0.75rem) clamp(0.8rem, 1.5vw, 1rem);
   font-size: clamp(0.9rem, 1.2vw, 0.95rem);
 }
-
 .table-container {
   margin-top: clamp(1rem, 2vw, 2rem);
   margin-bottom: clamp(1rem, 2vw, 2rem);
 }
-
-/* Connector spacing scales */
-.ordo-table--tree td:first-child {
-  padding-left: calc(var(--depth) * clamp(1.5rem, 2vw, 1.8rem) + 1.5rem) !important;
-}
-
 .brand-logo-img {
-  max-height: clamp(4rem, 10vw + 2rem, 6rem); /* min 4rem (~64px), preferred viewport-based, max 6rem (~96px) */
+  max-height: clamp(4rem, 10vw + 2rem, 6rem);
   width: auto;
-  height: auto; /* ensure aspect ratio */
 }
-
-html {
-  font-size: clamp(14px, 2vw + 0.5rem, 18px); /* stronger vw for faster shrink on narrow */
-}
-
-/* Force dark background on all main content wrappers */
-body,
-html,
+#account .content-center,
+#calendars .content-center,
+#servers-content,
 .container,
-main,
+.content-center,
+.docs-content,
+.docs-grid,
 .tab-content,
 .tab-content.active,
-.content-center,
-#servers-content,
-#monitor .monitor-wrapper,
-#calendars .content-center,
-#account .content-center,
-.docs-grid,
-.docs-content {
-  background: var(--bg-primary) !important; /* #0a0a0a solid black */
+body,
+html,
+main {
+  background: var(--bg-primary) !important;
 }
-
 html {
-  height: 100%; /* establishes full height reference */
-  box-sizing: border-box; /* optional but good */
+  height: 100%;
+  box-sizing: border-box;
 }
-
 body {
-  min-height: 100%; /* or 100vh for viewport */
+  min-height: 100%;
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-primary); /* your dark bg */
 }
-
-main, .container, .tab-content { /* your main content wrapper */
-  flex: 1 1 auto; /* grows to fill space */
-  min-height: calc(100vh - var(--navbar-height)); /* accounts for fixed navbar */
-  padding-top: var(--navbar-height); 
-  overflow-y: auto; /* scroll content if needed */
+.container,
+.tab-content,
+main {
+  flex: 1 1 auto;
+  min-height: calc(100vh - var(--navbar-height));
+  padding-top: var(--navbar-height);
+  overflow-y: auto;
 }
-
-/* If you have a footer (optional) */
 footer {
   flex-shrink: 0;
 }
-
-/* Navbar base (fixed, stacked) */
+.topnav,
+body {
+  display: flex;
+  flex-direction: column;
+}
 .topnav {
   position: fixed;
   top: 0;
@@ -1685,30 +1306,19 @@ footer {
   right: 0;
   height: var(--navbar-height);
   z-index: 3000;
-  display: flex;
-  flex-direction: column;
   background: linear-gradient(to bottom, #0a1422, #000);
   box-shadow: 0 8px 30px rgba(0, 255, 255, 0.2);
   overflow: visible;
 }
-
-/* Logo row */
 .nav-logo-row {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px 0 20px; /* top padding (no clipping), bottom space to tabs */
+  padding: 20px 0;
 }
-
-/* Tabs row */
+.nav-logo-row,
 .nav-tabs-row {
   display: flex;
   justify-content: center;
   align-items: center;
-  /* padding: 0 2rem 1rem 0; */
 }
-
-/* Tabs container (private for logged-in) */
 .nav-tabs.private-tabs {
   display: flex;
   justify-content: center;
@@ -1718,82 +1328,58 @@ footer {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
-
 .nav-tabs.private-tabs::-webkit-scrollbar {
   display: none;
 }
-
 .main.container {
-  padding-top: var(--navbar-height); /* pushes content below fixed navbar */
-  min-height: calc(100vh - var(--navbar-height)); /* fills viewport minus navbar */
-  background: var(--bg-primary); /* #0a0a0a dark — no white bleed */
+  padding-top: var(--navbar-height);
+  min-height: calc(100vh - var(--navbar-height));
+  background: var(--bg-primary);
   color: var(--chrome-light);
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* container manages scroll */
+  overflow: hidden;
 }
-
-/* Inner content scrollable */
 .main.container > .content-center,
 .main.container > .tab-content {
   flex: 1;
   overflow-y: auto;
-  /* padding: 1rem 0; */
 }
-
-/* Dropdown Base */
 .dropdown {
   position: relative;
   display: inline-block;
 }
-
-/* Trigger Button */
 .dropdown-trigger button {
-  background: none;
-  border: none;
+  background: 0 0;
+  border: 0;
   cursor: pointer;
   padding: 0.25rem;
   color: #0ff;
   transition: all 0.2s;
+  width: fit-content !important;
 }
-
 .dropdown-trigger button:hover {
   color: #00ffffaa;
   text-shadow: 0 0 8px #0ff;
 }
-
-/* Menu Base */
 .dropdown-menu {
   display: none;
   position: absolute;
   top: 100%;
   right: 0;
   left: 20px;
-  min-width: 180px;
-  background: #111111; /* solid opaque deep black */
+  background: #111;
   border: 1px solid rgba(0, 255, 255, 0.4);
   border-radius: 6px;
   box-shadow: 0 8px 30px rgba(0, 255, 255, 0.4);
   z-index: 3500;
-  overflow: visible;
 }
-
-.dropdown-menu {
-  min-width: 160px; /* minimum for readability */
-  width: auto !important; /* auto width */
-}
-
-/* Active (Open) Menu */
 .dropdown.active .dropdown-menu {
   display: block;
 }
-
-/* Content Padding */
 .dropdown-content {
   padding: 0.2rem 0;
 }
-
-/* Items — even more compact */
 .dropdown-item {
   display: block;
   padding: 0.3rem 0.7rem;
@@ -1804,119 +1390,79 @@ footer {
   font-size: 0.9rem;
   line-height: 1.2;
 }
-
 .dropdown-item:hover {
   background: rgba(0, 255, 255, 0.15);
   color: #0ff;
 }
-
-/* Danger Items */
 .dropdown-item.is-danger {
   color: #ef5350;
 }
-
 .dropdown-item.is-danger:hover {
   background: rgba(239, 83, 80, 0.2);
   color: #fff;
 }
-
-/* Divider */
 .dropdown-divider {
   height: 1px;
   background: rgba(0, 255, 255, 0.2);
   margin: 0.2rem 0;
 }
-
-/* Upward Flip */
-.dropdown.is-up .dropdown-menu {
-  top: auto;
-  bottom: 100%;
-  margin-bottom: 8px;
-}
-
-/* Table-Specific (higher z-index if needed) */
 .table .dropdown.active .dropdown-menu {
   z-index: 3500;
 }
-
 .dropdown-menu {
   min-width: 160px;
   width: auto !important;
 }
-
-.dropdown-trigger button {
-  width: fit-content !important;
-}
-
-/* ==================== CLEAN FULL-OVERLAY MODAL SYSTEM ==================== */
-
-/* ==================== FINAL MODAL SYSTEM - MODALS COVER NAVBAR ==================== */
-/* Paste at the VERY BOTTOM of app.css */
-
 .app-modal {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.88);
   display: none;
-  align-items: flex-start;        /* start from top */
+  align-items: flex-start;
   justify-content: center;
-  z-index: 4000 !important;       /* higher than navbar (3000) */
-  padding: 2rem 1rem 4rem;        /* good breathing room */
+  z-index: 4000 !important;
+  padding: 2rem 1rem 4rem;
   overflow-y: auto;
 }
-
 .app-modal.active {
   display: flex !important;
 }
-
 .app-modal .modal-dialog {
   width: 90%;
   max-width: 960px;
-  max-height: 94vh;               /* almost full height */
+  max-height: 94vh;
   background: #1a1a1a;
   border-radius: 12px;
   box-shadow: 0 25px 70px rgba(0, 0, 0, 0.8);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  margin-top: 1rem;               /* small top margin so it doesn't touch screen edge */
+  margin-top: 1rem;
 }
-
-/* Large modals */
-.app-modal .modal-dialog.large,
-.app-modal .modal-dialog.xl {
+.app-modal .modal-dialog.large {
   max-width: 1100px;
 }
-
 .app-modal .modal-dialog.full {
   max-width: 98vw;
   max-height: 96vh;
 }
-
-/* Header */
 .app-modal .modal-header {
   flex-shrink: 0;
   padding: 1.5rem 2rem 1rem;
   border-bottom: 1px solid #444;
 }
-
-/* Scrollable body */
 .app-modal .modal-body {
   flex: 1 1 auto;
   overflow-y: auto;
   padding: 1.5rem 2rem;
   min-height: 0;
 }
-
-/* Footer always visible */
 .app-modal .modal-footer {
   flex-shrink: 0;
   padding: 1.25rem 2rem;
   background: #222;
   border-top: 1px solid #444;
 }
-
-/* Nice scrollbar */
 .app-modal .modal-body::-webkit-scrollbar {
   width: 8px;
 }
@@ -1924,109 +1470,6 @@ footer {
   background: rgba(0, 255, 255, 0.3);
   border-radius: 4px;
 }
-
-/* ==================== TOM SELECT - CYBERPUNK COMPACT THEME ==================== */
-
-.ts-wrapper {
-  .ts-control {
-    background: #1e1e1e !important;
-    border: 1px solid #444 !important;
-    color: #b0e0ff !important;
-    border-radius: 6px !important;
-    padding: 0.35rem 0.75rem !important;   /* more compact */
-    min-height: 36px !important;
-    box-shadow: none !important;
-    transition: all 0.2s ease !important;
-  }
-
-  .ts-control:focus-within,
-  .ts-control.focus {
-    border-color: #0ff !important;
-    box-shadow: 0 0 12px rgba(0, 255, 255, 0.35) !important;
-    background: #222226 !important;
-  }
-
-  /* Selected items (chips) */
-  .item {
-    background: #2a2a3a !important;
-    border: 1px solid #555 !important;
-    color: #b0e0ff !important;
-    border-radius: 6px !important;
-    padding: 0.3rem 0.7rem !important;     /* tighter */
-    margin: 0.25rem 0.4rem 0.25rem 0 !important;
-    font-size: 0.9rem !important;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) !important;
-  }
-
-  .item .remove {
-    color: #f55 !important;
-    font-size: 1.25rem !important;
-    margin-left: 0.5rem !important;
-    cursor: pointer !important;
-    opacity: 0.8 !important;
-    transition: opacity 0.2s !important;
-  }
-
-  .item .remove:hover {
-    opacity: 1 !important;
-    color: #f77 !important;
-  }
-
-  /* Dropdown menu */
-  .ts-dropdown {
-    background: #1e1e1e !important;
-    border: 1px solid #444 !important;
-    border-radius: 6px !important;
-    box-shadow: 0 8px 25px rgba(0, 255, 255, 0.15) !important;
-    color: #e0e0e0 !important;
-    max-height: 65vh !important;
-    overflow-y: auto;
-  }
-
-  .ts-dropdown .option {
-    padding: 0.45rem 1rem !important;
-    color: #f0f0f0 !important;
-  }
-
-  .ts-dropdown .option:hover,
-  .ts-dropdown .option.active,
-  .ts-dropdown .option.selected {
-    background: rgba(0, 255, 255, 0.18) !important;
-    color: #0ff !important;
-  }
-
-  /* Disabled state */
-  &.disabled .ts-control {
-    opacity: 0.55 !important;
-    cursor: not-allowed !important;
-  }
-}
-
-/* Scrollbar for dropdown */
-.ts-dropdown .ts-dropdown-content {
-  scrollbar-width: thin;
-  scrollbar-color: #555 #1e1e1e;
-}
-
-.ts-dropdown .ts-dropdown-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.ts-dropdown .ts-dropdown-content::-webkit-scrollbar-track {
-  background: #1e1e1e;
-}
-
-.ts-dropdown .ts-dropdown-content::-webkit-scrollbar-thumb {
-  background: #555;
-  border-radius: 3px;
-}
-
-.ts-dropdown .ts-dropdown-content::-webkit-scrollbar-thumb:hover {
-  background: #777;
-}
-
-/* ==================== BUTTONS - CYBERPUNK NEON THEME ==================== */
-
 .btn {
   border-radius: 6px !important;
   font-weight: 600 !important;
@@ -2034,55 +1477,42 @@ footer {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
-/* Primary Button (Save, Create, etc.) */
 .btn-primary {
-  background: #00ffff !important;
+  background: #0ff !important;
   color: #0a0a0a !important;
-  border: 1px solid #00ffff !important;
+  border: 1px solid #0ff !important;
   box-shadow: 0 0 15px rgba(0, 255, 255, 0.6) !important;
 }
-
 .btn-primary:hover {
   background: #00f0f0 !important;
   box-shadow: 0 0 25px rgba(0, 255, 255, 0.9) !important;
   transform: translateY(-1px);
 }
-
-/* Secondary Button (Cancel, Clear, etc.) */
 .btn-secondary {
   background: #222 !important;
   color: #b0e0ff !important;
   border: 1px solid #444 !important;
 }
-
 .btn-secondary:hover {
   background: #333 !important;
-  border-color: #00ffff !important;
-  color: #00ffff !important;
+  border-color: #0ff !important;
+  color: #0ff !important;
   box-shadow: 0 0 12px rgba(0, 255, 255, 0.3) !important;
 }
-
-/* Danger Button (if you have any) */
 .btn-danger {
   background: #f14668 !important;
   color: #fff !important;
 }
-
 .btn-danger:hover {
-  background: #ff3366 !important;
+  background: #f36 !important;
   box-shadow: 0 0 15px rgba(255, 51, 102, 0.6) !important;
 }
-
 .empty-state {
   display: none;
-  padding: 5rem 2rem;
   border: 2px dashed #444;
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.3);
 }
-
-/* ==================== COMPACT DEPENDENCY GRAPH LEGEND ==================== */
 .graph-legend {
   position: absolute;
   bottom: 22px;
@@ -2097,43 +1527,27 @@ footer {
   font-size: 0.84rem;
   line-height: 1.35;
 }
-
 .graph-legend-title {
   font-weight: 700;
-  color: #00ffff;
+  color: #0ff;
   margin-bottom: 8px;
   font-size: 0.88rem;
   text-transform: uppercase;
   letter-spacing: 0.6px;
 }
-
 .legend-item {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-bottom: 5px;
 }
-
 .legend-svg {
   flex-shrink: 0;
 }
-
-/* Colors matching your Cytoscape graph */
-.legend-needs     .legend-line { background: #ff3366; }   /* Red - needs */
-.legend-needs-any .legend-line { background: #00ff9d; }   /* Green - needs_any */
-.legend-on-fail   .legend-line { background: #ffaa00; }   /* Orange - on_fail */
-
-/* Make Cytoscape graph smaller and fit better in modal */
 #cy {
   width: 100% !important;
-  height: calc(100% - 80px) !important;   /* leaves space for title + legend */
+  height: calc(100% - 80px) !important;
   min-height: 380px;
-}
-
-/* billing */
-
-.progress-container {
-  position: relative;
 }
 .progress.is-danger {
   background: #ef5350;
@@ -2142,52 +1556,24 @@ footer {
   background: inherit;
   border-radius: 6px;
 }
-.text-danger strong {
-  color: #ef5350;
-}
-.profile-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-}
 @media (max-width: 768px) {
   .grid-2 {
     grid-template-columns: 1fr;
   }
 }
-
-/* Internal tabs */
-.internal-tabs {
-  display: flex;
-  gap: 1rem;
-  border-bottom: 1px solid #444;
-  margin-bottom: 2rem;
-}
-.internal-tab {
-  padding: 0.75rem 1.5rem;
+.internal-tab,
+progress {
   background: #222;
-  border: 1px solid #444;
-  border-bottom: none;
   border-radius: 6px 6px 0 0;
-  color: var(--chrome-mid);
-  cursor: pointer;
-  transition: all 0.2s;
 }
 .internal-tab.active,
 .internal-tab:hover {
   background: rgba(0, 255, 255, 0.15);
-  color: #0ff;
   border-color: #0ff;
 }
 .internal-tab-content {
   animation: fadeIn 0.3s ease;
 }
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* Footer */
 .footer {
   background: #0a0a0a;
   border-top: 1px solid #222;
@@ -2196,33 +1582,8 @@ footer {
 }
 .footer a:hover {
   text-shadow: 0 0 8px var(--glow-cyan);
+  text-shadow: 0 0 8px #0ff;
 }
-
-/* Left-aligned grid */
-.profile-grid,
-.usage-grid {
-  display: grid;
-  grid-template-columns: 160px 1fr;
-  gap: 1rem 2rem;
-  align-items: center;
-}
-.profile-grid .label-bold,
-.usage-grid .label-bold {
-  text-align: right;
-  white-space: nowrap;
-}
-@media (max-width: 768px) {
-  .profile-grid,
-  .usage-grid {
-    grid-template-columns: 1fr;
-  }
-  .profile-grid .label-bold,
-  .usage-grid .label-bold {
-    text-align: left;
-  }
-}
-
-/* Grid */
 .info-grid {
   display: grid;
   grid-template-columns: 160px 1fr;
@@ -2234,45 +1595,31 @@ footer {
   white-space: nowrap;
   font-weight: 600;
 }
-.info-grid .full-width {
-  grid-column: 1 / -1;
-}
-
 progress {
-  /* Reset default appearance */
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
-  
-  height: 1.25rem;               /* slimmer is nicer */
-  border-radius: 999px;          /* pill shape */
-  background: #222;
+  height: 1.25rem;
+  border-radius: 999px;
   border: 1px solid #444;
   overflow: hidden;
   width: 100%;
 }
-
-/* Chrome / Safari */
 progress::-webkit-progress-bar {
   background: #222;
   border-radius: 999px;
 }
-
 progress::-webkit-progress-value {
   background: var(--glow-cyan);
   border-radius: 999px;
   box-shadow: 0 0 12px rgba(0, 255, 255, 0.5);
   transition: width 0.4s ease;
 }
-
-/* Firefox */
 progress::-moz-progress-bar {
   background: var(--glow-cyan);
   border-radius: 999px;
   box-shadow: 0 0 12px rgba(0, 255, 255, 0.5);
 }
-
-/* Responsive */
 @media (max-width: 768px) {
   .info-grid {
     grid-template-columns: 1fr;
@@ -2281,37 +1628,23 @@ progress::-moz-progress-bar {
     text-align: left;
   }
 }
-
-/* Footer (already added) */
-.footer a:hover {
-  text-shadow: 0 0 8px #0ff;
-}
-
-/* ====================== SETTINGS IMPROVEMENTS ====================== */
 .internal-tabs {
-  display: flex;
   justify-content: center;
-  gap: 3rem;
-  border-bottom: 2px solid #444;
   padding-bottom: 0.75rem;
-  margin-bottom: 2.5rem;
 }
-
 .internal-tab {
-  background: none;
-  border: none;
   color: var(--chrome-mid);
   font-size: 1.15rem;
-  font-weight: 600;
-  padding: 0.5rem 0;
-  cursor: pointer;
   position: relative;
   transition: all 0.25s ease;
 }
-
-.internal-tab:hover { color: #fff; }
+.internal-tab:hover {
+  color: #fff;
+}
 .internal-tab.active {
   color: var(--glow-cyan);
+  color: #0ff;
+  border-bottom: 3px solid #0ff;
 }
 .internal-tab.active::after {
   content: "";
@@ -2324,24 +1657,16 @@ progress::-moz-progress-bar {
   box-shadow: 0 0 15px var(--glow-cyan-strong);
   border-radius: 3px;
 }
-
-
-/* ====================== SETTINGS POLISH ====================== */
-
-/* Better Token Row */
 .token-row {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
-
 .token-row input {
   flex: 1;
   font-family: monospace;
   font-size: 0.95rem;
 }
-
-/* Tier Styling */
 #account-tier {
   font-weight: 700;
   font-size: 1.1rem;
@@ -2353,8 +1678,6 @@ progress::-moz-progress-bar {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
-/* Make Save Account button primary */
 #save-account {
   background: var(--glow-cyan) !important;
   color: #0a0a0a !important;
@@ -2362,113 +1685,72 @@ progress::-moz-progress-bar {
   border: 1px solid var(--glow-cyan) !important;
   box-shadow: 0 0 15px rgba(0, 255, 255, 0.4);
 }
-
 #save-account:hover {
   box-shadow: 0 0 25px rgba(0, 255, 255, 0.6);
   transform: translateY(-1px);
 }
-
-/* Billing spacing improvements */
-#tab-billing .info-grid {
-  margin-bottom: 1.75rem;
-}
-
-#tab-billing .border-top {
-  margin-top: 2.25rem;
-  padding-top: 2.25rem;
-}
-
-#account-token, #execution-token {
-  font-family: monospace;
-  font-size: 0.95rem;
-  letter-spacing: 1px;
-}
-
-.description-row textarea {
-  min-height: 100px;
-  resize: vertical;
-}
-
-/* General Settings Polish */
+#tab-billing .info-grid,
 .card-simple h3,
 .card-simple h4,
 .card-simple h5 {
   margin-bottom: 1.75rem;
 }
-
+#tab-billing .border-top {
+  margin-top: 2.25rem;
+  padding-top: 2.25rem;
+}
+#account-token,
+#execution-token {
+  font-family: monospace;
+  font-size: 0.95rem;
+  letter-spacing: 1px;
+}
 .info-grid {
   margin-bottom: 1.5rem;
 }
-
-.progress-container {
-  margin: 1.25rem 0 1.75rem 0;
-}
-
 #team-table th {
   background: #0f0f1f;
   color: var(--glow-cyan) !important;
 }
-
 #login-email {
   margin-bottom: 1.25rem;
 }
-
 #login-modal button {
   margin-top: 0.5rem;
 }
-
-/* Pricing Grid */
 .pricing-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 1.5rem;
 }
-
 .price-box {
   margin: 1.5rem 0;
 }
-
-/* Docs */
 .docs-grid {
   display: grid;
   grid-template-columns: 250px 1fr;
   gap: 2rem;
 }
-
 .docs-sidebar {
   position: sticky;
   top: 100px;
   align-self: start;
 }
-
 .docs-content {
   background: #1a1a1a;
   border: 1px solid #444;
   border-radius: 8px;
   padding: 2rem;
 }
-
-/* Form helpers */
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
 }
-
-.mt-medium { margin-top: 1.5rem; }
-.mt-large { margin-top: 2.5rem; }
-.mb-medium { margin-bottom: 1.25rem; }
-.mb-large { margin-bottom: 2rem; }
-
-/* Make sure empty states look good */
 .empty-state {
   padding: 3rem 1rem;
   text-align: center;
 }
-
-/* ====================== CLEANED DASHBOARD & TEMPLATES ====================== */
-
-/* KPI Bar */
 .kpi-bar {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
@@ -2479,92 +1761,86 @@ progress::-moz-progress-bar {
   padding: 1.5rem;
   margin-bottom: 2rem;
 }
-
-.kpi-item { text-align: center; }
-.kpi-value { font-size: 2.25rem; font-weight: 700; line-height: 1; }
-.kpi-label { font-size: 0.85rem; color: #888; margin-top: 0.4rem; }
-
-/* Dashboard Cards */
+.kpi-item {
+  text-align: center;
+}
+.kpi-value {
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.kpi-label {
+  font-size: 0.85rem;
+  color: #888;
+  margin-top: 0.4rem;
+}
 .dashboard-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 1.75rem;
 }
-
 @media (min-width: 1400px) {
-  .dashboard-cards { grid-template-columns: repeat(4, 1fr); }
+  .dashboard-cards {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
-
 .card-top {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 1rem;
 }
-
 .count-big {
   font-size: 2.8rem;
   font-weight: 700;
   line-height: 1;
 }
-
 .icon-big {
   font-size: 3.2rem;
   opacity: 0.15;
   flex-shrink: 0;
 }
-
 .card-content {
   flex: 1;
   overflow: auto;
   font-size: 0.95rem;
   line-height: 1.5;
 }
-
-/* Action buttons (Add Server, Create Calendar, etc.) */
-.actions-right,
-.calendars-header,
-.servers-header {
+.actions-right {
   text-align: center;
   margin-bottom: 1.5rem;
-  justify-content: center;
 }
-
-/* Force center for specific action buttons */
+#calendars .actions-right,
 #servers .actions-right,
-#calendars .actions-right {
+.actions-right {
   justify-content: center;
 }
-
-/* Internal tabs in Settings */
 .internal-tabs {
   display: flex;
   gap: 1rem;
   border-bottom: 1px solid #444;
   margin-bottom: 1.5rem;
 }
-
 .internal-tab {
   padding: 0.75rem 1.25rem;
-  background: transparent;
-  border: none;
+  background: 0 0;
+  border: 0;
   color: #b0c4de;
   cursor: pointer;
   font-weight: 600;
 }
-
-.internal-tab.active {
-  color: #00ffff;
-  border-bottom: 3px solid #00ffff;
+.mt-medium {
+  margin-top: 1.5rem;
 }
-
-/* Other helpers */
-.mt-medium { margin-top: 1.5rem; }
-.mt-large  { margin-top: 2.5rem; }
-.mb-medium { margin-bottom: 1.25rem; }
-.mb-large  { margin-bottom: 2rem; }
-
-/* Dashboard Action Tags */
+.mt-large {
+  margin-top: 2.5rem;
+}
+.mb-medium {
+  margin-bottom: 1.25rem;
+}
+.mb-large {
+  margin-bottom: 2rem;
+}
 .tag {
   padding: 3px 9px;
   border-radius: 4px;
@@ -2573,35 +1849,39 @@ progress::-moz-progress-bar {
   display: inline-block;
   text-align: center;
 }
-
-.tag.failed, .tag.killed, .tag.zombie { background: #ef5350; color: white; }
-.tag.complete, .tag.completed { background: #66bb6a; color: white; }
-.tag.running, .tag.started { background: #42a5f5; color: white; }
-.tag.hold { background: #ffaa00; color: white; }
-.tag.ice { background: #9c27b0; color: white; }
-
-/* Lighten table borders */
-.ordo-table td, .ordo-table th {
+.tag.failed,
+.tag.killed,
+.tag.zombie {
+  background: #ef5350;
+  color: #fff;
+}
+.tag.complete,
+.tag.completed {
+  background: #66bb6a;
+  color: #fff;
+}
+.tag.running,
+.tag.started {
+  background: #42a5f5;
+  color: #fff;
+}
+.tag.hold {
+  background: #fa0;
+  color: #fff;
+}
+.tag.ice {
+  background: #9c27b0;
+  color: #fff;
+}
+.ordo-table td,
+.ordo-table th {
   border-bottom: 1px solid #333;
 }
-
 .text-small {
   font-size: 0.78rem;
   opacity: 0.75;
   margin-left: 5px;
 }
-
-
-
-
-/* ====================== ABOUT / LANDING PAGE ====================== */
-
-.hero-neon {
-  padding: 6rem 1rem 4rem;
-  background: linear-gradient(135deg, #0a1422, #000);
-  color: #fff;
-}
-
 .hero-buttons {
   display: flex;
   justify-content: center;
@@ -2609,114 +1889,553 @@ progress::-moz-progress-bar {
   flex-wrap: wrap;
   margin-top: 2rem;
 }
-
-.feature-card {
-  background: #1a1a1a;
-  border: 1px solid #444;
-  border-radius: 12px;
-  padding: 2rem 1.5rem;
-  height: 100%;
-  transition: all 0.3s ease;
-}
-
-.feature-card:hover {
-  border-color: var(--glow-cyan);
-  box-shadow: 0 0 25px rgba(0, 255, 255, 0.25);
-  transform: translateY(-4px);
-}
-
-/* ==================== TOM SELECT DROPDOWN STYLING (Global) ==================== */
-
-.ts-dropdown {
-  background: #1e1e1e !important;
-  border: 1px solid #444 !important;
-  border-radius: 6px !important;
-  box-shadow: 0 8px 25px rgba(0, 255, 255, 0.15) !important;
-  color: #e0e0e0 !important;
-  z-index: 4100 !important;
-  max-height: 65vh !important;
-}
-
-.ts-dropdown .option {
-  padding: 0.5rem 1rem !important;
-  color: #e0e0e0 !important;
-}
-
-.ts-dropdown .option:hover,
-.ts-dropdown .option.active,
-.ts-dropdown .option.selected {
-  background: rgba(0, 255, 255, 0.18) !important;
-  color: #00ffff !important;
-}
-
-/* Selected item in control */
-.ts-control .item {
-  background: #2a2a3a !important;
-  border: 1px solid #555 !important;
-  color: #b0e0ff !important;
-}
-
-/* Remove button */
-.ts-control .item .remove {
-  color: #ff3366 !important;
-}
-
-/* Scrollbar */
-.ts-dropdown .ts-dropdown-content::-webkit-scrollbar {
-  width: 6px;
-}
-.ts-dropdown .ts-dropdown-content::-webkit-scrollbar-thumb {
-  background: #555;
-  border-radius: 3px;
-}
-.ts-dropdown .ts-dropdown-content::-webkit-scrollbar-thumb:hover {
-  background: #777;
-}
-
-/* ==================== GRAPH MODAL IMPROVEMENTS ==================== */
-
 #graph-modal .modal-dialog.full {
   max-height: 95vh;
   margin: 2.5vh auto;
   width: 95vw;
   max-width: 1400px;
 }
-
 #graph-modal .modal-body.graph-body {
-  padding: 1.5rem 2rem 5rem 2rem;           /* relative padding */
+  padding: 1.5rem 2rem 5rem;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 9rem);               /* relative to viewport */
+  height: calc(100vh - 9rem);
   overflow: hidden;
 }
-
 #graph-modal #graph-container {
   flex: 1 1 auto;
-  min-height: 30rem;                        /* minimum usable height */
+  min-height: 30rem;
   border: 1px solid #334155;
   border-radius: 0.75rem;
   background: #0f172a;
   position: relative;
 }
-
-/* Legend */
 #graph-modal .graph-legend {
   margin-top: 1.25rem;
   flex-shrink: 0;
   font-size: 0.9rem;
 }
-
-
-body, html {
+body,
+html {
   overflow-y: auto;
   scroll-behavior: smooth;
 }
-
-.main-content, .modal-body, .graph-body {
-  scrollbar-gutter: stable;   /* reserves space so scrollbar doesn't shift layout */
+.graph-body,
+.modal-body {
+  scrollbar-gutter: stable;
 }
-
-/* Make sure the top nav doesn't get covered */
-header, .navbar {
+.navbar,
+header {
   z-index: 1000;
 }
+
+/* ==================== TOMSELECT CYBERPUNK STYLING (PurgeCSS Fix) ==================== */
+
+/* ==================== REM SCALING SYSTEM - HIGH PRIORITY (Bottom of File) ==================== */
+
+:root {
+  --base-font: 15px;   /* Try 14px, 14.5px, or 15px */
+  --scale: 1;
+  --navbar-height: 5.5rem;
+}
+
+html {
+  font-size: calc(var(--base-font) * var(--scale)) !important;
+}
+
+/* Core typography */
+body, .nav-tab, button, .btn, .dropdown-item, 
+.ordo-table td, .ordo-table th, .table td, .table th {
+  font-size: 1rem !important;
+}
+
+h1, .title-large { font-size: 2.25rem !important; }
+h2, .title-medium { font-size: 1.75rem !important; }
+h3 { font-size: 1.4rem !important; }
+
+/* Spacing */
+.btn, .button {
+  padding: 0.65rem 1.35rem !important;
+}
+
+.ordo-table td, .ordo-table th {
+  padding: 0.75rem 1rem !important;
+}
+
+.modal-body, .card-content {
+  padding: 1.75rem 2rem !important;
+}
+
+.nav-tab {
+  padding: 0.75rem 1.4rem !important;
+}
+
+.dropdown-item {
+  padding: 0.6rem 1rem !important;
+}
+
+/* ==================== REM SCALING REFINEMENTS ==================== */
+
+:root {
+  --base-font: 15px;
+  --scale: 1;
+  --navbar-height: 5.5rem;   /* slightly taller for better tab breathing room */
+}
+
+/* Force scaling on previously stubborn elements */
+.nav-tab,
+.nav-tab.active,
+.menu-link,
+.docs-content * {
+  font-size: 1rem !important;
+}
+
+.nav-tab.active {
+  font-size: 1.15rem !important;   /* make active tab slightly larger */
+}
+
+/* Fix neon underline dropping to new line */
+.nav-tabs-row {
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+  white-space: nowrap;
+  padding-bottom: 0.6rem !important;
+}
+
+.nav-tab {
+  position: relative;
+  padding: 0.85rem 1.35rem !important;
+  flex-shrink: 0;
+}
+
+/* Improve overall density and readability */
+.ordo-table td,
+.ordo-table th {
+  padding: 0.85rem 1rem !important;
+}
+
+.btn {
+  padding: 0.7rem 1.4rem !important;
+}
+
+/* Make tabs feel more proportional */
+.nav-tab {
+  font-size: 1.05rem !important;
+  font-weight: 600;
+}
+
+/* ==================== NAVBAR + TAB + SCROLLBAR FIXES ==================== */
+
+:root {
+  --navbar-height: 5.6rem;   /* Give more breathing room */
+}
+
+/* Fix navbar and tabs positioning */
+.topnav, .navbar {
+  position: fixed !important;
+  top: 0 !important;
+  z-index: 3000 !important;
+}
+
+.nav-tabs-row {
+  padding: 1rem 1.5rem 0.75rem !important;
+  margin-bottom: 0.5rem !important;
+  border-bottom: 1px solid #334155;
+}
+
+/* Fix main content spacing */
+.main.container,
+.tab-content.active,
+.content-center {
+  margin-top: var(--navbar-height) !important;
+  padding-top: 1.25rem !important;
+}
+
+/* ==================== FINAL LAYOUT + SCROLLBAR FIX (Highest Priority) ==================== */
+
+:root {
+  --navbar-height: 5.65rem;
+}
+
+/* Force single scrollbar on body only */
+html, body {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-gutter: stable;
+  height: 100vh;
+}
+
+/* Main content area - no scrollbar */
+.main.container,
+.tab-content.active,
+.content-center {
+  margin-top: var(--navbar-height) !important;
+  padding-top: 1.25rem !important;
+  min-height: calc(100vh - var(--navbar-height)) !important;
+  overflow-y: visible !important;
+}
+
+/* Table gets the inner scrollbar */
+.table-container {
+  max-height: calc(100vh - var(--navbar-height) - 7rem) !important;
+  overflow-y: auto !important;
+  overflow-x: auto;
+  scrollbar-gutter: stable;
+}
+
+/* Remove arbitrary divider line */
+.nav-tabs-row {
+  border-bottom: none !important;
+  padding-bottom: 0.75rem !important;
+  margin-bottom: 0.75rem !important;
+}
+
+/* Extra safety for tabs */
+.nav-tabs-row {
+  position: relative;
+  z-index: 10;
+}
+
+/* ==================== TOMSELECT CYBERPUNK RESTORATION (Post-Purge) ==================== */
+
+.ts-control {
+  background: #1a1a1a !important;
+  border: 1px solid #555 !important;
+  color: #e0e0e0 !important;
+  border-radius: 4px !important;
+  box-shadow: 0 0 8px rgba(0, 255, 255, 0.1) !important;
+}
+
+.ts-control .item {
+  background: rgba(0, 255, 255, 0.15) !important;
+  border: 1px solid #00ffff !important;
+  color: #00ffff !important;
+  border-radius: 3px !important;
+}
+
+.ts-dropdown {
+  background: #1a1a1a !important;
+  border: 1px solid #00ffff !important;
+  color: #e0e0e0 !important;
+  z-index: 99999 !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
+}
+
+.ts-dropdown .option {
+  background: #1a1a1a !important;
+  color: #e0e0e0 !important;
+  padding: 0.55rem 1rem !important;
+}
+
+.ts-dropdown .option:hover,
+.ts-dropdown .option.active,
+.ts-dropdown .option.selected {
+  background: rgba(0, 255, 255, 0.25) !important;
+  color: #00ffff !important;
+}
+
+.ts-control .item .remove {
+  color: #ff3366 !important;
+  opacity: 0.8;
+}
+
+.ts-control .item .remove:hover {
+  color: #ff5555 !important;
+  background: rgba(255, 51, 102, 0.2) !important;
+}
+
+.ts-wrapper {
+  margin-bottom: 0.75rem !important;
+}
+
+/* Make sure dropdowns appear above modals */
+.ts-dropdown {
+  z-index: 99999 !important;
+}
+
+/* ==================== STRONG FINAL OVERRIDE - SCROLLBAR + TABS ==================== */
+
+:root {
+  --navbar-height: 5.7rem !important;
+}
+
+/* FORCE SINGLE SCROLLBAR */
+html, body {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-gutter: stable !important;
+  height: 100vh !important;
+}
+
+/* Prevent any main content from scrolling */
+.main.container,
+.tab-content.active,
+.content-center,
+.container {
+  overflow-y: visible !important;
+  margin-top: var(--navbar-height) !important;
+  padding-top: 1.5rem !important;
+  min-height: calc(100vh - var(--navbar-height)) !important;
+}
+
+/* Table is the ONLY inner scroller */
+.table-container {
+  max-height: calc(100vh - var(--navbar-height) - 8rem) !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  scrollbar-gutter: stable;
+}
+
+/* Extra safety */
+.nav-tabs-row {
+  padding-bottom: 1rem !important;
+  border-bottom: 1px solid #334155 !important;
+}
+
+/* ==================== FINAL NAVBAR SCROLLBAR FIX ==================== */
+
+.topnav, .navbar, .nav-tabs-row, .nav-logo-row {
+  overflow: visible !important;
+  overflow-y: visible !important;
+  height: auto !important;
+  min-height: var(--navbar-height) !important;
+  max-height: none !important;
+}
+
+body, html {
+  overflow-y: auto !important;
+  height: 100vh !important;
+  scrollbar-gutter: stable;
+}
+
+/* Ensure main content starts cleanly after navbar */
+.main.container,
+.tab-content.active,
+.content-center {
+  margin-top: var(--navbar-height) !important;
+  padding-top: 1.25rem !important;
+  overflow-y: visible !important;
+}
+
+/* Table is the only inner scroller */
+.table-container {
+  max-height: calc(100vh - var(--navbar-height) - 8rem) !important;
+  overflow-y: auto !important;
+}
+
+/* ==================== FINAL POLISH - TABS + SCROLLBAR + SPACING ==================== */
+
+:root {
+  --navbar-height: 5.7rem;
+}
+
+/* Single clean scrollbar starting below navbar */
+html, body {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-gutter: stable;
+  height: 100vh;
+}
+
+.main.container,
+.tab-content.active,
+.content-center {
+  margin-top: var(--navbar-height) !important;
+  padding-top: 0.75rem !important;     /* reduced spacing */
+  overflow-y: visible !important;
+}
+
+/* Table scroll area */
+.table-container {
+  max-height: calc(100vh - var(--navbar-height) - 7.5rem) !important;
+  overflow-y: auto !important;
+}
+
+/* Neon underline fix - better alignment + thickness */
+.nav-tab {
+  position: relative !important;
+  padding: 0.9rem 1.45rem !important;
+}
+
+/* Remove any remaining divider line */
+.nav-tabs-row {
+  border-bottom: none !important;
+  padding-bottom: 0.75rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+/* ==================== OPTION A - SCROLLBAR ON TAB CONTENT ==================== */
+
+:root {
+  --base-font: 14.8px;
+  --scale: 1;
+  --navbar-height: 5.65rem;
+}
+
+/* Body should not scroll */
+html, body {
+  overflow-y: hidden !important;
+  height: 100vh;
+  scrollbar-gutter: stable;
+}
+
+/* Main scrollbar lives here - starts right below tabs */
+.main.container,
+.tab-content.active,
+.content-center {
+  margin-top: var(--navbar-height) !important;
+  padding-top: 1rem !important;
+  min-height: calc(100vh - var(--navbar-height)) !important;
+  overflow-y: auto !important;           /* ← Main scrollbar */
+  overflow-x: hidden;
+}
+
+/* Table inner scroll (for very long tables) */
+.table-container {
+  max-height: calc(100vh - var(--navbar-height) - 8rem) !important;
+  overflow-y: auto !important;
+  overflow-x: auto;
+  scrollbar-gutter: stable;
+}
+
+/* Spacing */
+.nav-tabs-row {
+  padding-bottom: 0.85rem !important;
+  margin-bottom: 0.6rem !important;
+  border-bottom: none !important;
+}
+
+/* ==================== FINAL HIGH-PRIORITY FIXES (REMS VERSION) ==================== */
+
+:root {
+  --base-font: 14.8px;
+  --scale: 1;
+  --navbar-height: 5.7rem;
+}
+
+/* ==================== SCROLLBAR MANAGEMENT ==================== */
+html, body {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-gutter: stable;
+  height: 100vh;
+}
+
+.main.container,
+.tab-content.active,
+.content-center {
+  margin-top: var(--navbar-height) !important;
+  padding-top: 1.25rem !important;
+  min-height: calc(100vh - var(--navbar-height)) !important;
+  overflow-y: visible !important;
+}
+
+.table-container {
+  max-height: calc(100vh - var(--navbar-height) - 8rem) !important;
+  overflow-y: auto !important;
+  overflow-x: auto;
+  scrollbar-gutter: stable;
+}
+
+/* ==================== ACTIVE TAB NEON UNDERLINE (REMS) ==================== */
+.nav-tab {
+  position: relative !important;
+  padding: 0.5rem 1.15rem !important;
+}
+
+.nav-tab.active::after {
+  content: "" !important;
+  position: absolute !important;
+  bottom: 0rem !important;           /* rem */
+  left: 10% !important;
+  right: 10% !important;
+  height: 0.3rem !important;            /* rem */
+  background: var(--glow-cyan) !important;
+  box-shadow: 0 0 1.8rem var(--glow-cyan-strong), 
+              0 0 0.8rem var(--glow-cyan) !important;
+  z-index: 25 !important;
+  border-radius: 0.3rem !important;
+  min-width: 60% !important;
+}
+
+/* ==================== TABS & SPACING (REMS) ==================== */
+.nav-tabs-row {
+  padding-bottom: 0.85rem !important;
+  margin-bottom: 0.6rem !important;
+  border-bottom: 1px solid #334155 !important;
+}
+
+/* ==================== GENERAL REM REFINEMENTS ==================== */
+.ordo-table td,
+.ordo-table th {
+  padding: 0.85rem 1rem !important;
+}
+
+.btn {
+  padding: 0.7rem 1.4rem !important;
+}
+
+.nav-tab {
+  font-size: 1.05rem !important;
+}
+
+.nav-tab.active {
+  font-size: 1.13rem !important;
+}
+
+/* ==================== ROBUST FINAL LAYOUT FIX ==================== */
+
+:root {
+  --base-font: 14.8px;
+  --scale: 1;
+  --navbar-height: 5.65rem;
+}
+
+/* Body should never scroll */
+html, body {
+  overflow-y: hidden !important;
+  height: 100vh;
+  margin: 0;
+}
+
+/* Main tab content gets the scrollbar */
+.main.container,
+.tab-content.active,
+.content-center {
+  margin-top: var(--navbar-height) !important;
+  padding-top: 1rem !important;
+  height: calc(100vh - var(--navbar-height)) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+/* Table container inner scroll (when needed) */
+.table-container {
+  max-height: calc(100vh - var(--navbar-height) - 8rem) !important;
+  overflow-y: auto !important;
+  overflow-x: auto;
+  scrollbar-gutter: stable;
+}
+
+/* Sticky Table Header - stays under navbar */
+.ordo-table thead th {
+  position: sticky !important;
+  top: var(--navbar-height) !important;
+  z-index: 100 !important;
+  background: #0f0f1f !important;
+}
+
+/* Neon underline */
+.nav-tab.active::after {
+  content: "" !important;
+  position: absolute !important;
+  bottom: -0.4rem !important;
+  left: 15% !important;
+  right: 15% !important;
+  height: 0.5rem !important;
+  background: var(--glow-cyan) !important;
+  box-shadow: 0 0 1.8rem var(--glow-cyan-strong) !important;
+  z-index: 25 !important;
+}
+
