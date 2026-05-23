@@ -394,7 +394,10 @@ export function removeRow(id, isCluster) {
 // Initial full render
 export function renderJobsTable() {
   const tbody = document.getElementById("tree-body");
-  if (!tbody) return;
+  if (!tbody) {
+    console.warn("[renderJobsTable] #tree-body not found");
+    return;
+  }
 
   tbody.innerHTML = "";
 
@@ -410,21 +413,26 @@ export function renderJobsTable() {
   }
   collectIds(appState.monitorData.tree);
 
+  // Remove stale collapsed entries
   appState.collapsedClusters.forEach((id) => {
     if (!currentClusterIds.has(id)) {
       appState.collapsedClusters.delete(id);
     }
   });
+
   updateCollapsedClusters();
 
+  // Sort and build rows
   sortTreeNodes(appState.monitorData.tree);
   buildRows(appState.monitorData.tree, tbody);
 
-  // Force initial collapse hide
+  // Safe collapse application
   appState.collapsedClusters.forEach((id) => {
-    toggleSubtree(id, true);
     const row = document.querySelector(`tr[data-id="${id}"]`);
-    if (row) row.classList.add("collapsed");
+    if (row) {
+      row.classList.add("collapsed");
+      toggleSubtree(id, true);   // only call if row exists
+    }
   });
 
   updateLiveTimings();

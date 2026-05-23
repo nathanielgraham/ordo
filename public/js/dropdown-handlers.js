@@ -85,16 +85,20 @@ export function positionMenu(dropdown) {
       .computePosition(trigger, menu, {
         placement: "bottom-end",
         middleware: [
-          window.floatingUI.offset({ mainAxis: 8, alignmentAxis: -32 }), // left shift to expose ellipsis
-          window.floatingUI.flip(),
-          window.floatingUI.shift({ padding: 8 }),
+          window.floatingUI.offset({ mainAxis: 8, alignmentAxis: -32 }),
+          window.floatingUI.flip({ padding: 12 }),
+          window.floatingUI.shift({ padding: 12 }),
         ],
       })
       .then(({ x, y }) => {
         Object.assign(menu.style, {
           left: `${x}px`,
           top: `${y}px`,
+          position: "fixed",
+          zIndex: "9999",
           width: "auto",
+          minWidth: "180px",     // ← Added
+          maxWidth: "240px",     // ← Added
         });
       });
   });

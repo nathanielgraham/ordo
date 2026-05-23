@@ -1,110 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta
-      name="description"
-      content="Ordo — Modern job scheduler with hierarchical workflows, real-time monitoring, and self-healing automation"
-    />
-    <title>Ordo — Job Scheduler</title>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Ordo — Modern job scheduler with hierarchical workflows, real-time monitoring, and self-healing automation" />
+  <title>Ordo — Job Scheduler</title>
 
-    <link rel="icon" href="/favicon.ico" type="image/x-icon" />
-    <link
-      rel="icon"
-      href="/img/favicon-32x32.png"
-      sizes="32x32"
-      type="image/png"
-    />
-    <link
-      rel="icon"
-      href="/img/favicon-16x16.png"
-      sizes="16x16"
-      type="image/png"
-    />
+  <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+  <link rel="stylesheet" href="/css/app.css?v=<%= time %>" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@600;700;800&display=swap" rel="stylesheet" />
+  
+  <!-- External Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+  <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+  <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+  
+  <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 
-    <link rel="stylesheet" href="/css/app.css?v=<%= time %>" />
+  <script type="module">
+    import { computePosition, autoUpdate, flip, shift, offset } from "https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.5.3/+esm";
+    window.floatingUI = { computePosition, autoUpdate, flip, shift, offset };
+  </script>
+</head>
+<body>
+  <%= include 'partials/navbar' %>
 
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
-    />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Jost:wght@600;700;800&display=swap"
-      rel="stylesheet"
-    />
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css"
-    />
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
-    <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
-    <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
-
-    <link
-      href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css"
-      rel="stylesheet"
-    />
-    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
-
-    <script type="module">
-      import {
-        computePosition,
-        autoUpdate,
-        flip,
-        shift,
-        offset,
-      } from "https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.5.3/+esm";
-      window.floatingUI = { computePosition, autoUpdate, flip, shift, offset };
-    </script>
-
-    <script>
-      window.addEventListener("load", function () {
-        if (
-          typeof cytoscape !== "undefined" &&
-          typeof cytoscapeDagre !== "undefined"
-        ) {
-          cytoscape.use(cytoscapeDagre);
-          console.log("Dagre layout registered");
-        }
-      });
-    </script>
-  </head>
-
-  <body>
-    <%= include 'partials/navbar' %>
-
-    <!-- Spacer for fixed navbar -->
-    <div class="navbar-spacer"></div>
-
-    <main class="container">
-      <%= include 'partials/about' %> 
-      <%= include 'partials/docs' %> 
+  <!-- Main Application Wrapper -->
+  <div class="app-wrapper">
+    <main class="main-content">
+      <%= include 'partials/about' %>
+      <%= include 'partials/docs' %>
       <%= include 'partials/pricing' %>
       <%= include 'partials/servers' %>
-      <%= include 'partials/jobs_clusters' %> 
+      <%= include 'partials/jobs_clusters' %>
       <%= include 'partials/calendars' %>
       <%= include 'partials/dashboard' %>
-      <%= include 'partials/settings' %> 
+      <%= include 'partials/settings' %>
     </main>
-
-    <%= include 'partials/modals' %>
-
-<footer class="footer bg-dark py-large mt-auto">
-  <div class="content-center text-center text-grey">
-    <p>
-      Ordo — Modern Job Scheduler | © 2026
-      <span class="mx-large">•</span>
-      <a href="#" id="footer-pricing-link">Plans & Pricing</a>
-      <span class="mx-large">•</span>
-      <a href="mailto:support@ordo.app" class="text-cyan">Contact Support</a>
-    </p>
   </div>
-</footer>
 
-    <script type="module" src="/js/app.js?v=<%= time %>"></script>
-  </body>
+  <%= include 'partials/modals' %>
+
+  <footer class="footer bg-dark py-large mt-auto">
+    <div class="content-center text-center text-grey">
+      <p>
+        Ordo — Modern Job Scheduler | © 2026
+        <span class="mx-large">•</span>
+        <a href="#" id="footer-pricing-link">Plans & Pricing</a>
+        <span class="mx-large">•</span>
+        <a href="mailto:support@ordo.app" class="text-cyan">Contact Support</a>
+      </p>
+    </div>
+  </footer>
+
+  <script type="module" src="/js/app.js?v=<%= time %>"></script>
+</body>
 </html>

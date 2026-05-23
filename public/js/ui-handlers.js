@@ -899,6 +899,62 @@ function getStatusText(exitCode, signal) {
 
 export function updateJobsClusters(data) {
   hideLoading("monitor-loading");
+
+  const monitorContent = document.getElementById("monitor-content");
+  if (monitorContent) {
+    monitorContent.style.display = "block";
+  }
+
+  if (!data.success || !data.clusters) {
+    console.warn("[updateJobsClusters] Received unsuccessful or empty response");
+    return;
+  }
+
+  console.log(`[updateJobsClusters] Processing ${data.clusters.length} clusters`);
+
+  // === 1. Populate authoritative Maps ===
+  populateMapsFromClusters(data.clusters);
+
+  // === 2. Build tree ===
+  appState.monitorData.tree = buildTreeFromMaps();
+
+  // === 3. Clean stale collapsed IDs ===
+  const currentClusterIds = new Set();
+  function collectClusterIds(nodes) {
+    nodes.forEach((node) => {
+      if (node.is_cluster) {
+        currentClusterIds.add(String(node.id));
+        if (node.children) collectClusterIds(node.children);
+      }
+    });
+  }
+  collectClusterIds(appState.monitorData.tree);
+
+  let cleanedCount = 0;
+  appState.collapsedClusters.forEach((id) => {
+    if (!currentClusterIds.has(id)) {
+      appState.collapsedClusters.delete(id);
+      cleanedCount++;
+    }
+  });
+
+  if (cleanedCount > 0) {
+    updateCollapsedClusters();
+    console.log(`Cleaned ${cleanedCount} stale collapsed cluster ID(s)`);
+  }
+
+  // === 4. Render (with safety) ===
+  renderJobsTable();
+
+  // === 5. Dashboard sync ===
+  if (document.getElementById("dashboard")?.classList.contains("active")) {
+    console.log("[updateJobsClusters] Dashboard active → rendering");
+    renderDashboard();
+  }
+}
+
+export function updateJobsClusters2(data) {
+  hideLoading("monitor-loading");
   document.getElementById("monitor-content").style.display = "block";
 
   if (!data.success || !data.clusters) {
@@ -1328,8 +1384,8 @@ function findCalendarById(calendars, calId) {
 
 export function loadDoc(file) {
   const content = document.getElementById("docs-content");
-  content.innerHTML =
-    '<p class="has-text-centered"><i class="fas fa-spinner fa-spin"></i> Loading...</p>';
+  content.innerHTML = '<p class="has-text-centered"><i class="fas fa-spinner fa-spin"></i> Loading...</p>';
+
   fetch(`/docs/${file}`)
     .then((response) => {
       if (!response.ok) throw new Error(`Failed to load ${file}`);
@@ -1339,23 +1395,25 @@ export function loadDoc(file) {
       const html = marked.parse(md);
       document.getElementById("docs-content").innerHTML = html;
 
-      // Safe highlight — hljs should now be defined
       if (typeof hljs !== "undefined") {
         hljs.highlightAll();
-      } else {
-        console.warn(
-          "highlight.js failed to load — code blocks will not be highlighted",
-        );
       }
 
-      // Update active TOC link
-      document
-        .querySelectorAll("#docs-toc a")
-        .forEach((a) => a.classList.remove("active"));
-      const activeLink = document.querySelector(
-        `#docs-toc a[data-file="${file}"]`,
-      );
+      // Update active link
+      document.querySelectorAll("#docs-toc a").forEach((a) => a.classList.remove("active"));
+      const activeLink = document.querySelector(`#docs-toc a[data-file="${file}"]`);
       if (activeLink) activeLink.classList.add("active");
+
+      // Strong reflow after content load
+      setTimeout(() => {
+        const scrollArea = document.querySelector('.content-center, .docs-main-content, .docs-content');
+        if (scrollArea) {
+          scrollArea.style.height = 'auto';
+          void scrollArea.offsetHeight;
+          scrollArea.style.height = '100%';
+          scrollArea.style.overflowY = 'auto';
+        }
+      }, 150);
     })
     .catch((err) => {
       document.getElementById("docs-content").innerHTML =
@@ -1398,6 +1456,7 @@ document.getElementById("docs-toc-toggle")?.addEventListener("click", () => {
 
 // TOC click handler
 // Inside your TOC click handler
+/*
 document.getElementById("docs-toc").addEventListener("click", (e) => {
   const link = e.target.closest("a");
   if (link && link.dataset.file) {
@@ -1411,6 +1470,38 @@ document.getElementById("docs-toc").addEventListener("click", (e) => {
     }
   }
 });
+*/
+
+// Safe Docs TOC Click Handler
+function attachDocsTocListener() {
+  const toc = document.getElementById("docs-toc");
+  if (!toc) return;
+
+  // Remove any existing listeners to prevent duplicates
+  const newToc = toc.cloneNode(true);
+  toc.parentNode.replaceChild(newToc, toc);
+
+  newToc.addEventListener("click", (e) => {
+    const link = e.target.closest("a");
+    if (link && link.dataset.file) {
+      e.preventDefault();
+      loadDoc(link.dataset.file);
+    }
+  });
+}
+
+// Call it when Docs tab is activated
+document.addEventListener("DOMContentLoaded", attachDocsTocListener);
+
+// Re-attach when switching to Docs tab
+const originalTabHandler = window.activateTab || function(){};
+window.activateTab = function(tabId) {
+  if (typeof originalTabHandler === "function") originalTabHandler(tabId);
+  
+  if (tabId === "docs") {
+    setTimeout(attachDocsTocListener, 200);
+  }
+};
 
 export function attachCalendarsTreeListeners() {
   const tbody = document.getElementById("calendars-body");

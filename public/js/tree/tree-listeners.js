@@ -26,24 +26,32 @@ export function attachTreeListeners() {
   });
 }
 
-// Recursive subtree hide/show with nested respect
 export function toggleSubtree(parentId, hideParent) {
-  const children = document.querySelectorAll(`tr[data-parent="${parentId}"]`);
+  if (!parentId) return;
 
+  const children = document.querySelectorAll(`tr[data-parent="${parentId}"]`);
+  
   children.forEach((child) => {
+    if (!child) return;
+
     const isCluster = child.classList.contains("ordo-cluster-row");
     const childCollapsed = isCluster && child.classList.contains("collapsed");
 
     if (hideParent) {
       child.classList.add("hidden");
-      if (isCluster) toggleSubtree(child.dataset.id, true);  // force hide descendants
+      if (isCluster) {
+        toggleSubtree(child.dataset.id, true); // recursive hide
+      }
     } else {
       child.classList.remove("hidden");
-      if (isCluster) toggleSubtree(child.dataset.id, childCollapsed);  // respect child's state
+      if (isCluster) {
+        toggleSubtree(child.dataset.id, childCollapsed); // respect child state
+      }
     }
   });
 }
 
+// Recursive subtree hide/show with nested respect
 export function forceExpandDescendants(startId) {
   const children = document.querySelectorAll(`tr[data-parent="${startId}"]`);
   children.forEach((childRow) => {

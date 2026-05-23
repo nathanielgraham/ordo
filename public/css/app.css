@@ -24,13 +24,10 @@
     opacity: 1;
   }
 }
-
-/* ==================== ROOT SCALING SYSTEM (REMS) ==================== */
-
 :root {
-  --base-font: 18px;
+  --navbar-height: 5.5rem;
+  --base-font: 15px;
   --scale: 1;
-  --navbar-height: 5.4rem;
   --bg-primary: #0a0a0a;
   --bg-secondary: #1a1a1a;
   --bg-dark: #0f0f1f;
@@ -42,7 +39,6 @@
   --glow-cyan-strong: rgba(0, 255, 255, 0.8);
   --shadow-neon: 0 4px 20px rgba(0, 255, 255, 0.3);
 }
-
 *,
 ::after,
 ::before {
@@ -50,10 +46,10 @@
   padding: 0;
   box-sizing: border-box;
 }
+#log-history-modal .modal-body,
 body,
 html {
   padding: 0;
-  overflow-x: hidden;
 }
 html {
   font-size: clamp(8px, 1vw, 12px);
@@ -61,6 +57,9 @@ html {
 }
 body {
   height: 100%;
+  font-family: "Montserrat", sans-serif !important;
+  font-weight: 500;
+  font-size: clamp(10px, 1.2vw, 14px) !important;
 }
 .title-large,
 .title-medium,
@@ -74,25 +73,6 @@ h4 {
 .text-grey,
 small {
   font-weight: 400;
-}
-.nav-tab {
-  color: var(--chrome-mid);
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.8),
-    0 0 6px var(--glow-cyan-soft);
-}
-.nav-tab:hover {
-  text-shadow:
-    0 0 12px var(--glow-cyan-medium),
-    0 1px 3px rgba(0, 0, 0, 0.9);
-}
-.nav-tab.active {
-  color: var(--glow-cyan) !important;
-  text-shadow:
-    0 0 20px var(--glow-cyan-strong),
-    0 0 40px var(--glow-cyan-strong) !important;
-  box-shadow: var(--shadow-neon) !important;
-  transform: translateY(-2px);
 }
 .tab-content {
   display: none !important;
@@ -114,13 +94,6 @@ body.scrolled .topnav {
 .ordo-table tbody tr {
   cursor: pointer;
 }
-#log-history-modal .modal-body {
-  padding: 0;
-}
-#log-history-modal .table-container {
-  max-height: 60vh;
-  overflow-y: auto;
-}
 select {
   width: 100%;
   padding: 0.5rem;
@@ -141,11 +114,6 @@ select:focus {
   border: 1px solid currentColor;
   padding: 0.25rem 0.5rem;
 }
-body {
-  font-family: "Montserrat", sans-serif !important;
-  font-weight: 500;
-  font-size: clamp(10px, 1.2vw, 14px) !important;
-}
 .ordo-table,
 .ordo-table td,
 .ordo-table th {
@@ -153,24 +121,13 @@ body {
 }
 h3 {
   font-size: clamp(18px, 3vw, 28px) !important;
-}
-.docs-content h1 {
-  font-size: clamp(28px, 5vw, 40px) !important;
-}
-.docs-content h2 {
-  font-size: clamp(22px, 4vw, 32px) !important;
-}
-.docs-content h3 {
-  font-size: clamp(18px, 3vw, 26px) !important;
+  font-size: 1.4rem !important;
 }
 .ordo-table,
 .ordo-table td,
 .ordo-table th,
 body {
   line-height: 1.6 !important;
-}
-.nav-tab.active {
-  font-size: clamp(16px, 2.4vw, 22px) !important;
 }
 .title-large,
 h1 {
@@ -193,18 +150,12 @@ h2 {
 .toast i {
   font-size: clamp(18px, 2.5vw, 24px) !important;
 }
-.docs-content {
-  font-size: clamp(15px, 1.8vw, 18px) !important;
-}
-.menu-label {
-  font-size: clamp(16px, 2.2vw, 20px) !important;
-}
-.table-container,
+/*
 main.content {
   margin-top: var(--navbar-height, 60px);
 }
+*/
 .button {
-  padding: 0.5rem 1rem;
   border: 1px solid var(--glow-blue);
   background: 0 0;
   color: var(--glow-blue);
@@ -222,9 +173,6 @@ main.content {
 .card {
   border-radius: 8px;
   box-shadow: 0 4px 15px rgba(0, 255, 255, 0.1);
-}
-.card-content {
-  padding: 1rem;
 }
 .table {
   width: 100%;
@@ -351,7 +299,6 @@ main.content {
   margin: 0 auto;
 }
 .title-medium {
-  font-size: 2.5rem;
   margin-bottom: 2rem;
 }
 .subtitle-description {
@@ -388,38 +335,6 @@ main.content {
   background: #66bb6a;
   color: #fff;
 }
-.docs-grid {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
-}
-.docs-sidebar {
-  top: var(--navbar-height, 60px);
-  height: fit-content;
-}
-.menu-label {
-  font-weight: 700;
-}
-.menu-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.menu-link {
-  display: block;
-  padding: 0.5rem 1rem;
-  color: #e0e0e0;
-  text-decoration: none;
-  border-radius: 4px;
-  transition: all 0.2s;
-}
-.menu-link:hover {
-  background: rgba(0, 255, 255, 0.1);
-  color: #0ff;
-}
-.menu-link.active {
-  background: rgba(0, 255, 255, 0.2);
-}
 .content-wrapper {
   max-width: 900px;
   margin: 0 auto;
@@ -427,10 +342,6 @@ main.content {
 .graph-body {
   padding: 0;
   position: relative;
-}
-.docs-content p,
-.form-group {
-  margin-bottom: 1.5rem;
 }
 .label {
   display: block;
@@ -456,7 +367,6 @@ main.content {
   padding: 4rem 0;
 }
 .title-large {
-  font-size: 3rem;
   margin-bottom: 1rem;
 }
 .card-simple {
@@ -464,11 +374,6 @@ main.content {
   border: 1px solid #444;
   border-radius: 8px;
   padding: 2rem;
-}
-.content-center {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 1rem;
 }
 .text-center {
   text-align: center;
@@ -631,87 +536,6 @@ body:not(.is-logged-in) [data-private="true"] {
   opacity: 0.95;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
-.sidebar-menu {
-  background: #1a1a1a;
-  border: 1px solid #444;
-  border-radius: 8px;
-}
-.docs-content {
-  color: #e0e0e0;
-}
-.docs-content h1,
-.docs-content h2,
-.docs-content h3 {
-  font-weight: 600;
-  color: #0ff;
-  margin: 2.5rem 0 1rem;
-}
-.docs-content ul {
-  margin: 1.2rem 0 1.2rem 2rem;
-}
-.docs-content li {
-  margin-bottom: 0.8rem;
-}
-.docs-content pre {
-  word-break: break-all;
-  background: #0f0f1f;
-  border: 1px solid #333;
-  border-radius: 8px;
-  padding: 1.2rem;
-  overflow-x: auto;
-  white-space: pre;
-  word-wrap: normal;
-  margin: 1.5rem 0;
-  box-shadow: 0 2px 10px rgba(0, 255, 255, 0.1);
-}
-.docs-content code {
-  background: #222;
-  padding: 2px 5px;
-  border-radius: 4px;
-  font-family: "Courier New", monospace;
-}
-.menu-link.active {
-  background: rgba(0, 255, 255, 0.25) !important;
-  color: #0ff !important;
-  font-weight: 700;
-  border-left: 4px solid #0ff;
-  padding-left: 0.75rem;
-  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
-}
-.sidebar-menu {
-  padding: 1.5rem;
-}
-.menu-label {
-  font-size: 1.3rem;
-  color: #0ff;
-  margin-bottom: 1.2rem;
-}
-.docs-content {
-  line-height: 1.8;
-  font-size: 1.05rem;
-}
-.docs-content h1 {
-  font-size: 2.4rem;
-}
-.docs-content h2 {
-  font-size: 1.9rem;
-}
-.docs-content h3 {
-  font-size: 1.5rem;
-}
-.docs-content pre::-webkit-scrollbar {
-  height: 8px;
-}
-.docs-content pre::-webkit-scrollbar-track {
-  background: #111;
-}
-.docs-content pre::-webkit-scrollbar-thumb {
-  background: #444;
-  border-radius: 4px;
-}
-.docs-content pre::-webkit-scrollbar-thumb:hover {
-  background: #666;
-}
 .close-btn {
   top: 1rem;
 }
@@ -794,8 +618,6 @@ body.is-logged-in .private-tabs {
 }
 .table-container {
   position: relative;
-  max-height: calc(100vh - var(--navbar-height) - 2rem);
-  overflow-y: auto;
 }
 .ordo-toggle {
   cursor: pointer;
@@ -970,9 +792,11 @@ tr.hidden {
   justify-content: flex-end;
   gap: 1rem;
 }
+/*
 #servers-content {
   min-height: calc(100vh - var(--navbar-height) - 6rem);
 }
+*/
 .ordo-table,
 .table-container {
   background: #1a1a1a;
@@ -1007,15 +831,11 @@ tr.hidden {
   table-layout: auto;
 }
 .ordo-table thead th {
-  background: #0f0f1f;
   color: #0ff !important;
   font-weight: 600;
   padding: 0.75rem 1rem;
   text-align: left;
   border-bottom: 2px solid #00ffff33;
-  position: sticky;
-  top: 0;
-  z-index: 10;
   white-space: nowrap;
 }
 .ordo-table tbody td {
@@ -1031,7 +851,6 @@ tr.hidden {
   background: rgba(255, 255, 255, 0.03);
 }
 .table-container {
-  overflow-x: auto;
   max-width: 100%;
   margin-bottom: 1rem;
 }
@@ -1108,44 +927,6 @@ tr.hidden {
   display: flex;
   gap: 2rem;
 }
-.nav-tab {
-  font-family: "Jost", sans-serif !important;
-  font-weight: 700;
-  text-transform: lowercase;
-  letter-spacing: 1.8px;
-  font-size: 1.1rem;
-  color: #b0c4de;
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.8),
-    0 0 6px rgba(0, 255, 255, 0.2);
-  padding: 0.8rem 1.4rem;
-  border-radius: 8px;
-  background: 0 0 !important;
-  border: 0 !important;
-  text-decoration: none !important;
-  position: relative;
-  transition: all 0.3s ease;
-  overflow: visible !important;
-}
-.nav-tab:hover {
-  color: #fff;
-  text-shadow:
-    0 0 12px rgba(0, 255, 255, 0.5),
-    0 1px 3px rgba(0, 0, 0, 0.9);
-  transform: translateY(-2px);
-  background: rgba(0, 255, 255, 0.08);
-}
-.nav-tab.active {
-  color: #0ff !important;
-  background: rgba(0, 255, 255, 0.15) !important;
-  text-shadow:
-    0 0 20px rgba(0, 255, 255, 0.8),
-    0 0 40px rgba(0, 255, 255, 0.4) !important;
-  box-shadow: 0 4px 20px rgba(0, 255, 255, 0.3) !important;
-  font-weight: 800;
-  font-size: 1.15rem;
-  border: 0 !important;
-}
 .ordo-table tr {
   display: table-row;
 }
@@ -1200,15 +981,10 @@ tr.hidden {
   pointer-events: none;
 }
 .app-modal,
-.content-center,
 .dropdown-menu,
 .tab-content,
-.table-container,
-body {
+.table-container {
   overflow: visible !important;
-}
-.tab-content {
-  padding-top: 1rem !important;
 }
 .table-container {
   margin-top: -0.5rem;
@@ -1216,16 +992,12 @@ body {
 .brand-logo-img {
   pointer-events: auto;
 }
+/*
 .nav-tabs {
   align-items: center;
   width: 100%;
   z-index: 2;
   padding: 0 2rem;
-}
-.nav-tabs::-webkit-scrollbar {
-  display: none;
-}
-.nav-tabs {
   display: flex;
   justify-content: center;
   gap: 3rem;
@@ -1234,6 +1006,11 @@ body {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
+.nav-tabs.private-tabs::-webkit-scrollbar,
+.nav-tabs::-webkit-scrollbar {
+  display: none;
+}
+*/
 .brand-logo-img {
   max-height: 70px;
 }
@@ -1241,9 +1018,11 @@ body {
 main.container {
   padding-top: var(--navbar-height) !important;
 }
+/*
 .nav-tabs {
   gap: clamp(1.5rem, 4vw, 3rem);
 }
+*/
 .nav-tab {
   padding: clamp(0.6rem, 1vw, 0.8rem) clamp(1rem, 2vw, 1.4rem);
   font-size: clamp(1rem, 2vw, 1.25rem);
@@ -1253,10 +1032,12 @@ main.container {
   padding: clamp(0.6rem, 1vw, 0.75rem) clamp(0.8rem, 1.5vw, 1rem);
   font-size: clamp(0.9rem, 1.2vw, 0.95rem);
 }
+/*
 .table-container {
   margin-top: clamp(1rem, 2vw, 2rem);
   margin-bottom: clamp(1rem, 2vw, 2rem);
 }
+*/
 .brand-logo-img {
   max-height: clamp(4rem, 10vw + 2rem, 6rem);
   width: auto;
@@ -1287,9 +1068,12 @@ body {
 .tab-content,
 main {
   flex: 1 1 auto;
-  min-height: calc(100vh - var(--navbar-height));
   padding-top: var(--navbar-height);
-  overflow-y: auto;
+}
+.tab-content,
+main {
+  min-height: calc(100vh - var(--navbar-height));
+  /* overflow-y: auto; */
 }
 footer {
   flex-shrink: 0;
@@ -1300,15 +1084,11 @@ body {
   flex-direction: column;
 }
 .topnav {
-  position: fixed;
-  top: 0;
   left: 0;
   right: 0;
   height: var(--navbar-height);
-  z-index: 3000;
   background: linear-gradient(to bottom, #0a1422, #000);
   box-shadow: 0 8px 30px rgba(0, 255, 255, 0.2);
-  overflow: visible;
 }
 .nav-logo-row {
   padding: 20px 0;
@@ -1319,6 +1099,7 @@ body {
   justify-content: center;
   align-items: center;
 }
+/*
 .nav-tabs.private-tabs {
   display: flex;
   justify-content: center;
@@ -1328,23 +1109,22 @@ body {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
-.nav-tabs.private-tabs::-webkit-scrollbar {
-  display: none;
-}
+*/
 .main.container {
   padding-top: var(--navbar-height);
-  min-height: calc(100vh - var(--navbar-height));
   background: var(--bg-primary);
   color: var(--chrome-light);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
+/*
 .main.container > .content-center,
 .main.container > .tab-content {
   flex: 1;
   overflow-y: auto;
 }
+*/
 .dropdown {
   position: relative;
   display: inline-block;
@@ -1364,7 +1144,6 @@ body {
 }
 .dropdown-menu {
   display: none;
-  position: absolute;
   top: 100%;
   right: 0;
   left: 20px;
@@ -1372,7 +1151,6 @@ body {
   border: 1px solid rgba(0, 255, 255, 0.4);
   border-radius: 6px;
   box-shadow: 0 8px 30px rgba(0, 255, 255, 0.4);
-  z-index: 3500;
 }
 .dropdown.active .dropdown-menu {
   display: block;
@@ -1382,12 +1160,10 @@ body {
 }
 .dropdown-item {
   display: block;
-  padding: 0.3rem 0.7rem;
   color: #e0e0e0;
   text-decoration: none;
   white-space: nowrap;
   transition: all 0.2s;
-  font-size: 0.9rem;
   line-height: 1.2;
 }
 .dropdown-item:hover {
@@ -1408,10 +1184,6 @@ body {
 }
 .table .dropdown.active .dropdown-menu {
   z-index: 3500;
-}
-.dropdown-menu {
-  min-width: 160px;
-  width: auto !important;
 }
 .app-modal {
   position: fixed;
@@ -1566,6 +1338,16 @@ progress {
   background: #222;
   border-radius: 6px 6px 0 0;
 }
+progress {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  height: 1.25rem;
+  border-radius: 999px;
+  border: 1px solid #444;
+  overflow: hidden;
+  width: 100%;
+}
 .internal-tab.active,
 .internal-tab:hover {
   background: rgba(0, 255, 255, 0.15);
@@ -1594,16 +1376,6 @@ progress {
   text-align: right;
   white-space: nowrap;
   font-weight: 600;
-}
-progress {
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  height: 1.25rem;
-  border-radius: 999px;
-  border: 1px solid #444;
-  overflow: hidden;
-  width: 100%;
 }
 progress::-webkit-progress-bar {
   background: #222;
@@ -1725,22 +1497,6 @@ progress::-moz-progress-bar {
 }
 .price-box {
   margin: 1.5rem 0;
-}
-.docs-grid {
-  display: grid;
-  grid-template-columns: 250px 1fr;
-  gap: 2rem;
-}
-.docs-sidebar {
-  position: sticky;
-  top: 100px;
-  align-self: start;
-}
-.docs-content {
-  background: #1a1a1a;
-  border: 1px solid #444;
-  border-radius: 8px;
-  padding: 2rem;
 }
 .form-row {
   display: grid;
@@ -1917,525 +1673,793 @@ progress::-moz-progress-bar {
 }
 body,
 html {
-  overflow-y: auto;
   scroll-behavior: smooth;
 }
 .graph-body,
 .modal-body {
   scrollbar-gutter: stable;
 }
-.navbar,
 header {
   z-index: 1000;
 }
-
-/* ==================== TOMSELECT CYBERPUNK STYLING (PurgeCSS Fix) ==================== */
-
-/* ==================== REM SCALING SYSTEM - HIGH PRIORITY (Bottom of File) ==================== */
-
-:root {
-  --base-font: 15px;   /* Try 14px, 14.5px, or 15px */
-  --scale: 1;
-  --navbar-height: 5.5rem;
-}
-
 html {
   font-size: calc(var(--base-font) * var(--scale)) !important;
 }
-
-/* Core typography */
-body, .nav-tab, button, .btn, .dropdown-item, 
-.ordo-table td, .ordo-table th, .table td, .table th {
+.btn,
+.dropdown-item,
+.ordo-table td,
+.ordo-table th,
+.table td,
+.table th,
+body,
+button {
   font-size: 1rem !important;
 }
-
-h1, .title-large { font-size: 2.25rem !important; }
-h2, .title-medium { font-size: 1.75rem !important; }
-h3 { font-size: 1.4rem !important; }
-
-/* Spacing */
-.btn, .button {
+.title-large,
+h1 {
+  font-size: 2.25rem !important;
+}
+.title-medium,
+h2 {
+  font-size: 1.75rem !important;
+}
+.button {
   padding: 0.65rem 1.35rem !important;
 }
-
-.ordo-table td, .ordo-table th {
-  padding: 0.75rem 1rem !important;
+.ordo-table td,
+.ordo-table th {
+  padding: 0.9rem 0.8rem !important;
 }
-
-.modal-body, .card-content {
+.card-content,
+.modal-body {
   padding: 1.75rem 2rem !important;
 }
-
-.nav-tab {
-  padding: 0.75rem 1.4rem !important;
-}
-
 .dropdown-item {
   padding: 0.6rem 1rem !important;
 }
-
-/* ==================== REM SCALING REFINEMENTS ==================== */
-
-:root {
-  --base-font: 15px;
-  --scale: 1;
-  --navbar-height: 5.5rem;   /* slightly taller for better tab breathing room */
-}
-
-/* Force scaling on previously stubborn elements */
-.nav-tab,
-.nav-tab.active,
-.menu-link,
-.docs-content * {
-  font-size: 1rem !important;
-}
-
-.nav-tab.active {
-  font-size: 1.15rem !important;   /* make active tab slightly larger */
-}
-
-/* Fix neon underline dropping to new line */
 .nav-tabs-row {
   flex-wrap: nowrap !important;
   overflow-x: auto !important;
   white-space: nowrap;
-  padding-bottom: 0.6rem !important;
 }
-
 .nav-tab {
-  position: relative;
-  padding: 0.85rem 1.35rem !important;
   flex-shrink: 0;
-}
-
-/* Improve overall density and readability */
-.ordo-table td,
-.ordo-table th {
-  padding: 0.85rem 1rem !important;
-}
-
-.btn {
-  padding: 0.7rem 1.4rem !important;
-}
-
-/* Make tabs feel more proportional */
-.nav-tab {
-  font-size: 1.05rem !important;
   font-weight: 600;
 }
-
-/* ==================== NAVBAR + TAB + SCROLLBAR FIXES ==================== */
-
-:root {
-  --navbar-height: 5.6rem;   /* Give more breathing room */
-}
-
-/* Fix navbar and tabs positioning */
-.topnav, .navbar {
+.navbar,
+.topnav {
   position: fixed !important;
   top: 0 !important;
   z-index: 3000 !important;
 }
-
-.nav-tabs-row {
-  padding: 1rem 1.5rem 0.75rem !important;
-  margin-bottom: 0.5rem !important;
-  border-bottom: 1px solid #334155;
-}
-
-/* Fix main content spacing */
-.main.container,
-.tab-content.active,
-.content-center {
-  margin-top: var(--navbar-height) !important;
-  padding-top: 1.25rem !important;
-}
-
-/* ==================== FINAL LAYOUT + SCROLLBAR FIX (Highest Priority) ==================== */
-
-:root {
-  --navbar-height: 5.65rem;
-}
-
-/* Force single scrollbar on body only */
-html, body {
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  scrollbar-gutter: stable;
-  height: 100vh;
-}
-
-/* Main content area - no scrollbar */
-.main.container,
-.tab-content.active,
-.content-center {
-  margin-top: var(--navbar-height) !important;
-  padding-top: 1.25rem !important;
-  min-height: calc(100vh - var(--navbar-height)) !important;
-  overflow-y: visible !important;
-}
-
-/* Table gets the inner scrollbar */
-.table-container {
-  max-height: calc(100vh - var(--navbar-height) - 7rem) !important;
-  overflow-y: auto !important;
-  overflow-x: auto;
-  scrollbar-gutter: stable;
-}
-
-/* Remove arbitrary divider line */
-.nav-tabs-row {
-  border-bottom: none !important;
-  padding-bottom: 0.75rem !important;
-  margin-bottom: 0.75rem !important;
-}
-
-/* Extra safety for tabs */
-.nav-tabs-row {
-  position: relative;
-  z-index: 10;
-}
-
-/* ==================== TOMSELECT CYBERPUNK RESTORATION (Post-Purge) ==================== */
-
 .ts-control {
-  background: #1a1a1a !important;
   border: 1px solid #555 !important;
-  color: #e0e0e0 !important;
   border-radius: 4px !important;
   box-shadow: 0 0 8px rgba(0, 255, 255, 0.1) !important;
 }
-
 .ts-control .item {
   background: rgba(0, 255, 255, 0.15) !important;
-  border: 1px solid #00ffff !important;
-  color: #00ffff !important;
+  border: 1px solid #0ff !important;
+  color: #0ff !important;
   border-radius: 3px !important;
 }
-
-.ts-dropdown {
-  background: #1a1a1a !important;
-  border: 1px solid #00ffff !important;
-  color: #e0e0e0 !important;
-  z-index: 99999 !important;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
-}
-
+.ts-control,
+.ts-dropdown,
 .ts-dropdown .option {
   background: #1a1a1a !important;
   color: #e0e0e0 !important;
+}
+.ts-dropdown {
+  border: 1px solid #0ff !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
+}
+.ts-dropdown .option {
   padding: 0.55rem 1rem !important;
 }
-
-.ts-dropdown .option:hover,
 .ts-dropdown .option.active,
-.ts-dropdown .option.selected {
+.ts-dropdown .option.selected,
+.ts-dropdown .option:hover {
   background: rgba(0, 255, 255, 0.25) !important;
-  color: #00ffff !important;
+  color: #0ff !important;
 }
-
 .ts-control .item .remove {
-  color: #ff3366 !important;
+  color: #f36 !important;
   opacity: 0.8;
 }
-
 .ts-control .item .remove:hover {
-  color: #ff5555 !important;
+  color: #f55 !important;
   background: rgba(255, 51, 102, 0.2) !important;
 }
-
 .ts-wrapper {
   margin-bottom: 0.75rem !important;
 }
-
-/* Make sure dropdowns appear above modals */
 .ts-dropdown {
   z-index: 99999 !important;
 }
-
-/* ==================== STRONG FINAL OVERRIDE - SCROLLBAR + TABS ==================== */
-
-:root {
-  --navbar-height: 5.7rem !important;
-}
-
-/* FORCE SINGLE SCROLLBAR */
-html, body {
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
+body,
+html {
   scrollbar-gutter: stable !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+  overflow: hidden !important;
   height: 100vh !important;
 }
-
-/* Prevent any main content from scrolling */
-.main.container,
-.tab-content.active,
-.content-center,
 .container {
   overflow-y: visible !important;
-  margin-top: var(--navbar-height) !important;
   padding-top: 1.5rem !important;
   min-height: calc(100vh - var(--navbar-height)) !important;
 }
-
-/* Table is the ONLY inner scroller */
-.table-container {
-  max-height: calc(100vh - var(--navbar-height) - 8rem) !important;
-  overflow-y: auto !important;
-  overflow-x: auto !important;
-  scrollbar-gutter: stable;
-}
-
-/* Extra safety */
 .nav-tabs-row {
-  padding-bottom: 1rem !important;
-  border-bottom: 1px solid #334155 !important;
+  padding: 1rem 1.5rem !important;
 }
-
-/* ==================== FINAL NAVBAR SCROLLBAR FIX ==================== */
-
-.topnav, .navbar, .nav-tabs-row, .nav-logo-row {
+.nav-logo-row,
+.nav-tabs-row,
+.navbar,
+.topnav {
   overflow: visible !important;
   overflow-y: visible !important;
   height: auto !important;
   min-height: var(--navbar-height) !important;
   max-height: none !important;
 }
-
-body, html {
-  overflow-y: auto !important;
-  height: 100vh !important;
-  scrollbar-gutter: stable;
-}
-
-/* Ensure main content starts cleanly after navbar */
+/*
+.content-center,
 .main.container,
-.tab-content.active,
-.content-center {
-  margin-top: var(--navbar-height) !important;
-  padding-top: 1.25rem !important;
-  overflow-y: visible !important;
-}
-
-/* Table is the only inner scroller */
-.table-container {
-  max-height: calc(100vh - var(--navbar-height) - 8rem) !important;
-  overflow-y: auto !important;
-}
-
-/* ==================== FINAL POLISH - TABS + SCROLLBAR + SPACING ==================== */
-
-:root {
-  --navbar-height: 5.7rem;
-}
-
-/* Single clean scrollbar starting below navbar */
-html, body {
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  scrollbar-gutter: stable;
-  height: 100vh;
-}
-
-.main.container,
-.tab-content.active,
-.content-center {
-  margin-top: var(--navbar-height) !important;
-  padding-top: 0.75rem !important;     /* reduced spacing */
-  overflow-y: visible !important;
-}
-
-/* Table scroll area */
-.table-container {
-  max-height: calc(100vh - var(--navbar-height) - 7.5rem) !important;
-  overflow-y: auto !important;
-}
-
-/* Neon underline fix - better alignment + thickness */
-.nav-tab {
-  position: relative !important;
-  padding: 0.9rem 1.45rem !important;
-}
-
-/* Remove any remaining divider line */
-.nav-tabs-row {
-  border-bottom: none !important;
-  padding-bottom: 0.75rem !important;
-  margin-bottom: 0.5rem !important;
-}
-
-/* ==================== OPTION A - SCROLLBAR ON TAB CONTENT ==================== */
-
-:root {
-  --base-font: 14.8px;
-  --scale: 1;
-  --navbar-height: 5.65rem;
-}
-
-/* Body should not scroll */
-html, body {
-  overflow-y: hidden !important;
-  height: 100vh;
-  scrollbar-gutter: stable;
-}
-
-/* Main scrollbar lives here - starts right below tabs */
-.main.container,
-.tab-content.active,
-.content-center {
-  margin-top: var(--navbar-height) !important;
-  padding-top: 1rem !important;
+.tab-content.active {
   min-height: calc(100vh - var(--navbar-height)) !important;
-  overflow-y: auto !important;           /* ← Main scrollbar */
-  overflow-x: hidden;
 }
-
-/* Table inner scroll (for very long tables) */
+*/
+/*
 .table-container {
-  max-height: calc(100vh - var(--navbar-height) - 8rem) !important;
-  overflow-y: auto !important;
-  overflow-x: auto;
   scrollbar-gutter: stable;
 }
-
-/* Spacing */
-.nav-tabs-row {
-  padding-bottom: 0.85rem !important;
-  margin-bottom: 0.6rem !important;
-  border-bottom: none !important;
-}
-
-/* ==================== FINAL HIGH-PRIORITY FIXES (REMS VERSION) ==================== */
-
-:root {
-  --base-font: 14.8px;
-  --scale: 1;
-  --navbar-height: 5.7rem;
-}
-
-/* ==================== SCROLLBAR MANAGEMENT ==================== */
-html, body {
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  scrollbar-gutter: stable;
-  height: 100vh;
-}
-
-.main.container,
-.tab-content.active,
-.content-center {
-  margin-top: var(--navbar-height) !important;
-  padding-top: 1.25rem !important;
-  min-height: calc(100vh - var(--navbar-height)) !important;
-  overflow-y: visible !important;
-}
-
-.table-container {
-  max-height: calc(100vh - var(--navbar-height) - 8rem) !important;
-  overflow-y: auto !important;
-  overflow-x: auto;
-  scrollbar-gutter: stable;
-}
-
-/* ==================== ACTIVE TAB NEON UNDERLINE (REMS) ==================== */
+*/
 .nav-tab {
+  font-family: "Jost", sans-serif !important;
+  text-transform: lowercase;
+  letter-spacing: 1.8px;
+  color: #b0c4de;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.8),
+    0 0 6px rgba(0, 255, 255, 0.2);
+  border-radius: 8px;
+  background: 0 0 !important;
+  border: 0 !important;
+  text-decoration: none !important;
+  transition: all 0.3s ease;
+  overflow: visible !important;
   position: relative !important;
+  font-size: 1.05rem !important;
   padding: 0.5rem 1.15rem !important;
 }
-
+.nav-tab:hover {
+  color: #fff;
+  text-shadow:
+    0 0 12px rgba(0, 255, 255, 0.5),
+    0 1px 3px rgba(0, 0, 0, 0.9);
+  transform: translateY(-2px);
+  background: rgba(0, 255, 255, 0.08);
+}
+.nav-tab.active {
+  color: #0ff !important;
+  background: rgba(0, 255, 255, 0.15) !important;
+  text-shadow:
+    0 0 20px rgba(0, 255, 255, 0.8),
+    0 0 40px rgba(0, 255, 255, 0.4) !important;
+  box-shadow: 0 4px 20px rgba(0, 255, 255, 0.3) !important;
+  font-weight: 800;
+  border: 0 !important;
+}
 .nav-tab.active::after {
-  content: "" !important;
-  position: absolute !important;
-  bottom: 0rem !important;           /* rem */
-  left: 10% !important;
-  right: 10% !important;
-  height: 0.3rem !important;            /* rem */
-  background: var(--glow-cyan) !important;
-  box-shadow: 0 0 1.8rem var(--glow-cyan-strong), 
-              0 0 0.8rem var(--glow-cyan) !important;
-  z-index: 25 !important;
+  bottom: 0 !important;
   border-radius: 0.3rem !important;
   min-width: 60% !important;
+  content: "" !important;
+  position: absolute !important;
+  bottom: -0.1rem !important;
+  left: 10% !important;
+  right: 10% !important;
+  height: 0.4rem !important;
+  background: var(--glow-cyan) !important;
+  box-shadow: 0 0 1.8rem var(--glow-cyan-strong) !important;
+  font-size: 1.13rem !important;
+  z-index: 30 !important;
 }
-
-/* ==================== TABS & SPACING (REMS) ==================== */
 .nav-tabs-row {
   padding-bottom: 0.85rem !important;
   margin-bottom: 0.6rem !important;
   border-bottom: 1px solid #334155 !important;
 }
-
-/* ==================== GENERAL REM REFINEMENTS ==================== */
-.ordo-table td,
-.ordo-table th {
-  padding: 0.85rem 1rem !important;
+@media (max-width: 1100px) {
+  .nav-tab {
+    padding: 0.65rem 1.1rem;
+    font-size: 1rem;
+  }
+  .nav-tab.active::after {
+    bottom: -0.3rem;
+    height: 3px;
+  }
 }
-
 .btn {
   padding: 0.7rem 1.4rem !important;
 }
-
-.nav-tab {
-  font-size: 1.05rem !important;
+.app-wrapper {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 100vh !important;
 }
-
-.nav-tab.active {
-  font-size: 1.13rem !important;
+.main-content {
+  flex: 1 1 auto !important;
+  margin-top: 0 !important;
+  background: var(--bg-primary) !important;
 }
-
-/* ==================== ROBUST FINAL LAYOUT FIX ==================== */
-
-:root {
-  --base-font: 14.8px;
-  --scale: 1;
-  --navbar-height: 5.65rem;
+.ordo-table thead th {
+  top: var(--navbar-height) !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 160 !important;
+  background: #0f0f1f !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7) !important;
 }
-
-/* Body should never scroll */
-html, body {
-  overflow-y: hidden !important;
-  height: 100vh;
-  margin: 0;
-}
-
-/* Main tab content gets the scrollbar */
+/*
+.content-center,
+.main-content,
 .main.container,
-.tab-content.active,
-.content-center {
-  margin-top: var(--navbar-height) !important;
-  padding-top: 1rem !important;
-  height: calc(100vh - var(--navbar-height)) !important;
+.tab-content.active {
   overflow-y: auto !important;
   overflow-x: hidden;
   box-sizing: border-box;
 }
+.content-center,
+.main.container {
+  padding-top: 1.25rem !important;
+  height: calc(100vh - var(--navbar-height)) !important;
+}
+*/
 
-/* Table container inner scroll (when needed) */
-.table-container {
-  max-height: calc(100vh - var(--navbar-height) - 8rem) !important;
+
+.dropdown-menu,
+.row-actions .dropdown-menu {
+  position: fixed !important;
+  z-index: 9999 !important;
+  max-height: 70vh !important;
   overflow-y: auto !important;
-  overflow-x: auto;
-  scrollbar-gutter: stable;
+}
+.dropdown-menu {
+  min-width: 180px !important;
+  max-width: 240px !important;
+  width: auto !important;
+  background: #111827 !important;
+}
+.main-content,
+.tab-content.active {
+  margin-top: var(--navbar-height) !important;
+}
+/*
+.table-container {
+  height: calc(100vh - var(--navbar-height) - 3.5rem) !important;
+}
+*/
+#tree-body {
+  position: relative !important;
+}
+.main-content,
+.tab-content.active {
+  padding-top: 1.5rem !important;
+  height: calc(100vh - var(--navbar-height)) !important;
+  overflow: hidden !important;
+}
+/*
+.table-container {
+  height: calc(100% - 2rem) !important;
+  max-height: calc(100vh - var(--navbar-height) - 3.5rem) !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  padding-top: 0.5rem !important;
+}
+*/
+
+/* ==================== FINAL RECOMMENDED RULES (Paste at Bottom) ==================== */
+
+/* ==================== GLOBAL SCROLLING ARCHITECTURE ==================== */
+
+/* Lock outer page */
+html, body {
+  overflow: hidden !important;
+  height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
-/* Sticky Table Header - stays under navbar */
+/* Main content area - height pass-through only */
+.main-content,
+.tab-content.active {
+  margin-top: var(--navbar-height) !important;
+  padding-top: 1.25rem !important;
+  height: calc(100vh - var(--navbar-height)) !important;
+  overflow: hidden !important;
+}
+
+/* Table tabs scroller */
+/*
+.table-container {
+  height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  padding-top: 0.5rem !important;
+  padding-bottom: 2rem !important;
+}
+*/
+
+/* Non-table tabs scroller */
+/*
+.content-center {
+  height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+*/
+
+/* ==================== STICKY TABLE HEADER ==================== */
+
 .ordo-table thead th {
   position: sticky !important;
+  top: 0 !important;
+  z-index: 160 !important;
+  background: #0f0f1f !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7) !important;
+}
+
+/* ==================== NAV TABS ==================== */
+
+.nav-tab {
+  position: relative;
+  padding: 0.75rem 1.4rem;
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--chrome-mid);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 6px var(--glow-cyan-soft);
+  transition: all 0.2s ease;
+}
+
+.nav-tab:hover {
+  color: var(--glow-cyan);
+  text-shadow: 0 0 12px var(--glow-cyan-medium), 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+.nav-tab.active {
+  color: var(--glow-cyan) !important;
+  font-weight: 600;
+  text-shadow: 0 0 20px var(--glow-cyan-strong) !important;
+}
+
+.nav-tab.active::after {
+  content: "";
+  position: absolute;
+  bottom: -0.35rem;
+  left: 15%;
+  right: 15%;
+  height: 4px;
+  background: var(--glow-cyan);
+  box-shadow: 0 0 12px var(--glow-cyan-strong);
+  z-index: 10;
+}
+
+/* ==================== COMPLETE DOCS LAYOUT + SIDEBAR + SCROLLING ==================== */
+
+.docs-grid {
+  display: flex !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  gap: 2rem !important;
+}
+
+.docs-sidebar {
+  flex-shrink: 0;
+  width: 260px;
+  position: sticky !important;
   top: var(--navbar-height) !important;
-  z-index: 100 !important;
+  align-self: start !important;
+  height: fit-content !important;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 1.5rem;
+  overflow-y: visible !important;
+}
+
+.sidebar-menu {
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.menu-label {
+  font-size: 1.3rem;
+  color: #0ff;
+  margin-bottom: 1.2rem;
+  font-weight: 700;
+}
+
+.menu-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.menu-link {
+  display: block;
+  padding: 0.6rem 1rem;
+  color: #e0e0e0;
+  text-decoration: none;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.menu-link:hover {
+  background: rgba(0, 255, 255, 0.1);
+  color: #0ff;
+}
+
+.menu-link.active {
+  background: rgba(0, 255, 255, 0.25) !important;
+  color: #0ff !important;
+  font-weight: 700;
+  border-left: 4px solid #0ff;
+  padding-left: 0.75rem;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+}
+
+/* Scrollable Content Area */
+.docs-content {
+  flex: 1 1 auto !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 2rem 2.5rem 8rem 0 !important;
+  box-sizing: border-box !important;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 8px;
+}
+
+/* Content Styling */
+.docs-content h1 { font-size: 2.4rem; color: #0ff; margin: 2.5rem 0 1rem; }
+.docs-content h2 { font-size: 1.9rem; color: #0ff; margin: 2rem 0 1rem; }
+.docs-content h3 { font-size: 1.5rem; color: #0ff; margin: 1.8rem 0 1rem; }
+
+.docs-content pre {
+  background: #0f0f1f;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1.2rem;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}
+
+.docs-content code {
+  background: #222;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: "Courier New", monospace;
+}
+
+/* ==================== FINAL DOCS LAYOUT ==================== */
+
+.docs-grid {
+  display: flex !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  gap: 2rem !important;
+}
+
+.docs-sidebar {
+  flex-shrink: 0;
+  width: 260px;
+  position: sticky !important;
+  top: var(--navbar-height) !important;
+  align-self: start !important;
+  height: fit-content !important;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.docs-scroll-container {
+  flex: 1 1 auto !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 2rem 2.5rem 8rem 0 !important;
+  box-sizing: border-box !important;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 8px;
+}
+
+/* Styling */
+.docs-scroll-container h1 { font-size: 2.4rem; color: #0ff; margin: 2.5rem 0 1rem; }
+.docs-scroll-container h2 { font-size: 1.9rem; color: #0ff; margin: 2rem 0 1rem; }
+.docs-scroll-container h3 { font-size: 1.5rem; color: #0ff; margin: 1.8rem 0 1rem; }
+
+.docs-scroll-container pre {
+  background: #0f0f1f;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1.2rem;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}
+
+/* ==================== SIMPLE & RELIABLE DOCS SCROLLING ==================== */
+
+#docs .docs-grid {
+  display: flex !important;
+  height: 100% !important;
+  gap: 2rem !important;
+}
+
+#docs .docs-sidebar {
+  flex-shrink: 0;
+  width: 260px;
+  position: sticky !important;
+  top: var(--navbar-height) !important;
+  align-self: start !important;
+  height: fit-content !important;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+#docs .docs-content {
+  flex: 1 1 auto !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 2rem 2.5rem 8rem 0 !important;
+  box-sizing: border-box !important;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 8px;
+}
+
+/* Styling */
+#docs-content h1 { font-size: 2.4rem; color: #0ff; margin: 2.5rem 0 1rem; }
+#docs-content h2 { font-size: 1.9rem; color: #0ff; margin: 2rem 0 1rem; }
+#docs-content h3 { font-size: 1.5rem; color: #0ff; margin: 1.8rem 0 1rem; }
+
+#docs-content pre {
+  background: #0f0f1f;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1.2rem;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}
+
+/* ==================== ULTRA SIMPLE DOCS SCROLLING ==================== */
+
+#docs .main.container {
+  height: calc(100vh - var(--navbar-height)) !important;
+  overflow: hidden !important;
+}
+
+#docs .docs-content {
+  height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 2rem 2.5rem 6rem 2rem !important;
+  box-sizing: border-box !important;
+}
+
+#docs-content {
+  padding-bottom: 6rem !important;
+}
+
+/* ==================== WORKING DOCS LAYOUT ==================== */
+
+.docs-grid {
+  display: flex !important;
+  height: 100% !important;
+  gap: 2rem !important;
+}
+
+.docs-sidebar {
+  flex-shrink: 0;
+  width: 260px;
+  position: sticky !important;
+  top: var(--navbar-height) !important;
+  align-self: start !important;
+  height: fit-content !important;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.docs-content {
+  flex: 1 1 auto !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 2rem 2.5rem 8rem 0 !important;
+  box-sizing: border-box !important;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 8px;
+}
+
+/* Styling */
+.docs-content h1 { font-size: 2.4rem; color: #0ff; margin: 2.5rem 0 1rem; }
+.docs-content h2 { font-size: 1.9rem; color: #0ff; margin: 2rem 0 1rem; }
+.docs-content h3 { font-size: 1.5rem; color: #0ff; margin: 1.8rem 0 1rem; }
+
+.docs-content pre {
+  background: #0f0f1f;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1.2rem;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}
+
+/* ==================== GLOBAL CYBERPUNK SCROLLBARS (Matching Modal) ==================== */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #00a8a8;
+  border-radius: 4px;
+  box-shadow: 0 0 6px rgba(0, 168, 168, 0.7);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00c0c0;
+  box-shadow: 0 0 10px rgba(0, 192, 192, 0.9);
+}
+
+/* Stronger version for modals and important areas */
+.app-modal ::-webkit-scrollbar-thumb,
+.docs-content ::-webkit-scrollbar-thumb,
+.table-container ::-webkit-scrollbar-thumb,
+.modal-body ::-webkit-scrollbar-thumb {
+  background: #00a8a8;
+  box-shadow: 0 0 8px rgba(0, 168, 168, 0.8);
+}
+
+/* ==================== TABLE CONTAINER HEIGHT FIX ==================== */
+
+.table-container {
+  height: calc(90vh - var(--navbar-height) - 2rem) !important;
+  max-height: calc(90vh - var(--navbar-height) - 2rem) !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 2.5rem !important;
+  box-sizing: border-box !important;
+}
+
+/* Ensure sticky header works with the new height */
+.ordo-table thead th {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 160 !important;
   background: #0f0f1f !important;
 }
 
-/* Neon underline */
-.nav-tab.active::after {
-  content: "" !important;
-  position: absolute !important;
-  bottom: -0.4rem !important;
-  left: 15% !important;
-  right: 15% !important;
-  height: 0.5rem !important;
-  background: var(--glow-cyan) !important;
-  box-shadow: 0 0 1.8rem var(--glow-cyan-strong) !important;
-  z-index: 25 !important;
+
+/* ==================== 90VH HEIGHT FOR ALL TABS ==================== */
+
+html, body {
+  overflow: hidden !important;
+  height: 100vh !important;
+}
+
+/* Main outer containers */
+.main-content,
+.tab-content.active {
+  height: 90vh !important;
+  overflow: hidden !important;
+  margin-top: var(--navbar-height) !important;
+}
+
+/* Actual scroll containers inside tabs */
+.table-container,
+/*.content-center, */
+.docs-content,
+.docs-main-content {
+  height: 90vh !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+}
+
+/* Table-specific adjustments */
+.table-container {
+  padding-top: 0.75rem !important;
+  padding-bottom: 2.5rem !important;
+  overflow-x: auto !important;
+}
+
+/* Docs-specific */
+.docs-content {
+  padding: 2rem 2.5rem 4rem 0 !important;
+  border: 1px solid #555 !important;
+  background: #1a1a1a;
+  border-radius: 8px;
+}
+
+/* Sticky table header */
+.ordo-table thead th {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 160 !important;
+  background: #0f0f1f !important;
+}
+
+/* ==================== SAFE SINGLE SCROLLBAR RULES ==================== */
+
+/* Lock outer layers - no scrollbar here */
+html, body,
+.main-content,
+.tab-content.active {
+  overflow: hidden !important;
+  height: calc(100vh - var(--navbar-height)) !important;
+}
+
+/* === TABLE TABS (Jobs & Clusters, Servers, Calendars) === */
+.table-container {
+  height: calc(90vh - var(--navbar-height) - 2rem) !important;
+  max-height: calc(90vh - var(--navbar-height) - 2rem) !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 2.5rem !important;
+  box-sizing: border-box !important;
+}
+
+/* Prevent content-center from scrolling when it contains a table-container */
+.content-center:has(.table-container) {
+  overflow: hidden !important;
+  height: 100% !important;
+}
+
+/* === NON-TABLE TABS (Dashboard, Settings) === */
+.content-center:not(:has(.table-container)) {
+  height: calc(90vh - var(--navbar-height) - 2rem) !important;
+  max-height: calc(90vh - var(--navbar-height) - 2rem) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 1.5rem !important;
+  box-sizing: border-box !important;
+}
+
+/* === DOCS TAB === */
+.docs-content,
+.docs-main-content {
+  height: calc(90vh - var(--navbar-height) - 2rem) !important;
+  max-height: calc(90vh - var(--navbar-height) - 2rem) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 2rem 2.5rem 4rem 0 !important;
+  background: #1a1a1a;
+  border: 1px solid #555 !important;
+  border-radius: 8px;
 }
 
