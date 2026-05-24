@@ -1,32 +1,64 @@
 <!-- partials/docs.html.ep -->
 <section id="docs" class="tab-content">
-  <div class="main.container">
+  <div class="content-center">
     <div class="docs-grid">
-      
       <!-- Sidebar -->
       <aside class="docs-sidebar">
         <div class="sidebar-menu">
           <p class="menu-label">Ordo Documentation</p>
           <ul class="menu-list" id="docs-toc">
-            <li><a href="#" data-file="quickstart.md" class="menu-link active">Quickstart</a></li>
-            <li><a href="#" data-file="overview.md" class="menu-link">Overview</a></li>
-            <li><a href="#" data-file="mcp.md" class="menu-link">Connecting to Grok</a></li>
-            <li><a href="#" data-file="web-ui.md" class="menu-link">Web UI Guide</a></li>
-            <li><a href="#" data-file="cli.md" class="menu-link">CLI Reference</a></li>
-            <li><a href="#" data-file="rest-api.md" class="menu-link">REST API</a></li>
-            <li><a href="#" data-file="use-cases.md" class="menu-link">Use Cases & Examples</a></li>
-            <li><a href="#" data-file="video-tutorials.md" class="menu-link">Video Tutorials</a></li>
-            <li><a href="#" data-file="advanced.md" class="menu-link">Advanced Topics</a></li>
-            <li><a href="#" data-file="troubleshooting.md" class="menu-link">Troubleshooting</a></li>
+            <!-- your menu items -->
+            <li>
+              <a href="#" data-file="quickstart.md" class="menu-link active"
+                >Quickstart</a
+              >
+            </li>
+            <li>
+              <a href="#" data-file="overview.md" class="menu-link">Overview</a>
+            </li>
+            <li>
+              <a href="#" data-file="mcp.md" class="menu-link"
+                >Connecting to Grok</a
+              >
+            </li>
+            <li>
+              <a href="#" data-file="web-ui.md" class="menu-link"
+                >Web UI Guide</a
+              >
+            </li>
+            <li>
+              <a href="#" data-file="cli.md" class="menu-link">CLI Reference</a>
+            </li>
+            <li>
+              <a href="#" data-file="rest-api.md" class="menu-link">REST API</a>
+            </li>
+            <li>
+              <a href="#" data-file="use-cases.md" class="menu-link"
+                >Use Cases & Examples</a
+              >
+            </li>
+            <li>
+              <a href="#" data-file="video-tutorials.md" class="menu-link"
+                >Video Tutorials</a
+              >
+            </li>
+            <li>
+              <a href="#" data-file="advanced.md" class="menu-link"
+                >Advanced Topics</a
+              >
+            </li>
+            <li>
+              <a href="#" data-file="troubleshooting.md" class="menu-link"
+                >Troubleshooting</a
+              >
+            </li>
           </ul>
         </div>
       </aside>
-
-      <!-- Scrollable Content -->
+      <!-- Main Content -->
       <div class="docs-content">
         <article id="docs-content"></article>
       </div>
-
     </div>
   </div>
 </section>

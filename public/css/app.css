@@ -25,8 +25,8 @@
   }
 }
 :root {
-  --navbar-height: 5.5rem;
-  --base-font: 15px;
+  --navbar-height: 6.2rem;
+  --base-font: 14.5px;
   --scale: 1;
   --bg-primary: #0a0a0a;
   --bg-secondary: #1a1a1a;
@@ -616,9 +616,6 @@ body.is-logged-in .private-tabs {
   opacity: 1;
   display: block !important;
 }
-.table-container {
-  position: relative;
-}
 .ordo-toggle {
   cursor: pointer;
   display: inline-block;
@@ -850,10 +847,6 @@ tr.hidden {
 .ordo-table tbody tr:nth-child(even) {
   background: rgba(255, 255, 255, 0.03);
 }
-.table-container {
-  max-width: 100%;
-  margin-bottom: 1rem;
-}
 .ordo-table--tree td:first-child {
   position: relative !important;
   padding-left: calc(var(--depth) * 1.8rem + 1.5rem) !important;
@@ -933,7 +926,7 @@ tr.hidden {
 .btn-ghost.neon-ghost,
 .btn-ghost.neon-red-ghost {
   background: 0 0 !important;
-  padding: 0.8rem 2rem !important;
+  padding: 0.8rem 1rem !important;
   font-size: 1.1rem !important;
   font-weight: 700;
   border-radius: 8px !important;
@@ -982,50 +975,11 @@ tr.hidden {
 }
 .app-modal,
 .dropdown-menu,
-.tab-content,
-.table-container {
-  overflow: visible !important;
-}
-.table-container {
-  margin-top: -0.5rem;
-}
 .brand-logo-img {
   pointer-events: auto;
 }
-/*
-.nav-tabs {
-  align-items: center;
-  width: 100%;
-  z-index: 2;
-  padding: 0 2rem;
-  display: flex;
-  justify-content: center;
-  gap: 3rem;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.nav-tabs.private-tabs::-webkit-scrollbar,
-.nav-tabs::-webkit-scrollbar {
-  display: none;
-}
-*/
 .brand-logo-img {
   max-height: 70px;
-}
-.navbar-spacer,
-main.container {
-  padding-top: var(--navbar-height) !important;
-}
-/*
-.nav-tabs {
-  gap: clamp(1.5rem, 4vw, 3rem);
-}
-*/
-.nav-tab {
-  padding: clamp(0.6rem, 1vw, 0.8rem) clamp(1rem, 2vw, 1.4rem);
-  font-size: clamp(1rem, 2vw, 1.25rem);
 }
 .ordo-table tbody td,
 .ordo-table thead th {
@@ -1068,48 +1022,11 @@ body {
 .tab-content,
 main {
   flex: 1 1 auto;
-  padding-top: var(--navbar-height);
-}
-.tab-content,
-main {
-  min-height: calc(100vh - var(--navbar-height));
-  /* overflow-y: auto; */
+/*  padding-top: var(--navbar-height); */
 }
 footer {
   flex-shrink: 0;
 }
-.topnav,
-body {
-  display: flex;
-  flex-direction: column;
-}
-.topnav {
-  left: 0;
-  right: 0;
-  height: var(--navbar-height);
-  background: linear-gradient(to bottom, #0a1422, #000);
-  box-shadow: 0 8px 30px rgba(0, 255, 255, 0.2);
-}
-.nav-logo-row {
-  padding: 20px 0;
-}
-.nav-logo-row,
-.nav-tabs-row {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-/*
-.nav-tabs.private-tabs {
-  display: flex;
-  justify-content: center;
-  gap: 3rem;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-*/
 .main.container {
   padding-top: var(--navbar-height);
   background: var(--bg-primary);
@@ -1118,13 +1035,6 @@ body {
   flex-direction: column;
   overflow: hidden;
 }
-/*
-.main.container > .content-center,
-.main.container > .tab-content {
-  flex: 1;
-  overflow-y: auto;
-}
-*/
 .dropdown {
   position: relative;
   display: inline-block;
@@ -1182,9 +1092,6 @@ body {
   background: rgba(0, 255, 255, 0.2);
   margin: 0.2rem 0;
 }
-.table .dropdown.active .dropdown-menu {
-  z-index: 3500;
-}
 .app-modal {
   position: fixed;
   inset: 0;
@@ -1192,7 +1099,7 @@ body {
   display: none;
   align-items: flex-start;
   justify-content: center;
-  z-index: 4000 !important;
+  z-index: 6100 !important;
   padding: 2rem 1rem 4rem;
   overflow-y: auto;
 }
@@ -1210,6 +1117,7 @@ body {
   flex-direction: column;
   overflow: hidden;
   margin-top: 1rem;
+  z-index: 6100 !important;
 }
 .app-modal .modal-dialog.large {
   max-width: 1100px;
@@ -1715,22 +1623,10 @@ h2 {
   padding: 1.75rem 2rem !important;
 }
 .dropdown-item {
-  padding: 0.6rem 1rem !important;
-}
-.nav-tabs-row {
-  flex-wrap: nowrap !important;
-  overflow-x: auto !important;
-  white-space: nowrap;
-}
-.nav-tab {
-  flex-shrink: 0;
-  font-weight: 600;
-}
-.navbar,
-.topnav {
-  position: fixed !important;
-  top: 0 !important;
-  z-index: 3000 !important;
+  padding-left: 0.6rem;
+  padding-right: 0.6rem;
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
 }
 .ts-control {
   border: 1px solid #555 !important;
@@ -1789,97 +1685,6 @@ html {
   padding-top: 1.5rem !important;
   min-height: calc(100vh - var(--navbar-height)) !important;
 }
-.nav-tabs-row {
-  padding: 1rem 1.5rem !important;
-}
-.nav-logo-row,
-.nav-tabs-row,
-.navbar,
-.topnav {
-  overflow: visible !important;
-  overflow-y: visible !important;
-  height: auto !important;
-  min-height: var(--navbar-height) !important;
-  max-height: none !important;
-}
-/*
-.content-center,
-.main.container,
-.tab-content.active {
-  min-height: calc(100vh - var(--navbar-height)) !important;
-}
-*/
-/*
-.table-container {
-  scrollbar-gutter: stable;
-}
-*/
-.nav-tab {
-  font-family: "Jost", sans-serif !important;
-  text-transform: lowercase;
-  letter-spacing: 1.8px;
-  color: #b0c4de;
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.8),
-    0 0 6px rgba(0, 255, 255, 0.2);
-  border-radius: 8px;
-  background: 0 0 !important;
-  border: 0 !important;
-  text-decoration: none !important;
-  transition: all 0.3s ease;
-  overflow: visible !important;
-  position: relative !important;
-  font-size: 1.05rem !important;
-  padding: 0.5rem 1.15rem !important;
-}
-.nav-tab:hover {
-  color: #fff;
-  text-shadow:
-    0 0 12px rgba(0, 255, 255, 0.5),
-    0 1px 3px rgba(0, 0, 0, 0.9);
-  transform: translateY(-2px);
-  background: rgba(0, 255, 255, 0.08);
-}
-.nav-tab.active {
-  color: #0ff !important;
-  background: rgba(0, 255, 255, 0.15) !important;
-  text-shadow:
-    0 0 20px rgba(0, 255, 255, 0.8),
-    0 0 40px rgba(0, 255, 255, 0.4) !important;
-  box-shadow: 0 4px 20px rgba(0, 255, 255, 0.3) !important;
-  font-weight: 800;
-  border: 0 !important;
-}
-.nav-tab.active::after {
-  bottom: 0 !important;
-  border-radius: 0.3rem !important;
-  min-width: 60% !important;
-  content: "" !important;
-  position: absolute !important;
-  bottom: -0.1rem !important;
-  left: 10% !important;
-  right: 10% !important;
-  height: 0.4rem !important;
-  background: var(--glow-cyan) !important;
-  box-shadow: 0 0 1.8rem var(--glow-cyan-strong) !important;
-  font-size: 1.13rem !important;
-  z-index: 30 !important;
-}
-.nav-tabs-row {
-  padding-bottom: 0.85rem !important;
-  margin-bottom: 0.6rem !important;
-  border-bottom: 1px solid #334155 !important;
-}
-@media (max-width: 1100px) {
-  .nav-tab {
-    padding: 0.65rem 1.1rem;
-    font-size: 1rem;
-  }
-  .nav-tab.active::after {
-    bottom: -0.3rem;
-    height: 3px;
-  }
-}
 .btn {
   padding: 0.7rem 1.4rem !important;
 }
@@ -1887,11 +1692,6 @@ html {
   display: flex !important;
   flex-direction: column !important;
   min-height: 100vh !important;
-}
-.main-content {
-  flex: 1 1 auto !important;
-  margin-top: 0 !important;
-  background: var(--bg-primary) !important;
 }
 .ordo-table thead th {
   top: var(--navbar-height) !important;
@@ -1901,27 +1701,11 @@ html {
   background: #0f0f1f !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7) !important;
 }
-/*
-.content-center,
-.main-content,
-.main.container,
-.tab-content.active {
-  overflow-y: auto !important;
-  overflow-x: hidden;
-  box-sizing: border-box;
-}
-.content-center,
-.main.container {
-  padding-top: 1.25rem !important;
-  height: calc(100vh - var(--navbar-height)) !important;
-}
-*/
-
 
 .dropdown-menu,
 .row-actions .dropdown-menu {
   position: fixed !important;
-  z-index: 9999 !important;
+  z-index: 5000 !important;
   max-height: 70vh !important;
   overflow-y: auto !important;
 }
@@ -1931,147 +1715,45 @@ html {
   width: auto !important;
   background: #111827 !important;
 }
-.main-content,
-.tab-content.active {
-  margin-top: var(--navbar-height) !important;
-}
-/*
-.table-container {
-  height: calc(100vh - var(--navbar-height) - 3.5rem) !important;
-}
-*/
 #tree-body {
   position: relative !important;
 }
-.main-content,
-.tab-content.active {
-  padding-top: 1.5rem !important;
-  height: calc(100vh - var(--navbar-height)) !important;
-  overflow: hidden !important;
-}
-/*
-.table-container {
-  height: calc(100% - 2rem) !important;
-  max-height: calc(100vh - var(--navbar-height) - 3.5rem) !important;
-  overflow-y: auto !important;
-  overflow-x: auto !important;
-  padding-top: 0.5rem !important;
-}
-*/
 
-/* ==================== FINAL RECOMMENDED RULES (Paste at Bottom) ==================== */
+/* === END OF OLD CSS === */
 
-/* ==================== GLOBAL SCROLLING ARCHITECTURE ==================== */
+/* ==================== GLOBAL CYBERPUNK SCROLLBARS (Matching Modal) ==================== */
 
-/* Lock outer page */
-html, body {
-  overflow: hidden !important;
-  height: 100vh !important;
-  margin: 0 !important;
-  padding: 0 !important;
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
-/* Main content area - height pass-through only */
-.main-content,
-.tab-content.active {
-  margin-top: var(--navbar-height) !important;
-  padding-top: 1.25rem !important;
-  height: calc(100vh - var(--navbar-height)) !important;
-  overflow: hidden !important;
-}
-
-/* Table tabs scroller */
-/*
-.table-container {
-  height: 100% !important;
-  overflow-y: auto !important;
-  overflow-x: auto !important;
-  padding-top: 0.5rem !important;
-  padding-bottom: 2rem !important;
-}
-*/
-
-/* Non-table tabs scroller */
-/*
-.content-center {
-  height: 100% !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-}
-*/
-
-/* ==================== STICKY TABLE HEADER ==================== */
-
-.ordo-table thead th {
-  position: sticky !important;
-  top: 0 !important;
-  z-index: 160 !important;
-  background: #0f0f1f !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7) !important;
-}
-
-/* ==================== NAV TABS ==================== */
-
-.nav-tab {
-  position: relative;
-  padding: 0.75rem 1.4rem;
-  font-size: 1.05rem;
-  font-weight: 500;
-  color: var(--chrome-mid);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 6px var(--glow-cyan-soft);
-  transition: all 0.2s ease;
-}
-
-.nav-tab:hover {
-  color: var(--glow-cyan);
-  text-shadow: 0 0 12px var(--glow-cyan-medium), 0 1px 3px rgba(0, 0, 0, 0.9);
-}
-
-.nav-tab.active {
-  color: var(--glow-cyan) !important;
-  font-weight: 600;
-  text-shadow: 0 0 20px var(--glow-cyan-strong) !important;
-}
-
-.nav-tab.active::after {
-  content: "";
-  position: absolute;
-  bottom: -0.35rem;
-  left: 15%;
-  right: 15%;
-  height: 4px;
-  background: var(--glow-cyan);
-  box-shadow: 0 0 12px var(--glow-cyan-strong);
-  z-index: 10;
-}
-
-/* ==================== COMPLETE DOCS LAYOUT + SIDEBAR + SCROLLING ==================== */
-
-.docs-grid {
-  display: flex !important;
-  height: 100% !important;
-  min-height: 100% !important;
-  gap: 2rem !important;
-}
-
-.docs-sidebar {
-  flex-shrink: 0;
-  width: 260px;
-  position: sticky !important;
-  top: var(--navbar-height) !important;
-  align-self: start !important;
-  height: fit-content !important;
+::-webkit-scrollbar-track {
   background: #1a1a1a;
-  border: 1px solid #444;
-  border-radius: 8px;
-  padding: 1.5rem;
-  overflow-y: visible !important;
+  border-radius: 4px;
 }
 
+::-webkit-scrollbar-thumb {
+  background: #00a8a8;
+  border-radius: 4px;
+  box-shadow: 0 0 6px rgba(0, 168, 168, 0.7);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00c0c0;
+  box-shadow: 0 0 10px rgba(0, 192, 192, 0.9);
+}
+
+/* ==================== DOCS STYLING - MENU + CONTENT ==================== */
+
+/* Sidebar Menu */
+.docs-sidebar,
 .sidebar-menu {
   background: #1a1a1a;
+/*
   border: 1px solid #444;
   border-radius: 8px;
+*/
   padding: 1.5rem;
 }
 
@@ -2111,26 +1793,90 @@ html, body {
   box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
 }
 
-/* Scrollable Content Area */
-.docs-content {
-  flex: 1 1 auto !important;
+/* Docs Content Styling */
+.docs-content h1,
+#docs-content h1 {
+  font-size: 2.4rem;
+  color: #0ff;
+  margin: 2.5rem 0 1rem;
+}
+
+.docs-content h2,
+#docs-content h2 {
+  font-size: 1.9rem;
+  color: #0ff;
+  margin: 2rem 0 1rem;
+}
+
+.docs-content h3,
+#docs-content h3 {
+  font-size: 1.5rem;
+  color: #0ff;
+  margin: 1.8rem 0 1rem;
+}
+
+.docs-content pre,
+#docs-content pre {
+  background: #0f0f1f;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1.2rem;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+  white-space: pre;
+}
+
+.docs-content code,
+#docs-content code {
+  background: #222;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: "Courier New", monospace;
+}
+
+/* ==================== DOCS LAYOUT ==================== */
+
+.docs-grid {
+  display: flex !important;
   height: 100% !important;
-  min-height: 0 !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  padding: 2rem 2.5rem 8rem 0 !important;
-  box-sizing: border-box !important;
+  gap: 2rem !important;
+}
+
+.docs-sidebar {
+  flex-shrink: 0;
+  width: 260px;
+  position: sticky !important;
+  top: 0 !important;
+  align-self: start !important;
+  height: fit-content !important;
   background: #1a1a1a;
   border: 1px solid #444;
   border-radius: 8px;
+  padding: 1.5rem;
 }
 
-/* Content Styling */
-.docs-content h1 { font-size: 2.4rem; color: #0ff; margin: 2.5rem 0 1rem; }
-.docs-content h2 { font-size: 1.9rem; color: #0ff; margin: 2rem 0 1rem; }
-.docs-content h3 { font-size: 1.5rem; color: #0ff; margin: 1.8rem 0 1rem; }
+.docs-content {
+  flex: 1 1 auto !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding-left: 1rem;
+  padding-right: 2rem;
+  background: #1a1a1a;
+/*
+  border: 1px solid #555 !important;
+  border-radius: 8px;
+*/
+}
 
-.docs-content pre {
+/* Docs Typography */
+.docs-content h1, #docs-content h1 { font-size: 2.4rem; color: #0ff; margin: 2.5rem 0 1rem; }
+.docs-content h2, #docs-content h2 { font-size: 1.9rem; color: #0ff; margin: 2rem 0 1rem; }
+.docs-content h3, #docs-content h3 { font-size: 1.5rem; color: #0ff; margin: 1.8rem 0 1rem; }
+
+.docs-content pre, #docs-content pre {
   background: #0f0f1f;
   border: 1px solid #333;
   border-radius: 8px;
@@ -2146,266 +1892,64 @@ html, body {
   font-family: "Courier New", monospace;
 }
 
-/* ==================== FINAL DOCS LAYOUT ==================== */
+/* ==================== CLEAN LAYOUT CSS FOR CORE CONTAINERS ==================== */
 
-.docs-grid {
-  display: flex !important;
-  height: 100% !important;
-  min-height: 100% !important;
-  gap: 2rem !important;
-}
-
-.docs-sidebar {
-  flex-shrink: 0;
-  width: 260px;
-  position: sticky !important;
-  top: var(--navbar-height) !important;
-  align-self: start !important;
-  height: fit-content !important;
-  background: #1a1a1a;
-  border: 1px solid #444;
-  border-radius: 8px;
-  padding: 1.5rem;
-}
-
-.docs-scroll-container {
-  flex: 1 1 auto !important;
-  height: 100% !important;
-  min-height: 0 !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  padding: 2rem 2.5rem 8rem 0 !important;
-  box-sizing: border-box !important;
-  background: #1a1a1a;
-  border: 1px solid #444;
-  border-radius: 8px;
-}
-
-/* Styling */
-.docs-scroll-container h1 { font-size: 2.4rem; color: #0ff; margin: 2.5rem 0 1rem; }
-.docs-scroll-container h2 { font-size: 1.9rem; color: #0ff; margin: 2rem 0 1rem; }
-.docs-scroll-container h3 { font-size: 1.5rem; color: #0ff; margin: 1.8rem 0 1rem; }
-
-.docs-scroll-container pre {
-  background: #0f0f1f;
-  border: 1px solid #333;
-  border-radius: 8px;
-  padding: 1.2rem;
-  overflow-x: auto;
-  margin: 1.5rem 0;
-}
-
-/* ==================== SIMPLE & RELIABLE DOCS SCROLLING ==================== */
-
-#docs .docs-grid {
-  display: flex !important;
-  height: 100% !important;
-  gap: 2rem !important;
-}
-
-#docs .docs-sidebar {
-  flex-shrink: 0;
-  width: 260px;
-  position: sticky !important;
-  top: var(--navbar-height) !important;
-  align-self: start !important;
-  height: fit-content !important;
-  background: #1a1a1a;
-  border: 1px solid #444;
-  border-radius: 8px;
-  padding: 1.5rem;
-}
-
-#docs .docs-content {
-  flex: 1 1 auto !important;
-  height: 100% !important;
-  min-height: 0 !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  padding: 2rem 2.5rem 8rem 0 !important;
-  box-sizing: border-box !important;
-  background: #1a1a1a;
-  border: 1px solid #444;
-  border-radius: 8px;
-}
-
-/* Styling */
-#docs-content h1 { font-size: 2.4rem; color: #0ff; margin: 2.5rem 0 1rem; }
-#docs-content h2 { font-size: 1.9rem; color: #0ff; margin: 2rem 0 1rem; }
-#docs-content h3 { font-size: 1.5rem; color: #0ff; margin: 1.8rem 0 1rem; }
-
-#docs-content pre {
-  background: #0f0f1f;
-  border: 1px solid #333;
-  border-radius: 8px;
-  padding: 1.2rem;
-  overflow-x: auto;
-  margin: 1.5rem 0;
-}
-
-/* ==================== ULTRA SIMPLE DOCS SCROLLING ==================== */
-
-#docs .main.container {
-  height: calc(100vh - var(--navbar-height)) !important;
-  overflow: hidden !important;
-}
-
-#docs .docs-content {
-  height: 100% !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  padding: 2rem 2.5rem 6rem 2rem !important;
-  box-sizing: border-box !important;
-}
-
-#docs-content {
-  padding-bottom: 6rem !important;
-}
-
-/* ==================== WORKING DOCS LAYOUT ==================== */
-
-.docs-grid {
-  display: flex !important;
-  height: 100% !important;
-  gap: 2rem !important;
-}
-
-.docs-sidebar {
-  flex-shrink: 0;
-  width: 260px;
-  position: sticky !important;
-  top: var(--navbar-height) !important;
-  align-self: start !important;
-  height: fit-content !important;
-  background: #1a1a1a;
-  border: 1px solid #444;
-  border-radius: 8px;
-  padding: 1.5rem;
-}
-
-.docs-content {
-  flex: 1 1 auto !important;
-  height: 100% !important;
-  min-height: 0 !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  padding: 2rem 2.5rem 8rem 0 !important;
-  box-sizing: border-box !important;
-  background: #1a1a1a;
-  border: 1px solid #444;
-  border-radius: 8px;
-}
-
-/* Styling */
-.docs-content h1 { font-size: 2.4rem; color: #0ff; margin: 2.5rem 0 1rem; }
-.docs-content h2 { font-size: 1.9rem; color: #0ff; margin: 2rem 0 1rem; }
-.docs-content h3 { font-size: 1.5rem; color: #0ff; margin: 1.8rem 0 1rem; }
-
-.docs-content pre {
-  background: #0f0f1f;
-  border: 1px solid #333;
-  border-radius: 8px;
-  padding: 1.2rem;
-  overflow-x: auto;
-  margin: 1.5rem 0;
-}
-
-/* ==================== GLOBAL CYBERPUNK SCROLLBARS (Matching Modal) ==================== */
-
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #1a1a1a;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #00a8a8;
-  border-radius: 4px;
-  box-shadow: 0 0 6px rgba(0, 168, 168, 0.7);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #00c0c0;
-  box-shadow: 0 0 10px rgba(0, 192, 192, 0.9);
-}
-
-/* Stronger version for modals and important areas */
-.app-modal ::-webkit-scrollbar-thumb,
-.docs-content ::-webkit-scrollbar-thumb,
-.table-container ::-webkit-scrollbar-thumb,
-.modal-body ::-webkit-scrollbar-thumb {
-  background: #00a8a8;
-  box-shadow: 0 0 8px rgba(0, 168, 168, 0.8);
-}
-
-/* ==================== TABLE CONTAINER HEIGHT FIX ==================== */
-
-.table-container {
-  height: calc(90vh - var(--navbar-height) - 2rem) !important;
-  max-height: calc(90vh - var(--navbar-height) - 2rem) !important;
-  overflow-y: auto !important;
-  overflow-x: auto !important;
-  padding-top: 0.75rem !important;
-  padding-bottom: 2.5rem !important;
-  box-sizing: border-box !important;
-}
-
-/* Ensure sticky header works with the new height */
-.ordo-table thead th {
-  position: sticky !important;
-  top: 0 !important;
-  z-index: 160 !important;
-  background: #0f0f1f !important;
-}
-
-
-/* ==================== 90VH HEIGHT FOR ALL TABS ==================== */
-
+/* 1. Outer page */
 html, body {
-  overflow: hidden !important;
   height: 100vh !important;
-}
-
-/* Main outer containers */
-.main-content,
-.tab-content.active {
-  height: 90vh !important;
   overflow: hidden !important;
-  margin-top: var(--navbar-height) !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
-/* Actual scroll containers inside tabs */
-.table-container,
-/*.content-center, */
-.docs-content,
-.docs-main-content {
-  height: 90vh !important;
-  max-height: 90vh !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
+/* 3. Tab content areas */
+.tab-content.active,
+.main-content {
+  margin-top: var(--navbar-height) !important; 
+  /*padding-top: 1rem !important; */
+  /*padding-bottom: 9rem !important; */
+  height: calc(100vh - var(--navbar-height)) !important;
+  overflow: hidden !important;
   box-sizing: border-box !important;
 }
 
-/* Table-specific adjustments */
+/* ==================== CONTENT-CENTER ==================== */
+
+.content-center {
+  /* margin-top: var(--navbar-height) !important;  */
+  padding: 0.5rem 1.5rem 5rem 1.5rem !important; 
+  height: calc(100vh - var(--navbar-height)) !important; 
+  /*height: 100vh; */
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+  background: var(--bg-primary) !important;
+}
+
+/* Hide scrollbar on .content-center when it contains .docs-content */
+.content-center:has(.docs-content) {
+  overflow-y: hidden !important;
+}
+
+/* 5. table-container (used by table tabs) */
 .table-container {
-  padding-top: 0.75rem !important;
-  padding-bottom: 2.5rem !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow-y: auto !important;
   overflow-x: auto !important;
+  /*padding-top: 4rem !important; */
+  padding-bottom: 5rem !important;   /* breathing room at bottom */
+  box-sizing: border-box !important;
 }
 
-/* Docs-specific */
-.docs-content {
-  padding: 2rem 2.5rem 4rem 0 !important;
-  border: 1px solid #555 !important;
-  background: #1a1a1a;
-  border-radius: 8px;
+/* Prevent double scrollbars */
+/*
+.content-center:has(.table-container) {
+  overflow-y: hidden !important;
 }
+*/
 
-/* Sticky table header */
+/* Sticky table headers */
 .ordo-table thead th {
   position: sticky !important;
   top: 0 !important;
@@ -2413,53 +1957,89 @@ html, body {
   background: #0f0f1f !important;
 }
 
-/* ==================== SAFE SINGLE SCROLLBAR RULES ==================== */
+/* ==================== MODALS ON TOP ==================== */
 
-/* Lock outer layers - no scrollbar here */
-html, body,
-.main-content,
-.tab-content.active {
-  overflow: hidden !important;
-  height: calc(100vh - var(--navbar-height)) !important;
+.app-modal,
+.modal-backdrop {
+  z-index: 6000 !important;
 }
 
-/* === TABLE TABS (Jobs & Clusters, Servers, Calendars) === */
-.table-container {
-  height: calc(90vh - var(--navbar-height) - 2rem) !important;
-  max-height: calc(90vh - var(--navbar-height) - 2rem) !important;
-  overflow-y: auto !important;
-  overflow-x: auto !important;
-  padding-top: 0.75rem !important;
-  padding-bottom: 2.5rem !important;
-  box-sizing: border-box !important;
+.app-modal .modal-dialog {
+  z-index: 6100 !important;
 }
 
-/* Prevent content-center from scrolling when it contains a table-container */
-.content-center:has(.table-container) {
-  overflow: hidden !important;
-  height: 100% !important;
+/* Dropdowns */
+.dropdown-menu {
+  z-index: 5000 !important;
 }
 
-/* === NON-TABLE TABS (Dashboard, Settings) === */
-.content-center:not(:has(.table-container)) {
-  height: calc(90vh - var(--navbar-height) - 2rem) !important;
-  max-height: calc(90vh - var(--navbar-height) - 2rem) !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  padding: 1.5rem !important;
-  box-sizing: border-box !important;
+/* ==================== NAVBAR + TABS - FINAL POLISHED ==================== */
+
+.topnav {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 4000 !important;
+  width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: linear-gradient(to bottom, #0a1422, #000) !important;
+  box-shadow: 0 4px 25px rgba(0, 0, 0, 0.8) !important;
 }
 
-/* === DOCS TAB === */
-.docs-content,
-.docs-main-content {
-  height: calc(90vh - var(--navbar-height) - 2rem) !important;
-  max-height: calc(90vh - var(--navbar-height) - 2rem) !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  padding: 2rem 2.5rem 4rem 0 !important;
-  background: #1a1a1a;
-  border: 1px solid #555 !important;
-  border-radius: 8px;
+/* Logo Row - Centered */
+.nav-logo-row {
+  padding: 1.1rem 1.5rem 0.8rem 1.5rem !important;
+  flex-shrink: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Tabs Row - Centered */
+.nav-tabs-row {
+  padding: 0.65rem 1.5rem 0.85rem 1.5rem !important;
+  flex-shrink: 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+  gap: 2.75rem !important;
+  /*border-top: 1px solid rgba(0, 255, 255, 0.18) !important; */
+}
+
+/* Individual Tabs - Jost Font */
+.nav-tab {
+  position: relative !important;
+  font-family: "Jost", sans-serif !important;
+  font-size: 1.2rem !important;
+  font-weight: 800 !important;
+  text-transform: lowercase !important;
+  letter-spacing: 1.8px !important;
+  padding: 0.7rem 1.5rem !important;
+  color: #b0c4de !important;
+  text-decoration: none !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+}
+
+.nav-tab:hover {
+  color: #fff !important;
+  text-shadow: 0 0 12px rgba(0, 255, 255, 0.6) !important;
+}
+
+.nav-tab.active {
+  color: #0ff !important;
+  text-shadow: 0 0 20px rgba(0, 255, 255, 0.9) !important;
+}
+
+.nav-tab.active::after {
+  content: "" !important;
+  position: absolute !important;
+  bottom: -0.35rem !important;
+  left: 15% !important;
+  right: 15% !important;
+  height: 4px !important;
+  background: #0ff !important;
+  box-shadow: 0 0 12px #0ff !important;
 }
 

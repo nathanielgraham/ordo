@@ -1,6 +1,5 @@
-<!-- partials/jobs_clusters.html.ep -->
 <section id="monitor" class="tab-content">
-  <div class="main.container">
+  <div class="content-center">
     <div class="table-container">
       <table class="ordo-table ordo-table--tree">
         <thead>
@@ -17,9 +16,7 @@
             <th>Actions</th>
           </tr>
         </thead>
-        <tbody id="tree-body">
-          <!-- Populated by JavaScript -->
-        </tbody>
+        <tbody id="tree-body"></tbody>
       </table>
     </div>
   </div>

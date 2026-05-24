@@ -327,61 +327,71 @@ export function insertRow(item, parentId = null) {
   const tbody = document.getElementById("tree-body");
   if (!tbody) return;
 
-  const isCluster = !!item.is_cluster;
+  const isCluster = !!item.is_cluster || !!item.parent_id;
   const rowId = isCluster ? `row-cluster-${item.id}` : `row-job-${item.id}`;
 
-  // Avoid duplicate rows
   if (document.getElementById(rowId)) {
-    console.warn(`[insertRow] Row ${rowId} already exists, updating instead`);
-    const existingRow = document.getElementById(rowId);
-    updateRow(existingRow, item);
+    updateRow(document.getElementById(rowId), item);
     return;
   }
 
   const newRow = document.createElement("tr");
   newRow.id = rowId;
 
-  // Determine correct depth
   let depth = 0;
   if (parentId) {
     const parentRow = document.getElementById(`row-cluster-${parentId}`);
-    if (parentRow) {
-      depth = Number(parentRow.dataset.depth || 0) + 1;
-    } else {
-      console.warn(`[insertRow] Parent ${parentId} not found in DOM`);
-    }
+    if (parentRow) depth = Number(parentRow.dataset.depth || 0) + 1;
   }
 
   buildSingleRow(newRow, item, depth, parentId);
 
-  // === SMART INSERTION ===
+  // === UNIFIED SUBTREE INSERTION (works for both clusters and jobs) ===
   if (parentId) {
     const parentRow = document.getElementById(`row-cluster-${parentId}`);
     if (parentRow) {
-      // Find the last child of this parent
-      let insertAfter = parentRow;
-      let sibling = parentRow.nextElementSibling;
+      let lastDescendant = parentRow;
+      let current = parentRow.nextElementSibling;
 
-      while (sibling && String(sibling.dataset.parent) === String(parentId)) {
-        insertAfter = sibling;
-        sibling = sibling.nextElementSibling;
+      while (current) {
+        const rowParent = current.dataset.parent;
+        const rowCluster = current.dataset.clusterId || current.dataset.cluster;
+
+        const belongsToSubtree =
+          (rowParent && String(rowParent) === String(parentId)) ||
+          (rowCluster && String(rowCluster) === String(parentId)) ||
+          (rowParent && isDescendantOf(rowParent, parentId));
+
+        if (!belongsToSubtree) break;
+
+        lastDescendant = current;
+        current = current.nextElementSibling;
       }
 
-      insertAfter.after(newRow);
-      console.log(`[insertRow] ✓ Inserted ${isCluster ? 'cluster' : 'job'} "${item.name}" as child of ${parentId}`);
+      lastDescendant.after(newRow);
     } else {
-      tbody.appendChild(newRow); // fallback
+      tbody.appendChild(newRow);
     }
   } else {
     tbody.appendChild(newRow);
-    console.log(`[insertRow] ✓ Inserted top-level item "${item.name}"`);
   }
 
-  // Re-apply collapse state if needed
+  // Re-apply collapse state for clusters
   if (isCluster && appState.collapsedClusters.has(String(item.id))) {
     newRow.classList.add("collapsed");
     toggleSubtree(item.id, true);
   }
+}
+
+// Helper function
+function isDescendantOf(childParentId, targetParentId) {
+  let current = childParentId;
+  while (current) {
+    if (String(current) === String(targetParentId)) return true;
+    const row = document.getElementById(`row-cluster-${current}`);
+    current = row ? row.dataset.parent : null;
+  }
+  return false;
 }
 
 // Remove row
@@ -431,7 +441,7 @@ export function renderJobsTable() {
     const row = document.querySelector(`tr[data-id="${id}"]`);
     if (row) {
       row.classList.add("collapsed");
-      toggleSubtree(id, true);   // only call if row exists
+      toggleSubtree(id, true); // only call if row exists
     }
   });
 
@@ -528,5 +538,17 @@ export function updateLiveTimings() {
       if (server) updateFreshnessCell(row, server, now);
     });
   }
-}
 
+  // === Calendars Next Run (T-minus) ===
+  const calendarsContent = document.getElementById("calendars-content");
+  if (calendarsContent && calendarsContent.offsetParent !== null) {
+    document.querySelectorAll("#calendars-body td[data-next-start]").forEach((cell) => {
+      const nextStart = Number(cell.dataset.nextStart);
+      if (nextStart > Date.now() / 1000) {
+        cell.textContent = formatTminus(nextStart) || "—";
+      } else {
+        cell.textContent = "—";
+      }
+    });
+  }
+}

@@ -60,7 +60,7 @@ export function initModalTomSelect(selectId, config = {}) {
       placeholder: "Select...",
       searchField: ["text", "value"],
       zIndex: 4100,
-      ...config
+      ...config,
     };
 
     el.tomselect = new TomSelect(el, defaults);
@@ -800,10 +800,10 @@ export function renderCalendarsTable() {
   const tbody = document.getElementById("calendars-body");
   const table = document.getElementById("calendars-table");
   const noCalendars = document.getElementById("no-calendars");
-
   if (!tbody || !table || !noCalendars) return;
 
   const calendars = appState.calendarsData || [];
+  const now = Math.floor(Date.now() / 1000);
 
   if (calendars.length === 0) {
     table.style.display = "none";
@@ -820,6 +820,10 @@ export function renderCalendarsTable() {
     const hasCrons = Array.isArray(cal.crons) && cal.crons.length > 0;
     const isCollapsed = appState.collapsedCalendars.has(calId);
 
+    // Calendar-level next_start
+    const calNextStart = cal.next_start || 0;
+    const calHasValidNext = cal.cluster_ids?.length > 0 && calNextStart > now;
+
     // Calendar row
     const calRow = document.createElement("tr");
     calRow.className = `ordo-calendar-row ${isCollapsed ? "collapsed" : ""}`;
@@ -829,9 +833,7 @@ export function renderCalendarsTable() {
 
     calRow.innerHTML = `
       <td>
-        ${hasCrons 
-          ? `<span class="ordo-toggle"></span>` 
-          : `<span class="ordo-toggle empty"></span>`}
+        ${hasCrons ? `<span class="ordo-toggle"></span>` : `<span class="ordo-toggle empty"></span>`}
         <i class="fas fa-folder mr-2 has-text-info"></i>
         ${escapeHtml(cal.name || "Unnamed Calendar")}
       </td>
@@ -841,15 +843,19 @@ export function renderCalendarsTable() {
       <td>${cal.cluster_ids?.length || 0}</td>
       <td>—</td>
       <td>—</td>
-      <td>—</td>
+      <td data-next-start="${calHasValidNext ? calNextStart : ''}">
+        ${calHasValidNext ? (formatTminus(calNextStart) || "—") : "—"}
+      </td>
       <td>${generateCalendarActions(cal.id, hasCrons)}</td>
     `;
+
     tbody.appendChild(calRow);
 
-    // Cron rows
+    // Cron rows - simplified (no live next_start)
     if (hasCrons) {
       cal.crons.forEach((cron, idx) => {
         const isLast = idx === cal.crons.length - 1;
+
         const cronRow = document.createElement("tr");
         cronRow.className = `ordo-cron-row ${isCollapsed ? "hidden" : ""}`;
         cronRow.dataset.id = `cron-${calId}-${cron.id}`;
@@ -869,15 +875,14 @@ export function renderCalendarsTable() {
           <td>—</td>
           <td>${cron.begin ? formatDate(cron.begin) : "Immediate"}</td>
           <td>${cron.expire ? formatDate(cron.expire) : "Never"}</td>
-          <td>${formatDate(cron.next_start) || "—"}</td>
+          <td>—</td>
           <td>${generateCronActions(cal.id, cron.id)}</td>
         `;
+
         tbody.appendChild(cronRow);
       });
     }
   });
-
-  console.log(`[renderCalendarsTable] Rendered ${calendars.length} calendars`);
 }
 
 // Helpers (add these at the bottom of ui-handlers.js if not already present)
@@ -906,11 +911,15 @@ export function updateJobsClusters(data) {
   }
 
   if (!data.success || !data.clusters) {
-    console.warn("[updateJobsClusters] Received unsuccessful or empty response");
+    console.warn(
+      "[updateJobsClusters] Received unsuccessful or empty response",
+    );
     return;
   }
 
-  console.log(`[updateJobsClusters] Processing ${data.clusters.length} clusters`);
+  console.log(
+    `[updateJobsClusters] Processing ${data.clusters.length} clusters`,
+  );
 
   // === 1. Populate authoritative Maps ===
   populateMapsFromClusters(data.clusters);
@@ -1147,43 +1156,37 @@ export function applyServerBroadcast(data) {
   renderServersTable(); // ← your server render function
 }
 
-
-
 // ==================== DASHBOARD CORE ====================
-
+// ==================== DASHBOARD CORE ====================
 export function applyClusterBroadcast(data) {
   if (!data) return;
 
-  console.log(`[applyClusterBroadcast] updates:${data.updates?.length || 0} deletes:${data.deletes?.length || 0}`);
+  console.log(
+    `[applyClusterBroadcast] updates:${data.updates?.length || 0} deletes:${data.deletes?.length || 0}`,
+  );
 
-  // === DELETES - Aggressive & Safe ===
+  let shouldRefreshCalendars = false;
+
+  // === DELETES ===
   if (data.deletes && Array.isArray(data.deletes)) {
     data.deletes.forEach((del) => {
       const id = Number(del.id || del);
       if (!id) return;
 
-      console.log(`[Delete Cluster] Cleaning cluster ${id}`);
-
-      // Remove from DOM (cluster row)
       removeRow(id, true);
-
-      // Remove from clustersMap
       appState.clustersMap.delete(id);
 
-      // Remove any jobs that belonged to this cluster
       const jobsToRemove = [];
       appState.jobsMap.forEach((job, jobId) => {
         if (Number(job.cluster_id) === id) {
           jobsToRemove.push(jobId);
         }
       });
-
-      jobsToRemove.forEach(jobId => {
+      jobsToRemove.forEach((jobId) => {
         removeRow(jobId, false);
         appState.jobsMap.delete(jobId);
       });
 
-      // Extra safety: remove from tree structure
       if (appState.monitorData?.tree) {
         removeClusterById(appState.monitorData.tree, id);
       }
@@ -1196,10 +1199,30 @@ export function applyClusterBroadcast(data) {
       const id = Number(update.id);
       if (!id) return;
 
-      // Force is_cluster flag
       update.is_cluster = true;
 
-      // Update or insert in clustersMap
+      // === SMART CALENDAR REFRESH CONDITION ===
+      const hasCal = !!update.cal_id;
+      const isRelevantState = 
+        update.jobstate === "complete" || 
+        update.jobstate === "failed" ||
+        update.jobstate === "waiting" ||
+        update.jobstate === "zombie" ||
+        update.jobstate === "killed";
+
+      if (hasCal && isRelevantState) {
+        // Sync next_start to the calendar object
+        const calId = Number(update.cal_id);
+        const calendar = appState.calendarsData.find(c => Number(c.id) === calId);
+        
+        if (calendar && update.next_start !== undefined) {
+          calendar.next_start = Number(update.next_start);
+          shouldRefreshCalendars = true;
+          console.log(`[Calendar Sync] Updated calendar ${calId} next_start to ${update.next_start}`);
+        }
+      }
+
+      // Update clustersMap
       let cluster = appState.clustersMap.get(id);
       if (cluster) {
         Object.assign(cluster, update);
@@ -1224,6 +1247,11 @@ export function applyClusterBroadcast(data) {
   }
 
   refreshDashboardCards("clusters_changed");
+
+  // Refresh calendars table only when relevant
+  if (shouldRefreshCalendars) {
+    renderCalendarsTable();
+  }
 }
 
 // Simple, fast counters using Maps
@@ -1277,7 +1305,9 @@ export function countOverdueClusters() {
 export function applyJobBroadcast(data) {
   if (!data) return;
 
-  console.log(`[applyJobBroadcast] updates:${data.updates?.length || 0} deletes:${data.deletes?.length || 0}`);
+  console.log(
+    `[applyJobBroadcast] updates:${data.updates?.length || 0} deletes:${data.deletes?.length || 0}`,
+  );
 
   // === DELETES - Strict cleanup ===
   if (data.deletes && Array.isArray(data.deletes)) {
@@ -1345,14 +1375,18 @@ export function applyJobBroadcast(data) {
 export function applyCalBroadcast(data) {
   if (!data) return;
 
-  console.log(`[applyCalBroadcast] updates:${data.updates?.length || 0}, deletes:${data.deletes?.length || 0}`);
+  console.log(
+    `[applyCalBroadcast] updates:${data.updates?.length || 0}, deletes:${data.deletes?.length || 0}`,
+  );
 
   // Handle deletes
   if (data.deletes && Array.isArray(data.deletes)) {
     data.deletes.forEach((del) => {
       const id = Number(del.id || del);
       if (!id) return;
-      appState.calendarsData = appState.calendarsData.filter(c => Number(c.id) !== id);
+      appState.calendarsData = appState.calendarsData.filter(
+        (c) => Number(c.id) !== id,
+      );
     });
   }
 
@@ -1362,10 +1396,65 @@ export function applyCalBroadcast(data) {
       const id = Number(calUpdate.id);
       if (!id) return;
 
-      const existingIndex = appState.calendarsData.findIndex(c => Number(c.id) === id);
+      const existingIndex = appState.calendarsData.findIndex(
+        (c) => Number(c.id) === id,
+      );
 
       if (existingIndex !== -1) {
-        appState.calendarsData[existingIndex] = { ...appState.calendarsData[existingIndex], ...calUpdate };
+        // Deep merge to preserve crons array and other nested data
+        appState.calendarsData[existingIndex] = {
+          ...appState.calendarsData[existingIndex],
+          ...calUpdate,
+          // Ensure next_start is properly updated if present
+          next_start: calUpdate.next_start !== undefined 
+            ? Number(calUpdate.next_start) 
+            : appState.calendarsData[existingIndex].next_start,
+        };
+      } else {
+        appState.calendarsData.push({ ...calUpdate });
+      }
+    });
+  }
+
+  // Refresh UI if tab is active
+  if (document.getElementById("calendars")?.classList.contains("active")) {
+    renderCalendarsTable();
+  }
+}
+
+export function applyCalBroadcast2(data) {
+  if (!data) return;
+
+  console.log(
+    `[applyCalBroadcast] updates:${data.updates?.length || 0}, deletes:${data.deletes?.length || 0}`,
+  );
+
+  // Handle deletes
+  if (data.deletes && Array.isArray(data.deletes)) {
+    data.deletes.forEach((del) => {
+      const id = Number(del.id || del);
+      if (!id) return;
+      appState.calendarsData = appState.calendarsData.filter(
+        (c) => Number(c.id) !== id,
+      );
+    });
+  }
+
+  // Handle updates / new calendars
+  if (data.updates && Array.isArray(data.updates)) {
+    data.updates.forEach((calUpdate) => {
+      const id = Number(calUpdate.id);
+      if (!id) return;
+
+      const existingIndex = appState.calendarsData.findIndex(
+        (c) => Number(c.id) === id,
+      );
+
+      if (existingIndex !== -1) {
+        appState.calendarsData[existingIndex] = {
+          ...appState.calendarsData[existingIndex],
+          ...calUpdate,
+        };
       } else {
         appState.calendarsData.push({ ...calUpdate });
       }
@@ -1384,7 +1473,8 @@ function findCalendarById(calendars, calId) {
 
 export function loadDoc(file) {
   const content = document.getElementById("docs-content");
-  content.innerHTML = '<p class="has-text-centered"><i class="fas fa-spinner fa-spin"></i> Loading...</p>';
+  content.innerHTML =
+    '<p class="has-text-centered"><i class="fas fa-spinner fa-spin"></i> Loading...</p>';
 
   fetch(`/docs/${file}`)
     .then((response) => {
@@ -1400,18 +1490,24 @@ export function loadDoc(file) {
       }
 
       // Update active link
-      document.querySelectorAll("#docs-toc a").forEach((a) => a.classList.remove("active"));
-      const activeLink = document.querySelector(`#docs-toc a[data-file="${file}"]`);
+      document
+        .querySelectorAll("#docs-toc a")
+        .forEach((a) => a.classList.remove("active"));
+      const activeLink = document.querySelector(
+        `#docs-toc a[data-file="${file}"]`,
+      );
       if (activeLink) activeLink.classList.add("active");
 
       // Strong reflow after content load
       setTimeout(() => {
-        const scrollArea = document.querySelector('.content-center, .docs-main-content, .docs-content');
+        const scrollArea = document.querySelector(
+          ".content-center, .docs-main-content, .docs-content",
+        );
         if (scrollArea) {
-          scrollArea.style.height = 'auto';
+          scrollArea.style.height = "auto";
           void scrollArea.offsetHeight;
-          scrollArea.style.height = '100%';
-          scrollArea.style.overflowY = 'auto';
+          scrollArea.style.height = "100%";
+          scrollArea.style.overflowY = "auto";
         }
       }, 150);
     })
@@ -1494,10 +1590,10 @@ function attachDocsTocListener() {
 document.addEventListener("DOMContentLoaded", attachDocsTocListener);
 
 // Re-attach when switching to Docs tab
-const originalTabHandler = window.activateTab || function(){};
-window.activateTab = function(tabId) {
+const originalTabHandler = window.activateTab || function () {};
+window.activateTab = function (tabId) {
   if (typeof originalTabHandler === "function") originalTabHandler(tabId);
-  
+
   if (tabId === "docs") {
     setTimeout(attachDocsTocListener, 200);
   }
@@ -1548,7 +1644,7 @@ export function attachCalendarsTreeListeners2() {
       appState.collapsedCalendars.delete(calId);
     }
 
-    renderCalendarsTable();   // full re-render is safest and simplest
+    renderCalendarsTable(); // full re-render is safest and simplest
   });
 }
 
@@ -1655,7 +1751,7 @@ function initPricingModalListeners() {
     if (e.target.id === "contact-sales-btn") {
       modal.classList.remove("active");
       window.location.href =
-        "mailto:ordoscheduler@proton.me?subject=Enterprise%20Inquiry";
+        "mailto:ordosched@proton.me?subject=Enterprise%20Inquiry";
     }
 
     if (e.target.classList.contains("close-btn")) {
@@ -1770,7 +1866,9 @@ export function getRecentlyFailedListHTML(max = 5) {
   const failed = [];
 
   appState.jobsMap.forEach((job) => {
-    const state = String(job.jobstate || "").toLowerCase().trim();
+    const state = String(job.jobstate || "")
+      .toLowerCase()
+      .trim();
     if (!["failed", "killed", "zombie"].includes(state) || !job.ended) return;
 
     const endedTs = Number(job.ended);
@@ -1781,7 +1879,7 @@ export function getRecentlyFailedListHTML(max = 5) {
       id: job.id,
       name: job.name || "Unnamed",
       endedTs: endedTs,
-      agoSeconds: agoSeconds
+      agoSeconds: agoSeconds,
     });
   });
 
@@ -1797,7 +1895,8 @@ export function getRecentlyFailedListHTML(max = 5) {
   }
 
   return topFailed
-    .map((item) => `
+    .map(
+      (item) => `
       <div class="mini-item">
         <div class="mini-item-name">${item.name}</div>
         <div class="mini-item-time text-red failed-time" 
@@ -1805,7 +1904,8 @@ export function getRecentlyFailedListHTML(max = 5) {
           ${formatRelativeTime(item.agoSeconds)}
         </div>
       </div>
-    `)
+    `,
+    )
     .join("");
 }
 
@@ -2007,14 +2107,18 @@ export function updateDashboardLiveTimings() {
 // ==================== DASHBOARD CORE ====================
 
 export function refreshDashboard() {
-  if (!document.getElementById("dashboard")?.classList.contains("active")) return;
+  if (!document.getElementById("dashboard")?.classList.contains("active"))
+    return;
 
   console.log("[refreshDashboard] Full refresh");
 
   // Rebuild all visual cards from current Maps (single source of truth)
-  document.getElementById("dash-running-list").innerHTML = getLongestRunningJobsHTML(5);
-  document.getElementById("dash-failed-list").innerHTML = getRecentlyFailedListHTML(5);
-  document.getElementById("dash-overdue-list").innerHTML = getOverdueClustersListHTML();
+  document.getElementById("dash-running-list").innerHTML =
+    getLongestRunningJobsHTML(5);
+  document.getElementById("dash-failed-list").innerHTML =
+    getRecentlyFailedListHTML(5);
+  document.getElementById("dash-overdue-list").innerHTML =
+    getOverdueClustersListHTML();
 
   updateNextScheduledClusters();
   renderRecentActivityTable();
@@ -2025,7 +2129,7 @@ export function refreshDashboard() {
 let dashboardRefreshTimeout = null;
 
 export function refreshDashboardCards(reason = "") {
-  if (!document.getElementById("dashboard")?.classList.contains("active")) 
+  if (!document.getElementById("dashboard")?.classList.contains("active"))
     return;
 
   console.log(`[refreshDashboardCards] Queued by: ${reason}`);

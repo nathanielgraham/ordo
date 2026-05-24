@@ -93,10 +93,11 @@
             <span class="text-5xl font-bold">Custom</span>
           </div>
           <ul>
+            <li>✓ Dedicated Hardware</li>
             <li>✓ Unlimited API calls</li>
             <li>✓ Unlimited Servers</li>
             <li>✓ Unlimited Team Members</li>
-            <li>✓ Dedicated support</li>
+            <li>✓ Email support</li>
           </ul>
           <button class="btn btn-primary w-full mt-large" id="contact-sales-btn">
             Contact Sales
@@ -254,20 +255,18 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="label" for="job-needs">Needs (blocking AND)</label>
+          <label class="label" for="job-needs">Needs Jobs (blocking AND)</label>
           <select id="job-needs" placeholder="Select dependencies..." multiple></select>
-          <button type="button" class="btn btn-sm btn-secondary mt-1" id="clear-job-needs">Clear</button>
           <p class="help-text">Dependencies that must all complete first.</p>
         </div>
         <div class="form-group">
-          <label class="label" for="job-needs-any">Needs Any (OR)</label>
+          <label class="label" for="job-needs-any">Needs Any Jobs (OR)</label>
           <select id="job-needs-any" placeholder="Select dependencies..." multiple></select>
-          <button type="button" class="btn btn-sm btn-secondary mt-1" id="clear-job-needs-any">Clear</button>
           <p class="help-text">Any one of these completing satisfies the dependency.</p>
         </div>
       </div>
       <div class="form-group">
-        <label class="label" for="job-on-fail">On Fail</label>
+        <label class="label" for="job-on-fail">On Fail Cluster</label>
         <select id="job-on-fail">
           <option value="">None</option>
         </select>
@@ -315,20 +314,18 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="label" for="cluster-needs">Needs (blocking AND)</label>
+          <label class="label" for="cluster-needs">Needs Clusters (blocking AND)</label>
           <select id="cluster-needs" placeholder="Select dependencies..." multiple></select>
-          <button type="button" class="btn btn-sm btn-secondary mt-1" id="clear-cluster-needs">Clear</button>
           <p class="help-text">Dependencies that must all complete first.</p>
         </div>
         <div class="form-group">
-          <label class="label" for="cluster-needs-any">Needs Any (OR)</label>
+          <label class="label" for="cluster-needs-any">Needs Any Clusters (OR)</label>
           <select id="cluster-needs-any" placeholder="Select dependencies..." multiple></select>
-          <button type="button" class="btn btn-sm btn-secondary mt-1" id="clear-cluster-needs-any">Clear</button>
           <p class="help-text">Any one of these completing satisfies the dependency.</p>
         </div>
       </div>
       <div class="form-group">
-        <label class="label" for="cluster-on-fail">On Fail</label>
+        <label class="label" for="cluster-on-fail">On Fail Cluster</label>
         <select id="cluster-on-fail">
           <option value="">None</option>
         </select>
