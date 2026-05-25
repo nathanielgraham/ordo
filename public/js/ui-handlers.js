@@ -246,7 +246,7 @@ export function updateFreshnessCell(row, server, now) {
 
   let status = "Never Connected";
   let statusClass = "is-danger";
-  let statusTooltip = "No stats received yet — server may still accept jobs";
+  let statusTooltip = "";
 
   if (Number.isFinite(updatedAgo)) {
     if (updatedAgo < 30) {

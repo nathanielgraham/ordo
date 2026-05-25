@@ -2019,6 +2019,9 @@ sub login_user {
    my $org = $self->sqlite->db->select( 'org', ['root_cluster_id'],
       { id => $results->{org_id} } )->hash;
 
+   my $team = $self->sqlite->db->select( 'user', [qw(id email level)],
+      { org_id => $results->{org_id} } )->hashes->to_array;
+
    my ( $message, $success, $path );
    my $host  = hostname()        || get_local_ip_address();
    my $login = $results->{email} || $results->{id};
@@ -2036,6 +2039,8 @@ sub login_user {
       $user->token( $results->{token} );
       $user->base_cluster_id( $results->{base_cluster_id} );
       $user->root_cluster_id( $org->{root_cluster_id} );
+      $user->email( $results->{email} );
+      $user->team( $team );
       $path    = $self->id2path( $user, { id => $results->{base_cluster_id} } );
       $message = 'login success';
       $success = 1;
@@ -4240,6 +4245,8 @@ sub _start_job {
    my $opts = {
       token       => $launch_token,           # ← Always use execution token
       id          => $job->{id},
+      email       => $user->email,
+      team        => $user->team,
       cluster_id  => $job->{cluster_id},
       server_id   => $job->{server_id},
       script      => $job->{script},

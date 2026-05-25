@@ -284,6 +284,42 @@ main.content {
 .state-badge.zombie {
   color: #ef5350;
 }
+.state-badge.sleeping::before {
+  content: "";
+}
+.state-badge.sleeping {
+  color: #4dd0e1;
+}
+.state-badge.waiting::before {
+  content: "";
+}
+.state-badge.waiting {
+  color: #80deea;
+}
+.state-badge.stopping::before {
+  content: "";
+}
+.state-badge.stopping {
+  color: #4fc3f7;
+}
+.state-badge.looping::before {
+  content: "";
+}
+.state-badge.looping {
+  color: #29b6f6;
+}
+.state-badge.retrying::before {
+  content: "";
+}
+.state-badge.retrying {
+  color: #039be5;
+}
+.state-badge.watching::before {
+  content: "";
+}
+.state-badge.watching {
+  color: #26c6da;
+}
 .state-badge.unknown::before {
   content: "";
 }
@@ -517,6 +553,7 @@ body:not(.is-logged-in) [data-private="true"] {
   transform: scale(1.08);
   box-shadow: 0 0 12px rgba(0, 255, 255, 0.3);
 }
+/*
 .stats-td.has-tooltip:hover::after {
   content: attr(title);
   position: absolute;
@@ -536,6 +573,7 @@ body:not(.is-logged-in) [data-private="true"] {
   opacity: 0.95;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
+*/
 .close-btn {
   top: 1rem;
 }
@@ -1537,6 +1575,7 @@ progress::-moz-progress-bar {
   background: #9c27b0;
   color: #fff;
 }
+
 .ordo-table td,
 .ordo-table th {
   border-bottom: 1px solid #333;

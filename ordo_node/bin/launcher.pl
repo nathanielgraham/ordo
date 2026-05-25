@@ -104,11 +104,13 @@ elsif ( $pid == 0 ) {
 
    # child
    $ENV{ORDO_JOB_ID}     = $id;
+   $ENV{ORDO_EMAIL}      = $job->{email};
+   $ENV{ORDO_TEAM}       = encode_json($job->{team});
    $ENV{ORDO_SERVER_ID}  = $job->{server_id};
    $ENV{ORDO_NEEDS}      = $job->{needs}  if $job->{needs};
    $ENV{ORDO_NEEDED}     = $job->{needed} if $job->{needed};
    $ENV{ORDO_CLUSTER_ID} = $cluster_id;
-   $ENV{ORDO_JSON}       = $job->{json} if $job->{json};
+   $ENV{ORDO_JSON}       = encode_json($job->{json}) if $job->{json};
    $ENV{ORDO_TOKEN}      = $token;
    $ENV{ORDO_API}        = $api;
    #$ENV{PATH} = "$ENV{HOME}/ordo_node/bin:$ENV{HOME}/ordo_node/scripts:$ENV{PATH}";

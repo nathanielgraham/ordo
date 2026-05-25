@@ -27,6 +27,13 @@ has 'request_count' => (
    default => sub { 0 },
 );
 
+has 'email' => ( is => 'rw', );
+
+has 'team' => ( 
+   is => 'rw', 
+   default => sub { [] },
+);
+
 has 'remote_address' => ( is => 'rw', );
 
 1;
