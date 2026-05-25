@@ -3348,7 +3348,7 @@ sub _update_job_log {
    #my $ppid   = $d->{ppid};
 
    my $log_dir  = "ordo_node/logs";    # adjust to your log path
-   my $log_file = "$log_dir/out.$d->{job_id}.$d->{ppid}.$d->{log_id}.log";
+   #my $log_file = "$log_dir/out.$d->{job_id}.$d->{ppid}.$d->{log_id}.log";
 
    if ( $d->{state} eq 'running' ) {
 
@@ -3367,6 +3367,9 @@ sub _update_job_log {
             $d->{job_id} )->hash->{count};
 
          print "ROWS $rows COUNT $count\n";
+
+         # delete oldest if oldest < yesterday and count > 12
+	
          if ( $count > 12 ) {
             my $oldest = $self->sqlite->db->select(
                'job_log', ['*'],
@@ -3374,22 +3377,25 @@ sub _update_job_log {
                { order_by => 'id', limit => 1 }
             )->hash;
 
-            print "DELETE OLDEST\n";
-            $self->sqlite->db->delete( 'job_log', { id => $oldest->{id} } );
+	    if ($oldest->{started} < (time - 86400)) {
+              my $delete_file = "$log_dir/out.$oldest->{job_id}.$oldest->{ppid}.$oldest->{log_id}.log";
+              print "DELETE OLDEST\n";
+              $self->sqlite->db->delete( 'job_log', { id => $oldest->{id} } );
 
-            # Cross-platform log file deletion (Perl unlink via SSH)
-            my $ssh = $self->ssh_connection->{ $d->{server_id} };
-            unless ( $ssh && $ssh->check_master ) {
-               $self->_connect_ssh( $user, { id => $d->{server_id} } );
-               $ssh = $self->ssh_connection->{ $d->{server_id} };
-            }
+              # Cross-platform log file deletion (Perl unlink via SSH)
+              my $ssh = $self->ssh_connection->{ $d->{server_id} };
+              unless ( $ssh && $ssh->check_master ) {
+                $self->_connect_ssh( $user, { id => $d->{server_id} } );
+                $ssh = $self->ssh_connection->{ $d->{server_id} };
+              }
 
-            if ($ssh) {
-               my $remote_log = $ssh->capture(
-                  "perl -e 'unlink \"$log_file\" if -f \"$log_file\"'");
-               if ($@) {
-                  $self->log->warn("Failed to delete remote log $log_file: $@");
-               }
+              if ($ssh) {
+                my $remote_log = $ssh->capture(
+                  "perl -e 'unlink \"$delete_file\" if -f \"$delete_file\"'");
+                if ($@) {
+                  $self->log->warn("Failed to delete remote log $delete_file: $@");
+                }
+              }
             }
          }
       }

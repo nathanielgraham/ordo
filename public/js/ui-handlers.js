@@ -962,64 +962,6 @@ export function updateJobsClusters(data) {
   }
 }
 
-export function updateJobsClusters2(data) {
-  hideLoading("monitor-loading");
-  document.getElementById("monitor-content").style.display = "block";
-
-  if (!data.success || !data.clusters) {
-    console.warn(
-      "[updateJobsClusters] Received unsuccessful or empty response",
-    );
-    return;
-  }
-
-  console.log(
-    `[updateJobsClusters] Processing ${data.clusters.length} clusters`,
-  );
-
-  // === 1. Populate authoritative Maps (this must happen first) ===
-  populateMapsFromClusters(data.clusters); // ← pass .clusters array, not full data
-
-  // === 2. Build tree from the fresh Maps ===
-  appState.monitorData.tree = buildTreeFromMaps();
-
-  // === DIAGNOSTIC (keep for now) ===
-  debugDumpMonitorTree("after Maps population");
-
-  // Clean stale collapsed IDs
-  const currentClusterIds = new Set();
-  function collectClusterIds(nodes) {
-    nodes.forEach((node) => {
-      if (node.is_cluster) {
-        currentClusterIds.add(String(node.id));
-        if (node.children) collectClusterIds(node.children);
-      }
-    });
-  }
-  collectClusterIds(appState.monitorData.tree);
-
-  let cleanedCount = 0;
-  const before = [...appState.collapsedClusters];
-  appState.collapsedClusters.forEach((id) => {
-    if (!currentClusterIds.has(id)) {
-      appState.collapsedClusters.delete(id);
-      cleanedCount++;
-    }
-  });
-  if (cleanedCount > 0) {
-    updateCollapsedClusters();
-    console.log(`Cleaned ${cleanedCount} stale collapsed cluster ID(s)`);
-  }
-
-  renderJobsTable();
-
-  // ==================== DASHBOARD SYNC ====================
-  if (document.getElementById("dashboard")?.classList.contains("active")) {
-    console.log("[updateJobsClusters] Dashboard active → rendering");
-    renderDashboard();
-  }
-}
-
 export function updateCalendars(data) {
   hideLoading("calendars-loading");
   const content = document.getElementById("calendars-content");
