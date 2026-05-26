@@ -1763,9 +1763,7 @@ export function getLongestRunningJobsHTML(max = 5) {
   const jobMap = new Map();
 
   appState.jobsMap.forEach((job) => {
-    const state = String(job.jobstate || "")
-      .toLowerCase()
-      .trim();
+    const state = String(job.jobstate || "").toLowerCase().trim();
     if (state !== "running" && state !== "starting") return;
 
     const jobId = Number(job.id);
@@ -1773,10 +1771,16 @@ export function getLongestRunningJobsHTML(max = 5) {
     if (started < 1000000000) return;
 
     const runtime = formatTplus(started) || "just started";
+    const fullPath = getFullPath(job, appState.monitorData.tree);
 
     const existing = jobMap.get(jobId);
     if (!existing || started > Number(existing.started || 0)) {
-      jobMap.set(jobId, { name: job.name || "Unnamed", started, runtime });
+      jobMap.set(jobId, { 
+        name: job.name || "Unnamed", 
+        fullPath,
+        started, 
+        runtime 
+      });
     }
   });
 
@@ -1794,11 +1798,15 @@ export function getLongestRunningJobsHTML(max = 5) {
   return running
     .map(
       (job) => `
-    <div class="mini-item dash-running-item">
-      <div class="mini-item-name">${job.name}</div>
-      <div class="mini-item-time runtime" data-started="${job.started}">${job.runtime}</div>
+    <div class="mini-item dash-running-item" title="${job.fullPath}">
+      <div class="mini-item-name">
+        <span class="mini-job">⚙️ ${job.name}</span>
+      </div>
+      <div class="mini-item-time runtime" data-started="${job.started}">
+        ${job.runtime}
+      </div>
     </div>
-  `,
+  `
     )
     .join("");
 }
@@ -1808,24 +1816,23 @@ export function getRecentlyFailedListHTML(max = 5) {
   const failed = [];
 
   appState.jobsMap.forEach((job) => {
-    const state = String(job.jobstate || "")
-      .toLowerCase()
-      .trim();
+    const state = String(job.jobstate || "").toLowerCase().trim();
     if (!["failed", "killed", "zombie"].includes(state) || !job.ended) return;
 
     const endedTs = Number(job.ended);
     const agoSeconds = now - endedTs;
     if (agoSeconds < 0) return;
 
+    const path = getFullPath(job, appState.monitorData.tree);
+
     failed.push({
-      id: job.id,
       name: job.name || "Unnamed",
+      path: path,
       endedTs: endedTs,
       agoSeconds: agoSeconds,
     });
   });
 
-  // Sort most recent first
   failed.sort((a, b) => b.endedTs - a.endedTs);
   const topFailed = failed.slice(0, max);
 
@@ -1840,50 +1847,56 @@ export function getRecentlyFailedListHTML(max = 5) {
     .map(
       (item) => `
       <div class="mini-item">
-        <div class="mini-item-name">${item.name}</div>
+        <div class="mini-item-name">
+          <span class="mini-job">⚙️ ${item.name}</span>
+        </div>
         <div class="mini-item-time text-red failed-time" 
              data-ended="${item.endedTs}">
           ${formatRelativeTime(item.agoSeconds)}
         </div>
       </div>
-    `,
+    `
     )
     .join("");
 }
 
-export function getOverdueClustersListHTML() {
+export function getOverdueClustersListHTML(max = 5) {
   const now = Math.floor(Date.now() / 1000);
   const overdue = [];
 
   appState.clustersMap.forEach((cluster) => {
     const next = Number(cluster.next_start);
-    if (!next || isNaN(next)) return;
+    if (!next || next > now) return;
 
-    if (next < now) {
-      const name = cluster.name || "Unnamed";
-      const reason = `overdue ${formatRelativeTime(now - next)}`;
-      overdue.push({ name, reason, next_start: next });
-    }
+    overdue.push({
+      name: cluster.name || "Unnamed",
+      nextStart: next,
+      overdueBy: formatTminus(next) || "Overdue"
+    });
   });
 
-  // Update the count badge
-  const countEl = document.getElementById("dash-overdue-count");
-  if (countEl) countEl.textContent = overdue.length;
+  overdue.sort((a, b) => a.nextStart - b.nextStart);
+  const topOverdue = overdue.slice(0, max);
 
-  if (overdue.length === 0) {
-    return `<div class="empty-state text-grey text-sm py-8 text-center">No overdue clusters ✓</div>`;
+  const countEl = document.getElementById("dash-overdue-count");
+  if (countEl) countEl.textContent = topOverdue.length;
+
+  if (topOverdue.length === 0) {
+    return `<div class="empty-state">No overdue clusters</div>`;
   }
 
-  return overdue
+  return topOverdue
     .map(
       (item) => `
-    <div class="mini-item">
-      <div class="mini-item-name">${item.name}</div>
-      <div class="mini-item-time text-orange overdue-time" data-timestamp="${item.next_start}">
-        ${item.reason}
+    <div class="mini-item" title="Overdue cluster: ${item.name}">
+      <div class="mini-item-name">
+        <span class="mini-path">📁 ${item.name}</span>
+      </div>
+      <div class="mini-item-time overdue-time" data-next-start="${item.nextStart}">
+        ${item.overdueBy}
       </div>
     </div>
-  `,
+  `
     )
     .join("");
 }
@@ -1892,32 +1905,30 @@ export function updateNextScheduledClusters() {
   const container = document.getElementById("dash-next-5");
   if (!container) return;
 
-  const upcoming = collectNextScheduledClusters(5);
+  const upcoming = collectNextScheduledClusters(5);   // assuming this helper exists
+
   const countEl = document.getElementById("dash-next-count");
   if (countEl) countEl.textContent = upcoming.length;
 
   if (upcoming.length === 0) {
     container.innerHTML = `<div class="empty-state">No upcoming scheduled clusters</div>`;
-  } else {
-    container.innerHTML = upcoming
-      .map(
-        (item) => `
-      <div class="mini-item dash-next-item">
-        <div class="mini-item-name">${item.name}</div>
-        <div class="mini-item-time countdown" data-nextStart="${item.next_start}">
-          ${formatTminus(item.next_start) || "—"}
-        </div>
-      </div>
-    `,
-      )
-      .join("");
+    return;
   }
 
-  // Trigger overdue refresh + count update
-  const overdueList = document.getElementById("dash-overdue-list");
-  if (overdueList) {
-    overdueList.innerHTML = getOverdueClustersListHTML();
-  }
+  container.innerHTML = upcoming
+    .map(
+      (item) => `
+    <div class="mini-item dash-next-item" title="Next run for cluster: ${item.name}">
+      <div class="mini-item-name">
+        <span class="mini-path">📁 ${item.name}</span>
+      </div>
+      <div class="mini-item-time countdown" data-nextStart="${item.next_start}">
+        ${formatTminus(item.next_start) || "—"}
+      </div>
+    </div>
+  `
+    )
+    .join("");
 }
 
 export function collectNextScheduledClusters(limit = 6) {
@@ -1952,23 +1963,85 @@ export function collectNextScheduledClusters(limit = 6) {
 
 // Only updates live timings — nothing else
 let dashboardLiveTimer = null;
+let dashboardTimingCache = null;
 
 export function startDashboardLiveTimer() {
-  if (dashboardLiveTimer) clearInterval(dashboardLiveTimer);
+  if (dashboardLiveTimer) return;
 
-  dashboardLiveTimer = setInterval(() => {
-    if (document.getElementById("dashboard")?.classList.contains("active")) {
-      updateDashboardLiveTimings();
+  console.log("[DashboardTimer] Starting with cache setup");
+
+  refreshDashboardTimingCache();
+
+  dashboardLiveTimer = setInterval(updateDashboardLiveTimings, 1000);
+  updateDashboardLiveTimings(); // immediate update
+}
+
+function refreshDashboardTimingCache() {
+  dashboardTimingCache = {
+    countdowns: document.querySelectorAll(".countdown, [data-nextstart], [data-next-start]"),
+    runtimes: document.querySelectorAll(".runtime, [data-started]"),
+    recentTimes: document.querySelectorAll("#dash-recent-body td[data-timestamp]"),
+    failedTimes: document.querySelectorAll(".failed-time, [data-ended]")
+  };
+
+  console.log(`[DashboardTimer] Cache refreshed: ${dashboardTimingCache.countdowns.length} countdowns, ${dashboardTimingCache.runtimes.length} runtimes`);
+}
+
+export function updateDashboardLiveTimings() {
+  if (!document.getElementById("dashboard")?.classList.contains("active")) return;
+
+  const now = Math.floor(Date.now() / 1000);
+
+  // Live countdowns (T-minus) - Next Scheduled
+  dashboardTimingCache.countdowns.forEach(el => {
+    const next = parseInt(el.dataset.nextStart || el.dataset.nextstart || 0);
+    if (next > 0) {
+      el.textContent = formatTminus(next) || "—";
     }
-  }, 1000);
+  });
+
+  // Running job timers (T-plus)
+  dashboardTimingCache.runtimes.forEach(el => {
+    const started = parseInt(el.dataset.started || 0);
+    if (started > 0) {
+      el.textContent = formatTplus(started) || "—";
+    }
+  });
+
+  // Recent activity "ago" times
+  dashboardTimingCache.recentTimes.forEach(td => {
+    const ts = parseInt(td.dataset.timestamp || 0);
+    if (ts > 0) td.textContent = formatRelativeTime(now - ts);
+  });
+
+  // Recently failed times
+  dashboardTimingCache.failedTimes.forEach(el => {
+    const endedTs = parseInt(el.dataset.ended || 0);
+    if (endedTs > 0) el.textContent = formatRelativeTime(now - endedTs);
+  });
+
+  // Overdue Clusters - Always check and refresh when needed
+  const overdueList = document.getElementById("dash-overdue-list");
+  if (overdueList) {
+    let hasOverdue = false;
+    appState.clustersMap.forEach((cluster) => {
+      const next = Number(cluster.next_start);
+      if (next && next <= now) hasOverdue = true;
+    });
+
+    // Refresh if there are overdue items OR if the list currently has content
+    if (hasOverdue || overdueList.children.length > 0) {
+      overdueList.innerHTML = getOverdueClustersListHTML();
+    }
+  }
 }
 
 export function stopDashboardLiveTimer() {
   if (dashboardLiveTimer) {
     clearInterval(dashboardLiveTimer);
     dashboardLiveTimer = null;
-    console.log("[DashboardLiveTimer] Stopped");
   }
+  dashboardTimingCache = null;
 }
 
 export function updateDashboardLiveCards() {
@@ -1992,58 +2065,6 @@ export function updateDashboardLiveCards() {
 
   // Recent Activity
   renderRecentActivityTable();
-}
-
-// ==================== BROADCAST REACTIVE UPDATES ====================
-export function updateDashboardLiveTimings() {
-  if (!document.getElementById("dashboard")?.classList.contains("active"))
-    return;
-
-  const now = Math.floor(Date.now() / 1000);
-
-  // Live countdowns and timers
-  document
-    .querySelectorAll("#dash-next-5 .countdown, .dash-next-item .countdown")
-    .forEach((el) => {
-      const next = parseInt(el.dataset.nextStart || el.dataset.nextstart);
-      if (next) el.textContent = formatTminus(next) || "—";
-    });
-
-  document.querySelectorAll("#dash-running-list .runtime").forEach((el) => {
-    const started = parseInt(el.dataset.started);
-    if (started) el.textContent = formatTplus(started) || "—";
-  });
-
-  // Overdue card auto-refresh
-  let overdueDetected = false;
-  appState.clustersMap.forEach((cluster) => {
-    const next = Number(cluster.next_start);
-    if (next && next <= now) overdueDetected = true;
-  });
-
-  if (overdueDetected) {
-    const overdueList = document.getElementById("dash-overdue-list");
-    if (overdueList) {
-      overdueList.innerHTML = getOverdueClustersListHTML();
-    }
-  }
-
-  // Recent Activity "ago" times
-  document
-    .querySelectorAll("#dash-recent-body td[data-timestamp]")
-    .forEach((td) => {
-      const ts = parseInt(td.dataset.timestamp);
-      if (ts) td.textContent = formatRelativeTime(now - ts);
-    });
-
-  // === NEW: Recently Failed live times ===
-  document.querySelectorAll("#dash-failed-list .failed-time").forEach((el) => {
-    const endedTs = parseInt(el.dataset.ended);
-    if (endedTs) {
-      const ago = now - endedTs;
-      el.textContent = formatRelativeTime(ago);
-    }
-  });
 }
 
 // ==================== DASHBOARD CORE ====================
@@ -2097,6 +2118,11 @@ function refreshDashboardCardsInternal() {
   updateNextScheduledClusters();
   renderRecentActivityTable();
   updateDashboardLiveTimings();
+// IMPORTANT: Refresh cache after rebuild
+  if (typeof refreshDashboardTimingCache === "function") {
+    refreshDashboardTimingCache();
+  }
+
 }
 
 // KPI Bar Updater
@@ -2211,28 +2237,47 @@ export function updateDashboardCountersFromBroadcast(updates = []) {
   }
 }
 
-export function getNextScheduledListHTML(tree) {
-  const upcoming = collectNextScheduledClusters(tree);
+export function getNextScheduledHTML(max = 5) {
+  const now = Math.floor(Date.now() / 1000);
+  const upcoming = [];
 
-  console.log(`[NextScheduled] Found ${upcoming.length} upcoming clusters`);
+  appState.clustersMap.forEach((cluster) => {
+    const next = Number(cluster.next_start);
+    if (!next || next <= now) return;
 
-  if (upcoming.length === 0) {
-    return `<div class="empty-state">No upcoming scheduled clusters</div>`;
+    upcoming.push({
+      name: cluster.name || "Unnamed",
+      nextStart: next,
+      tminus: formatTminus(next) || "—"
+    });
+  });
+
+  upcoming.sort((a, b) => a.nextStart - b.nextStart);
+  const topUpcoming = upcoming.slice(0, max);
+
+  const countEl = document.getElementById("dash-next-count");
+  if (countEl) countEl.textContent = topUpcoming.length;
+
+  if (topUpcoming.length === 0) {
+    return `<div class="empty-state">No upcoming runs scheduled</div>`;
   }
 
-  return upcoming
-    .map((cluster) => {
-      const tminus = formatTminus(cluster.next_start) || "—";
-
-      return `
-      <div class="mini-item">
-        <div class="mini-item-name">${cluster.name}</div>
-        <div class="mini-item-time">${tminus}</div>
+  return topUpcoming
+    .map(
+      (item) => `
+    <div class="mini-item">
+      <div class="mini-item-name">
+        <span class="mini-path">📁 ${item.name}</span>
       </div>
-    `;
-    })
+      <div class="mini-item-time countdown" data-next-start="${item.nextStart}">
+        ${item.tminus}
+      </div>
+    </div>
+  `
+    )
     .join("");
 }
+
 
 // Initial stats load - called once after login or when dashboard tab is first activated
 export function loadDashboardStats() {

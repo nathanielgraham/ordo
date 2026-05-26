@@ -29,7 +29,7 @@
           <div>
             <div id="dash-running-count" class="count-big text-cyan">0</div>
             <div class="text-grey">
-              Longest Running <span class="text-small">(top 5 shown)</span>
+              Long Running Jobs<span class="text-small">(top 5)</span>
             </div>
           </div>
           <i class="fas fa-hourglass-half icon-big"></i>
@@ -43,7 +43,7 @@
           <div>
             <div id="dash-failed-count" class="count-big text-red">0</div>
             <div class="text-grey">
-              Recently Failed <span class="text-small">(top 5 shown)</span>
+              Failed Jobs<span class="text-small">(top 5)</span>
             </div>
           </div>
           <i class="fas fa-exclamation-triangle icon-big"></i>
@@ -68,7 +68,7 @@
         <div class="card-top">
           <div>
             <div id="dash-overdue-count" class="count-big text-orange">0</div>
-            <div class="text-grey">Overdue Clusters</div>
+            <div class="text-grey">Overdue</div>
           </div>
           <i class="fas fa-exclamation-circle icon-big"></i>
         </div>

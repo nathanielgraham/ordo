@@ -468,83 +468,87 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
 
 // Live timings
 
-let liveTimingInterval = null;
 
-// Cache DOM elements once
-let dashboardRecentTds = [];
-let runningNowContainer = null;
-let failedNowContainer = null;
-let nextScheduledContainer = null;
+
+// Module-level cache for tree timings
+let treeTimingCache = null;
+let liveTimingInterval = null;
 
 export function startLiveTimings() {
   if (liveTimingInterval) return;
 
-  // Cache elements on start
-  dashboardRecentTds = Array.from(
-    document.querySelectorAll("#dash-recent-body td[data-timestamp]"),
-  );
-  runningNowContainer = document.getElementById("dash-running-list");
-  failedNowContainer = document.getElementById("dash-failed-list");
-  nextScheduledContainer = document.getElementById("dash-next-5");
+  // === CACHE TREE TIMING ELEMENTS ONCE ===
+  treeTimingCache = {
+    rows: []
+  };
+
+  document.querySelectorAll("#tree-body tr[data-id]").forEach((row) => {
+    const cells = row.cells;
+    if (cells.length < 8) return;
+
+    treeTimingCache.rows.push({
+      row: row,
+      tplusCell: cells[5],
+      durationCell: cells[6],
+      tminusCell: cells[7]
+    });
+  });
 
   liveTimingInterval = setInterval(updateLiveTimings, 1000);
   updateLiveTimings(); // immediate update
 }
 
-export function stopLiveTimings() {
-  if (liveTimingInterval) {
-    clearInterval(liveTimingInterval);
-    liveTimingInterval = null;
-  }
-  // Clear caches
-  dashboardRecentTds = [];
-  runningNowContainer = null;
-  failedNowContainer = null;
-  nextScheduledContainer = null;
-}
-
 export function updateLiveTimings() {
   const now = Math.floor(Date.now() / 1000);
 
-  // Tree table (when visible)
+  // === MAIN TREE TABLE (Jobs & Clusters) ===
   const monitorTab = document.getElementById("monitor");
   if (monitorTab && monitorTab.classList.contains("active")) {
-    // Inside updateLiveTimings(), in the monitorTab block:
     document.querySelectorAll("#tree-body tr[data-id]").forEach((row) => {
       const id = row.dataset.id;
       const isCluster = row.classList.contains("ordo-cluster-row");
-
-      const item = isCluster ? findClusterByIdFast(id) : findJobByIdFast(id);
+      const item = isCluster 
+        ? findClusterByIdFast(id) 
+        : findJobByIdFast(id);
 
       if (!item) return;
 
       const cells = row.cells;
+      if (!cells) return;
+
+      // T+ (Started)
       if (cells[5]) cells[5].textContent = formatTplus(item.started) || "—";
-      if (cells[6])
-        cells[6].textContent = formatDuration(item.started, item.ended) || "—";
-      if (cells[7]) cells[7].textContent = formatTminus(item.next_start) || "—";
+      
+      // Duration
+      if (cells[6]) cells[6].textContent = formatDuration(item.started, item.ended) || "—";
+      
+      // T- (Next Run) - FIXED
+      if (cells[7]) {
+        const nextStart = Number(item.next_start);
+        cells[7].textContent = (nextStart > now) 
+          ? formatTminus(nextStart) 
+          : "—";
+      }
     });
   }
 
-  // Servers tab
+  // === SERVERS TAB ===
   const serversContent = document.getElementById("servers-content");
   if (serversContent && serversContent.offsetParent !== null) {
     document.querySelectorAll("#servers-body tr").forEach((row) => {
       const updateTime = Number(row.dataset.updateTime);
       if (isNaN(updateTime) || updateTime <= 0) return;
-      const server = appState.serversData.find(
-        (s) => Number(s.update_time) === updateTime,
-      );
+      const server = appState.serversData.find(s => Number(s.update_time) === updateTime);
       if (server) updateFreshnessCell(row, server, now);
     });
   }
 
-  // === Calendars Next Run (T-minus) ===
+  // === CALENDARS ===
   const calendarsContent = document.getElementById("calendars-content");
   if (calendarsContent && calendarsContent.offsetParent !== null) {
     document.querySelectorAll("#calendars-body td[data-next-start]").forEach((cell) => {
       const nextStart = Number(cell.dataset.nextStart);
-      if (nextStart > Date.now() / 1000) {
+      if (nextStart > now) {
         cell.textContent = formatTminus(nextStart) || "—";
       } else {
         cell.textContent = "—";
@@ -552,3 +556,12 @@ export function updateLiveTimings() {
     });
   }
 }
+
+export function stopLiveTimings() {
+  if (liveTimingInterval) {
+    clearInterval(liveTimingInterval);
+    liveTimingInterval = null;
+  }
+  treeTimingCache = null; // clear cache
+}
+
