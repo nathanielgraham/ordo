@@ -2470,9 +2470,8 @@ export function incrementDashboardStatsFromJob(job) {
     const runs = appState.dashboardStats.runs_today || 0;
     const failed = appState.dashboardStats.failed_runs_today || 0;
     if (runs > 0) {
-      appState.dashboardStats.success_rate = Math.round(
-        (100 * (runs - failed)) / runs,
-      );
+      const percent = (100 * (runs - failed)) / runs;
+      appState.dashboardStats.success_rate = Math.round(percent * 10) / 10;
     }
 
     updateKPIBar(appState.dashboardStats);
