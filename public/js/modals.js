@@ -122,7 +122,7 @@ export function openJobModal(
   document.getElementById("job-description").value = isEdit ? (item?.description || "") : "";
   document.getElementById("job-loops").value = isEdit ? (item?.loops ?? 0) : "0";
   document.getElementById("job-retrys").value = isEdit ? (item?.retrys ?? 0) : "0";
-  document.getElementById("job-delay").value = isEdit ? (item?.delay ?? 0) : "0";
+  document.getElementById("job-delay").value = isEdit ? (item?.delay ?? 0) : "1";
 
   // ==================== SERVER ====================
   initModalTomSelect("job-server", {
@@ -659,7 +659,7 @@ export function saveJob() {
     description: (document.getElementById("job-description").value || "").trim(),
     retrys: parseInt(document.getElementById("job-retrys").value) || 0,
     loops: parseInt(document.getElementById("job-loops").value) || 0,
-    delay: parseInt(document.getElementById("job-delay").value) || 0,
+    delay: parseInt(document.getElementById("job-delay").value) || 1,
   };
 
   // Read current TomSelect values

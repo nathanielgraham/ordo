@@ -282,7 +282,7 @@
         </div>
         <div class="form-group">
           <label class="label">Delay (seconds)</label>
-          <input class="input" type="number" id="job-delay" min="0" value="0" />
+          <input class="input" type="number" id="job-delay" min="0" value="1" />
         </div>
       </div>
     </section>
