@@ -48,18 +48,6 @@
 
   <%= include 'partials/modals' %>
 
-  <footer class="footer bg-dark py-large mt-auto">
-    <div class="content-center text-center text-grey">
-      <p>
-        Ordo — Modern Job Scheduler | © 2026
-        <span class="mx-large">•</span>
-        <a href="#" id="footer-pricing-link">Plans & Pricing</a>
-        <span class="mx-large">•</span>
-        <a href="mailto:ordosched@proton.me" class="text-cyan">Contact Support</a>
-      </p>
-    </div>
-  </footer>
-
   <script type="module" src="/js/app.js?v=<%= time %>"></script>
 </body>
 </html>

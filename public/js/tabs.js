@@ -24,8 +24,33 @@ export function activateTab() {
     console.log(`[ACTIVATE TAB] tab=${tabName}, slug=${docSlug}`);
 
     // Activate main Docs tab
+    // const tabLink = document.querySelector(`.nav-tab[data-tab="${tabName}"]`);
+    // if (tabLink) tabLink.click();
+
+    // Activate the tab visually
     const tabLink = document.querySelector(`.nav-tab[data-tab="${tabName}"]`);
-    if (tabLink) tabLink.click();
+    if (tabLink) {
+      tabLink.classList.add("active");
+    }
+
+    // Switch content
+    document
+      .querySelectorAll(".tab-content")
+      .forEach((s) => s.classList.remove("active"));
+    const target =
+      document.getElementById(tabName) ||
+      document.querySelector(`section[id="${tabName}"]`);
+    if (target) target.classList.add("active");
+
+    // === DASHBOARD TIMER LOGIC ===
+    if (tabName === "dashboard") {
+      console.log(
+        "[ACTIVATE TAB] Dashboard activated on load → starting live timer",
+      );
+      startDashboardLiveTimer();
+    } else {
+      stopDashboardLiveTimer();
+    }
 
     if (tabName === "docs" && docSlug) {
       // Normalize slug to filename

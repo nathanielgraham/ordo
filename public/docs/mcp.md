@@ -4,9 +4,8 @@ Ordo now supports **Model Context Protocol (MCP)**, allowing Grok to directly co
 
 ## Quick Start
 
-1. Go to **/mcp_connect** in your Ordo instance
-2. Copy your API token from the Settings → Account tab
-3. Tell Grok in the chat:
+1. Copy your API token from the Settings → Account tab
+2. Tell Grok in the chat:
 
 > Connect to my Ordo at `https://your-ordo.example.com/mcp` with token `YOUR_TOKEN_HERE`
 

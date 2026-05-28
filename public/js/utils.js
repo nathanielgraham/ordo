@@ -77,6 +77,18 @@ export function formatTplus(epoch) {
   if (!epoch || isNaN(epoch)) return "—";
   const diff = Math.floor(Date.now() / 1000) - epoch;
   if (diff <= 0) return "T+0";
+
+  // Show days if more than 24 hours
+  if (diff >= 86400) {
+    const days = Math.floor(diff / 86400);
+    const remaining = diff % 86400;
+    const h = Math.floor(remaining / 3600).toString().padStart(2, "0");
+    const m = Math.floor((remaining % 3600) / 60).toString().padStart(2, "0");
+    const s = (remaining % 60).toString().padStart(2, "0");
+    return `T+${h}:${m}:${s} +${days}d`;
+  }
+
+  // Normal HH:MM:SS format
   const h = Math.floor(diff / 3600).toString().padStart(2, "0");
   const m = Math.floor((diff % 3600) / 60).toString().padStart(2, "0");
   const s = (diff % 60).toString().padStart(2, "0");
@@ -97,7 +109,9 @@ export function formatTminus(epoch) {
     const remaining = diff % 86400;
     const h = Math.floor(remaining / 3600).toString().padStart(2, "0");
     const m = Math.floor((remaining % 3600) / 60).toString().padStart(2, "0");
-    return `T+${days}d ${h}:${m}`;
+    const s = (remaining % 60).toString().padStart(2, "0");
+    //return `T-${days}d ${h}:${m}:${s}`;
+    return `T-${h}:${m}:${s} +${days}d`;
   }
 
   // Normal HH:MM:SS format

@@ -122,7 +122,7 @@ export function openJobModal(
   document.getElementById("job-description").value = isEdit ? (item?.description || "") : "";
   document.getElementById("job-loops").value = isEdit ? (item?.loops ?? 0) : "0";
   document.getElementById("job-retrys").value = isEdit ? (item?.retrys ?? 0) : "0";
-  document.getElementById("job-delay").value = isEdit ? (item?.delay ?? 0) : "1";
+  document.getElementById("job-delay").value = isEdit ? (item?.delay ?? 1) : "1";
 
   // ==================== SERVER ====================
   initModalTomSelect("job-server", {

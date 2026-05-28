@@ -50,6 +50,16 @@ has 'cron' => sub {
    state $timer = {};
 };
 
+has 'quartz_rx' => sub {
+   state $quartz = qr{
+  ^\s*
+  (?:[A-Z0-9,\/\-\*\?\#LW]{1,11})             # field 1 (seconds)
+  (?:\s+[A-Z0-9,\/\-\*\?\#LW]{1,11}){5}       # next 5 fields (minutes,hours,DOM,month,DOW)
+  (?:\s+[A-Z0-9,\/\-\*\?\#LW]{1,11})?         # optional year field
+  \s*$
+  }ix
+};
+
 has 'at' => sub {
    state $timer = {};
 };
@@ -258,9 +268,10 @@ sub startup {
             $c->redirect_to('/#settings')
               ;    # Return to Settings after upgrade intent
          }
+
          #elsif ( !$u->{update_time} || $u->{creation_time} > time - 86400 ) {
 
-            # New user (created in last 24 hours)
+         # New user (created in last 24 hours)
          #$c->redirect_to('/#docs/quickstart');    # Best onboarding
          #}
          else {
@@ -398,10 +409,6 @@ sub startup {
            ? $tool->{handler}->( $c, $params )
            : { error => "Unknown tool: $tool_name", success => 0 };
 
-         # Apply smart formatter
-         $result = ordo::MCP::Tools::format_response( $result, $tool_name )
-           if $result;
-
          $c->render( json => $result );
       }
    );
@@ -434,11 +441,11 @@ sub startup {
 
             if ($org) {
                my $exec_user = ordo::Model::User->new(
-                  id                 => 0,
-                  level              => 1,
-                  org_id             => $org->{id},
-                  token              => $token,
-                  remote_address     => $c->tx->remote_address,
+                  id             => 0,
+                  level          => 1,
+                  org_id         => $org->{id},
+                  token          => $token,
+                  remote_address => $c->tx->remote_address,
                );
 
                if ( $self->_is_execution_command($command) ) {
@@ -649,7 +656,7 @@ sub validate_params {
       elsif ( $type eq 'n' )
       {            # name (job/cluster/cal/server) — allow slashes for /root
          return ( 0, "invalid name for $key" )
-           unless $value =~ /^[\w\/\-_\.]{1,60}$/;
+           unless $value =~ /^[\w\/\-_\.\s]{1,25}$/;
          $clean->{$key} = $value =~ s/^\s+|\s+$//gr;
       }
       elsif ( $type eq 'd' ) {    # description
@@ -675,7 +682,8 @@ sub validate_params {
       }
       elsif ( $type eq 'ct' ) {    # crontab (basic check)
          return ( 0, "invalid crontab for $key" )
-           unless $value =~ /^[\d\s\*\-\/,?L#]+$/;
+           #unless $value =~ /^[\d\s\*\-\/,?L#]+$/;
+           unless $value =~ $self->quartz_rx;
          $clean->{$key} = $value =~ s/^\s+|\s+$//gr;
       }
       elsif ( $type eq 'f' ) {     # float
@@ -2040,7 +2048,7 @@ sub login_user {
       $user->base_cluster_id( $results->{base_cluster_id} );
       $user->root_cluster_id( $org->{root_cluster_id} );
       $user->email( $results->{email} );
-      $user->team( $team );
+      $user->team($team);
       $path    = $self->id2path( $user, { id => $results->{base_cluster_id} } );
       $message = 'login success';
       $success = 1;
@@ -2221,9 +2229,16 @@ sub rotate_execution_token {
    my ( $self, $user, $d ) = @_;
    my $user_id = $d->{id} || $user->id;
    my $token   = $self->_new_token();
-   $self->sqlite->db->update( 'org', { execution_token => $token }, { id => $user_id } )
-     ->hash;
-   return { success => 1, token => $token, message => 'New exec token generated' };
+   $self->sqlite->db->update(
+      'org',
+      { execution_token => $token },
+      { id              => $user_id }
+   )->hash;
+   return {
+      success => 1,
+      token   => $token,
+      message => 'New exec token generated'
+   };
 }
 
 sub new_token {
@@ -2896,7 +2911,7 @@ sub _create_job {
    }
 
    my $insert_hash = { cluster_id => $parent_id, name => $d->{name} };
-   $insert_hash->{delay} = $d->{delay} if $d->{delay} && $d->{delay} <= 3600;
+   $insert_hash->{delay} = $d->{delay} if $d->{delay} && $d->{delay} <= 86400;
 
    my @fields = qw(retrys loops delay state_id description started ended);
 
@@ -3352,8 +3367,8 @@ sub _update_job_log {
    #my $log_id = $d->{log_id};
    #my $ppid   = $d->{ppid};
 
-   my $log_dir  = "ordo_node/logs";    # adjust to your log path
-   #my $log_file = "$log_dir/out.$d->{job_id}.$d->{ppid}.$d->{log_id}.log";
+   my $log_dir = "ordo_node/logs";    # adjust to your log path
+       #my $log_file = "$log_dir/out.$d->{job_id}.$d->{ppid}.$d->{log_id}.log";
 
    if ( $d->{state} eq 'running' ) {
 
@@ -3374,7 +3389,7 @@ sub _update_job_log {
          print "ROWS $rows COUNT $count\n";
 
          # delete oldest if oldest < yesterday and count > 12
-	
+
          if ( $count > 12 ) {
             my $oldest = $self->sqlite->db->select(
                'job_log', ['*'],
@@ -3382,25 +3397,28 @@ sub _update_job_log {
                { order_by => 'id', limit => 1 }
             )->hash;
 
-	    if ($oldest->{started} < (time - 86400)) {
-              my $delete_file = "$log_dir/out.$oldest->{job_id}.$oldest->{ppid}.$oldest->{log_id}.log";
-              print "DELETE OLDEST\n";
-              $self->sqlite->db->delete( 'job_log', { id => $oldest->{id} } );
+            if ( $oldest->{started} < ( time - 86400 ) ) {
+               my $delete_file =
+"$log_dir/out.$oldest->{job_id}.$oldest->{ppid}.$oldest->{log_id}.log";
+               print "DELETE OLDEST\n";
+               $self->sqlite->db->delete( 'job_log', { id => $oldest->{id} } );
 
-              # Cross-platform log file deletion (Perl unlink via SSH)
-              my $ssh = $self->ssh_connection->{ $d->{server_id} };
-              unless ( $ssh && $ssh->check_master ) {
-                $self->_connect_ssh( $user, { id => $d->{server_id} } );
-                $ssh = $self->ssh_connection->{ $d->{server_id} };
-              }
+               # Cross-platform log file deletion (Perl unlink via SSH)
+               my $ssh = $self->ssh_connection->{ $d->{server_id} };
+               unless ( $ssh && $ssh->check_master ) {
+                  $self->_connect_ssh( $user, { id => $d->{server_id} } );
+                  $ssh = $self->ssh_connection->{ $d->{server_id} };
+               }
 
-              if ($ssh) {
-                my $remote_log = $ssh->capture(
-                  "perl -e 'unlink \"$delete_file\" if -f \"$delete_file\"'");
-                if ($@) {
-                  $self->log->warn("Failed to delete remote log $delete_file: $@");
-                }
-              }
+               if ($ssh) {
+                  my $remote_log = $ssh->capture(
+                     "perl -e 'unlink \"$delete_file\" if -f \"$delete_file\"'"
+                  );
+                  if ($@) {
+                     $self->log->warn(
+                        "Failed to delete remote log $delete_file: $@");
+                  }
+               }
             }
          }
       }
@@ -3541,7 +3559,7 @@ sub update_job_config {
       }
    }
 
-   $update_hash->{delay} = $d->{delay} if $d->{delay} && $d->{delay} <= 3600;
+   $update_hash->{delay} = $d->{delay} if $d->{delay} && $d->{delay} <= 86400;
    $update_hash->{on_fail_id}  = $on_fail_id ? $on_fail_id : undef;
    $update_hash->{name}        = $d->{newname} if $d->{newname};
    $update_hash->{last_update} = time;
@@ -3649,7 +3667,7 @@ sub _update_job {
       }
    }
 
-   $update_hash->{delay} = $d->{delay} if $d->{delay} && $d->{delay} <= 3600;
+   $update_hash->{delay} = $d->{delay} if $d->{delay} && $d->{delay} <= 86400;
    $update_hash->{on_fail_id} =
        $on_fail_id
      ? $on_fail_id
@@ -4239,34 +4257,35 @@ sub _start_job {
    my $needed = join( ' ', @{ $job->{needed} } )     if $job->{needed};
 
    # === Use Execution Token for all job launches ===
-   my $launch_token = $self->_get_execution_token($user->org_id)
-       || $user->token;   # fallback, in case something goes wrong
+   my $launch_token = $self->_get_execution_token( $user->org_id )
+     || $user->token;    # fallback, in case something goes wrong
 
    my $opts = {
-      token       => $launch_token,           # ← Always use execution token
-      id          => $job->{id},
-      email       => $user->email,
-      team        => $user->team,
-      cluster_id  => $job->{cluster_id},
-      server_id   => $job->{server_id},
-      script      => $job->{script},
-      api         => $self->local_url . '/api',
+      token      => $launch_token,               # ← Always use execution token
+      id         => $job->{id},
+      email      => $user->email,
+      team       => $user->team,
+      cluster_id => $job->{cluster_id},
+      server_id  => $job->{server_id},
+      script     => $job->{script},
+      api        => $self->local_url . '/api',
    };
 
    # Optional but recommended: keep original user for auditing
-   $opts->{user_id} = $user->id;   # ← Add this
+   $opts->{user_id} = $user->id;    # ← Add this
 
-   $opts->{origin}          = $d->{origin}          if $d->{origin};
-   $opts->{origin_job_id}   = $d->{origin_job_id}   if $d->{origin_job_id};
-   $opts->{origin_cluster_id} = $d->{origin_cluster_id} if $d->{origin_cluster_id};
-   $opts->{delay}           = $job->{delay}         if $job->{delay};
-   $opts->{json}            = $job->{json}          if $job->{json};
-   $opts->{needs}           = $needs                if $needs;
-   $opts->{needed}          = $needed               if $needed;
+   $opts->{origin}            = $d->{origin}        if $d->{origin};
+   $opts->{origin_job_id}     = $d->{origin_job_id} if $d->{origin_job_id};
+   $opts->{origin_cluster_id} = $d->{origin_cluster_id}
+     if $d->{origin_cluster_id};
+   $opts->{delay}  = $job->{delay} if $job->{delay};
+   $opts->{json}   = $job->{json}  if $job->{json};
+   $opts->{needs}  = $needs        if $needs;
+   $opts->{needed} = $needed       if $needed;
 
-   my $json = encode_json($opts);
-   my $json_hex = unpack('H*', $json);
-   my $cmd = "perl ordo_node/bin/launcher.pl $json_hex";
+   my $json     = encode_json($opts);
+   my $json_hex = unpack( 'H*', $json );
+   my $cmd      = "perl ordo_node/bin/launcher.pl $json_hex";
 
    $self->_set_job_state( $user, { id => $job->{id}, state => 'starting' } );
 
@@ -5080,6 +5099,7 @@ sub _create_cron_object {
 
    my $cal_id = $cron_row->{cal_id};
    return { success => 0, message => 'missing cal_id' } unless $cal_id;
+
    return { success => 0, message => 'cron has no next start time' }
      unless $self->_cron_next_start( $user, $d );
 
@@ -5307,13 +5327,15 @@ sub _set_cluster_cal_id {
          # stop old cal if no clusters subscribed
          $self->_stop_cal( $user, { id => $old_cal_id } );
 
+         # LEGACY
          # delete old calendar if cal is cluster specific (has no name)
-         $self->sqlite->db->delete( 'cal',
-            { name => undef, id => $old_cal_id, org_id => $user->org_id } );
+         #$self->sqlite->db->delete( 'cal',
+         #   { name => undef, id => $old_cal_id, org_id => $user->org_id } );
 
          # nothing to do so return
          return 1 if $new_cal_id && $old_cal_id == $new_cal_id;
       }
+      $self->_broadcast_cal( $user, [ $old_cal_id ] );
    }
 
    if ($new_cal_id) {
@@ -5325,6 +5347,7 @@ sub _set_cluster_cal_id {
       if ( $count == 1 ) {
          $self->_start_cal( $user, { id => $new_cal_id } );
       }
+      $self->_broadcast_cal( $user, [ $new_cal_id ] );
    }
    return $rows ? 1 : 0;
 }
@@ -5626,11 +5649,12 @@ sub routing {
       'read_user'   => [ 'read_user', 0, [ {}, {} ], 0 ],
       'update_user' =>
         [ 'update_user', 1, [ {}, { mode => 'm', name => 'n' } ], 1 ],
-      'delete_user'   => [ 'delete_user', 3, [ { id    => 'i' }, {} ], 1 ],
-      'delete_me'     => [ 'delete_me',   1, [ { id    => 'i' }, {} ], 1 ],
-      'login_user'    => [ 'login_user',  0, [ { token => 's' }, {} ], 0 ],
-      'new_token'     => [ 'new_token',   1, [ {}, {} ], 0 ],
-      'rotate_execution_token' => [ 'rotate_execution_token',   1, [ {}, {} ], 0 ],
+      'delete_user' => [ 'delete_user', 3, [ { id    => 'i' }, {} ], 1 ],
+      'delete_me'   => [ 'delete_me',   1, [ { id    => 'i' }, {} ], 1 ],
+      'login_user'  => [ 'login_user',  0, [ { token => 's' }, {} ], 0 ],
+      'new_token'   => [ 'new_token',   1, [ {}, {} ], 0 ],
+      'rotate_execution_token' =>
+        [ 'rotate_execution_token', 1, [ {}, {} ], 0 ],
       'register_user' =>
         [ 'register_user', 0, [ { email => 'e' }, { team_member => 'i' } ], 1 ],
 

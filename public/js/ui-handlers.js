@@ -820,11 +820,9 @@ export function renderCalendarsTable() {
     const hasCrons = Array.isArray(cal.crons) && cal.crons.length > 0;
     const isCollapsed = appState.collapsedCalendars.has(calId);
 
-    // Calendar-level next_start
-    const calNextStart = cal.next_start || 0;
-    const calHasValidNext = cal.cluster_ids?.length > 0 && calNextStart > now;
+    const calNextStart = Number(cal.next_start || 0);
+    const hasValidNext = cal.cluster_ids?.length > 0 && calNextStart > now;
 
-    // Calendar row
     const calRow = document.createElement("tr");
     calRow.className = `ordo-calendar-row ${isCollapsed ? "collapsed" : ""}`;
     calRow.dataset.id = calId;
@@ -843,19 +841,18 @@ export function renderCalendarsTable() {
       <td>${cal.cluster_ids?.length || 0}</td>
       <td>—</td>
       <td>—</td>
-      <td data-next-start="${calHasValidNext ? calNextStart : ''}">
-        ${calHasValidNext ? (formatTminus(calNextStart) || "—") : "—"}
+      <td data-next-start="${hasValidNext ? calNextStart : ''}">
+        ${hasValidNext ? (formatTminus(calNextStart) || "—") : "—"}
       </td>
       <td>${generateCalendarActions(cal.id, hasCrons)}</td>
     `;
 
     tbody.appendChild(calRow);
 
-    // Cron rows - simplified (no live next_start)
+    // Cron rows (no next_start)
     if (hasCrons) {
       cal.crons.forEach((cron, idx) => {
         const isLast = idx === cal.crons.length - 1;
-
         const cronRow = document.createElement("tr");
         cronRow.className = `ordo-cron-row ${isCollapsed ? "hidden" : ""}`;
         cronRow.dataset.id = `cron-${calId}-${cron.id}`;
@@ -1099,7 +1096,6 @@ export function applyServerBroadcast(data) {
 }
 
 // ==================== DASHBOARD CORE ====================
-// ==================== DASHBOARD CORE ====================
 export function applyClusterBroadcast(data) {
   if (!data) return;
 
@@ -1120,9 +1116,7 @@ export function applyClusterBroadcast(data) {
 
       const jobsToRemove = [];
       appState.jobsMap.forEach((job, jobId) => {
-        if (Number(job.cluster_id) === id) {
-          jobsToRemove.push(jobId);
-        }
+        if (Number(job.cluster_id) === id) jobsToRemove.push(jobId);
       });
       jobsToRemove.forEach((jobId) => {
         removeRow(jobId, false);
@@ -1143,24 +1137,17 @@ export function applyClusterBroadcast(data) {
 
       update.is_cluster = true;
 
-      // === SMART CALENDAR REFRESH CONDITION ===
-      const hasCal = !!update.cal_id;
-      const isRelevantState = 
-        update.jobstate === "complete" || 
-        update.jobstate === "failed" ||
-        update.jobstate === "waiting" ||
-        update.jobstate === "zombie" ||
-        update.jobstate === "killed";
+      // === STRONG CALENDAR SYNC ===
+      if (update.cal_id !== undefined || update.next_start !== undefined) {
+        shouldRefreshCalendars = true;
 
-      if (hasCal && isRelevantState) {
-        // Sync next_start to the calendar object
-        const calId = Number(update.cal_id);
-        const calendar = appState.calendarsData.find(c => Number(c.id) === calId);
-        
-        if (calendar && update.next_start !== undefined) {
-          calendar.next_start = Number(update.next_start);
-          shouldRefreshCalendars = true;
-          console.log(`[Calendar Sync] Updated calendar ${calId} next_start to ${update.next_start}`);
+        if (update.next_start !== undefined) {
+          const calId = Number(update.cal_id);
+          const calendar = appState.calendarsData.find(c => Number(c.id) === calId);
+          if (calendar) {
+            calendar.next_start = Number(update.next_start);
+            console.log(`[Calendar Sync] Updated calendar ${calId} next_start → ${update.next_start}`);
+          }
         }
       }
 
@@ -1177,7 +1164,7 @@ export function applyClusterBroadcast(data) {
       const clusterInTree = findClusterById(appState.monitorData.tree, id);
       if (clusterInTree) Object.assign(clusterInTree, update);
 
-      // Update or insert DOM row
+      // Update DOM row
       let row = document.getElementById(`row-cluster-${id}`);
       if (row) {
         updateRow(row, cluster);
@@ -1190,8 +1177,8 @@ export function applyClusterBroadcast(data) {
 
   refreshDashboardCards("clusters_changed");
 
-  // Refresh calendars table only when relevant
   if (shouldRefreshCalendars) {
+    console.log("[applyClusterBroadcast] Refreshing calendars due to next_start / cal change");
     renderCalendarsTable();
   }
 }
@@ -1343,11 +1330,9 @@ export function applyCalBroadcast(data) {
       );
 
       if (existingIndex !== -1) {
-        // Deep merge to preserve crons array and other nested data
         appState.calendarsData[existingIndex] = {
           ...appState.calendarsData[existingIndex],
           ...calUpdate,
-          // Ensure next_start is properly updated if present
           next_start: calUpdate.next_start !== undefined 
             ? Number(calUpdate.next_start) 
             : appState.calendarsData[existingIndex].next_start,
@@ -1358,52 +1343,7 @@ export function applyCalBroadcast(data) {
     });
   }
 
-  // Refresh UI if tab is active
-  if (document.getElementById("calendars")?.classList.contains("active")) {
-    renderCalendarsTable();
-  }
-}
-
-export function applyCalBroadcast2(data) {
-  if (!data) return;
-
-  console.log(
-    `[applyCalBroadcast] updates:${data.updates?.length || 0}, deletes:${data.deletes?.length || 0}`,
-  );
-
-  // Handle deletes
-  if (data.deletes && Array.isArray(data.deletes)) {
-    data.deletes.forEach((del) => {
-      const id = Number(del.id || del);
-      if (!id) return;
-      appState.calendarsData = appState.calendarsData.filter(
-        (c) => Number(c.id) !== id,
-      );
-    });
-  }
-
-  // Handle updates / new calendars
-  if (data.updates && Array.isArray(data.updates)) {
-    data.updates.forEach((calUpdate) => {
-      const id = Number(calUpdate.id);
-      if (!id) return;
-
-      const existingIndex = appState.calendarsData.findIndex(
-        (c) => Number(c.id) === id,
-      );
-
-      if (existingIndex !== -1) {
-        appState.calendarsData[existingIndex] = {
-          ...appState.calendarsData[existingIndex],
-          ...calUpdate,
-        };
-      } else {
-        appState.calendarsData.push({ ...calUpdate });
-      }
-    });
-  }
-
-  // Refresh UI if tab is active
+  // Refresh calendars tab if active
   if (document.getElementById("calendars")?.classList.contains("active")) {
     renderCalendarsTable();
   }

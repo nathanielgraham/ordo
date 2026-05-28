@@ -25,7 +25,7 @@
   }
 }
 :root {
-  --navbar-height: 6.2rem;
+  --navbar-height: 11.5rem;
   --base-font: 14.5px;
   --scale: 1;
   --bg-primary: #0a0a0a;
@@ -1034,6 +1034,7 @@ tr.hidden {
   max-height: clamp(4rem, 10vw + 2rem, 6rem);
   width: auto;
 }
+/*
 #account .content-center,
 #calendars .content-center,
 #servers-content,
@@ -1043,6 +1044,7 @@ tr.hidden {
 .docs-grid,
 .tab-content,
 .tab-content.active,
+*/
 body,
 html,
 main {
@@ -1539,11 +1541,20 @@ progress::-moz-progress-bar {
   text-align: center;
   margin-bottom: 1.5rem;
 }
+
 #calendars .actions-right,
 #servers .actions-right,
 .actions-right {
   justify-content: center;
 }
+
+/* Specifically for T-minus */
+#calendars-table td:nth-child(8) {
+  font-feature-settings: "tnum";
+  letter-spacing: -0.02em;
+  min-width: 6.5rem;
+}
+
 .internal-tabs {
   display: flex;
   gap: 1rem;
@@ -1745,11 +1756,13 @@ html {
   overflow: hidden !important;
   height: 100vh !important;
 }
+/*
 .container {
   overflow-y: visible !important;
   padding-top: 1.5rem !important;
   min-height: calc(100vh - var(--navbar-height)) !important;
 }
+*/
 .btn {
   padding: 0.7rem 1.4rem !important;
 }
@@ -1858,105 +1871,6 @@ html {
   box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
 }
 
-/* Docs Content Styling */
-.docs-content h1,
-#docs-content h1 {
-  font-size: 2.4rem;
-  color: #0ff;
-  margin: 2.5rem 0 1rem;
-}
-
-.docs-content h2,
-#docs-content h2 {
-  font-size: 1.9rem;
-  color: #0ff;
-  margin: 2rem 0 1rem;
-}
-
-.docs-content h3,
-#docs-content h3 {
-  font-size: 1.5rem;
-  color: #0ff;
-  margin: 1.8rem 0 1rem;
-}
-
-.docs-content pre,
-#docs-content pre {
-  background: #0f0f1f;
-  border: 1px solid #333;
-  border-radius: 8px;
-  padding: 1.2rem;
-  overflow-x: auto;
-  margin: 1.5rem 0;
-  white-space: pre;
-}
-
-.docs-content code,
-#docs-content code {
-  background: #222;
-  padding: 2px 5px;
-  border-radius: 4px;
-  font-family: "Courier New", monospace;
-}
-
-/* ==================== DOCS LAYOUT ==================== */
-
-.docs-grid {
-  display: flex !important;
-  height: 100% !important;
-  gap: 2rem !important;
-}
-
-.docs-sidebar {
-  flex-shrink: 0;
-  width: 260px;
-  position: sticky !important;
-  top: 0 !important;
-  align-self: start !important;
-  height: fit-content !important;
-  background: #1a1a1a;
-  border: 1px solid #444;
-  border-radius: 8px;
-  padding: 1.5rem;
-}
-
-.docs-content {
-  flex: 1 1 auto !important;
-  height: 100% !important;
-  max-height: 100% !important;
-  min-height: 0 !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  padding-left: 1rem;
-  padding-right: 2rem;
-  background: #1a1a1a;
-/*
-  border: 1px solid #555 !important;
-  border-radius: 8px;
-*/
-}
-
-/* Docs Typography */
-.docs-content h1, #docs-content h1 { font-size: 2.4rem; color: #0ff; margin: 2.5rem 0 1rem; }
-.docs-content h2, #docs-content h2 { font-size: 1.9rem; color: #0ff; margin: 2rem 0 1rem; }
-.docs-content h3, #docs-content h3 { font-size: 1.5rem; color: #0ff; margin: 1.8rem 0 1rem; }
-
-.docs-content pre, #docs-content pre {
-  background: #0f0f1f;
-  border: 1px solid #333;
-  border-radius: 8px;
-  padding: 1.2rem;
-  overflow-x: auto;
-  margin: 1.5rem 0;
-}
-
-.docs-content code {
-  background: #222;
-  padding: 2px 5px;
-  border-radius: 4px;
-  font-family: "Courier New", monospace;
-}
-
 /* ==================== CLEAN LAYOUT CSS FOR CORE CONTAINERS ==================== */
 
 /* 1. Outer page */
@@ -1967,52 +1881,23 @@ html, body {
   padding: 0 !important;
 }
 
-/* 3. Tab content areas */
+/* 
 .tab-content.active,
 .main-content {
-  margin-top: var(--navbar-height) !important; 
-  /*padding-top: 1rem !important; */
-  /*padding-bottom: 9rem !important; */
+  margin-top: var(--navbar-height) !important;  
+  padding-top: 1rem !important; 
+  padding-bottom: 9rem !important; 
   height: calc(100vh - var(--navbar-height)) !important;
   overflow: hidden !important;
   box-sizing: border-box !important;
 }
 
-/* ==================== CONTENT-CENTER ==================== */
-
-.content-center {
-  /* margin-top: var(--navbar-height) !important;  */
-  padding: 0.5rem 1.5rem 5rem 1.5rem !important; 
-  height: calc(100vh - var(--navbar-height)) !important; 
-  /*height: 100vh; */
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  box-sizing: border-box !important;
-  background: var(--bg-primary) !important;
-}
+*/
 
 /* Hide scrollbar on .content-center when it contains .docs-content */
 .content-center:has(.docs-content) {
   overflow-y: hidden !important;
 }
-
-/* 5. table-container (used by table tabs) */
-.table-container {
-  height: 100% !important;
-  max-height: 100% !important;
-  overflow-y: auto !important;
-  overflow-x: auto !important;
-  /*padding-top: 4rem !important; */
-  padding-bottom: 5rem !important;   /* breathing room at bottom */
-  box-sizing: border-box !important;
-}
-
-/* Prevent double scrollbars */
-/*
-.content-center:has(.table-container) {
-  overflow-y: hidden !important;
-}
-*/
 
 /* Sticky table headers */
 .ordo-table thead th {
@@ -2169,12 +2054,182 @@ html, body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 180px;           /* adjust as needed */
+  max-width: 12rem; 
 }
 
 /* Specifically for T-minus */
 #tree-body td:nth-child(8) {
   font-feature-settings: "tnum";
   letter-spacing: -0.02em;
-  min-width: 95px;
+  min-width: 6.5rem;
 }
+
+/* ==================== DOCS TAB STYLING ==================== */
+.docs-grid {
+  display: flex;
+  gap: 2rem;
+  height: calc(100vh - var(--navbar-height) - 2rem);
+  overflow: hidden;
+}
+
+.docs-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 1.25rem;
+  overflow-y: auto;
+}
+
+.docs-main-content {
+  flex: 1;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 2rem 2.5rem;
+  overflow-y: auto;
+}
+
+/* Markdown Content Styling */
+.docs-content h1 {
+  font-size: 2.4rem;
+  color: #00ffff;
+  margin: 1.5rem 0 1rem;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 0.5rem;
+}
+
+.docs-content h2 {
+  font-size: 1.85rem;
+  color: #00ccff;
+  margin: 2rem 0 0.75rem;
+}
+
+.docs-content h3 {
+  font-size: 1.45rem;
+  color: #00aaff;
+  margin: 1.75rem 0 0.5rem;
+}
+
+.docs-content p {
+  line-height: 1.75;
+  margin-bottom: 1.25rem;
+  color: #e0e0e0;
+}
+
+.docs-content code {
+  background: #0f0f1f;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-family: "Courier New", monospace;
+  color: #00ffcc;
+}
+
+/* Code Blocks with Copy Button */
+.docs-content pre {
+  background: #0a0a0a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 1.25rem;
+  overflow-x: auto;
+  position: relative;
+  margin: 1.5rem 0;
+}
+
+.docs-content pre code {
+  background: transparent;
+  padding: 0;
+  color: #a0f0ff;
+}
+
+/* Copy Button */
+.copy-btn {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: rgba(0, 255, 255, 0.1);
+  color: #00ffff;
+  border: 1px solid #00ffff;
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  opacity: 0.85;
+  transition: all 0.2s;
+}
+
+.copy-btn:hover {
+  background: rgba(0, 255, 255, 0.25);
+  opacity: 1;
+}
+
+.docs-content,
+.docs-main-content {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 1.75rem 2.25rem 5rem 2rem;   /* generous bottom padding */
+  margin: 0;
+  box-sizing: border-box;
+}
+
+/* Parent height propagation - minimal */
+#docs .docs-grid {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 2rem;
+}
+
+/*
+#docs .main.container,
+#docs .tab-content.active,
+#docs .content-center {
+  height: calc(100vh - var(--navbar-height) - 1rem) !important;
+  overflow: hidden !important;
+}
+*/
+
+.content-center {
+  margin-top: var(--navbar-height) !important;  
+  padding: 0.5rem 1.5rem 5rem 1.5rem !important; 
+  height: calc(100vh - var(--navbar-height)) !important; 
+  height: 100vh; 
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+  background: var(--bg-primary) !important;
+}
+
+/*
+.content-center,
+.main.container, 
+.tab-content.active {
+  margin-top: var(--navbar-height) !important;    
+  padding: 0.75rem 1.5rem 4rem 1.5rem !important;
+  height: calc(100vh - var(--navbar-height)) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+  background: var(--bg-primary) !important;
+}
+*/
+
+.tab-content.active {
+  padding-top: 0.75rem !important;
+}
+
+.topnav, .navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3000;       
+  height: var(--navbar-height);
+}
+

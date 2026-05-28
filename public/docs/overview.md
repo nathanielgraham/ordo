@@ -1,63 +1,77 @@
-# Ordo Overview
+# Overview of Ordo
 
-**A modern hierarchical job scheduler with real-time monitoring, powerful dependencies, Quartz scheduling, and self-healing automation.**
+**Ordo** is a modern, hierarchical job scheduler that combines powerful automation capabilities with real-time visibility and deep AI integration. It is designed for teams that need reliable, observable, and intelligent automation — going far beyond traditional cron jobs or basic schedulers.
 
-Ordo was built to replace outdated tools like cron, AutoSys, and Control-M — giving you enterprise-grade capabilities with a beautiful, intuitive interface and full AI integration.
+## Standout Features
 
-## Core Concepts
+### Grok AI Integration (Natural Language Automation)
 
-- **Clusters** act like folders — organize your workflows logically
-- **Jobs** are the actual scripts (Shell, Python, Perl, etc.)
-- **Calendars** provide powerful recurring schedules (Quartz cron)
-- **Dependencies** let you build reliable pipelines
-- **MCP Connector** lets Grok directly control Ordo
+One of Ordo’s most powerful capabilities is its seamless integration with **Grok via MCP**.
 
-## Key Features
+You can create jobs, scripts, and schedules using plain English:
 
-- Real-time updates (no manual refresh needed)
-- Self-healing workflows with `on_fail`
-- Hierarchical design with visual dependency graphs
-- Full Quartz scheduling (advanced rules, holidays, business days)
-- Self-hosted and private by default
-- Beautiful web UI + powerful CLI + REST API
 
-## Quick Links
 
-- [Quickstart →](quickstart.md)
-- [MCP Connector for Grok →](mcp.md)
-- [Web UI Guide →](web-ui.md)
-- [REST API Reference →](rest-api.md)
-- [CLI Reference →](cli.md)
+- "Create a job called "daily-backup" in the "backups" cluster on server "liono" that runs every night at 2 AM and performs a full backup."
+- “Create a job that backs up my database and schedule it to run every night at 2 AM with 3 retries on failure.”
+- “Write a Python script that checks all servers for high memory usage and alerts me if anything exceeds 85%.”
+- “Add a job to the Monthly Reports calendar that runs on the first Monday of every month at 8 AM.”
+- “Analyze the logs of my last failed deployment job and tell me what went wrong.”
 
----
+**Grok can**:
+- Generate the actual script code
+- Create appropriate calendars and cron expressions
+- Set up dependencies and failure handling
+- **Read job logs and help debug failures** in natural language
 
-**2. quickstart.md** (short & friendly)
+This makes sophisticated automation accessible to both technical and non-technical users.
 
-```markdown
-# Quickstart
+### Hierarchical Workflows
 
-Get your first job running in under 5 minutes.
+Organize jobs into nested **Clusters** — like folders, but with powerful scheduling and dependency logic. This allows you to build complex, tree-structured workflows that are easy to manage and visualize.
 
-## 1. Sign In
-Open Ordo and log in.
+### Real-Time Observability
 
-## 2. Create a Cluster
-- Go to **Jobs & Clusters**
-- Click the ellipsis (...) next to `root/` → **Create Cluster**
-- Name it (e.g. `quickstart`) and save
+- Live T+ / T- timers
+- Real-time dashboard with running jobs, durations, and KPIs
+- Beautiful cyberpunk-style web UI with instant updates
 
-## 3. Add a Job
-- Open your new cluster
-- Click ellipsis → **Create Job**
-- Name: `hello-world`
-- Script: `echo "Hello from Ordo at $(date)"`
-- Save
+### Advanced Scheduling & Self-Healing
 
-## 4. Run It
-- Click the ellipsis on your job → **Run**
-- Watch the state change in real time
-- Click **View Log** to see the output
+- Full Quartz cron support (plus standard 5-field cron)
+- Flexible calendars with `Begin` and `Expire` dates
+- Automatic retries, on-fail routing, hold/ice/release controls
 
-**Congratulations!** You've run your first Ordo job.
+### Interactive Dependency Graph
 
-Next: [Web UI Guide →](web-ui.md)
+Ordo includes a powerful **visual dependency graph** for any cluster:
+
+- See the full relationships between jobs and sub-clusters
+- Color-coded nodes based on current jobstate (running, complete, failed, etc.)
+- Click any node to instantly open the edit modal
+- Clear legend for `needs`, `needs_any`, and `on_fail` relationships
+
+This makes it much easier to understand and debug complex, nested workflows at a glance.
+
+### Other Powerful Capabilities
+
+- Sophisticated dependency management (`needs`, `needs_any`, `on_fail`)
+- Centralized logging and job history
+- Multi-server fleet management with real-time stats
+- Team collaboration and permission system
+
+## Who Ordo Is For
+
+- DevOps and SRE teams managing production workloads
+- Data engineers building reliable pipelines
+- Development teams that need dependable recurring automation
+- Organizations that want to combine human-friendly AI assistance with industrial-grade scheduling
+
+## Where Ordo Fits in the Ecosystem
+
+Ordo occupies a unique position:
+- **More powerful and observable** than basic cron or systemd timers
+- **More lightweight and beautiful** than heavy orchestrators like Airflow or Prefect
+- **Enhanced with modern AI** (Grok) for natural language job creation and log analysis
+
+It gives teams **enterprise reliability** with modern usability and AI superpowers.

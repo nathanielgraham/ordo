@@ -5,7 +5,7 @@
       <!-- Sidebar -->
       <aside class="docs-sidebar">
         <div class="sidebar-menu">
-          <p class="menu-label">Ordo Documentation</p>
+          <p class="menu-label">Documentation</p>
           <ul class="menu-list" id="docs-toc">
             <!-- your menu items -->
             <li>
@@ -22,8 +22,8 @@
               >
             </li>
             <li>
-              <a href="#" data-file="web-ui.md" class="menu-link"
-                >Web UI Guide</a
+              <a href="#" data-file="calendars-and-crons.md" class="menu-link"
+                >Calendars & Cron</a
               >
             </li>
             <li>
