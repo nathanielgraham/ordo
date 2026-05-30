@@ -25,7 +25,6 @@
   }
 }
 :root {
-  --navbar-height: 11.5rem;
   --base-font: 14.5px;
   --scale: 1;
   --bg-primary: #0a0a0a;
@@ -39,6 +38,7 @@
   --glow-cyan-strong: rgba(0, 255, 255, 0.8);
   --shadow-neon: 0 4px 20px rgba(0, 255, 255, 0.3);
 }
+
 *,
 ::after,
 ::before {
@@ -46,21 +46,19 @@
   padding: 0;
   box-sizing: border-box;
 }
+
 #log-history-modal .modal-body,
-body,
-html {
-  padding: 0;
-}
-html {
-  font-size: clamp(8px, 1vw, 12px);
-  margin: 0;
-}
-body {
+html, body {
   height: 100%;
-  font-family: "Montserrat", sans-serif !important;
-  font-weight: 500;
-  font-size: clamp(10px, 1.2vw, 14px) !important;
+  margin: 0;
+  background-color: var(--bg-primary);  /* page background */
+  color: var(--chrome-light);         /* default text color */
+  font-size: 1rem;
+  font-family: "Montserrat", sans-serif; 
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
 .title-large,
 .title-medium,
 h1,
@@ -77,15 +75,7 @@ small {
 .tab-content {
   display: none !important;
 }
-body:not(.is-logged-in) .private-tabs {
-  display: none !important;
-}
-body.is-logged-in .public-tabs {
-  display: none !important;
-}
-body.scrolled .topnav {
-  box-shadow: 0 8px 30px rgba(0, 255, 255, 0.3) !important;
-}
+
 .close-btn::after,
 .close-btn::before {
   background: currentColor;
@@ -114,6 +104,7 @@ select:focus {
   border: 1px solid currentColor;
   padding: 0.25rem 0.5rem;
 }
+/*
 .ordo-table,
 .ordo-table td,
 .ordo-table th {
@@ -123,12 +114,15 @@ h3 {
   font-size: clamp(18px, 3vw, 28px) !important;
   font-size: 1.4rem !important;
 }
+*/
+/*
 .ordo-table,
 .ordo-table td,
 .ordo-table th,
 body {
   line-height: 1.6 !important;
 }
+*/
 .title-large,
 h1 {
   font-size: clamp(28px, 5vw, 48px) !important;
@@ -150,11 +144,6 @@ h2 {
 .toast i {
   font-size: clamp(18px, 2.5vw, 24px) !important;
 }
-/*
-main.content {
-  margin-top: var(--navbar-height, 60px);
-}
-*/
 .button {
   border: 1px solid var(--glow-blue);
   background: 0 0;
@@ -427,12 +416,14 @@ main.content {
   background: rgba(0, 255, 255, 0.1);
   border-color: var(--glow-blue);
 }
+/*
 body.is-logged-in [data-public="true"] {
   display: none !important;
 }
 body:not(.is-logged-in) [data-private="true"] {
   display: none !important;
 }
+*/
 .modal-header .close-btn::after,
 .modal-header .close-btn::before {
   content: "";
@@ -606,14 +597,6 @@ body:not(.is-logged-in) [data-private="true"] {
 .ordo-cluster-row.collapsed .ordo-toggle {
   transform: rotate(-90deg);
 }
-body,
-html {
-  color: var(--chrome-light);
-}
-html {
-  font-family: "Montserrat", sans-serif;
-  font-size: clamp(14px, 2vw + 0.5rem, 18px);
-}
 .container {
   width: 100%;
   max-width: 1400px;
@@ -636,16 +619,24 @@ html {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 2rem;
 }
-.private-tabs,
-.public-tabs {
-  display: none;
-}
+
 body:not(.is-logged-in) .public-tabs {
   display: flex;
 }
+body:not(.is-logged-in) .private-tabs {
+  display: none;
+}
+
 body.is-logged-in .private-tabs {
   display: flex;
 }
+
+body.is-logged-in .public-tabs {
+  display: none;
+}
+
+
+
 .tab-content {
   transition: opacity 0.3s ease;
   opacity: 0;
@@ -827,11 +818,6 @@ tr.hidden {
   justify-content: flex-end;
   gap: 1rem;
 }
-/*
-#servers-content {
-  min-height: calc(100vh - var(--navbar-height) - 6rem);
-}
-*/
 .ordo-table,
 .table-container {
   background: #1a1a1a;
@@ -1016,9 +1002,6 @@ tr.hidden {
 .brand-logo-img {
   pointer-events: auto;
 }
-.brand-logo-img {
-  max-height: 70px;
-}
 .ordo-table tbody td,
 .ordo-table thead th {
   padding: clamp(0.6rem, 1vw, 0.75rem) clamp(0.8rem, 1.5vw, 1rem);
@@ -1030,10 +1013,7 @@ tr.hidden {
   margin-bottom: clamp(1rem, 2vw, 2rem);
 }
 */
-.brand-logo-img {
-  max-height: clamp(4rem, 10vw + 2rem, 6rem);
-  width: auto;
-}
+
 /*
 #account .content-center,
 #calendars .content-center,
@@ -1045,36 +1025,7 @@ tr.hidden {
 .tab-content,
 .tab-content.active,
 */
-body,
-html,
-main {
-  background: var(--bg-primary) !important;
-}
-html {
-  height: 100%;
-  box-sizing: border-box;
-}
-body {
-  min-height: 100%;
-  margin: 0;
-}
-.container,
-.tab-content,
-main {
-  flex: 1 1 auto;
-/*  padding-top: var(--navbar-height); */
-}
-footer {
-  flex-shrink: 0;
-}
-.main.container {
-  padding-top: var(--navbar-height);
-  background: var(--bg-primary);
-  color: var(--chrome-light);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
+
 .dropdown {
   position: relative;
   display: inline-block;
@@ -1276,11 +1227,13 @@ footer {
   background: inherit;
   border-radius: 6px;
 }
+/*
 @media (max-width: 768px) {
   .grid-2 {
     grid-template-columns: 1fr;
   }
 }
+*/
 .internal-tab, 
 progress {
   background: #222;
@@ -1335,6 +1288,7 @@ progress::-moz-progress-bar {
   border-radius: 999px;
   box-shadow: 0 0 12px rgba(0, 255, 255, 0.5);
 }
+/*
 @media (max-width: 768px) {
   .info-grid {
     grid-template-columns: 1fr;
@@ -1343,6 +1297,7 @@ progress::-moz-progress-bar {
     text-align: left;
   }
 }
+*/
 .internal-tabs {
   justify-content: center;
   padding-bottom: 0.75rem;
@@ -1380,9 +1335,7 @@ progress::-moz-progress-bar {
   width: 100%;
   height: 0.3rem;
   background: var(--glow-cyan);
-/*  box-shadow: 0 0 15px var(--glow-cyan-strong);*/
   color: var(--glow-cyan);
-  color: #0ff;
   border-bottom: 0.2rem solid #0ff;
 }
 
@@ -1509,11 +1462,13 @@ progress::-moz-progress-bar {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 1.75rem;
 }
+/*
 @media (min-width: 1400px) {
   .dashboard-cards {
     grid-template-columns: repeat(4, 1fr);
   }
 }
+*/
 .card-top {
   display: flex;
   justify-content: space-between;
@@ -1656,10 +1611,7 @@ progress::-moz-progress-bar {
   flex-shrink: 0;
   font-size: 0.9rem;
 }
-body,
-html {
-  scroll-behavior: smooth;
-}
+
 .graph-body,
 .modal-body {
   scrollbar-gutter: stable;
@@ -1667,9 +1619,7 @@ html {
 header {
   z-index: 1000;
 }
-html {
-  font-size: calc(var(--base-font) * var(--scale)) !important;
-}
+
 .btn,
 .dropdown-item,
 .ordo-table td,
@@ -1748,31 +1698,11 @@ h2 {
 .ts-dropdown {
   z-index: 99999 !important;
 }
-body,
-html {
-  scrollbar-gutter: stable !important;
-  overflow-x: hidden !important;
-  overflow-y: hidden !important;
-  overflow: hidden !important;
-  height: 100vh !important;
-}
-/*
-.container {
-  overflow-y: visible !important;
-  padding-top: 1.5rem !important;
-  min-height: calc(100vh - var(--navbar-height)) !important;
-}
-*/
 .btn {
   padding: 0.7rem 1.4rem !important;
 }
-.app-wrapper {
-  display: flex !important;
-  flex-direction: column !important;
-  min-height: 100vh !important;
-}
+
 .ordo-table thead th {
-  top: var(--navbar-height) !important;
   position: sticky !important;
   top: 0 !important;
   z-index: 160 !important;
@@ -1873,26 +1803,13 @@ html {
 
 /* ==================== CLEAN LAYOUT CSS FOR CORE CONTAINERS ==================== */
 
-/* 1. Outer page */
-html, body {
-  height: 100vh !important;
-  overflow: hidden !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-/* 
-.tab-content.active,
 .main-content {
-  margin-top: var(--navbar-height) !important;  
-  padding-top: 1rem !important; 
-  padding-bottom: 9rem !important; 
-  height: calc(100vh - var(--navbar-height)) !important;
-  overflow: hidden !important;
-  box-sizing: border-box !important;
+  flex: 1 1 auto;
+  min-height: 100%;
+  /*overflow: auto; */
+  overflow-y: hidden; */
+  padding: 1.5rem
 }
-
-*/
 
 /* Hide scrollbar on .content-center when it contains .docs-content */
 .content-center:has(.docs-content) {
@@ -1925,47 +1842,26 @@ html, body {
 
 /* ==================== NAVBAR + TABS - FINAL POLISHED ==================== */
 
-.topnav {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  z-index: 4000 !important;
-  width: 100% !important;
-  display: flex !important;
-  flex-direction: column !important;
-  background: linear-gradient(to bottom, #0a1422, #000) !important;
-  box-shadow: 0 4px 25px rgba(0, 0, 0, 0.8) !important;
-}
-
-/* Logo Row - Centered */
-.nav-logo-row {
-  padding: 1.1rem 1.5rem 0.8rem 1.5rem !important;
-  flex-shrink: 0 !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
 /* Tabs Row - Centered */
 .nav-tabs-row {
+  align-items: center;
+  justify-content: center;
   padding: 0.65rem 1.5rem 0.85rem 1.5rem !important;
   flex-shrink: 0 !important;
   display: flex !important;
-  justify-content: center !important;
-  gap: 2.75rem !important;
-  /*border-top: 1px solid rgba(0, 255, 255, 0.18) !important; */
+  gap: 1rem;
+  min-height: 6rem;
+  display: flex;
 }
 
-/* Individual Tabs - Jost Font */
 .nav-tab {
   position: relative !important;
   font-family: "Jost", sans-serif !important;
   font-size: 1.2rem !important;
   text-transform: lowercase !important;
   letter-spacing: 1.8px !important;
-  padding: 0.7rem 1.5rem !important;
-  color: #b0c4de !important;
+  padding: 0.7rem 1.5rem !important; 
+  color: #b0c4de !important; 
   text-decoration: none !important;
   font-weight: 500 !important;
   transition: all 0.2s ease !important;
@@ -1981,24 +1877,36 @@ html, body {
   border-color: #0ff;
 }
 
-.nav-tab.active {
-  color: #0ff !important;
-  text-shadow: 0 0 20px rgba(0, 255, 255, 0.9) !important;
-  border-bottom: 0.2rem solid #0ff;
-}
-
 .nav-tab.active::after {
   content: "";
   position: absolute;
   bottom: -0.2rem;
   left: 0;
   width: 100%;
-  height: .4rem;
+  background: var(--glow-cyan);
+  color: var(--glow-cyan);
+  /* box-shadow: 0 0 2rem var(--glow-cyan-strong);  */
+  display: inline-flex; 
+  white-space: nowrap;
+  border-bottom: 0.6rem solid #0ff;
+}
+
+/*
+.nav-tab.active::after {
+  content: "";
+  position: relative;
+  bottom: -0.2rem;
+  left: 0;
+  width: 100%;
+  height: 0.3rem;
   background: var(--glow-cyan);
   box-shadow: 0 0 2rem var(--glow-cyan-strong);
-  display: inline-block; 
+  color: var(--glow-cyan);
+  border-bottom: 0.2rem solid #0ff; 
   white-space: nowrap;
 }
+*/
+
 
 /* ==================== DASHBOARD MINI-ITEMS (Tighter & Narrower) ==================== */
 .mini-item {
@@ -2065,12 +1973,6 @@ html, body {
 }
 
 /* ==================== DOCS TAB STYLING ==================== */
-.docs-grid {
-  display: flex;
-  gap: 2rem;
-  height: calc(100vh - var(--navbar-height) - 2rem);
-  overflow: hidden;
-}
 
 .docs-sidebar {
   width: 260px;
@@ -2082,6 +1984,7 @@ html, body {
   overflow-y: auto;
 }
 
+/*
 .docs-main-content {
   flex: 1;
   background: #1a1a1a;
@@ -2090,6 +1993,7 @@ html, body {
   padding: 2rem 2.5rem;
   overflow-y: auto;
 }
+*/
 
 /* Markdown Content Styling */
 .docs-content h1 {
@@ -2164,26 +2068,14 @@ html, body {
   opacity: 1;
 }
 
-.docs-content,
-.docs-main-content {
-  flex: 1 1 auto !important;
-  min-height: 0 !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  background: #1a1a1a;
-  border: 1px solid #444;
-  border-radius: 8px;
-  padding: 1.75rem 2.25rem 5rem 2rem;   /* generous bottom padding */
-  margin: 0;
-  box-sizing: border-box;
-}
-
 /* Parent height propagation - minimal */
 #docs .docs-grid {
   height: 100% !important;
   display: flex !important;
   flex-direction: row !important;
   gap: 2rem;
+  display: flex;
+  overflow: hidden;
 }
 
 /*
@@ -2195,16 +2087,15 @@ html, body {
 }
 */
 
+/*
 .content-center {
-  margin-top: var(--navbar-height) !important;  
-  padding: 0.5rem 1.5rem 5rem 1.5rem !important; 
-  height: calc(100vh - var(--navbar-height)) !important; 
   height: 100vh; 
   overflow-y: auto !important;
   overflow-x: hidden !important;
   box-sizing: border-box !important;
   background: var(--bg-primary) !important;
 }
+*/
 
 /*
 .content-center,
@@ -2224,12 +2115,202 @@ html, body {
   padding-top: 0.75rem !important;
 }
 
-.topnav, .navbar {
-  position: fixed;
+/* ==================== CLEAN FOCUS STYLES FOR DOCS ==================== */
+.docs-content {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 8px;
+/* 
+  padding: 1.75rem 2rem 1.75rem 2rem; 
+  padding-left: 1rem;  
+  padding-right: 1rem;  
+  padding-top: 0.5rem;
+  padding-left: 2em;  
+  padding-right: 2rem;  
+*/
+  margin: 0;
+  box-sizing: border-box;
+}
+
+#docs-content {
+  outline: none; /* Remove ugly focus outline */
+  scroll-behavior: smooth;
+  padding-left: 2em;  
+  padding-right: 2rem;  
+  padding-top: 0.2rem;
+  padding-bottom: 2rem;  
+}
+
+/* Box-sizing + base */
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+
+/* Page-level column layout so header + content stack */
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+/* Sticky top nav (stays visible at top when scrolling) */
+.topnav {
+  position: sticky;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 3000;       
-  height: var(--navbar-height);
+  z-index: var(--nav-z);
+  background: var(--nav-bg);
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  display: flex;
+  flex-direction: column; /* allows logo row + tabs row */
 }
+
+/* Logo row */
+.nav-logo-row {
+  gap: var(--gap);
+  padding: 1.1rem 1.5rem 0.8rem 1.5rem !important;
+  flex-shrink: 0;
+  display: flex; 
+  align-items: center;
+  justify-content: center;
+}
+.nav-logo-row {
+  padding: 1.1rem 1.5rem 0.8rem 1.5rem !important;
+  flex-shrink: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.brand-link { display: inline-flex; align-items: center; text-decoration: none; color: inherit; }
+.brand-logo-img { width: auto; display: block; }
+
+/*
+.nav-tabs-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 16px;
+  gap: 8px;
+  -webkit-overflow-scrolling: touch;
+  background: inherit;
+}
+
+.tab-group { display: flex; gap: 8px; align-items: center; }
+.nnnnav-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: inherit;
+  white-space: nowrap;
+  font-size: 0.95rem;
+}
+
+.nav-tab {
+  background: none;
+  border: none;
+  color: var(--chrome-mid);
+  font-size: 1.15rem;
+  font-weight: 600;
+  padding: 0.5rem 0;
+  cursor: pointer;
+  position: relative;
+  white-space: nowrap;
+  transition: all 0.25s ease;
+}
+*/
+
+
+/* App wrapper and main content (flex so main can grow/scroll) */
+.app-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;           /* allow children to shrink for scrolling */
+  border-top: 1px solid transparent; /* prevents margin collapse of first child */
+}
+.main-content {
+  flex: 1 1 auto;
+  min-height: 0;           /* required for overrflow to work in flex layout */
+  overflow: auto;
+  padding: 1.25rem;        /* breathing room from edges and sticky nav */
+}
+
+/*
+@media (min-width: 900px) {
+  .nav-logo-row { padding: 14px 24px; }
+  .nav-tabs-row { padding: 10px 24px; height: 40px; }
+  .brand-logo-img { height: 40px; }
+  .main-content { padding: 2rem; max-width: 1200px; margin: 0 auto; width: 100%; }
+}
+*/
+
+/* Logo row: left-aligned brand, center vertically; keeps room on small screens */
+/*
+.nav-logo-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;                
+  padding: 12px 16px;     
+  min-height: 38px;    
+}
+
+.nav-tabs-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;       
+  gap: 8px;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+.nav-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 0.95rem;
+  white-space: nowrap;        
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.nav-tab:focus-visible {
+  box-shadow: 0 0 0 3px rgba(14,165,164,0.18);
+  border-radius: 8px;
+}
+*/
+
+/*
+.nav-tab {
+  display: inline-block;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;  
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.nav-tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  color: inherit;
+  text-decoration: none;
+  background: transparent; 
+  box-sizing: border-box;
+}
+*/
+
+/*
+.nav-tabs-row, .tab-group { display: flex; align-items: center; gap: 8px; }
+*/
 

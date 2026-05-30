@@ -35,7 +35,6 @@
   <!-- Main Application Wrapper -->
   <div class="app-wrapper">
     <main class="main-content">
-      <%= include 'partials/about' %>
       <%= include 'partials/docs' %>
       <%= include 'partials/pricing' %>
       <%= include 'partials/servers' %>

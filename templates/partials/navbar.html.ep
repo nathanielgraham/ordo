@@ -26,7 +26,6 @@
     <!-- Public tabs (logged out) -->
     <div class="nav-tabs public-tabs" data-group="public" hidden>
       <div class="tab-group">
-        <a href="#" class="nav-tab active" data-tab="about">about</a>
         <a href="#" class="nav-tab" data-tab="docs">docs</a>
         <a href="#" class="nav-tab" data-tab="pricing">pricing</a>
         <a href="#" class="nav-tab" id="logged-out-login-tab">log in</a>

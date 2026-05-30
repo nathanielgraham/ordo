@@ -27,7 +27,7 @@ export const appState = {
   currentEditServerId: null,
 
   // === TAB & COLLAPSE STATE ===
-  currentTab: "about",          // safe default
+  currentTab: "docs",          // safe default
 
   collapsedClusters: new Set(
     JSON.parse(localStorage.getItem("ordo_collapsed_clusters") || "[]")

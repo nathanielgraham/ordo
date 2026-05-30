@@ -578,16 +578,9 @@ function renderTeamMembers(members) {
 // ==================== ACTIONS ====================
 
 export async function refreshSettings() {
-  try {
-    await Promise.all([
-      sendWS({ command: "read_user" }),
-      sendWS({ command: "read_org" }),
-      sendWS({ command: "find_monitor" }),
-    ]);
-    console.log("[Settings] Data refreshed");
-  } catch (e) {
-    console.error("[Settings] Refresh failed", e);
-  }
+   sendWS({ command: "read_user" });
+   sendWS({ command: "read_org" });
+   sendWS({ command: "find_monitor" });
 }
 
 export async function saveAccount() {
@@ -1371,27 +1364,20 @@ export function loadDoc(file) {
         hljs.highlightAll();
       }
 
-      // Update active link
-      document
-        .querySelectorAll("#docs-toc a")
-        .forEach((a) => a.classList.remove("active"));
-      const activeLink = document.querySelector(
-        `#docs-toc a[data-file="${file}"]`,
+      // Update active TOC link
+      document.querySelectorAll("#docs-toc a").forEach((a) =>
+        a.classList.remove("active")
       );
+      const activeLink = document.querySelector(`#docs-toc a[data-file="${file}"]`);
       if (activeLink) activeLink.classList.add("active");
 
-      // Strong reflow after content load
-      setTimeout(() => {
-        const scrollArea = document.querySelector(
-          ".content-center, .docs-main-content, .docs-content",
-        );
-        if (scrollArea) {
-          scrollArea.style.height = "auto";
-          void scrollArea.offsetHeight;
-          scrollArea.style.height = "100%";
-          scrollArea.style.overflowY = "auto";
-        }
-      }, 150);
+      // === FOCUS THE CONTENT AREA FOR IMMEDIATE KEYBOARD SCROLLING ===
+      const docsContent = document.getElementById("docs-content");
+      if (docsContent) {
+        docsContent.tabIndex = -1;       
+        docsContent.focus();
+        docsContent.scrollTop = 0;
+      }
     })
     .catch((err) => {
       document.getElementById("docs-content").innerHTML =
@@ -1472,6 +1458,7 @@ function attachDocsTocListener() {
 document.addEventListener("DOMContentLoaded", attachDocsTocListener);
 
 // Re-attach when switching to Docs tab
+/*
 const originalTabHandler = window.activateTab || function () {};
 window.activateTab = function (tabId) {
   if (typeof originalTabHandler === "function") originalTabHandler(tabId);
@@ -1480,6 +1467,7 @@ window.activateTab = function (tabId) {
     setTimeout(attachDocsTocListener, 200);
   }
 };
+*/
 
 export function attachCalendarsTreeListeners() {
   const tbody = document.getElementById("calendars-body");

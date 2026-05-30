@@ -54,24 +54,27 @@
             <li>✓ 1,000 API calls/month</li>
             <li>✓ 3 Servers</li>
             <li>✓ 2 Team Members</li>
+            <li>✓ Online docs</li>
           </ul>
           <button class="btn btn-ghost neon-ghost w-full mt-large" disabled>Current Plan</button>
         </div>
 
-        <!-- Starter -->
+<!--
         <div class="card-simple text-center" id="plan-starter">
           <h4 class="title-medium">Starter</h4>
           <div class="price-box">
             <span class="text-5xl font-bold">$19</span><span class="text-grey">/mo</span>
           </div>
           <ul>
-            <li>✓ 50,000 API calls/month</li>
+            <li>✓ 20,000 API calls/month</li>
             <li>✓ 10 Servers</li>
             <li>✓ 5 Team Members</li>
+            <li>✓ Online Documentation</li>
           </ul>
           <button class="btn btn-primary w-full mt-large" data-plan="starter">Upgrade — $19/mo</button>
         </div>
 
+-->
         <!-- Pro -->
         <div class="card-simple text-center" id="plan-pro">
           <h4 class="title-medium">Pro</h4>
@@ -79,25 +82,25 @@
             <span class="text-5xl font-bold">$49</span><span class="text-grey">/mo</span>
           </div>
           <ul>
-            <li>✓ 100,000 API calls/month</li>
+            <li>✓ 60,000 API calls/month</li>
             <li>✓ 30 Servers</li>
             <li>✓ 10 Team Members</li>
+            <li>✓ Email support</li>
           </ul>
           <button class="btn btn-primary w-full mt-large" data-plan="pro">Upgrade — $49/mo</button>
         </div>
 
         <!-- Enterprise -->
         <div class="card-simple text-center" id="plan-enterprise">
-          <h4 class="title-medium">Enterprise</h4>
+          <h4 class="title-medium">Custom</h4>
           <div class="price-box">
-            <span class="text-5xl font-bold">Custom</span>
+            <span class="text-5xl font-bold">Want something else? Ask!</span>
           </div>
           <ul>
-            <li>✓ Dedicated Hardware</li>
-            <li>✓ Unlimited API calls</li>
-            <li>✓ Unlimited Servers</li>
-            <li>✓ Unlimited Team Members</li>
-            <li>✓ Email support</li>
+            <li>✓ Private Scheduler</li>
+            <li>✓ Unlimited Everything</li>
+            <li>✓ Advanced Features</li>
+            <li>✓ Priority support</li>
           </ul>
           <button class="btn btn-primary w-full mt-large" id="contact-sales-btn">
             Contact Sales

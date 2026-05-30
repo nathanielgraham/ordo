@@ -9,16 +9,11 @@
           <ul class="menu-list" id="docs-toc">
             <!-- your menu items -->
             <li>
-              <a href="#" data-file="quickstart.md" class="menu-link active"
+              <a href="#" data-file="overview.md" class="menu-link active">Overview</a>
+            </li>
+            <li>
+              <a href="#" data-file="quickstart.md" class="menu-link"
                 >Quickstart</a
-              >
-            </li>
-            <li>
-              <a href="#" data-file="overview.md" class="menu-link">Overview</a>
-            </li>
-            <li>
-              <a href="#" data-file="mcp.md" class="menu-link"
-                >Connecting to Grok</a
               >
             </li>
             <li>
@@ -27,7 +22,9 @@
               >
             </li>
             <li>
-              <a href="#" data-file="cli.md" class="menu-link">CLI Reference</a>
+              <a href="#" data-file="mcp.md" class="menu-link"
+                >Connecting to Grok</a
+              >
             </li>
             <li>
               <a href="#" data-file="rest-api.md" class="menu-link">REST API</a>

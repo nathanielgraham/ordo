@@ -226,7 +226,7 @@ sub startup {
       '/confirm' => sub {
          my $c           = shift;
          my $jwt         = $c->param('jwt');
-         my $redirect_to = $c->param('redirect_to') || '';
+         #my $redirect_to = $c->param('redirect_to') || '';
 
          unless ($jwt) {
             $c->render( text => 'Missing JWT', status => 400 );
@@ -263,20 +263,22 @@ sub startup {
             }
          );
 
+         $c->redirect_to('/#dashboard');    # Returning user → Dashboard
+
          # Smart redirect logic
-         if ( $redirect_to eq 'pricing' || $redirect_to eq 'upgrade' ) {
-            $c->redirect_to('/#settings')
-              ;    # Return to Settings after upgrade intent
-         }
+         #if ( $redirect_to eq 'pricing' || $redirect_to eq 'upgrade' ) {
+         #   $c->redirect_to('/#settings')
+         #     ;    # Return to Settings after upgrade intent
+         #}
 
          #elsif ( !$u->{update_time} || $u->{creation_time} > time - 86400 ) {
 
          # New user (created in last 24 hours)
          #$c->redirect_to('/#docs/quickstart');    # Best onboarding
          #}
-         else {
-            $c->redirect_to('/#dashboard');    # Returning user → Dashboard
-         }
+         #else {
+         #   $c->redirect_to('/#dashboard');    # Returning user → Dashboard
+         #}
       }
    );
 

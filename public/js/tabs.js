@@ -1,4 +1,4 @@
-// tabs.js – tab navigation + default activation
+// tabs.js – Clean tab system
 import {
   loadDoc,
   refreshSettings,
@@ -6,171 +6,90 @@ import {
   renderDashboard,
   startDashboardLiveTimer,
   stopDashboardLiveTimer,
-  loadDashboardStats,
 } from "./ui-handlers.js";
 import { startLiveTimings, stopLiveTimings } from "./tree/tree-table.js";
-import { appState } from "./state.js";
 
-// ==================== UNIFIED TAB ACTIVATION ====================
-export function activateTab() {
+// ==================== CORE ACTIVATION ====================
+export function activateTab(tabId = null) {
+  let targetTab = tabId;
   const hash = window.location.hash.replace("#", "").trim();
-  console.log(`[ACTIVATE TAB] Raw hash = "${hash}"`);
 
-  if (hash) {
-    const parts = hash.split("/");
-    const tabName = parts[0];
-    let docSlug = parts[1];
+  if (!targetTab) {
+    targetTab = hash ? hash.split("/")[0] : 
+      (document.body.classList.contains("is-logged-in") ? "dashboard" : "docs");
+  }
 
-    console.log(`[ACTIVATE TAB] tab=${tabName}, slug=${docSlug}`);
+  console.log(`[ACTIVATE TAB] → "${targetTab}"`);
 
-    // Activate main Docs tab
-    // const tabLink = document.querySelector(`.nav-tab[data-tab="${tabName}"]`);
-    // if (tabLink) tabLink.click();
+  // Visual nav
+  document.querySelectorAll(".nav-tab").forEach(l => 
+    l.classList.toggle("active", l.dataset.tab === targetTab)
+  );
 
-    // Activate the tab visually
-    const tabLink = document.querySelector(`.nav-tab[data-tab="${tabName}"]`);
-    if (tabLink) {
-      tabLink.classList.add("active");
-    }
+  // Special handling
+  if (["monitor", "servers", "calendars"].includes(targetTab)) {
+    startLiveTimings();
+  } else {
+    stopLiveTimings();
+  }
 
-    // Switch content
-    document
-      .querySelectorAll(".tab-content")
-      .forEach((s) => s.classList.remove("active"));
-    const target =
-      document.getElementById(tabName) ||
-      document.querySelector(`section[id="${tabName}"]`);
-    if (target) target.classList.add("active");
-
-    // === DASHBOARD TIMER LOGIC ===
-    if (tabName === "dashboard") {
-      console.log(
-        "[ACTIVATE TAB] Dashboard activated on load → starting live timer",
-      );
+  if (targetTab === "dashboard") {
+      renderDashboard();
       startDashboardLiveTimer();
-    } else {
+  }
+  else {
       stopDashboardLiveTimer();
-    }
+  }
 
-    if (tabName === "docs" && docSlug) {
-      // Normalize slug to filename
-      let filename = docSlug.endsWith(".md") ? docSlug : `${docSlug}.md`;
+  if (targetTab === "settings") {
+    const loading = document.getElementById("settings-loading");
+    const content = document.getElementById("settings-content");
 
-      // Special mappings
-      if (docSlug === "rest-api" || docSlug === "rest")
-        filename = "rest-api.md";
-      if (docSlug === "video-tutorials") filename = "video-tutorials.md";
+    if (loading) loading.style.display = "none";
+    if (content) content.style.display = "block";
 
-      console.log(`[ACTIVATE TAB] Attempting to load: ${filename}`);
+    // Force refresh data
+    refreshSettings();
+  }
+  else if (targetTab === "docs") {
+    const slug = hash.split("/")[1];
+    const file = slug ? (slug.endsWith(".md") ? slug : `${slug}.md`) : "overview.md";
+    setTimeout(() => loadDoc(file), 100);
+  }
 
-      setTimeout(() => {
-        const link = document.querySelector(`a[data-file="${filename}"]`);
-        if (link) {
-          console.log(`[ACTIVATE TAB] ✅ SUCCESS: Clicking ${filename}`);
-          link.click();
-        } else {
-          console.error(`[ACTIVATE TAB] ❌ Link not found for ${filename}`);
-          // Fallback
-          const fallback = document.querySelector('a[data-file="overview.md"]');
-          if (fallback) fallback.click();
-        }
-      }, 450);
-    }
+  // Content switch
+  document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
+  const content = document.getElementById(targetTab);
+  if (content) content.classList.add("active");
+
+}
+
+// ==================== CLICK HANDLER ====================
+function handleTabClick(e) {
+  e.preventDefault();
+  const tabId = e.currentTarget.dataset.tab;
+
+  if (tabId === "pricing") {
+    showPricingModal();
     return;
   }
 
-  // Default for returning users
-  const isLoggedIn = document.body.classList.contains("is-logged-in");
-  if (isLoggedIn) {
-    document.querySelector('.nav-tab[data-tab="dashboard"]')?.click();
-  } else {
-    document.querySelector('.nav-tab[data-tab="about"]')?.click();
+  // Only update hash for docs deep links
+  if (tabId === "docs") {
+    window.location.hash = "docs";
+  } else if (window.location.hash) {
+    history.replaceState(null, null, window.location.pathname);
   }
+
+  activateTab(tabId);
 }
 
-export function attachTabListeners() {
-  const tabLinks = document.querySelectorAll(".nav-tab[data-tab]");
-  console.log(`Found ${tabLinks.length} tab links`);
-
-  let currentTabId = null;
-
-  tabLinks.forEach((link) => {
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-
-      const tabId = link.dataset.tab;
-      const oldTabId = currentTabId;
-      currentTabId = tabId;
-
-      console.log("[DEBUG] Tab clicked:", tabId, "(previous:", oldTabId, ")");
-
-      // Special cases
-      if (tabId === "pricing") {
-        showPricingModal();
-        return;
-      }
-
-      // ==================== DASHBOARD ====================
-      if (tabId === "dashboard") {
-        console.log("[DEBUG] Activating dashboard tab");
-
-        renderDashboard();
-
-        // Force initial stats load on first visit
-        //if (!appState.dashboardStatsLoaded) {
-        //  appState.dashboardStatsLoaded = true;
-        //  loadDashboardStats();
-        //}
-
-        startDashboardLiveTimer();
-      } else if (oldTabId === "dashboard") {
-        appState.dashboardStatsLoaded = false;
-        stopDashboardLiveTimer();
-      }
-
-      // Other tabs
-      if (tabId === "docs") {
-        const docsContent = document.getElementById("docs-content");
-        if (
-          docsContent &&
-          (!docsContent.innerHTML || docsContent.innerHTML.trim() === "")
-        ) {
-          loadDoc("overview.md");
-        }
-      }
-
-      if (tabId === "settings") {
-        console.log("[DEBUG] Activating Settings tab");
-
-        const loading = document.getElementById("settings-loading");
-        const content = document.getElementById("settings-content");
-
-        if (loading) loading.style.display = "none";
-        if (content) content.style.display = "block";
-
-        // Force refresh data
-        refreshSettings();
-      }
-
-      // Live timings
-      if (tabId === "monitor" || tabId === "servers" || tabId === "calendars") {
-        startLiveTimings();
-      } else {
-        stopLiveTimings();
-      }
-
-      // Switch active tab
-      tabLinks.forEach((l) => l.classList.remove("active"));
-      link.classList.add("active");
-
-      // Switch content
-      document
-        .querySelectorAll(".tab-content")
-        .forEach((s) => s.classList.remove("active"));
-      let target =
-        document.getElementById(tabId) ||
-        document.querySelector(`section[id="${tabId}"]`);
-      if (target) target.classList.add("active");
-    });
+// ==================== INITIALIZATION ====================
+export function initTabSystem() {
+  document.querySelectorAll(".nav-tab[data-tab]").forEach(link => {
+    link.addEventListener("click", handleTabClick);
   });
+
+  // Initial activation
+  setTimeout(activateTab, 150);
 }
