@@ -1,4 +1,5 @@
 package ordo;
+
 use Mojo::Base 'Mojolicious';
 use Mojo::SQLite;
 use ordo::Model::User;
@@ -50,12 +51,13 @@ has 'cron' => sub {
    state $timer = {};
 };
 
+# pre-filter 
 has 'quartz_rx' => sub {
    state $quartz = qr{
   ^\s*
-  (?:[A-Z0-9,\/\-\*\?\#LW]{1,11})             # field 1 (seconds)
-  (?:\s+[A-Z0-9,\/\-\*\?\#LW]{1,11}){5}       # next 5 fields (minutes,hours,DOM,month,DOW)
-  (?:\s+[A-Z0-9,\/\-\*\?\#LW]{1,11})?         # optional year field
+  (?:[A-Z0-9,\/\-\*\?\#LW]{1,11})            # field 1 (seconds)
+  (?:\s+[A-Z0-9,\/\-\*\?\#LW]{1,11}){3,5}    # next 5 fields (minutes,hours,DOM,month,DOW)
+  (?:\s+[A-Z0-9,\/\-\*\?\#LW]{1,11})         # optional year field
   \s*$
   }ix
 };
@@ -184,7 +186,6 @@ sub startup {
             $c->render( template => 'login' );
         }
     );
-=cut
 
    $r->post(
       '/login' => sub {
@@ -211,7 +212,6 @@ sub startup {
       }
    );
 
-=pod
     $r->get(
         '/logout' => sub {
             my $c = shift;
@@ -438,7 +438,7 @@ sub startup {
 
          # Try execution token first
          if ($token) {
-            my $org = $self->sqlite->db->select( 'org', ['id'],
+            my $org = $self->sqlite->db->select( 'org', ['*'],
                { execution_token => $token } )->hash;
 
             if ($org) {
@@ -448,6 +448,7 @@ sub startup {
                   org_id         => $org->{id},
                   token          => $token,
                   remote_address => $c->tx->remote_address,
+                  root_cluster_id => $org->{root_cluster_id},
                );
 
                if ( $self->_is_execution_command($command) ) {
@@ -658,7 +659,7 @@ sub validate_params {
       elsif ( $type eq 'n' )
       {            # name (job/cluster/cal/server) — allow slashes for /root
          return ( 0, "invalid name for $key" )
-           unless $value =~ /^[\w\/\-_\.\s]{1,25}$/;
+           unless $value =~ /^[\w\/\-_\.\s\&]{1,25}$/;
          $clean->{$key} = $value =~ s/^\s+|\s+$//gr;
       }
       elsif ( $type eq 'd' ) {    # description
@@ -1313,6 +1314,11 @@ sub _start_cluster {
    my $hold     = $self->job_states->{hold};
    my $ice      = $self->job_states->{ice};
 
+#print "CLUSTER\n";
+#print Dumper($cluster);
+#print "USER\n";
+#print Dumper($user);
+
    if ( $cluster->{id} == $user->root_cluster_id ) {
       return { success => 0, message => 'root cluster cannot be started' };
    }
@@ -1698,7 +1704,7 @@ sub update_cluster {
    }
    else {
       $self->_broadcast_cluster( $user, [$cluster_id] );
-      return { success => 1 };
+      return { success => 1, 'cluster updated' };
    }
 }
 
@@ -1858,10 +1864,10 @@ sub create_cluster {
    }
    if ($id) {
       $self->_broadcast_cluster( $user, [$id] );
-      return { success => 1, id => $id };
+      return { success => 1, id => $id, message => "new cluster created" };
    }
    else {
-      return { success => 0 };
+      return { success => 0, "error creating cluster" };
    }
 }
 
@@ -2970,7 +2976,12 @@ sub _create_job {
    );
 
    $self->_broadcast_job( $user, [$id] );
-   return { success => 1, id => $id, cluster_id => $parent_id };
+   return { 
+     success => 1, 
+     id => $id, 
+     cluster_id => $parent_id, 
+     message => "new job created in cluster id $parent_id"
+  };
 }
 
 sub read_job {
@@ -3383,12 +3394,9 @@ sub _update_job_log {
 
       # Auto-cleanup: delete oldest log if > 12
       if ($rows) {
-         print "CLEANUP\n";
          my $count = $self->sqlite->db->query(
             "SELECT count(*) as count FROM job_log WHERE job_id = ?",
             $d->{job_id} )->hash->{count};
-
-         print "ROWS $rows COUNT $count\n";
 
          # delete oldest if oldest < yesterday and count > 12
 
@@ -3402,7 +3410,6 @@ sub _update_job_log {
             if ( $oldest->{started} < ( time - 86400 ) ) {
                my $delete_file =
 "$log_dir/out.$oldest->{job_id}.$oldest->{ppid}.$oldest->{log_id}.log";
-               print "DELETE OLDEST\n";
                $self->sqlite->db->delete( 'job_log', { id => $oldest->{id} } );
 
                # Cross-platform log file deletion (Perl unlink via SSH)
@@ -3575,7 +3582,7 @@ sub update_job_config {
       $self->_broadcast_job( $user, [ $job->{id} ] );
    }
 
-   return { success => 1 };
+   return { success => 1, message => 'job updated' };
 }
 
 sub _resolve_job_ids {

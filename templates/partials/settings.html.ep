@@ -6,13 +6,13 @@
       <p class="mt-medium">Loading settings...</p>
     </div>
     <div id="settings-content" style="display: none">
-      <!-- Refresh Button -->
+<!--
       <div class="actions-right">
         <button id="refresh-settings" class="btn btn-ghost neon-ghost">
           <i class="fas fa-sync-alt"></i> Refresh
         </button>
       </div>
-
+-->
       <!-- Internal Tabs -->
       <div class="internal-tabs">
         <button class="internal-tab active" data-tab="account-tab">

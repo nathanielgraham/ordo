@@ -2,18 +2,9 @@
 
 **Where AI stops talking... and starts doing.**
 
+While modern AI has become extraordinarily good at thinking, planning, and reasoning, it has historically been limited by its inability to *execute* real work on your infrastructure.
 
-While modern AI (especially Grok) has become extraordinarily good at thinking, planning, and reasoning, it has historically been limited by its inability to *execute* real work on your infrastructure.
-
-**Ordo** is the bridge — a modern, hierarchical job scheduler with native MCP (Model Context Protocol) support. This allows Grok to directly explore, create, schedule, monitor, and debug jobs running on **your** servers.
-
----
-
-## Ordo Works With or Without AI
-
-**Ordo is a fully functional, powerful job scheduler on its own.** You can use it perfectly well without any AI integration.
-
-However, when connected to Grok via MCP, it becomes something much more powerful — an **AI-native automation platform** where Grok can directly create, schedule, monitor, and debug jobs using natural language.
+**Ordo** is the bridge — a modern, hierarchical job scheduler with native MCP support. This allows Grok to directly explore, create, schedule, monitor, and debug jobs running on **your** servers.
 
 ---
 
@@ -35,7 +26,7 @@ However, when connected to Grok via MCP, it becomes something much more powerful
   Automatic retries, failure routing, hold/ice/release controls, and more.
 
 
-## Grok + Ordo in Action
+## Ordo + Grok in Action
 
 You can say things like:
 
@@ -48,16 +39,24 @@ You can say things like:
 
 ---
 
+## Ordo Works With or Without AI
+
+**Ordo is a fully functional, powerful job scheduler on its own.** You can use it perfectly well without any AI integration.
+
+However, when connected to Grok via MCP, it becomes something much more powerful — an **AI-native automation platform** where Grok can directly create, schedule, monitor, and debug jobs using natural language.
+
+---
+
 ## Who Ordo Is For
 
-- DevOps and SRE teams
-- Data engineers building reliable pipelines
+- Organizations that want reliable automation at a reasonable price
 - AI enthusiasts who want their agents to take real action
-- Organizations that want powerful automation without vendor lock-in
+- Data engineers building reliable pipelines
+- DevOps and SRE teams
 
 ## Ready to Begin?
 
-1. **Log in to create a Free Account** – No credit card required.
-2. **Read the Quickstart Guide**
-2. **Connect to Grok** *(Highly Recommended)*
-3. **Start building**
+1. **Sign up for a free account** – No credit card required
+2. Read the [Quickstart](#docs/quickstart.md) guide
+3. **Start building!**
+

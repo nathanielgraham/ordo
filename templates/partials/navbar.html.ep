@@ -28,7 +28,7 @@
       <div class="tab-group">
         <a href="#" class="nav-tab" data-tab="docs">docs</a>
         <a href="#" class="nav-tab" data-tab="pricing">pricing</a>
-        <a href="#" class="nav-tab" id="logged-out-login-tab">log in</a>
+        <a href="#" class="nav-tab" id="logged-out-login-tab">sign up</a>
       </div>
     </div>
   </div>

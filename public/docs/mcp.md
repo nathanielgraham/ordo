@@ -1,4 +1,4 @@
-# Connecting to Grok
+# Connecting to AI
 
 Ordo now supports **Model Context Protocol (MCP)**, allowing Grok to directly control your job scheduler.
 
@@ -7,7 +7,7 @@ Ordo now supports **Model Context Protocol (MCP)**, allowing Grok to directly co
 1. Copy your API token from the Settings → Account tab
 2. Tell Grok in the chat:
 
-> Connect to my Ordo at `https://your-ordo.example.com/mcp` with token `YOUR_TOKEN_HERE`
+> Connect to Ordo at `https://ordoscheduler.com/mcp` with token `YOUR_TOKEN_HERE`
 
 Grok will remember the connection for the rest of the conversation.
 
@@ -61,36 +61,6 @@ Other tips:
 
 ---
 
-## Ordo Calendar Advantage (Quartz Cron)
-
-Ordo uses **Quartz Cron** syntax, which is significantly more powerful than standard cron:
-
-- Supports **7 fields** (seconds + years) instead of the usual 5
-- Advanced tokens like: `3rd Monday in January`, `last Friday of month`, etc.
-- Multiple crons per calendar
-
-This allows complex schedules (e.g. US Holidays calendar) that tools like Google Cloud Scheduler cannot do.
-
-```Screenshot: Calendar creation and attachment interface```
-
----
-
-## Important Notes About Scripts
-
-- For multi-line scripts, wrap with `/bin/sh -c "..."`  
-- Use only single or double quotes (no `q{}` outside of `perl -e`)
-- You can use `python3 -c '...'`, `perl -e '...'`, or regular shell commands
-- STDIN / STDOUT output is automatically captured in `$HOME/ordo_node/logs`
-- Scripts in `$HOME/ordo_node/scripts` can be called by name only
-- Scripts elsewhere must use the full filesystem path
-
-```Good Example:```
-```bash
-/bin/sh -c 'USAGE=$(df / | tail -1 | awk "{print \$5}" | sed "s/%//"); if [ "$USAGE" -lt 25 ]; then echo "Low disk on $(hostname): ${USAGE}%" >> /tmp/disk-alerts.log; fi'
-```
-
----
-
 ## Available Tools
 
 **Browsing**  
@@ -116,13 +86,16 @@ This allows complex schedules (e.g. US Holidays calendar) that tools like Google
 
 ---
 
+## Quick Test
+```
+curl -X POST https://ordosched.com/mcp   -H "Content-Type: application/json"   -d '{
+  "token": "YOUR_TOKEN_HERE"
+}'
+```
+
 ## Security
 
 - Your token is required for every connection
 - Never share your token publicly
 - You can revoke or regenerate tokens in Ordo settings at any time
 
----
-
-**Ready to automate?**  
-Just tell Grok you're connected and start giving it tasks!

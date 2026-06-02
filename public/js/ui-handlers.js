@@ -2466,9 +2466,10 @@ export function initModals() {
 }
 
 export function initSettingsListeners() {
-  document
-    .getElementById("refresh-settings")
-    ?.addEventListener("click", refreshSettings);
+  //document
+  //  .getElementById("refresh-settings")
+  //  ?.addEventListener("click", refreshSettings);
+
   document
     .getElementById("save-account")
     ?.addEventListener("click", saveAccount);

@@ -6,7 +6,7 @@ CREATE TABLE job (
 	mode INTEGER NOT NULL DEFAULT 770,
         cluster_id INTEGER REFERENCES cluster(id) ON DELETE CASCADE,
         server_id INTEGER REFERENCES server(id) ON DELETE SET NULL ON UPDATE CASCADE,
-        script varchar,
+        script text,
         state_id INTEGER NOT NULL DEFAULT 2,
         name varchar,
         clone_job_id varchar,

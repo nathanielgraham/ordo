@@ -13,7 +13,7 @@ import {
   findClusterById,
   findJobById,
   commonTimezones,
-  formatDate
+  formatDate,
 } from "./utils.js";
 
 // ==================== TOM SELECT HELPERS ====================
@@ -21,12 +21,17 @@ import {
 function TomSelectGetValues(selectId) {
   const el = document.getElementById(selectId);
   if (!el || !el.tomselect) {
-    console.warn(`[TomSelectGetValues] Element ${selectId} or TomSelect not found`);
+    console.warn(
+      `[TomSelectGetValues] Element ${selectId} or TomSelect not found`,
+    );
     return [];
   }
   const value = el.tomselect.getValue();
   if (!value) return [];
-  return String(value).split(",").filter(Boolean).map(id => Number(id.trim()));
+  return String(value)
+    .split(",")
+    .filter(Boolean)
+    .map((id) => Number(id.trim()));
 }
 
 // ==================== SHARED HELPERS ====================
@@ -38,13 +43,13 @@ function resetAllModals() {
   // Reset form fields
   [
     "job-name",
-    "job-description",
+    // "job-description",
     "job-script",
     "job-loops",
     "job-retrys",
     "job-delay",
     "cluster-name",
-    "cluster-description",
+    //"cluster-description",
     "cluster-loops",
     "cluster-clonable",
     "attach-cal-select",
@@ -100,8 +105,9 @@ export function openJobModal(
 
   if (mode === "edit" && numericId) {
     // Robust lookup from multiple sources
-    item = appState.jobsMap.get(numericId) ||
-           findJobById(appState.monitorData.tree, numericId);
+    item =
+      appState.jobsMap.get(numericId) ||
+      findJobById(appState.monitorData.tree, numericId);
   }
 
   const isEdit = mode === "edit" && item !== null;
@@ -111,63 +117,177 @@ export function openJobModal(
   modal.dataset.parentId = parentId || "";
 
   // Title & Context
-  document.getElementById("job-modal-title").textContent = isEdit ? "Edit Job" : "New Job";
+  document.getElementById("job-modal-title").textContent = isEdit
+    ? "Edit Job"
+    : "New Job";
   document.getElementById("job-context").textContent = isEdit
     ? `Editing: ${item?.name || "—"}`
-    : parentName ? `In cluster: ${parentName}` : "In root";
+    : parentName
+      ? `In cluster: ${parentName}`
+      : "In root";
 
   // Basic fields
-  document.getElementById("job-name").value = isEdit ? (item?.name || "") : "new-job";
-  document.getElementById("job-script").value = isEdit ? (item?.script || "") : "";
-  document.getElementById("job-description").value = isEdit ? (item?.description || "") : "";
-  document.getElementById("job-loops").value = isEdit ? (item?.loops ?? 0) : "0";
-  document.getElementById("job-retrys").value = isEdit ? (item?.retrys ?? 0) : "0";
-  document.getElementById("job-delay").value = isEdit ? (item?.delay ?? 1) : "1";
+  document.getElementById("job-name").value = isEdit ? item?.name || "" : "";
+  document.getElementById("job-script").value = isEdit
+    ? item?.script || ""
+    : "";
+  // document.getElementById("job-description").value = isEdit ? (item?.description || "") : "";
+  document.getElementById("job-loops").value = isEdit
+    ? (item?.loops ?? 0)
+    : "0";
+  document.getElementById("job-retrys").value = isEdit
+    ? (item?.retrys ?? 0)
+    : "0";
+  document.getElementById("job-delay").value = isEdit
+    ? (item?.delay ?? 0)
+    : "0";
+
+  // ==================== SCRIPT TEXTAREA + CLEAR BUTTON + AUTOFOCUS ====================
+  const scriptTextarea = document.getElementById("job-script");
+  const clearBtn = document.getElementById("clear-script-btn");
+  const templateSelect = document.getElementById("script-template");
+
+  // Autofocus
+  if (scriptTextarea) {
+    scriptTextarea.focus();
+  }
+
+  // Show/hide clear button
+  function updateClearButton() {
+    if (clearBtn) {
+      clearBtn.style.display = scriptTextarea.value.trim() ? "block" : "none";
+    }
+  }
+
+  if (scriptTextarea) {
+    scriptTextarea.addEventListener("input", updateClearButton);
+    updateClearButton(); // initial state
+  }
+
+  // Clear button click
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      scriptTextarea.value = "";
+      scriptTextarea.focus();
+      updateClearButton();
+    });
+  }
+
+  // ==================== TEMPLATE DROPDOWN (TomSelect) ====================
+  if (templateSelect) {
+    if (templateSelect.tomselect) templateSelect.tomselect.destroy();
+
+    const isEdit = mode === "edit";
+    const label = document.getElementById("script-template-label");
+    if (label)
+      label.textContent = isEdit ? "Replace with Template" : "Insert Template";
+
+    new TomSelect(templateSelect, {
+      maxItems: 1,
+      placeholder: isEdit ? "Replace with Template..." : "Insert Template...",
+      onChange: function (value) {
+        if (!value || !scriptTextarea) return;
+
+        switch (value) {
+          case "shell":
+            scriptTextarea.value = `#!/bin/sh
+echo "Starting task at $(date)"
+# Your shell commands here...
+echo "Task completed at $(date)"
+`;
+            break;
+
+          case "python":
+            scriptTextarea.value = `#!/usr/bin/env python3
+import datetime
+print("Started at:", datetime.datetime.now())
+# Your Python code here...
+print("Python script finished successfully")
+`;
+            break;
+
+          case "perl":
+            scriptTextarea.value = `#!/usr/bin/env perl
+use strict;
+use warnings;
+print "Started at: " . localtime() . "\\n";
+# Your Perl code here...
+print "Perl script finished.\\n";
+`;
+            break;
+
+          case "ruby":
+            scriptTextarea.value = `#!/usr/bin/env ruby
+puts "Started at: \#{Time.now}"
+
+# Your Ruby code here...
+
+puts "Ruby script finished successfully"
+`;
+            break;
+          case "stats":
+            scriptTextarea.value = `#!/bin/sh
+update_stats.pl
+`;
+            break;
+
+          case "email":
+            scriptTextarea.value = `#!/bin/sh 
+email_team.pl "Job completed successfully"
+`;
+            break;
+        }
+        scriptTextarea.focus();
+        updateClearButton();
+      },
+    });
+  }
 
   // ==================== SERVER ====================
   initModalTomSelect("job-server", {
     maxItems: 1,
-    options: appState.serversData.map(s => ({
+    options: appState.serversData.map((s) => ({
       value: s.name,
-      text: s.name
-    }))
+      text: s.name,
+    })),
   }).setValue(item?.server_name ? [item.server_name] : []);
 
   // ==================== NEEDS / NEEDS_ANY: Same cluster jobs only, exclude self ====================
   const jobOptions = Array.from(appState.jobsMap.values())
-    .filter(j => 
-      Number(j.cluster_id) === Number(currentClusterId) && 
-      Number(j.id) !== numericId
+    .filter(
+      (j) =>
+        Number(j.cluster_id) === Number(currentClusterId) &&
+        Number(j.id) !== numericId,
     )
-    .map(j => ({
+    .map((j) => ({
       value: String(j.id),
-      text: j.name || `Job ${j.id}`
+      text: j.name || `Job ${j.id}`,
     }));
 
   const needsIds = item?.needs_ids || [];
   const needsAnyIds = item?.needs_any_ids || [];
 
-  initModalTomSelect("job-needs", { 
-    maxItems: null, 
-    options: jobOptions 
+  initModalTomSelect("job-needs", {
+    maxItems: null,
+    options: jobOptions,
   }).setValue(needsIds.map(String));
 
-  initModalTomSelect("job-needs-any", { 
-    maxItems: null, 
-    options: jobOptions 
+  initModalTomSelect("job-needs-any", {
+    maxItems: null,
+    options: jobOptions,
   }).setValue(needsAnyIds.map(String));
 
   // ==================== ON_FAIL: Clusters only ====================
   const clusterOptions = Array.from(appState.clustersMap.values())
-    .filter(c => c.name !== "root")
-    .map(c => ({
+    .filter((c) => c.name !== "root")
+    .map((c) => ({
       value: String(c.id),
-      text: c.name || `Cluster ${c.id}`
+      text: c.name || `Cluster ${c.id}`,
     }));
 
-  initModalTomSelect("job-on-fail", { 
-    maxItems: 1, 
-    options: clusterOptions 
+  initModalTomSelect("job-on-fail", {
+    maxItems: 1,
+    options: clusterOptions,
   }).setValue(item?.on_fail_id ? [String(item.on_fail_id)] : []);
 
   modal.classList.add("active");
@@ -220,8 +340,9 @@ export function openClusterModal(
 
   let item = null;
   if (mode === "edit" && itemId) {
-    item = appState.clustersMap.get(Number(itemId)) ||
-           findClusterById(appState.monitorData.tree, itemId);
+    item =
+      appState.clustersMap.get(Number(itemId)) ||
+      findClusterById(appState.monitorData.tree, itemId);
   }
 
   const isEdit = mode === "edit";
@@ -229,36 +350,55 @@ export function openClusterModal(
   modal.dataset.editId = isEdit ? String(itemId) : "";
   modal.dataset.parentId = parentId || "";
 
-  document.getElementById("cluster-modal-title").textContent = isEdit ? "Edit Cluster" : "New Cluster";
+  document.getElementById("cluster-modal-title").textContent = isEdit
+    ? "Edit Cluster"
+    : "New Cluster";
   document.getElementById("cluster-context").textContent = isEdit
     ? `Editing: ${item?.name || "—"}`
-    : parentName ? `In cluster: ${parentName}` : "In root";
+    : parentName
+      ? `In cluster: ${parentName}`
+      : "In root";
 
   // Basic fields
-  document.getElementById("cluster-name").value = item?.name || "new-cluster";
-  document.getElementById("cluster-description").value = item?.description || "";
+  document.getElementById("cluster-name").value = item?.name || "";
+  //document.getElementById("cluster-description").value = item?.description || "";
   document.getElementById("cluster-loops").value = item?.loops ?? 0;
   document.getElementById("cluster-clonable").checked = !!item?.clonable;
 
   // Options (exclude root and self)
   const clusterOptions = Array.from(appState.clustersMap.values())
-    .filter(c => Number(c.id) !== 1 && Number(c.id) !== Number(itemId))
-    .map(c => ({
+    .filter((c) => Number(c.id) !== 1 && Number(c.id) !== Number(itemId))
+    .map((c) => ({
       value: String(c.id),
-      text: c.name || `Cluster ${c.id}`
+      text: c.name || `Cluster ${c.id}`,
     }));
 
   // Initialize TomSelects (persistent)
-  initModalTomSelect("cluster-needs", { maxItems: null, options: clusterOptions });
-  initModalTomSelect("cluster-needs-any", { maxItems: null, options: clusterOptions });
-  initModalTomSelect("cluster-on-fail", { maxItems: 1, options: clusterOptions });
+  initModalTomSelect("cluster-needs", {
+    maxItems: null,
+    options: clusterOptions,
+  });
+  initModalTomSelect("cluster-needs-any", {
+    maxItems: null,
+    options: clusterOptions,
+  });
+  initModalTomSelect("cluster-on-fail", {
+    maxItems: 1,
+    options: clusterOptions,
+  });
 
   // Restore values
   if (isEdit && item) {
-    document.getElementById("cluster-needs").tomselect?.setValue((item.needs_ids || []).map(String));
-    document.getElementById("cluster-needs-any").tomselect?.setValue((item.needs_any_ids || []).map(String));
+    document
+      .getElementById("cluster-needs")
+      .tomselect?.setValue((item.needs_ids || []).map(String));
+    document
+      .getElementById("cluster-needs-any")
+      .tomselect?.setValue((item.needs_any_ids || []).map(String));
     if (item.on_fail_id) {
-      document.getElementById("cluster-on-fail").tomselect?.setValue([String(item.on_fail_id)]);
+      document
+        .getElementById("cluster-on-fail")
+        .tomselect?.setValue([String(item.on_fail_id)]);
     }
   }
 
@@ -281,7 +421,8 @@ export function openAttachCalendarModal(
   }
 
   const select = document.getElementById("calendar-select");
-  if (!select) return console.error("[Attach Calendar] #calendar-select not found");
+  if (!select)
+    return console.error("[Attach Calendar] #calendar-select not found");
 
   // Destroy previous instance
   if (select.tomselect) {
@@ -291,8 +432,8 @@ export function openAttachCalendarModal(
   // Create TomSelect with body dropdown
   const ts = new TomSelect(select, {
     maxItems: 1,
-    dropdownParent: "body",           // Break out of modal
-    plugins: ["remove_button"],       // Enable the red X
+    dropdownParent: "body", // Break out of modal
+    plugins: ["remove_button"], // Enable the red X
     placeholder: "Select calendar or type to search...",
     options: appState.calendarsData.map((cal) => ({
       value: String(cal.id),
@@ -306,7 +447,7 @@ export function openAttachCalendarModal(
     },
   });
 
-  select.tomselect = ts;   // Store reference
+  select.tomselect = ts; // Store reference
 
   document.getElementById("attach-calendar-modal").classList.add("active");
 }
@@ -506,15 +647,18 @@ export function openCalendarModal(mode = "create", calId = null) {
   initModalTomSelect("calendar-tz", {
     maxItems: 1,
     placeholder: "Type to search or select timezone...",
-    options: tzOptions
+    options: tzOptions,
   });
 
   // Restore values on edit
   if (isEdit && calId) {
-    const cal = appState.calendarsData.find(c => Number(c.id) === Number(calId));
+    const cal = appState.calendarsData.find(
+      (c) => Number(c.id) === Number(calId),
+    );
     if (cal) {
       document.getElementById("calendar-name").value = cal.name || "";
-      document.getElementById("calendar-description").value = cal.description || "";
+      document.getElementById("calendar-description").value =
+        cal.description || "";
 
       const tzTS = document.getElementById("calendar-tz").tomselect;
       if (tzTS) {
@@ -548,7 +692,9 @@ export function openCalendarModal(mode = "create", calId = null) {
 
 // ==================== CRONS LIST MODAL ====================
 export function openCronsModal(calId) {
-  const cal = appState.calendarsData.find((c) => Number(c.id) === Number(calId));
+  const cal = appState.calendarsData.find(
+    (c) => Number(c.id) === Number(calId),
+  );
   if (!cal) {
     showToast("Calendar not found", "danger");
     return;
@@ -558,7 +704,8 @@ export function openCronsModal(calId) {
   if (!modal) return;
 
   modal.dataset.calId = String(calId);
-  document.getElementById("crons-modal-title").textContent = `Crons for ${cal.name || "Calendar"}`;
+  document.getElementById("crons-modal-title").textContent =
+    `Crons for ${cal.name || "Calendar"}`;
 
   const loading = document.getElementById("crons-loading");
   const content = document.getElementById("crons-content");
@@ -656,17 +803,25 @@ export function saveJob() {
     name: (document.getElementById("job-name").value || "").trim(),
     script: (document.getElementById("job-script").value || "").trim(),
     server: (document.getElementById("job-server").value || "").trim(),
-    description: (document.getElementById("job-description").value || "").trim(),
+    // description: (document.getElementById("job-description").value || "").trim(),
     retrys: parseInt(document.getElementById("job-retrys").value) || 0,
     loops: parseInt(document.getElementById("job-loops").value) || 0,
-    delay: parseInt(document.getElementById("job-delay").value) || 1,
+    delay: parseInt(document.getElementById("job-delay").value) || 0,
   };
 
   // Read current TomSelect values
-  payload.needs_ids = document.getElementById("job-needs").tomselect?.getValue().map(Number) || [];
-  payload.needs_any_ids = document.getElementById("job-needs-any").tomselect?.getValue().map(Number) || [];
+  payload.needs_ids =
+    document.getElementById("job-needs").tomselect?.getValue().map(Number) ||
+    [];
+  payload.needs_any_ids =
+    document
+      .getElementById("job-needs-any")
+      .tomselect?.getValue()
+      .map(Number) || [];
 
-  const onFailValue = document.getElementById("job-on-fail").tomselect?.getValue();
+  const onFailValue = document
+    .getElementById("job-on-fail")
+    .tomselect?.getValue();
   if (onFailValue) payload.on_fail_id = Number(onFailValue);
 
   // ==================== PARENT / RENAME HANDLING ====================
@@ -675,12 +830,12 @@ export function saveJob() {
     if (parentId) payload.parent_id = Number(parentId);
   } else {
     payload.id = id;
-    
+
     // Rename handling
     const newName = payload.name;
     if (newName) {
       payload.newname = newName;
-      delete payload.name;        // backend wants newname on update
+      delete payload.name; // backend wants newname on update
     }
   }
 
@@ -694,11 +849,7 @@ export function saveJob() {
   sendWS(payload);
 
   modal.classList.remove("active");
-  showToast(isEdit ? "Job updated" : "Job created", "success");
-
-  modal.classList.remove("active");
-  showToast(isEdit ? "Updated successfully" : "Created successfully", "success");
-
+  //showToast(isEdit ? "Job updated" : "Job created", "success");
 }
 
 // ==================== SAVE CLUSTER ====================
@@ -710,16 +861,26 @@ export function saveCluster() {
   const payload = {
     command: isEdit ? "update_cluster" : "create_cluster",
     name: (document.getElementById("cluster-name").value || "").trim(),
-    description: (document.getElementById("cluster-description").value || "").trim(),
+    //description: (document.getElementById("cluster-description").value || "").trim(),
     loops: parseInt(document.getElementById("cluster-loops").value) || 0,
     clonable: document.getElementById("cluster-clonable").checked || false,
   };
 
   // Read current TomSelect values
-  payload.needs_ids = document.getElementById("cluster-needs").tomselect?.getValue().map(Number) || [];
-  payload.needs_any_ids = document.getElementById("cluster-needs-any").tomselect?.getValue().map(Number) || [];
+  payload.needs_ids =
+    document
+      .getElementById("cluster-needs")
+      .tomselect?.getValue()
+      .map(Number) || [];
+  payload.needs_any_ids =
+    document
+      .getElementById("cluster-needs-any")
+      .tomselect?.getValue()
+      .map(Number) || [];
 
-  const onFailValue = document.getElementById("cluster-on-fail").tomselect?.getValue();
+  const onFailValue = document
+    .getElementById("cluster-on-fail")
+    .tomselect?.getValue();
   if (onFailValue) payload.on_fail_id = Number(onFailValue);
 
   // ==================== PARENT / RENAME HANDLING ====================
@@ -728,12 +889,12 @@ export function saveCluster() {
     if (parentId) payload.parent_id = Number(parentId);
   } else {
     payload.id = id;
-    
+
     // Rename handling
     const newName = payload.name;
     if (newName) {
       payload.newname = newName;
-      delete payload.name;        // backend expects newname on update
+      delete payload.name; // backend expects newname on update
     }
   }
 
@@ -747,7 +908,7 @@ export function saveCluster() {
   sendWS(payload);
 
   modal.classList.remove("active");
-  showToast(isEdit ? "Cluster updated" : "Cluster created", "success");
+  //showToast(isEdit ? "Cluster updated" : "Cluster created", "success");
 }
 
 export function saveCalendar() {
@@ -756,7 +917,9 @@ export function saveCalendar() {
   const id = isEdit ? Number(modal.dataset.editId) : null;
 
   const tzSelect = document.getElementById("calendar-tz");
-  let tzValue = tzSelect.tomselect ? tzSelect.tomselect.getValue() : tzSelect.value;
+  let tzValue = tzSelect.tomselect
+    ? tzSelect.tomselect.getValue()
+    : tzSelect.value;
 
   // Fallback to custom field
   if (!tzValue || tzValue === "") {
@@ -767,7 +930,9 @@ export function saveCalendar() {
     command: isEdit ? "update_cal" : "create_cal",
     name: (document.getElementById("calendar-name").value || "").trim(),
     tz: tzValue || "UTC",
-    description: (document.getElementById("calendar-description").value || "").trim(),
+    description: (
+      document.getElementById("calendar-description").value || ""
+    ).trim(),
   };
 
   if (!payload.name) {

@@ -289,7 +289,71 @@ function buildSingleRow(
   );
 }
 
+// ==================== SURGICAL ROW UPDATE (Preserves dropdowns & state) ====================
+export function updateRow(row, item) {
+  if (!row || !item) return false;
+
+  const cells = row.cells;
+  if (!cells || cells.length < 8) return false;
+
+  const state = (item.jobstate || item.state || "unknown").toLowerCase().trim();
+
+  // 1. State Badge — using the correct class "state-badge"
+  if (cells[1]) {
+    cells[1].innerHTML = `
+      <span class="state-badge ${state}">
+        ${item.jobstate || item.state || "—"}
+      </span>
+    `;
+  }
+
+  // 2. Server
+  if (cells[2]) {
+    cells[2].textContent = item.server_name || "—";
+  }
+
+  // 3. Dependencies
+  if (cells[3]) {
+    let count = 0;
+    if (Array.isArray(item.needs_ids)) count += item.needs_ids.length;
+    if (Array.isArray(item.needs_any_ids)) count += item.needs_any_ids.length;
+    if (item.on_fail_id) count += 1;
+    cells[3].textContent = count > 0 ? count : "—";
+  }
+
+  // 4. Stats (CPU)
+  if (cells[4]) {
+    let html = "—";
+    if (item.pctcpu != null) {
+      const cpu = parseFloat(item.pctcpu);
+      let cls = "cpu-low";
+      if (cpu > 80) cls = "cpu-high";
+      else if (cpu > 50) cls = "cpu-medium";
+      html = `<span class="stats-badge ${cls}">${cpu.toFixed(1)}%</span>`;
+    }
+    cells[4].innerHTML = html;
+  }
+
+  // 5. Last Run (T+)
+  if (cells[5]) {
+    cells[5].textContent = formatTplus(item.started) || "—";
+  }
+
+  // 6. Duration
+  if (cells[6]) {
+    cells[6].textContent = formatDuration(item.started, item.ended) || "—";
+  }
+
+  // 7. Next Run (T-)
+  if (cells[7]) {
+    cells[7].textContent = formatTminus(item.next_start) || "—";
+  }
+
+  return true;
+}
+
 // ==================== FIXED updateRow ====================
+/*
 export function updateRow(row, item) {
   if (!row || !item) return;
 
@@ -322,6 +386,7 @@ export function updateRow(row, item) {
   if (cells[6])
     cells[6].textContent = formatDuration(item.started, item.ended) || "—";
 }
+*/
 
 export function insertRow(item, parentId = null) {
   const tbody = document.getElementById("tree-body");

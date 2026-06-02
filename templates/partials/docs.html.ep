@@ -17,26 +17,33 @@
               >
             </li>
             <li>
+              <a href="#" data-file="core-concepts.md" class="menu-link"
+                >Core Concepts</a
+              >
+            </li>
+            <li>
+              <a href="#" data-file="dashboard.md" class="menu-link"
+                >Dashboard</a
+              >
+            </li>
+            <li>
+              <a href="#" data-file="jobs-and-clusters.md" class="menu-link"
+                >Jobs & Clusters</a
+              >
+            </li>
+            <li>
               <a href="#" data-file="calendars-and-crons.md" class="menu-link"
                 >Calendars & Cron</a
               >
             </li>
             <li>
+              <a href="#" data-file="settings.md" class="menu-link"
+                >Settings & Admin</a
+              >
+            </li>
+            <li>
               <a href="#" data-file="mcp.md" class="menu-link"
-                >Connecting to Grok</a
-              >
-            </li>
-            <li>
-              <a href="#" data-file="rest-api.md" class="menu-link">REST API</a>
-            </li>
-            <li>
-              <a href="#" data-file="use-cases.md" class="menu-link"
-                >Use Cases & Examples</a
-              >
-            </li>
-            <li>
-              <a href="#" data-file="video-tutorials.md" class="menu-link"
-                >Video Tutorials</a
+                >Connecting to AI</a
               >
             </li>
             <li>
@@ -45,8 +52,8 @@
               >
             </li>
             <li>
-              <a href="#" data-file="troubleshooting.md" class="menu-link"
-                >Troubleshooting</a
+              <a href="#" data-file="faq.md" class="menu-link"
+                >FAQ</a
               >
             </li>
           </ul>

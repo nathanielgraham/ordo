@@ -77,7 +77,7 @@
     </div>
 
     <!-- Recent Activity -->
-    <div class="card-simple mt-large">
+    <div class="card-simple mt-medium">
       <h4 class="title-medium mb-medium">Recent Activity</h4>
       <div class="table-container">
         <table class="ordo-table">

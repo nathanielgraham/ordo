@@ -9,26 +9,44 @@
     </div>
     <div class="modal-body">
       <div id="login-form-container">
-        <p class="text-center text-grey mb-large">We'll send you a magic login link.</p>
-        
+        <p class="text-center text-grey mb-large">
+          We'll send you a magic login link.
+        </p>
+
         <form id="login-form" action="/login" method="POST">
           <div class="form-group">
             <label class="label-bold">Email Address</label>
-            <input type="email" name="email" id="login-email" class="input" placeholder="you@example.com" required>
+            <input
+              type="email"
+              name="email"
+              id="login-email"
+              class="input"
+              placeholder="you@example.com"
+              required
+            />
           </div>
-          
+
           <div class="mt-large">
-            <button type="submit" class="btn btn-primary w-full" id="send-magic-link-btn">
+            <button
+              type="submit"
+              class="btn btn-primary w-full"
+              id="send-magic-link-btn"
+            >
               Send Magic Link
             </button>
           </div>
         </form>
       </div>
 
-      <div id="login-success" style="display: none; text-align: center; padding: 2rem 1rem;">
+      <div
+        id="login-success"
+        style="display: none; text-align: center; padding: 2rem 1rem"
+      >
         <i class="fas fa-envelope fa-3x text-cyan mb-medium"></i>
         <h4>Check your inbox</h4>
-        <p class="text-grey">We've sent you a magic login link.<br>It may take up to 30 seconds.</p>
+        <p class="text-grey">
+          We've sent you a magic login link.<br />It may take up to 30 seconds.
+        </p>
       </div>
     </div>
   </div>
@@ -43,12 +61,12 @@
     </div>
     <div class="modal-body">
       <div class="pricing-grid">
-
         <!-- Free -->
         <div class="card-simple text-center" id="plan-free">
           <h4 class="title-medium">Free</h4>
           <div class="price-box">
-            <span class="text-5xl font-bold">$0</span><span class="text-grey">/mo</span>
+            <span class="text-5xl font-bold">$0</span
+            ><span class="text-grey">/mo</span>
           </div>
           <ul>
             <li>✓ 1,000 API calls/month</li>
@@ -56,10 +74,12 @@
             <li>✓ 2 Team Members</li>
             <li>✓ Online docs</li>
           </ul>
-          <button class="btn btn-ghost neon-ghost w-full mt-large" disabled>Current Plan</button>
+          <button class="btn btn-ghost neon-ghost w-full mt-large" disabled>
+            Current Plan
+          </button>
         </div>
 
-<!--
+        <!--
         <div class="card-simple text-center" id="plan-starter">
           <h4 class="title-medium">Starter</h4>
           <div class="price-box">
@@ -79,7 +99,8 @@
         <div class="card-simple text-center" id="plan-pro">
           <h4 class="title-medium">Pro</h4>
           <div class="price-box">
-            <span class="text-5xl font-bold">$49</span><span class="text-grey">/mo</span>
+            <span class="text-5xl font-bold">$49</span
+            ><span class="text-grey">/mo</span>
           </div>
           <ul>
             <li>✓ 60,000 API calls/month</li>
@@ -87,7 +108,9 @@
             <li>✓ 10 Team Members</li>
             <li>✓ Email support</li>
           </ul>
-          <button class="btn btn-primary w-full mt-large" data-plan="pro">Upgrade — $49/mo</button>
+          <button class="btn btn-primary w-full mt-large" data-plan="pro">
+            Upgrade — $49/mo
+          </button>
         </div>
 
         <!-- Enterprise -->
@@ -102,11 +125,13 @@
             <li>✓ Advanced Features</li>
             <li>✓ Priority support</li>
           </ul>
-          <button class="btn btn-primary w-full mt-large" id="contact-sales-btn">
+          <button
+            class="btn btn-primary w-full mt-large"
+            id="contact-sales-btn"
+          >
             Contact Sales
           </button>
         </div>
-
       </div>
     </div>
   </div>
@@ -158,12 +183,18 @@
           <tbody id="log-history-body"></tbody>
         </table>
       </div>
-      <p id="no-history" class="text-grey text-center py-large" style="display: none">
+      <p
+        id="no-history"
+        class="text-grey text-center py-large"
+        style="display: none"
+      >
         No log history available.
       </p>
     </section>
     <footer class="modal-footer">
-      <button class="btn btn-secondary" data-dismiss="log-history-modal">Close</button>
+      <button class="btn btn-secondary" data-dismiss="log-history-modal">
+        Close
+      </button>
     </footer>
   </div>
 </div>
@@ -179,11 +210,18 @@
     <section class="modal-body">
       <div class="form-group">
         <label class="label" for="invite-email">Email Address</label>
-        <input class="input" type="email" id="invite-email" placeholder="Enter email to invite" />
+        <input
+          class="input"
+          type="email"
+          id="invite-email"
+          placeholder="Enter email to invite"
+        />
       </div>
     </section>
     <footer class="modal-footer">
-      <button class="btn btn-secondary" data-dismiss="invite-modal">Cancel</button>
+      <button class="btn btn-secondary" data-dismiss="invite-modal">
+        Cancel
+      </button>
       <button class="btn btn-primary" id="send-invite">Send Invite</button>
     </footer>
   </div>
@@ -201,7 +239,13 @@
       <p id="confirm-message">Are you sure you want to [action] [name]?</p>
     </section>
     <footer class="modal-footer">
-      <button class="btn btn-secondary" id="confirm-no" data-dismiss="confirm-modal">No</button>
+      <button
+        class="btn btn-secondary"
+        id="confirm-no"
+        data-dismiss="confirm-modal"
+      >
+        No
+      </button>
       <button class="btn btn-danger" id="confirm-yes">Yes</button>
     </footer>
   </div>
@@ -219,11 +263,16 @@
     <section class="modal-body">
       <div class="form-group">
         <label class="label" for="calendar-select">Calendar</label>
-        <select id="calendar-select" placeholder="Select calendar or type to search..."></select>
+        <select
+          id="calendar-select"
+          placeholder="Select calendar or type to search..."
+        ></select>
       </div>
     </section>
     <footer class="modal-footer">
-      <button class="btn btn-secondary" data-dismiss="attach-calendar-modal">Cancel</button>
+      <button class="btn btn-secondary" data-dismiss="attach-calendar-modal">
+        Cancel
+      </button>
       <button class="btn btn-primary" id="save-attach-calendar">Save</button>
     </footer>
   </div>
@@ -241,17 +290,52 @@
     <section class="modal-body">
       <div class="form-group">
         <label class="label required" for="job-name">Name</label>
-        <input class="input" type="text" id="job-name" placeholder="e.g. nightly-backup" />
-        <p class="help-text">Short name — will be created in the selected cluster</p>
+        <input
+          class="input"
+          type="text"
+          id="job-name"
+          placeholder="e.g. nightly-backup"
+        />
       </div>
+      <!--
       <div class="form-group">
         <label class="label" for="job-description">Description</label>
         <textarea class="textarea" id="job-description" rows="2"></textarea>
       </div>
+-->
+
       <div class="form-group">
-        <label class="label required" for="job-script">Script / Command</label>
-        <input class="input" type="text" id="job-script" placeholder="perl backup.pl --full" />
+        <div class="template-row">
+          <label class="label" for="script-template">Insert Template</label>
+          <select id="script-template" class="template-select">
+            <option value="">— Choose Template —</option>
+            <option value="shell">Shell Script</option>
+            <option value="python">Python Script</option>
+            <option value="perl">Perl Script</option>
+            <option value="ruby">Ruby Script</option>
+            <option value="stats">Update Stats</option>
+            <option value="email">Email Team</option>
+          </select>
+        </div>
+
+        <div class="script-wrapper">
+          <textarea
+            id="job-script"
+            class="script-textarea"
+            rows="10"
+            placeholder="Enter your script here..."
+          ></textarea>
+          <button
+            type="button"
+            id="clear-script-btn"
+            class="clear-script-btn"
+            title="Clear script"
+          >
+            ×
+          </button>
+        </div>
       </div>
+
       <div class="form-group">
         <label class="label required" for="job-server">Server</label>
         <select id="job-server" placeholder="Select server..."></select>
@@ -259,13 +343,23 @@
       <div class="form-row">
         <div class="form-group">
           <label class="label" for="job-needs">Needs Jobs (blocking AND)</label>
-          <select id="job-needs" placeholder="Select dependencies..." multiple></select>
+          <select
+            id="job-needs"
+            placeholder="Select dependencies..."
+            multiple
+          ></select>
           <p class="help-text">Dependencies that must all complete first.</p>
         </div>
         <div class="form-group">
           <label class="label" for="job-needs-any">Needs Any Jobs (OR)</label>
-          <select id="job-needs-any" placeholder="Select dependencies..." multiple></select>
-          <p class="help-text">Any one of these completing satisfies the dependency.</p>
+          <select
+            id="job-needs-any"
+            placeholder="Select dependencies..."
+            multiple
+          ></select>
+          <p class="help-text">
+            Any one of these completing satisfies the dependency.
+          </p>
         </div>
       </div>
       <div class="form-group">
@@ -276,12 +370,20 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="label">Loops <span class="text-grey">(0 = run once)</span></label>
+          <label class="label"
+            >Loops <span class="text-grey">(0 = run once)</span></label
+          >
           <input class="input" type="number" id="job-loops" min="0" value="0" />
         </div>
         <div class="form-group">
           <label class="label">Retries</label>
-          <input class="input" type="number" id="job-retrys" min="0" value="0" />
+          <input
+            class="input"
+            type="number"
+            id="job-retrys"
+            min="0"
+            value="0"
+          />
         </div>
         <div class="form-group">
           <label class="label">Delay (seconds)</label>
@@ -308,8 +410,15 @@
     <section class="modal-body">
       <div class="form-group">
         <label class="label required" for="cluster-name">Name</label>
-        <input class="input" type="text" id="cluster-name" placeholder="e.g. nightly-backups" />
-        <p class="help-text">Short name — will be created in the selected parent cluster</p>
+        <input
+          class="input"
+          type="text"
+          id="cluster-name"
+          placeholder="e.g. nightly-backups"
+        />
+        <p class="help-text">
+          Short name — will be created in the selected parent cluster
+        </p>
       </div>
       <div class="form-group">
         <label class="label" for="cluster-description">Description</label>
@@ -317,14 +426,28 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="label" for="cluster-needs">Needs Clusters (blocking AND)</label>
-          <select id="cluster-needs" placeholder="Select dependencies..." multiple></select>
+          <label class="label" for="cluster-needs"
+            >Needs Clusters (blocking AND)</label
+          >
+          <select
+            id="cluster-needs"
+            placeholder="Select dependencies..."
+            multiple
+          ></select>
           <p class="help-text">Dependencies that must all complete first.</p>
         </div>
         <div class="form-group">
-          <label class="label" for="cluster-needs-any">Needs Any Clusters (OR)</label>
-          <select id="cluster-needs-any" placeholder="Select dependencies..." multiple></select>
-          <p class="help-text">Any one of these completing satisfies the dependency.</p>
+          <label class="label" for="cluster-needs-any"
+            >Needs Any Clusters (OR)</label
+          >
+          <select
+            id="cluster-needs-any"
+            placeholder="Select dependencies..."
+            multiple
+          ></select>
+          <p class="help-text">
+            Any one of these completing satisfies the dependency.
+          </p>
         </div>
       </div>
       <div class="form-group">
@@ -334,19 +457,32 @@
         </select>
       </div>
       <div class="form-group">
-        <label class="label">Loops <span class="text-grey">(0 = run once)</span></label>
-        <input class="input" type="number" id="cluster-loops" min="0" value="0" />
+        <label class="label"
+          >Loops <span class="text-grey">(0 = run once)</span></label
+        >
+        <input
+          class="input"
+          type="number"
+          id="cluster-loops"
+          min="0"
+          value="0"
+        />
       </div>
       <div class="form-group">
         <label class="label">
           <input type="checkbox" id="cluster-clonable" />
           Clonable
         </label>
-        <p class="help-text">If checked, starting a running cluster creates & starts an exact clone instead of erroring.</p>
+        <p class="help-text">
+          If checked, starting a running cluster creates & starts an exact clone
+          instead of erroring.
+        </p>
       </div>
     </section>
     <footer class="modal-footer">
-      <button class="btn btn-secondary" data-dismiss="cluster-modal">Cancel</button>
+      <button class="btn btn-secondary" data-dismiss="cluster-modal">
+        Cancel
+      </button>
       <button class="btn btn-primary" id="save-cluster">Save</button>
     </footer>
   </div>
@@ -357,20 +493,34 @@
   <div class="modal-backdrop"></div>
   <div class="modal-dialog full">
     <header class="modal-header">
-      <p class="modal-title">Dependency Graph: <span id="graph-title"></span></p>
-      
+      <p class="modal-title">
+        Dependency Graph: <span id="graph-title"></span>
+      </p>
+
       <!-- Zoom Controls (uses your existing CSS) -->
       <div class="zoom-controls">
-        <button class="btn btn-sm btn-ghost" id="graph-fit-btn" title="Fit to Screen">
+        <button
+          class="btn btn-sm btn-ghost"
+          id="graph-fit-btn"
+          title="Fit to Screen"
+        >
           <i class="fas fa-expand"></i>
         </button>
         <button class="btn btn-sm btn-ghost" id="graph-zoom-in" title="Zoom In">
           <i class="fas fa-plus"></i>
         </button>
-        <button class="btn btn-sm btn-ghost" id="graph-zoom-out" title="Zoom Out">
+        <button
+          class="btn btn-sm btn-ghost"
+          id="graph-zoom-out"
+          title="Zoom Out"
+        >
           <i class="fas fa-minus"></i>
         </button>
-        <button class="btn btn-sm btn-ghost" id="graph-reset" title="Reset View">
+        <button
+          class="btn btn-sm btn-ghost"
+          id="graph-reset"
+          title="Reset View"
+        >
           <i class="fas fa-undo"></i>
         </button>
       </div>
@@ -379,27 +529,49 @@
     </header>
     <section class="modal-body graph-body">
       <div id="graph-container"></div>
-      
+
       <div class="graph-legend">
         <!-- Your existing legend stays exactly the same -->
         <div class="graph-legend-title">Legend</div>
         <div class="legend-item">
           <svg width="60" height="14" class="legend-svg">
-            <line x1="4" y1="7" x2="52" y2="7" stroke="#ff3366" stroke-width="3" />
+            <line
+              x1="4"
+              y1="7"
+              x2="52"
+              y2="7"
+              stroke="#ff3366"
+              stroke-width="3"
+            />
             <polygon points="52,7 46,3 46,11" fill="#ff3366" />
           </svg>
           <span><strong>needs</strong> — must complete (AND)</span>
         </div>
         <div class="legend-item">
           <svg width="60" height="14" class="legend-svg">
-            <line x1="4" y1="7" x2="52" y2="7" stroke="#00ff9d" stroke-width="3" stroke-dasharray="6,4" />
+            <line
+              x1="4"
+              y1="7"
+              x2="52"
+              y2="7"
+              stroke="#00ff9d"
+              stroke-width="3"
+              stroke-dasharray="6,4"
+            />
             <polygon points="52,7 46,3 46,11" fill="#00ff9d" />
           </svg>
           <span><strong>needs_any</strong> — any one is enough (OR)</span>
         </div>
         <div class="legend-item">
           <svg width="60" height="14" class="legend-svg">
-            <line x1="4" y1="7" x2="52" y2="7" stroke="#ffaa00" stroke-width="3" />
+            <line
+              x1="4"
+              y1="7"
+              x2="52"
+              y2="7"
+              stroke="#ffaa00"
+              stroke-width="3"
+            />
             <polygon points="52,7 46,3 46,11" fill="#ffaa00" />
           </svg>
           <span><strong>on_fail</strong> — run if parent fails</span>

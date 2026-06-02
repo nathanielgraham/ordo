@@ -1,0 +1,73 @@
+# Settings & Administration
+
+The **Settings** tab is where you manage your Ordo account, team members, security tokens, and subscription details.
+
+## Account Information
+
+This section shows:
+- Your email address
+- Account creation date
+- Current subscription tier (Free / Paid)
+- Organization name
+
+## Security Tokens
+
+Ordo uses two distinct types of tokens for different purposes.
+
+### Execution Token
+
+- Used by **remote servers** to authenticate with Ordo when launching jobs.
+- The token is automatically encoded and sent with every job execution via `launcher.pl`.
+- **You do not need to manually update it** on remote servers after rotating.
+
+**Important**: Rotating the Execution Token will cause any **currently running jobs** to lose the ability to report final status or send logs back to Ordo. New jobs started after rotation will work normally.
+
+You can rotate this token at any time from this page.
+
+### API Token
+
+- Used for **external API access** (custom scripts, tools, or integrations).
+- Allows authenticated calls to Ordo’s REST API from outside the web interface.
+- Should be kept secret and rotated immediately if compromised.
+
+**Best Practice**: Use the **Execution Token** for server communication and the **API Token** for external scripts or tools.
+
+## Team Management
+
+Invite others to join your organization:
+
+1. Go to the **Team** section.
+2. Enter the email address of the person you wish to invite.
+3. Choose their permission level.
+4. Click **Invite**.
+
+Invited users receive a magic link to sign up or log in. The maximum number of team members depends on your subscription tier.
+
+## Subscription & Upgrading
+
+This section displays:
+- Your current plan (Free / Paid)
+- Usage limits (API calls, servers, team members)
+- Option to upgrade
+
+Click **View Plans & Upgrade** to explore available tiers and pricing.
+
+## Rate Limits
+
+Ordo enforces fair usage limits:
+- **Per User** — Requests per minute
+- **Per Organization** — Total requests per minute
+
+Paid plans offer significantly higher limits.
+
+## Best Practices
+
+- Rotate your **Execution Token** periodically, ideally during planned maintenance windows.
+- Keep your **API Token** secure and never expose it in client-side code.
+- Monitor your usage in the Settings tab to avoid hitting rate limits.
+- Only invite team members you fully trust.
+
+## Need Help?
+
+For questions about your account, billing, tokens, custom deployments (private networks, on-premise, etc.), or anything else, email **ordosched@proton.me**.
+

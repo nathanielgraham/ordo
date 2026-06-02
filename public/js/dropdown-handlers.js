@@ -69,39 +69,60 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-export function positionMenu(dropdown) {
-  const trigger = dropdown.querySelector(".dropdown-trigger button");
+
+// ==================== POSITIONING LOGIC ====================
+// ==================== POSITIONING LOGIC ====================
+function positionMenu(dropdown) {
+  const trigger = dropdown.querySelector("button");
   const menu = dropdown.querySelector(".dropdown-menu");
   if (!trigger || !menu) return;
 
+  const rect = trigger.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  const spaceAbove = rect.top;
+  const spaceBelow = viewportHeight - rect.bottom;
+
+  // Vertical positioning (prefer bottom)
+  const showBelow = spaceBelow > spaceAbove * 0.9;
+
+  // === Dynamic Width (in rem) ===
+  menu.style.visibility = "hidden";
   menu.style.display = "block";
+  const naturalWidth = menu.scrollWidth;
+  menu.style.visibility = "visible";
 
-  // Cleanup old autoUpdate
-  if (cleanupAutoUpdate) cleanupAutoUpdate();
+  // Convert to rem (assuming 1rem = 16px base)
+  const finalWidthPx = Math.max(180, Math.min(naturalWidth, 230));
+  const finalWidthRem = (finalWidthPx / 16).toFixed(2);
 
-  // Floating UI autoUpdate
-  cleanupAutoUpdate = window.floatingUI.autoUpdate(trigger, menu, () => {
-    window.floatingUI
-      .computePosition(trigger, menu, {
-        placement: "bottom-end",
-        middleware: [
-          window.floatingUI.offset({ mainAxis: 8, alignmentAxis: -32 }),
-          window.floatingUI.flip({ padding: 12 }),
-          window.floatingUI.shift({ padding: 12 }),
-        ],
-      })
-      .then(({ x, y }) => {
-        Object.assign(menu.style, {
-          left: `${x}px`,
-          top: `${y}px`,
-          position: "fixed",
-          zIndex: "9999",
-          width: "auto",
-          minWidth: "180px",     // ← Added
-          maxWidth: "240px",     // ← Added
-        });
-      });
-  });
+  // === Horizontal positioning ===
+  let leftPos = rect.left;
+  //const rightMarginRem = 1.25; // 20px
+
+  if (leftPos + finalWidthPx > viewportWidth - 5) {
+    leftPos = viewportWidth - finalWidthPx - 5;
+  }
+
+  // Apply positioning using rem where possible
+  menu.style.position = "fixed";
+  menu.style.left = `${leftPos}px`;           // left needs px for precision
+  menu.style.width = `${finalWidthRem}rem`;
+  menu.style.overflowY = "auto";
+  menu.style.zIndex = "10000";
+
+  if (showBelow) {
+    menu.style.top = `${rect.bottom + 6}px`;   // small gap in px for precision
+    menu.style.bottom = "auto";
+    menu.style.maxHeight = `${Math.min(spaceBelow * 0.88, viewportHeight * 0.72)}px`;
+  } else {
+    menu.style.bottom = `${viewportHeight - rect.top + 6}px`;
+    menu.style.top = "auto";
+    menu.style.maxHeight = `${Math.min(spaceAbove * 0.88, viewportHeight * 0.72)}px`;
+  }
+
+  dropdown.classList.add("active");
 }
 
 export function closeAllDropdowns() {
