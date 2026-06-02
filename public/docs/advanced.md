@@ -1,6 +1,6 @@
 # Advanced Topics
 
-This section explores powerful patterns and advanced usage of Ordo.
+This section explores special patterns and advanced usage of Ordo.
 
 ## Self-Healing Workflows
 
@@ -47,35 +47,35 @@ Your scripts can interact with Ordo itself using the built-in `ORDO_*` environme
 ### Practical Examples
 
 **Example 1: Trigger Another Job**
-"""
+```
 #!/bin/sh
 # Start another job after this one completes
 curl -X POST "$ORDO_API" \
   -H "Content-Type: application/json" \
   -d '{
-    "command": "run_job",
+    "command": "start_job",
     "id": 123,
     "token": "'$ORDO_TOKEN'"
   }'
-"""
+```
 
 **Example 2: Smart Notification**
-"""
+```
 #!/bin/sh
 if [ "$ORDO_JOB_ID" = "45" ]; then
   email_team.pl "Critical backup job $ORDO_JOB_ID failed on server $ORDO_SERVER_ID"
 else
   email_team.pl "Job $ORDO_JOB_ID failed"
 fi
-"""
+```
 
 **Example 3: Conditional Logic (Perl)**
-"""
+```
 #!/usr/bin/env perl
 if ($ENV{ORDO_CLUSTER_ID} == 27) {
     system("email_team.pl", "Production issue detected");
 }
-"""
+```
 
 ## Advanced Monitoring Setup
 
@@ -99,7 +99,7 @@ Enable **Clone on Overdue** for long-running jobs where missing a scheduled cycl
 ## Performance & Scaling Tips
 
 - Keep high-frequency jobs lightweight.
-- Avoid sub-second schedules on large numbers of clusters.
+- Avoid sub-minute schedules on large numbers of clusters.
 - Rotate Execution Tokens during low-activity windows.
 - Monitor the **Servers** tab regularly for resource usage.
 

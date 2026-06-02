@@ -88,5 +88,5 @@ Right after running:
 **Congratulations!** You just built, ran, and scheduled your first automated workflow.
 
 ### Next Step ###
-[Building Robust Workflows](#docs/workflow.md) — Learn on-fail handling, monitoring, and advanced patterns.
+[Core Concepts](#docs/core-concepts.md) — Learn the foundational ideas to help you use Ordo effectively.
 

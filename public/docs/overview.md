@@ -1,6 +1,6 @@
 # Welcome to Ordo
 
-**Where AI stops talking... and starts doing.**
+**Where AI stops chatting... and starts doing.**
 
 While modern AI has become extraordinarily good at thinking, planning, and reasoning, it has historically been limited by its inability to *execute* real work on your infrastructure.
 
@@ -11,7 +11,7 @@ While modern AI has become extraordinarily good at thinking, planning, and reaso
 ## Standout Features
 
 - **Natural Language Automation**  
-  Ask Grok in plain English to create scripts, build schedules, set up dependencies, and debug failures.
+  Ask Grok in plain English to create scripts, build schedules, setup dependencies, and debug failures.
 
 - **Hierarchical Workflows**  
   Organize jobs into nested clusters with powerful dependency logic (`needs`, `needs_any`, `on_fail`).
@@ -23,19 +23,19 @@ While modern AI has become extraordinarily good at thinking, planning, and reaso
   Beautiful live dashboard with T+/T- timers, interactive dependency graphs, and system metrics.
 
 - **Self-Healing Automation**  
-  Automatic retries, failure routing, hold/ice/release controls, and more.
-
+  Automatic retries, failure routing, hold/ice/release controls, and escalation chains.
 
 ## Ordo + Grok in Action
 
 You can say things like:
 
-- “Create a script that backs up my database every night at 2 AM with 3 retries on failure”
-- “Build a job that checks disk space across all servers and alerts me if anything exceeds 90%”
-- “Create a calendar called Monthly Reports that runs on the last business day of each month at 8 AM”
-- “Analyze the logs of my last failed deployment job and tell me what went wrong”
+- “Create a job called **Daily DB Backup** that runs `pg_dump` on server **prod-db-01**, place it in the **Database Maintenance** cluster, and schedule it to run every night at 2 AM with 3 retries on failure.”
+- “Create a monitoring job called **Disk Space Check** that checks disk usage on all servers every 15 minutes, put it in the **Infrastructure Monitoring** cluster, and alert the team if anything exceeds 90%.”
+- “Analyze the logs of the job **Deployment v2.3** that failed yesterday and tell me what went wrong.”
 
-  Grok can generate the code, create the calendar, attach it to clusters, and even help debug issues.
+**Tip**: When asking Grok to create jobs, be clear about four things: the script/purpose, the server, the target cluster, and the desired schedule.
+
+Grok can generate the code, create the necessary clusters and calendars, set up dependencies, and help debug issues.
 
 ---
 
@@ -43,7 +43,7 @@ You can say things like:
 
 **Ordo is a fully functional, powerful job scheduler on its own.** You can use it perfectly well without any AI integration.
 
-However, when connected to Grok via MCP, it becomes something much more powerful — an **AI-native automation platform** where Grok can directly create, schedule, monitor, and debug jobs using natural language.
+However, when connected to Grok via MCP, it becomes something much more powerful — an **AI-native automation platform** where Grok can directly create, schedule, monitor, and debug real work on your infrastructure.
 
 ---
 
@@ -57,6 +57,6 @@ However, when connected to Grok via MCP, it becomes something much more powerful
 ## Ready to Begin?
 
 1. **Sign up for a free account** – No credit card required
-2. Read the [Quickstart](#docs/quickstart.md) guide
+2. Read the [Quickstart](#docs/quickstart) guide
 3. **Start building!**
 

@@ -48,7 +48,7 @@ Cloning is especially useful for long-running jobs that shouldn’t block the ne
 
 ## 6. Environment Variables
 
-Every running job receives special `ORDO_*` variables that allow scripts to interact with Ordo itself. See the [FAQ](../faq) for details and examples.
+Every running job receives special `ORDO_*` variables that allow scripts to interact with Ordo itself. See the [Advanced Topics](#docs/advanced.md) guide for details and examples.
 
 ## 7. The Visual Dependency Graph
 
