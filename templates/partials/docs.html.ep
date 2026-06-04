@@ -42,12 +42,12 @@
               >
             </li>
             <li>
-              <a href="#" data-file="mcp.md" class="menu-link"
+              <a href="#" data-file="connecting-to-ai.md" class="menu-link"
                 >Connecting to AI</a
               >
             </li>
             <li>
-              <a href="#" data-file="advanced.md" class="menu-link"
+              <a href="#" data-file="advanced-topics.md" class="menu-link"
                 >Advanced Topics</a
               >
             </li>

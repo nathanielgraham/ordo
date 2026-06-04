@@ -23,6 +23,7 @@ use Email::Sender::Transport::SMTP;
 use POSIX       qw(strftime);
 use Time::Local qw(timelocal);
 use ordo::MCP::Tools;
+use Encode 'decode';
 use Data::Dumper;
 
 $ENV{EMAIL_SENDER_SMTP_USER} = 'nathanielgraham1@gmail.com';
@@ -33,6 +34,11 @@ $ENV{EMAIL_SENDER_SMTP_PASS} = 'sscy mwcr ybcg vxga';
 
 $SIG{CHLD} = sub {
    1 while ( ( waitpid( -1, WNOHANG ) ) > 0 );
+};
+
+# Cache for documentation (documents change rarely)
+has 'doc_cache' => sub {
+   state $doc_cache = {};
 };
 
 has 'user' => sub {
@@ -51,7 +57,7 @@ has 'cron' => sub {
    state $timer = {};
 };
 
-# pre-filter 
+# pre-filter
 has 'quartz_rx' => sub {
    state $quartz = qr{
   ^\s*
@@ -81,6 +87,8 @@ sub startup {
 
    # In-memory storage for emails
    #$self->attr( emails => sub { {} } );
+
+   $self->_preload_documents();
 
    # Plugins
    $self->plugin( 'Minion' => { SQLite => "$Bin/../db/sqlite:minion.db" } );
@@ -224,8 +232,9 @@ sub startup {
    # Confirmation - Magic Link with Smart Redirect
    $r->get(
       '/confirm' => sub {
-         my $c           = shift;
-         my $jwt         = $c->param('jwt');
+         my $c   = shift;
+         my $jwt = $c->param('jwt');
+
          #my $redirect_to = $c->param('redirect_to') || '';
 
          unless ($jwt) {
@@ -443,11 +452,11 @@ sub startup {
 
             if ($org) {
                my $exec_user = ordo::Model::User->new(
-                  id             => 0,
-                  level          => 1,
-                  org_id         => $org->{id},
-                  token          => $token,
-                  remote_address => $c->tx->remote_address,
+                  id              => 0,
+                  level           => 1,
+                  org_id          => $org->{id},
+                  token           => $token,
+                  remote_address  => $c->tx->remote_address,
                   root_cluster_id => $org->{root_cluster_id},
                );
 
@@ -569,6 +578,43 @@ sub startup {
 
 # HELPERS
 
+sub _preload_documents {
+   my $self = shift;
+   my $base = $self->home->child('public/docs');
+
+   my %summaries = (
+      'overview' =>
+        'Ordo is a hierarchical job scheduler with native MCP support...',
+      'quickstart' =>
+        'Step-by-step guide to create your first working workflow...',
+      'core-concepts' => 'Explains fundamental concepts: Jobs vs Clusters...',
+      'dashboard'     => 'Real-time view of job health, KPIs, live timers...',
+      'jobs-and-clusters' =>
+        'How to create, edit, and manage jobs and clusters...',
+      'calendars-and-crons' =>
+        'How to create and use Calendars with Quartz cron...',
+      'settings'         => 'Account settings, Execution Token, API Token...',
+      'connecting-to-ai' => 'How to connect Ordo to Grok via MCP...',
+      'advanced-topics'  => 'Self-healing workflows, meta-automation...',
+      'faq'              => 'Frequently asked questions about Ordo...',
+   );
+
+   my %full_docs;
+
+   for my $sec ( keys %summaries ) {
+      my $file = $base->child("$sec.md");
+      print "FILE: $file\n";
+      $full_docs{$sec} =
+        -e $file
+        ? decode('UTF-8', $file->slurp)
+        #? $file->slurp->decode('UTF-8')
+        : "Document not found: $sec.md";
+   }
+
+   $self->doc_cache->{summaries} = \%summaries;
+   $self->doc_cache->{full}      = \%full_docs;
+}
+
 sub _get_execution_token {
    my ( $self, $org_id ) = @_;
    return undef unless $org_id;
@@ -685,6 +731,7 @@ sub validate_params {
       }
       elsif ( $type eq 'ct' ) {    # crontab (basic check)
          return ( 0, "invalid crontab for $key" )
+
            #unless $value =~ /^[\d\s\*\-\/,?L#]+$/;
            unless $value =~ $self->quartz_rx;
          $clean->{$key} = $value =~ s/^\s+|\s+$//gr;
@@ -1046,6 +1093,8 @@ sub _read_cluster {
 sub _set_cluster_state {
    my ( $self, $user, $d ) = @_;
 
+   my $LOOP = 0;
+
    # id state
    my $cluster =
      $self->sqlite->db->select( 'cluster', ['*'], { id => $d->{id} } )->hash;
@@ -1120,21 +1169,7 @@ sub _set_cluster_state {
                },
                { id => $cluster_id }
             );
-            $self->_start_cluster(
-               $user,
-               {
-                  id        => $cluster_id,
-                  origin    => 'loop',
-                  origin_id => $cluster_id
-               }
-            );
-         }
-         elsif ( $cluster->{loop_count} ) {
-            $self->sqlite->db->update(
-               'cluster',
-               { loop_count => 0 },
-               { id         => $cluster_id }
-            );
+            $LOOP = 1;
          }
       }
 
@@ -1214,6 +1249,18 @@ sub _set_cluster_state {
       $self->sqlite->db->update( 'cluster', $update_hash,
          { id => $cluster_id } );
       $self->_broadcast_cluster( $user, [$cluster_id] );
+   }
+
+   if ($LOOP) {
+      $self->_reset_cluster( $user, { id => $cluster_id } );
+      $self->_start_cluster(
+         $user,
+         {
+            id        => $cluster_id,
+            origin    => 'loop',
+            origin_id => $cluster_id
+         }
+      );
    }
 
    return 1;
@@ -1314,10 +1361,10 @@ sub _start_cluster {
    my $hold     = $self->job_states->{hold};
    my $ice      = $self->job_states->{ice};
 
-#print "CLUSTER\n";
-#print Dumper($cluster);
-#print "USER\n";
-#print Dumper($user);
+   #print "CLUSTER\n";
+   #print Dumper($cluster);
+   #print "USER\n";
+   #print Dumper($user);
 
    if ( $cluster->{id} == $user->root_cluster_id ) {
       return { success => 0, message => 'root cluster cannot be started' };
@@ -1704,7 +1751,7 @@ sub update_cluster {
    }
    else {
       $self->_broadcast_cluster( $user, [$cluster_id] );
-      return { success => 1, 'cluster updated' };
+      return { success => 1, message => 'cluster updated' };
    }
 }
 
@@ -2976,12 +3023,12 @@ sub _create_job {
    );
 
    $self->_broadcast_job( $user, [$id] );
-   return { 
-     success => 1, 
-     id => $id, 
-     cluster_id => $parent_id, 
-     message => "new job created in cluster id $parent_id"
-  };
+   return {
+      success    => 1,
+      id         => $id,
+      cluster_id => $parent_id,
+      message    => "new job created in cluster id $parent_id"
+   };
 }
 
 sub read_job {
@@ -3333,11 +3380,14 @@ sub _set_job_state {
       $update_hash->{ended} = time;
       $self->_reset_job_stats( $user, { id => $job_id } );
 
-      if ( $self->_cluster_is_complete( $user, { id => $job->{cluster_id} } ) )
-      {
-         $self->_set_cluster_state( $user,
-            { state => 'complete', id => $job->{cluster_id} } );
-      }
+      # Note: moved to end so all jobs complete first
+      #$COMPLETE_CLUSTER = 1;
+
+      #if ( $self->_cluster_is_complete( $user, { id => $job->{cluster_id} } ) )
+      #{
+      #   $self->_set_cluster_state( $user,
+      #      { state => 'complete', id => $job->{cluster_id} } );
+      #}
    }
    elsif ( $d->{state} eq 'retrying' ) {
 
@@ -3363,8 +3413,23 @@ sub _set_job_state {
    $self->sqlite->db->update( 'job', $update_hash, { id => $job_id } )
      if scalar keys %$update_hash;
 
-   # === ALWAYS BROADCAST FINAL STATE ===
    $self->_broadcast_job( $user, [$job_id] );
+
+   if ( $self->_cluster_is_complete( $user, { id => $job->{cluster_id} } ) )
+
+#if ( $self->_cluster_is_complete( $user, { id => $job->{cluster_id} } ) && $cluster->{state_id} == $self->job_states->{running} )
+   {
+      $self->_set_cluster_state( $user,
+         { state => 'complete', id => $job->{cluster_id} } );
+   }
+
+   # $self->_broadcast_job( $user, [$job_id] );
+
+   #if ( $COMPLETE_CLUSTER )
+   #{
+   #   $self->_set_cluster_state( $user,
+   #      { state => 'complete', id => $job->{cluster_id} } );
+   #}
 
    return 1;
 }
@@ -5344,7 +5409,7 @@ sub _set_cluster_cal_id {
          # nothing to do so return
          return 1 if $new_cal_id && $old_cal_id == $new_cal_id;
       }
-      $self->_broadcast_cal( $user, [ $old_cal_id ] );
+      $self->_broadcast_cal( $user, [$old_cal_id] );
    }
 
    if ($new_cal_id) {
@@ -5356,7 +5421,7 @@ sub _set_cluster_cal_id {
       if ( $count == 1 ) {
          $self->_start_cal( $user, { id => $new_cal_id } );
       }
-      $self->_broadcast_cal( $user, [ $new_cal_id ] );
+      $self->_broadcast_cal( $user, [$new_cal_id] );
    }
    return $rows ? 1 : 0;
 }
@@ -5633,10 +5698,49 @@ sub find_stats {
    };
 }
 
+sub get_documentation {
+   my ( $self, $user, $d ) = @_;
+
+   my $section = $d->{section} // 'overview';
+   my $format  = $d->{format}  // 'markdown';
+
+   my $content = $self->_get_doc_content( $section, $format );
+
+   return { success => 0, message => 'doc not found' } unless $content;
+
+   return {
+      success => 1,
+      section => $section,
+      format  => $format,
+      content => $content,
+   };
+}
+
+sub _get_doc_content {
+   my ( $self, $section, $format ) = @_;
+
+   if ( $format eq 'summary' ) {
+      return $section eq 'all'
+        ? $self->doc_cache->{summaries}
+        : ( $self->doc_cache->{summaries}{$section}
+           // $self->doc_cache->{summaries}{'overview'} );
+   }
+
+   # Full markdown
+   return $section eq 'all'
+     ? $self->doc_cache->{full}
+     : ( $self->doc_cache->{full}{$section}
+        // "Document not found: $section.md" );
+}
+
 # command routing
 
 sub routing {
    state %routing = (
+
+      # Docs
+      'get_documentation' =>
+        [ 'get_documentation', 1, [ { section => 'n', format => 'n' }, {} ], 1 ],
 
       # Stats
       'find_stats' => [ 'find_stats', 1, [ {}, { since => 'i' } ], 1 ],

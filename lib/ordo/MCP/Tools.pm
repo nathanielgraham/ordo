@@ -4,6 +4,49 @@ use Mojo::Base -base;
 
 sub get_tools {
     return {
+        # ====================== DOCS ======================
+        get_documentation => {
+            description =>
+'Retrieve Ordo documentation. **This is one of the most important tools to call first** in a new session. It gives Grok full context about Ordo’s features, architecture, and usage patterns.',
+            params => {
+                section => {
+                    type => 'string',
+                    required => 0,
+                    enum => [
+                        'overview', 'quickstart', 'core-concepts',
+                        'dashboard', 'jobs-and-clusters', 
+                        'calendars-and-crons',
+                        'settings', 'connecting-to-ai', 
+                        'advanced-topics', 'faq', 'all'
+                    ],
+                    description => 'Specific section or "all" for everything'
+                },
+                format => {
+                    type => 'string',
+                    required => 0,
+                    enum => [ 'markdown', 'summary' ],
+                    default => 'markdown'
+                },
+            },
+            examples => [
+                { params => { section => 'overview' } },
+                { params => { section => 'all', format => 'summary' } },
+            ],
+            handler => sub {
+                my ( $c, $p ) = @_;
+                my $section = $p->{section} // 'overview';
+                my $format  = $p->{format}  // 'markdown';
+
+                $c->app->request(
+                    $c->stash('user'),
+                    {
+                        command => 'get_documentation',
+                        section => $section,
+                        format  => $format
+                    }
+                );
+            }
+        },
         # ====================== BROWSING ======================
         list_jobs => {
             description =>
