@@ -59,19 +59,20 @@
       <h3 class="modal-title">Plans & Pricing</h3>
       <button class="close-btn"></button>
     </div>
+
     <div class="modal-body">
       <div class="pricing-grid">
-
         <!-- Free -->
         <div class="plan-card" id="plan-free">
           <h4 class="title-medium">Free</h4>
           <div class="price-box">
-            <span class="text-5xl font-bold">$0</span><span class="text-grey">/mo</span>
+            <span class="text-5xl font-bold">$0</span
+            ><span class="text-grey">/mo</span>
           </div>
           <ul class="feature-list">
             <li>1,000 API calls/month</li>
             <li>1 Server</li>
-            <li>2 Team Members</li>
+            <li>1 Team Member</li>
             <li>Online docs</li>
           </ul>
           <button class="btn btn-ghost neon-ghost w-full mt-large" disabled>
@@ -83,7 +84,8 @@
         <div class="plan-card recommended" id="plan-pro">
           <h4 class="title-medium">Pro</h4>
           <div class="price-box">
-            <span class="text-5xl font-bold">$79</span><span class="text-grey">/mo</span>
+            <span class="text-5xl font-bold">$79</span
+            ><span class="text-grey">/mo</span>
           </div>
           <ul class="feature-list">
             <li>200,000 API calls/month</li>
@@ -95,23 +97,20 @@
             Upgrade — $79/mo
           </button>
         </div>
+      </div>
 
-        <!-- Private & Enterprise -->
-        <div class="plan-card" id="plan-enterprise">
-          <h4 class="title-medium">Private & Enterprise</h4>
-          <div class="price-box">
-            <span class="text-3xl font-bold">Custom</span>
-          </div>
-          <ul class="feature-list">
-            <li>Managed Private VPS</li>
-            <li>Self-Hosted License</li>
-            <li>Air-gapped / On-premises</li>
-            <li>Dedicated support & SLAs</li>
-          </ul>
-          <a href="#docs/private-deployments" class="btn btn-ghost neon-ghost w-full mt-large">
-            View Private & Enterprise Options →
-          </a>
-        </div>
+      <!-- Bottom CTA with generous space -->
+      <div class="strong-cta">
+        <p class="text-grey mb-medium">
+          Need more control, security, or scale?
+        </p>
+        <a
+          href="#docs/private-deployments"
+          class="btn btn-ghost neon-ghost px-8 py-3 text-lg"
+          id="view-private-options"
+        >
+          View Private &amp; Enterprise Options →
+        </a>
       </div>
     </div>
   </div>
@@ -342,7 +341,7 @@
           </p>
         </div>
       </div>
-<!--
+      <!--
       <div class="form-group">
         <label class="label" for="job-on-fail">On Fail Cluster</label>
         <select id="job-on-fail">

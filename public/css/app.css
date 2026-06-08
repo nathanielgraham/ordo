@@ -2100,90 +2100,28 @@ body.is-logged-in .private-tabs {
   font-weight: 600;
 }
 
-/* ==================== Pricing Modal - 3 Card Layout ==================== */
-
-.price-box {
-  margin: 1.5rem 0 1.75rem;
-  font-size: 2.75rem;
-  line-height: 1;
-  font-weight: 700;
-}
-
-.price-box .text-grey {
-  font-size: 1.1rem;
-  font-weight: 400;
-}
-
-.feature-list {
-  list-style: none;
-  padding: 0;
-  margin: 1.5rem 0 2rem;
-  text-align: left;
-  flex-grow: 1;
-}
-
-.feature-list li {
-  padding: 0.45rem 0;
-  color: #e0e0e0;
-  position: relative;
-  padding-left: 1.6rem;
-}
-
-.feature-list li:before {
-  content: "✓";
-  position: absolute;
-  left: 0;
-  color: #67e8f9;
-  font-weight: bold;
-}
-
-.plan-card .btn {
-  margin-top: auto;
-  width: 100%;
-  padding: 0.9rem;
-  font-weight: 700;
-}
-
-.plan-card .btn:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-  border-color: #555;
-}
-
-
-
-
-/* ==================== Pricing Modal - Force 3-Column Layout ==================== */
+/* ==================== Pricing Modal - Final Polish ==================== */
 #pricing-modal .modal-dialog {
-  max-width: 1100px;
+  max-width: 860px;
 }
 
 .pricing-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);     /* Force 3 columns */
-  gap: 1.75rem;
-  margin-top: 1rem;
-}
-
-/* Stack on smaller screens */
-@media (max-width: 900px) {
-  .pricing-grid {
-    grid-template-columns: 1fr;               /* Stack on mobile */
-    gap: 1.5rem;
-  }
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2rem;
+  margin-bottom: 3rem;
 }
 
 .plan-card {
   background: #1a1a1a;
   border: 1px solid #444;
   border-radius: 12px;
-  padding: 2rem 1.75rem;
+  padding: 2.5rem 1.75rem;
   text-align: center;
   transition: all 0.25s ease;
-  position: relative;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-height: 480px;
 }
 
 .plan-card.recommended {
@@ -2195,7 +2133,58 @@ body.is-logged-in .private-tabs {
 .plan-card:hover {
   border-color: #67e8f9;
   box-shadow: 0 0 25px rgba(103, 232, 249, 0.3);
-  transform: translateY(-6px);
+  transform: translateY(-4px);
 }
 
-/* Rest of your styles (price, features, buttons) remain the same */
+.price-box {
+  margin: 1.75rem 0 1.75rem;
+  font-size: 2.75rem;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.feature-list {
+  list-style: none;
+  padding: 0;
+  margin: 1.75rem 0 2.25rem;
+  text-align: left;
+  flex-grow: 1;
+}
+
+.feature-list li {
+  padding: 0.55rem 0;
+  color: #e0e0e0;
+  position: relative;
+  padding-left: 1.6rem;
+}
+
+.feature-list li:before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: #67e8f9;
+}
+
+.plan-card .btn {
+  margin-top: auto;
+  width: 100%;
+  padding: 0.95rem;
+  font-weight: 700;
+}
+
+/* Bottom CTA - Larger Text */
+.strong-cta {
+  text-align: center;
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid #444;
+}
+
+.strong-cta p {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #c0c0c0;
+  margin-bottom: 1rem;
+}
+
+

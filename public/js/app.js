@@ -19,5 +19,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Initial activation with small delay for DOM readiness
   initTabSystem();
+  initPricingModalLink();
   window.addEventListener("hashchange", () => activateTab());
+
 });
+
+// Direct listener for Private & Enterprise link
+function initPricingModalLink() {
+  const link = document.getElementById('view-private-options');
+  if (!link) return;
+
+  link.addEventListener('click', function(e) {
+    // Optional: allow the navigation to happen
+    const modal = document.getElementById('pricing-modal');
+    if (modal) {
+      modal.classList.remove('active');
+    }
+  });
+}
