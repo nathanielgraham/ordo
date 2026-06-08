@@ -91,6 +91,7 @@ function resetAllModals() {
 }
 
 // ==================== JOB MODAL ====================
+// ==================== JOB MODAL ====================
 export function openJobModal(
   mode = "create",
   itemId = null,
@@ -102,9 +103,7 @@ export function openJobModal(
 
   let item = null;
   const numericId = Number(itemId);
-
   if (mode === "edit" && numericId) {
-    // Robust lookup from multiple sources
     item =
       appState.jobsMap.get(numericId) ||
       findJobById(appState.monitorData.tree, numericId);
@@ -120,6 +119,7 @@ export function openJobModal(
   document.getElementById("job-modal-title").textContent = isEdit
     ? "Edit Job"
     : "New Job";
+
   document.getElementById("job-context").textContent = isEdit
     ? `Editing: ${item?.name || "—"}`
     : parentName
@@ -131,7 +131,6 @@ export function openJobModal(
   document.getElementById("job-script").value = isEdit
     ? item?.script || ""
     : "";
-  // document.getElementById("job-description").value = isEdit ? (item?.description || "") : "";
   document.getElementById("job-loops").value = isEdit
     ? (item?.loops ?? 0)
     : "0";
@@ -142,17 +141,13 @@ export function openJobModal(
     ? (item?.delay ?? 0)
     : "0";
 
-  // ==================== SCRIPT TEXTAREA + CLEAR BUTTON + AUTOFOCUS ====================
+  // ==================== SCRIPT TEXTAREA + CLEAR BUTTON + TEMPLATE DROPDOWN ====================
   const scriptTextarea = document.getElementById("job-script");
   const clearBtn = document.getElementById("clear-script-btn");
   const templateSelect = document.getElementById("script-template");
 
-  // Autofocus
-  if (scriptTextarea) {
-    scriptTextarea.focus();
-  }
+  if (scriptTextarea) scriptTextarea.focus();
 
-  // Show/hide clear button
   function updateClearButton() {
     if (clearBtn) {
       clearBtn.style.display = scriptTextarea.value.trim() ? "block" : "none";
@@ -161,10 +156,9 @@ export function openJobModal(
 
   if (scriptTextarea) {
     scriptTextarea.addEventListener("input", updateClearButton);
-    updateClearButton(); // initial state
+    updateClearButton();
   }
 
-  // Clear button click
   if (clearBtn) {
     clearBtn.addEventListener("click", () => {
       scriptTextarea.value = "";
@@ -173,21 +167,16 @@ export function openJobModal(
     });
   }
 
-  // ==================== TEMPLATE DROPDOWN (TomSelect) ====================
+  // Template dropdown
   if (templateSelect) {
     if (templateSelect.tomselect) templateSelect.tomselect.destroy();
 
-    const isEdit = mode === "edit";
-    const label = document.getElementById("script-template-label");
-    if (label)
-      label.textContent = isEdit ? "Replace with Template" : "Insert Template";
-
+    const isEditMode = mode === "edit";
     new TomSelect(templateSelect, {
       maxItems: 1,
-      placeholder: isEdit ? "Replace with Template..." : "Insert Template...",
+      placeholder: isEditMode ? "Replace with Template..." : "Insert Template...",
       onChange: function (value) {
         if (!value || !scriptTextarea) return;
-
         switch (value) {
           case "shell":
             scriptTextarea.value = `#!/bin/sh
@@ -196,7 +185,6 @@ echo "Starting task at $(date)"
 echo "Task completed at $(date)"
 `;
             break;
-
           case "python":
             scriptTextarea.value = `#!/usr/bin/env python3
 import datetime
@@ -205,7 +193,6 @@ print("Started at:", datetime.datetime.now())
 print("Python script finished successfully")
 `;
             break;
-
           case "perl":
             scriptTextarea.value = `#!/usr/bin/env perl
 use strict;
@@ -215,13 +202,10 @@ print "Started at: " . localtime() . "\\n";
 print "Perl script finished.\\n";
 `;
             break;
-
           case "ruby":
             scriptTextarea.value = `#!/usr/bin/env ruby
 puts "Started at: \#{Time.now}"
-
 # Your Ruby code here...
-
 puts "Ruby script finished successfully"
 `;
             break;
@@ -230,9 +214,8 @@ puts "Ruby script finished successfully"
 update_stats.pl
 `;
             break;
-
           case "email":
-            scriptTextarea.value = `#!/bin/sh 
+            scriptTextarea.value = `#!/bin/sh
 email_team.pl "Job completed successfully"
 `;
             break;
@@ -252,7 +235,7 @@ email_team.pl "Job completed successfully"
     })),
   }).setValue(item?.server_name ? [item.server_name] : []);
 
-  // ==================== NEEDS / NEEDS_ANY: Same cluster jobs only, exclude self ====================
+  // ==================== DEPENDENCIES (same cluster only) ====================
   const jobOptions = Array.from(appState.jobsMap.values())
     .filter(
       (j) =>
@@ -264,31 +247,17 @@ email_team.pl "Job completed successfully"
       text: j.name || `Job ${j.id}`,
     }));
 
-  const needsIds = item?.needs_ids || [];
-  const needsAnyIds = item?.needs_any_ids || [];
-
   initModalTomSelect("job-needs", {
     maxItems: null,
     options: jobOptions,
-  }).setValue(needsIds.map(String));
+  }).setValue((item?.needs_ids || []).map(String));
 
   initModalTomSelect("job-needs-any", {
     maxItems: null,
     options: jobOptions,
-  }).setValue(needsAnyIds.map(String));
+  }).setValue((item?.needs_any_ids || []).map(String));
 
-  // ==================== ON_FAIL: Clusters only ====================
-  const clusterOptions = Array.from(appState.clustersMap.values())
-    .filter((c) => c.name !== "root")
-    .map((c) => ({
-      value: String(c.id),
-      text: c.name || `Cluster ${c.id}`,
-    }));
-
-  initModalTomSelect("job-on-fail", {
-    maxItems: 1,
-    options: clusterOptions,
-  }).setValue(item?.on_fail_id ? [String(item.on_fail_id)] : []);
+  // ==================== ON_FAIL REMOVED FOR JOBS ====================
 
   modal.classList.add("active");
   document.getElementById("job-name").focus();
@@ -819,10 +788,12 @@ export function saveJob() {
       .tomselect?.getValue()
       .map(Number) || [];
 
+/*
   const onFailValue = document
     .getElementById("job-on-fail")
     .tomselect?.getValue();
   if (onFailValue) payload.on_fail_id = Number(onFailValue);
+*/
 
   // ==================== PARENT / RENAME HANDLING ====================
   if (!isEdit) {

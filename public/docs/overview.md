@@ -6,6 +6,10 @@ While modern AI has become extraordinarily good at thinking, planning, and reaso
 
 **Ordo** is the bridge — a modern, hierarchical job scheduler with native MCP support. This allows Grok to directly explore, create, schedule, monitor, and debug jobs running on **your** servers.
 
+![Ordo Main Interface](img/main-table.png)
+
+*Real-time hierarchical job view with live timers, states, and dependency indicators.*
+
 ---
 
 ## Standout Features
@@ -33,7 +37,7 @@ You can say things like:
 - “Create a monitoring job called **Disk Space Check** that checks disk usage on all servers every 15 minutes, put it in the **Infrastructure Monitoring** cluster, and alert the team if anything exceeds 90%.”
 - “Analyze the logs of the job **Deployment v2.3** that failed yesterday and tell me what went wrong.”
 
-**Tip**: When asking Grok to create jobs, be clear about four things: the script/purpose, the server, the target cluster, and the desired schedule.
+**Tip**: When asking Grok to create jobs, be clear about four things: the purpose, the server, the target cluster, and the desired schedule.
 
 Grok can generate the code, create the necessary clusters and calendars, set up dependencies, and help debug issues.
 

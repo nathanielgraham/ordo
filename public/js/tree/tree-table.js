@@ -89,43 +89,40 @@ function generateRowContent(
   // Stats
   let statsDisplay = "—";
   let statsTooltipLines = [];
+
   if (!isCluster) {
+    // CPU
     if (item.pctcpu !== null && item.pctcpu !== undefined) {
-      const cpu = item.pctcpu;
+      const cpu = parseFloat(item.pctcpu);
       let cpuClass = "cpu-low";
       if (cpu > 80) cpuClass = "cpu-high";
       else if (cpu > 50) cpuClass = "cpu-medium";
+      
       statsDisplay = `<span class="stats-badge ${cpuClass}">${cpu.toFixed(1)}%</span>`;
-      statsTooltipLines.push(`• CPU: ${cpu.toFixed(1)}%`);
+      statsTooltipLines.push(`CPU: ${cpu.toFixed(1)}%`);
     }
+    
+    // Memory
     if (item.pctmem !== null && item.pctmem !== undefined) {
-      statsTooltipLines.push(`• Memory: ${item.pctmem.toFixed(1)}%`);
+      statsTooltipLines.push(`Memory: ${parseFloat(item.pctmem).toFixed(1)}%`);
     }
+    
+    // RSS
     if (item.rss !== null && item.rss !== undefined) {
       const rssMB = Math.round(item.rss / 1024 / 1024);
-      statsTooltipLines.push(`• RSS: ${rssMB} MB`);
+      statsTooltipLines.push(`RSS: ${rssMB} MB`);
     }
+    
+    // Process Info
     if (item.pid !== null && item.pid !== undefined) {
-      statsTooltipLines.push(`Process (PID ${item.pid}):`);
+      statsTooltipLines.push(`PID: ${item.pid}`);
     }
     if (item.ppid !== null && item.ppid !== undefined) {
-      statsTooltipLines.push(`• Parent PID: ${item.ppid}`);
-    }
-    if (item.fname) {
-      statsTooltipLines.push(`• Command: ${item.fname}`);
-    }
-    if (
-      item.jobstate === "running" &&
-      item.pid !== null &&
-      item.pctcpu == null
-    ) {
-      statsTooltipLines.push("");
-      statsTooltipLines.push("Full stats not collected – run update_stats.pl");
+      statsTooltipLines.push(`PPID: ${item.ppid}`);
     }
   }
-  const statsTitle = statsTooltipLines.length
-    ? statsTooltipLines.join("\n")
-    : "";
+  
+  const statsTitle = statsTooltipLines.length ? statsTooltipLines.join("\n") : "";
 
   // Actions HTML
   const menuItem = (text, disabled = false, action = null) => {
@@ -235,8 +232,8 @@ function generateRowContent(
     <td>${nameHtml}</td>
     <td><span class="${stateClass}">${item.jobstate || "—"}</span></td>
     <td>${item.server_name || "—"}</td>
-    <td class="deps-td ${depsCount > 0 ? "has-tooltip" : ""}" title="${depsTitle}">${depsDisplay}</td>
-    <td class="stats-td ${statsTitle ? "has-tooltip" : ""}" title="${statsTitle}">${statsDisplay}</td>
+    <td class="deps-td ${depsCount > 0 ? "has-tooltip" : ""}" data-tooltip="${depsTitle}">${depsDisplay}</td>
+    <td class="stats-td ${statsTitle ? "has-tooltip" : ""}" data-tooltip="${statsTitle}">${statsDisplay}</td>
     <td>${formatTplus(item.started) || "—"}</td>
     <td>${formatDuration(item.started, item.ended) || "—"}</td>
     <td>${formatTminus(item.next_start) || "—"}</td>
@@ -290,113 +287,16 @@ function buildSingleRow(
 }
 
 // ==================== SURGICAL ROW UPDATE (Preserves dropdowns & state) ====================
-export function updateRow(row, item) {
-  if (!row || !item) return false;
 
-  const cells = row.cells;
-  if (!cells || cells.length < 8) return false;
+// ==================== INSERT FUNCTIONS (with tree sync) ====================
 
-  const state = (item.jobstate || item.state || "unknown").toLowerCase().trim();
-
-  // 1. State Badge — using the correct class "state-badge"
-  if (cells[1]) {
-    cells[1].innerHTML = `
-      <span class="state-badge ${state}">
-        ${item.jobstate || item.state || "—"}
-      </span>
-    `;
-  }
-
-  // 2. Server
-  if (cells[2]) {
-    cells[2].textContent = item.server_name || "—";
-  }
-
-  // 3. Dependencies
-  if (cells[3]) {
-    let count = 0;
-    if (Array.isArray(item.needs_ids)) count += item.needs_ids.length;
-    if (Array.isArray(item.needs_any_ids)) count += item.needs_any_ids.length;
-    if (item.on_fail_id) count += 1;
-    cells[3].textContent = count > 0 ? count : "—";
-  }
-
-  // 4. Stats (CPU)
-  if (cells[4]) {
-    let html = "—";
-    if (item.pctcpu != null) {
-      const cpu = parseFloat(item.pctcpu);
-      let cls = "cpu-low";
-      if (cpu > 80) cls = "cpu-high";
-      else if (cpu > 50) cls = "cpu-medium";
-      html = `<span class="stats-badge ${cls}">${cpu.toFixed(1)}%</span>`;
-    }
-    cells[4].innerHTML = html;
-  }
-
-  // 5. Last Run (T+)
-  if (cells[5]) {
-    cells[5].textContent = formatTplus(item.started) || "—";
-  }
-
-  // 6. Duration
-  if (cells[6]) {
-    cells[6].textContent = formatDuration(item.started, item.ended) || "—";
-  }
-
-  // 7. Next Run (T-)
-  if (cells[7]) {
-    cells[7].textContent = formatTminus(item.next_start) || "—";
-  }
-
-  return true;
-}
-
-// ==================== FIXED updateRow ====================
-/*
-export function updateRow(row, item) {
-  if (!row || !item) return;
-
-  const depth = Number(row.dataset.depth) || 0;
-  const parentId = row.dataset.parent || null;
-
-  const { html, isCollapsed } = generateRowContent(item, depth, parentId);
-
-  // Only replace innerHTML — preserve collapse class and data attributes
-  row.innerHTML = html;
-
-  if (isCollapsed) {
-    row.classList.add("collapsed");
-  } else {
-    row.classList.remove("collapsed");
-  }
-
-  // Critical: Always update Next Run column for clusters
-  if (item.is_cluster && item.next_start !== undefined) {
-    const nextRunCell = row.cells[7]; // 8th column (0-based)
-    if (nextRunCell) {
-      nextRunCell.textContent = formatTminus(item.next_start) || "—";
-      nextRunCell.dataset.nextStart = item.next_start;
-    }
-  }
-
-  // Update live timing cells safely
-  const cells = row.cells;
-  if (cells[5]) cells[5].textContent = formatTplus(item.started) || "—";
-  if (cells[6])
-    cells[6].textContent = formatDuration(item.started, item.ended) || "—";
-}
-*/
-
-export function insertRow(item, parentId = null) {
+export function insertCluster(item, parentId = null) {
   const tbody = document.getElementById("tree-body");
   if (!tbody) return;
 
-  const isCluster = !!item.is_cluster || !!item.parent_id;
-  const rowId = isCluster ? `row-cluster-${item.id}` : `row-job-${item.id}`;
-
+  const rowId = `row-cluster-${item.id}`;
   if (document.getElementById(rowId)) {
-    updateRow(document.getElementById(rowId), item);
+    updateClusterRow(document.getElementById(rowId), item);
     return;
   }
 
@@ -411,29 +311,18 @@ export function insertRow(item, parentId = null) {
 
   buildSingleRow(newRow, item, depth, parentId);
 
-  // === UNIFIED SUBTREE INSERTION (works for both clusters and jobs) ===
+  // Smart DOM insertion
   if (parentId) {
     const parentRow = document.getElementById(`row-cluster-${parentId}`);
     if (parentRow) {
-      let lastDescendant = parentRow;
-      let current = parentRow.nextElementSibling;
-
-      while (current) {
-        const rowParent = current.dataset.parent;
-        const rowCluster = current.dataset.clusterId || current.dataset.cluster;
-
-        const belongsToSubtree =
-          (rowParent && String(rowParent) === String(parentId)) ||
-          (rowCluster && String(rowCluster) === String(parentId)) ||
-          (rowParent && isDescendantOf(rowParent, parentId));
-
-        if (!belongsToSubtree) break;
-
-        lastDescendant = current;
-        current = current.nextElementSibling;
+      let last = parentRow;
+      let curr = parentRow.nextElementSibling;
+      while (curr) {
+        if (curr.dataset.parent !== String(parentId)) break;
+        last = curr;
+        curr = curr.nextElementSibling;
       }
-
-      lastDescendant.after(newRow);
+      last.after(newRow);
     } else {
       tbody.appendChild(newRow);
     }
@@ -441,11 +330,268 @@ export function insertRow(item, parentId = null) {
     tbody.appendChild(newRow);
   }
 
-  // Re-apply collapse state for clusters
-  if (isCluster && appState.collapsedClusters.has(String(item.id))) {
+  // === FORCE TREE SYNC ===
+  if (appState.monitorData?.tree) {
+    let treeCluster = findClusterById(appState.monitorData.tree, item.id);
+    if (!treeCluster) {
+      const newCluster = { ...item, is_cluster: true, children: [] };
+      if (!parentId || parentId === 1) {
+        appState.monitorData.tree.push(newCluster);
+      } else {
+        const parent = findClusterById(appState.monitorData.tree, parentId);
+        if (parent) {
+          if (!parent.children) parent.children = [];
+          parent.children.push(newCluster);
+        }
+      }
+      console.log(`[insertCluster] Force-added cluster ${item.id} to main tree`);
+    }
+  }
+
+  // Re-apply collapse
+  if (appState.collapsedClusters.has(String(item.id))) {
     newRow.classList.add("collapsed");
     toggleSubtree(item.id, true);
   }
+
+  console.log(`[insertCluster] Inserted cluster ${item.id} under parent ${parentId}`);
+}
+
+export function insertJob(item, parentId = null) {
+  const tbody = document.getElementById("tree-body");
+  if (!tbody) return;
+
+  const rowId = `row-job-${item.id}`;
+  if (document.getElementById(rowId)) {
+    updateJobRow(document.getElementById(rowId), item);
+    return;
+  }
+
+  const newRow = document.createElement("tr");
+  newRow.id = rowId;
+
+  let depth = 0;
+  if (parentId) {
+    const parentRow = document.getElementById(`row-cluster-${parentId}`);
+    if (parentRow) depth = Number(parentRow.dataset.depth || 0) + 1;
+  }
+
+  buildSingleRow(newRow, item, depth, parentId);
+
+  // === INSERT AFTER ALL JOBS BUT BEFORE SUB-CLUSTERS ===
+  if (parentId) {
+    const parentRow = document.getElementById(`row-cluster-${parentId}`);
+    if (parentRow) {
+      let insertionPoint = parentRow;
+
+      let current = parentRow.nextElementSibling;
+      while (current) {
+        const isSubCluster = current.classList.contains("ordo-cluster-row");
+        const rowParent = current.dataset.parent;
+
+        // Stop at the first sub-cluster or when we leave this parent's subtree
+        if (isSubCluster || (rowParent && String(rowParent) !== String(parentId))) {
+          break;
+        }
+
+        insertionPoint = current;
+        current = current.nextElementSibling;
+      }
+
+      insertionPoint.after(newRow);
+    } else {
+      tbody.appendChild(newRow);
+    }
+  } else {
+    tbody.appendChild(newRow);
+  }
+
+  // Tree state sync
+  if (appState.monitorData?.tree) {
+    const jobInTree = findJobById(appState.monitorData.tree, item.id);
+    if (!jobInTree) {
+      const parent = findClusterById(appState.monitorData.tree, parentId);
+      if (parent) {
+        if (!parent.jobs) parent.jobs = [];
+        parent.jobs.push({ ...item, is_cluster: false });
+      }
+    }
+  }
+
+  console.log(`[insertJob] Inserted job ${item.id} AFTER jobs, BEFORE subclusters in parent ${parentId}`);
+}
+
+// ==================== SURGICAL UPDATE FUNCTIONS ====================
+
+export function updateClusterRow(row, item) {
+  if (!row || !item) return;
+
+  const cells = row.cells;
+  if (!cells || cells.length < 9) return;
+
+  const state = (item.jobstate || item.state || "unknown").toLowerCase().trim();
+
+  // 0. NAME 
+  if (cells[0]) {
+    const nameCell = cells[0];
+    const toggleHtml = '<span class="ordo-toggle"></span>';
+    const icon = '<i class="fas fa-folder mr-2 has-text-info"></i>';
+    nameCell.innerHTML = `${toggleHtml}${icon}${item.name}/`;
+  }
+
+  // 1. State Badge
+  if (cells[1]) {
+    cells[1].innerHTML = `<span class="state-badge ${state}">${item.jobstate || "—"}</span>`;
+  }
+
+  // 2. Server
+  if (cells[2]) cells[2].textContent = item.server_name || "—";
+
+  // 3. Dependencies count
+  if (cells[3]) {
+    let count = 0;
+    if (Array.isArray(item.needs_ids)) count += item.needs_ids.length;
+    if (Array.isArray(item.needs_any_ids)) count += item.needs_any_ids.length;
+    if (item.on_fail_id) count += 1;
+    cells[3].textContent = count > 0 ? count : "—";
+  }
+
+  // 4. Stats (CPU)
+  if (cells[4]) {
+    let html = "—";
+    let tooltipLines = [];
+
+    if (item.pctcpu != null) {
+      const cpu = parseFloat(item.pctcpu);
+      let cls = "cpu-low";
+      if (cpu > 80) cls = "cpu-high";
+      else if (cpu > 50) cls = "cpu-medium";
+      html = `<span class="stats-badge ${cls}">${cpu.toFixed(1)}%</span>`;
+      tooltipLines.push(`CPU: ${cpu.toFixed(1)}%`);
+    }
+
+    if (item.pctmem != null) {
+      tooltipLines.push(`Memory: ${parseFloat(item.pctmem).toFixed(1)}%`);
+    }
+    if (item.rss != null) {
+      const rssMB = Math.round(item.rss / 1024 / 1024);
+      tooltipLines.push(`RSS: ${rssMB} MB`);
+    }
+    if (item.pid != null) {
+      tooltipLines.push(`PID: ${item.pid}`);
+    }
+    if (item.ppid != null) {
+      tooltipLines.push(`PPID: ${item.ppid}`);
+    }
+    if (item.fname) {
+      tooltipLines.push(`Command: ${item.fname}`);
+    }
+
+    const tooltipText = tooltipLines.length ? tooltipLines.join("\n") : "No stats available";
+
+    cells[4].innerHTML = html;
+    cells[4].setAttribute("data-tooltip", tooltipText);
+    cells[4].classList.toggle("has-tooltip", tooltipLines.length > 0);
+  }
+
+  // 5-7. Timing columns
+  if (cells[5]) cells[5].textContent = formatTplus(item.started) || "—";
+  if (cells[6]) cells[6].textContent = formatDuration(item.started, item.ended) || "—";
+  if (cells[7]) cells[7].textContent = formatTminus(item.next_start) || "—";
+
+  // 8. Calendar name (important for clusters)
+  if (cells[8]) {
+    cells[8].textContent = item.cal_name || "—";
+  }
+
+  console.log(`[updateClusterRow] Updated cluster ${item.id}`);
+}
+
+export function updateJobRow(row, item) {
+  if (!row || !item) return;
+
+  const cells = row.cells;
+  if (!cells || cells.length < 9) return;
+
+  const state = (item.jobstate || item.state || "unknown").toLowerCase().trim();
+
+  // 0. Name
+  if (cells[0]) {
+    const nameCell = cells[0];
+    const icon = '<i class="fas fa-cog mr-2 has-text-grey"></i>';
+    nameCell.innerHTML = `${icon}${item.name}`;
+  }
+
+  // 1. State Badge
+  if (cells[1]) {
+    cells[1].innerHTML = `<span class="state-badge ${state}">${item.jobstate || "—"}</span>`;
+  }
+
+  // 2. Server
+  if (cells[2]) cells[2].textContent = item.server_name || "—";
+
+  // 3. Dependencies count
+  if (cells[3]) {
+    let count = 0;
+    if (Array.isArray(item.needs_ids)) count += item.needs_ids.length;
+    if (Array.isArray(item.needs_any_ids)) count += item.needs_any_ids.length;
+    if (item.on_fail_id) count += 1;
+    cells[3].textContent = count > 0 ? count : "—";
+  }
+
+  // 4. Stats (CPU)
+  // 4. Stats - Simple version (no "No stats available" tooltip)
+  if (cells[4]) {
+    const cell = cells[4];
+    let html = "—";
+    let hasStats = false;
+
+    if (item.pctcpu != null) {
+      const cpu = parseFloat(item.pctcpu);
+      let cls = "cpu-low";
+      if (cpu > 80) cls = "cpu-high";
+      else if (cpu > 50) cls = "cpu-medium";
+      
+      html = `<span class="stats-badge ${cls}">${cpu.toFixed(1)}%</span>`;
+      hasStats = true;
+    }
+
+    cell.innerHTML = html;
+    
+    if (hasStats) {
+      cell.setAttribute("data-tooltip", `CPU: ${parseFloat(item.pctcpu || 0).toFixed(1)}%\n` +
+        (item.pctmem != null ? `Memory: ${parseFloat(item.pctmem).toFixed(1)}%\n` : '') +
+        (item.rss != null ? `RSS: ${Math.round(item.rss / 1024 / 1024)} MB\n` : '') +
+        (item.pid != null ? `PID: ${item.pid}` : ''));
+      cell.classList.add("has-tooltip");
+    } else {
+      cell.removeAttribute("data-tooltip");
+      cell.classList.remove("has-tooltip");
+    }
+  }
+   
+  // 5-7. Timing columns
+  if (cells[5]) cells[5].textContent = formatTplus(item.started) || "—";
+  if (cells[6]) cells[6].textContent = formatDuration(item.started, item.ended) || "—";
+  if (cells[7]) cells[7].textContent = formatTminus(item.next_start) || "—";
+
+  console.log(`[updateJobRow] Updated job ${item.id}`);
+}
+
+// ==================== REMOVE FUNCTIONS ====================
+
+export function removeClusterRow(id) {
+  const row = document.getElementById(`row-cluster-${id}`);
+  if (row) row.remove();
+  appState.clustersMap.delete(Number(id));
+  console.log(`[removeClusterRow] Removed cluster ${id}`);
+}
+
+export function removeJobRow(id) {
+  const row = document.getElementById(`row-job-${id}`);
+  if (row) row.remove();
+  appState.jobsMap.delete(Number(id));
+  console.log(`[removeJobRow] Removed job ${id}`);
 }
 
 // Helper function

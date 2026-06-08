@@ -19,9 +19,14 @@ import {
 import { renderJobsTable } from "./tree/tree-table.js";
 import { openCronsModal } from "./modals.js";
 import {
-  updateRow,
-  insertRow,
-  removeRow,
+  //updateRow,
+  //insertRow,
+  insertJob,
+  insertCluster,
+  updateJobRow,
+  updateClusterRow,
+  removeJobRow,
+  removeClusterRow,
   updateLiveTimings,
 } from "./tree/tree-table.js";
 
@@ -45,9 +50,32 @@ import {
 } from "./utils.js";
 
 // HELPERS
-/**
- * Best version: Persistent + Modal-friendly TomSelect
- */
+
+// Helper to keep state and tree in sync
+function syncItemToState(item, isCluster) {
+  const id = Number(item.id);
+  if (!id) return null;
+
+  const map = isCluster ? appState.clustersMap : appState.jobsMap;
+  const findFn = isCluster ? findClusterById : findJobById;
+
+  let existing = map.get(id);
+  if (existing) {
+    Object.assign(existing, item);
+  } else {
+    existing = { ...item, is_cluster: isCluster };
+    map.set(id, existing);
+  }
+
+  // Sync to main tree
+  const treeItem = findFn(appState.monitorData.tree, id);
+  if (treeItem) {
+    Object.assign(treeItem, item);
+  }
+
+  return existing;
+}
+
 export function initModalTomSelect(selectId, config = {}) {
   const el = document.getElementById(selectId);
   if (!el) return null;
@@ -335,7 +363,6 @@ export function renderServersTable() {
     // CPU %
     const cpu =
       server.cpu_percent != null ? `${server.cpu_percent.toFixed(1)}%` : "—";
-    const cpuTooltip = "True CPU utilization (user + system) from top snapshot";
 
     // Memory + Swap
     let mem = "—";
@@ -433,10 +460,10 @@ export function renderServersTable() {
       </td>
       <td class="time-text text-grey">${relTime}</td>
       <td title="${loadTooltip}">${load1}</td>
-      <td title="${cpuTooltip}">${cpu}</td>
+      <td>${cpu}</td>
       <td title="${memTooltip}">${mem}</td>
       <td title="${diskTooltip}">${disk}</td>
-      <td title="Server uptime">${uptime}</td>
+      <td>${uptime}</td>
       <td>
         <div class="dropdown is-right">
           <div class="dropdown-trigger">
@@ -789,6 +816,7 @@ export function updateLogHistory(data) {
   tbody.appendChild(fragment);
 }
 
+
 export function renderCalendarsTable() {
   const tbody = document.getElementById("calendars-body");
   const table = document.getElementById("calendars-table");
@@ -810,12 +838,17 @@ export function renderCalendarsTable() {
 
   calendars.forEach((cal) => {
     const calId = String(cal.id);
-    const hasCrons = Array.isArray(cal.crons) && cal.crons.length > 0;
     const isCollapsed = appState.collapsedCalendars.has(calId);
+    const hasCrons = Array.isArray(cal.crons) && cal.crons.length > 0;
 
+    // Next Start Logic
     const calNextStart = Number(cal.next_start || 0);
     const hasValidNext = cal.cluster_ids?.length > 0 && calNextStart > now;
+    const nextStartHtml = hasValidNext 
+      ? (formatTminus(calNextStart) || "—") 
+      : "—";
 
+    // Calendar Row
     const calRow = document.createElement("tr");
     calRow.className = `ordo-calendar-row ${isCollapsed ? "collapsed" : ""}`;
     calRow.dataset.id = calId;
@@ -825,7 +858,7 @@ export function renderCalendarsTable() {
     calRow.innerHTML = `
       <td>
         ${hasCrons ? `<span class="ordo-toggle"></span>` : `<span class="ordo-toggle empty"></span>`}
-        <i class="fas fa-folder mr-2 has-text-info"></i>
+        <i class="fas fa-folder mr-2"></i>
         ${escapeHtml(cal.name || "Unnamed Calendar")}
       </td>
       <td>${escapeHtml(cal.tz || "—")}</td>
@@ -834,24 +867,20 @@ export function renderCalendarsTable() {
       <td>${cal.cluster_ids?.length || 0}</td>
       <td>—</td>
       <td>—</td>
-      <td data-next-start="${hasValidNext ? calNextStart : ''}">
-        ${hasValidNext ? (formatTminus(calNextStart) || "—") : "—"}
-      </td>
+      <td data-next-start="${hasValidNext ? calNextStart : ''}">${nextStartHtml}</td>
       <td>${generateCalendarActions(cal.id, hasCrons)}</td>
     `;
 
     tbody.appendChild(calRow);
 
-    // Cron rows (no next_start)
+    // Render Cron Rows
     if (hasCrons) {
-      cal.crons.forEach((cron, idx) => {
-        const isLast = idx === cal.crons.length - 1;
+      cal.crons.forEach((cron) => {
         const cronRow = document.createElement("tr");
         cronRow.className = `ordo-cron-row ${isCollapsed ? "hidden" : ""}`;
         cronRow.dataset.id = `cron-${calId}-${cron.id}`;
         cronRow.dataset.depth = "1";
         cronRow.dataset.parent = calId;
-        cronRow.dataset.lastChild = isLast ? "true" : "false";
         cronRow.style.setProperty("--depth", "1");
 
         cronRow.innerHTML = `
@@ -1089,9 +1118,33 @@ export function applyServerBroadcast(data) {
 }
 
 // ==================== DASHBOARD CORE ====================
+
+function ensureClusterInState(update) {
+  const id = Number(update.id);
+  if (!id) return null;
+
+  let cluster = appState.clustersMap.get(id);
+  if (cluster) {
+    Object.assign(cluster, update);
+  } else {
+    cluster = { ...update, is_cluster: true };
+    appState.clustersMap.set(id, cluster);
+    console.log(`[State Sync] Added new cluster ${id} to clustersMap`);
+  }
+
+  // Sync to main tree
+  if (appState.monitorData?.tree) {
+    const treeCluster = findClusterById(appState.monitorData.tree, id);
+    if (treeCluster) {
+      Object.assign(treeCluster, update);
+    }
+  }
+
+  return cluster;
+}
+
 export function applyClusterBroadcast(data) {
   if (!data) return;
-
   console.log(
     `[applyClusterBroadcast] updates:${data.updates?.length || 0} deletes:${data.deletes?.length || 0}`,
   );
@@ -1104,15 +1157,16 @@ export function applyClusterBroadcast(data) {
       const id = Number(del.id || del);
       if (!id) return;
 
-      removeRow(id, true);
+      removeClusterRow(id, true);
       appState.clustersMap.delete(id);
 
+      // Remove child jobs
       const jobsToRemove = [];
       appState.jobsMap.forEach((job, jobId) => {
         if (Number(job.cluster_id) === id) jobsToRemove.push(jobId);
       });
       jobsToRemove.forEach((jobId) => {
-        removeRow(jobId, false);
+        removeJobRow(jobId, false);
         appState.jobsMap.delete(jobId);
       });
 
@@ -1122,7 +1176,7 @@ export function applyClusterBroadcast(data) {
     });
   }
 
-  // === UPDATES ===
+  // === UPDATES / NEW CLUSTERS ===
   if (data.updates && Array.isArray(data.updates)) {
     data.updates.forEach((update) => {
       const id = Number(update.id);
@@ -1130,50 +1184,35 @@ export function applyClusterBroadcast(data) {
 
       update.is_cluster = true;
 
-      // === STRONG CALENDAR SYNC ===
+      // Calendar sync
       if (update.cal_id !== undefined || update.next_start !== undefined) {
         shouldRefreshCalendars = true;
-
         if (update.next_start !== undefined) {
           const calId = Number(update.cal_id);
           const calendar = appState.calendarsData.find(c => Number(c.id) === calId);
-          if (calendar) {
-            calendar.next_start = Number(update.next_start);
-            console.log(`[Calendar Sync] Updated calendar ${calId} next_start → ${update.next_start}`);
-          }
+          if (calendar) calendar.next_start = Number(update.next_start);
         }
       }
 
-      // Update clustersMap
-      let cluster = appState.clustersMap.get(id);
-      if (cluster) {
-        Object.assign(cluster, update);
-      } else {
-        cluster = { ...update, is_cluster: true };
-        appState.clustersMap.set(id, cluster);
-      }
+      // === ENSURE STATE IS UPDATED ===
+      const cluster = ensureClusterInState(update);
 
-      // Update tree
-      const clusterInTree = findClusterById(appState.monitorData.tree, id);
-      if (clusterInTree) Object.assign(clusterInTree, update);
-
-      // Update DOM row
+      // Update DOM
       let row = document.getElementById(`row-cluster-${id}`);
       if (row) {
-        updateRow(row, cluster);
+        updateClusterRow(row, cluster);
       } else {
         const parentId = Number(update.parent_id);
-        insertRow(cluster, parentId);
+        insertCluster(cluster, parentId);
       }
     });
   }
 
-  refreshDashboardCards("clusters_changed");
-
-  if (shouldRefreshCalendars) {
-    console.log("[applyClusterBroadcast] Refreshing calendars due to next_start / cal change");
+  if (shouldRefreshCalendars && document.getElementById("calendars")?.classList.contains("active")) {
     renderCalendarsTable();
   }
+
+  refreshDashboardCards("clusters_changed");
 }
 
 // Simple, fast counters using Maps
@@ -1226,26 +1265,19 @@ export function countOverdueClusters() {
 
 export function applyJobBroadcast(data) {
   if (!data) return;
-
   console.log(
     `[applyJobBroadcast] updates:${data.updates?.length || 0} deletes:${data.deletes?.length || 0}`,
   );
 
-  // === DELETES - Strict cleanup ===
+  // === DELETES ===
   if (data.deletes && Array.isArray(data.deletes)) {
     data.deletes.forEach((del) => {
       const id = Number(del.id || del);
       if (!id) return;
 
-      console.log(`[Delete Job] Removing job ${id}`);
-
-      // Remove from DOM
-      removeRow(id, false);
-
-      // Remove from jobsMap
+      removeJobRow(id, false);
       appState.jobsMap.delete(id);
 
-      // Extra safety: try to remove from tree as well
       if (appState.monitorData?.tree) {
         removeJobById(appState.monitorData.tree, id);
       }
@@ -1255,42 +1287,27 @@ export function applyJobBroadcast(data) {
   // === UPDATES / NEW JOBS ===
   if (data.updates && Array.isArray(data.updates)) {
     data.updates.forEach((update) => {
-      // Safety: skip if this is actually a cluster
-      if (update.is_cluster === true) return;
+      if (update.is_cluster === true) return; // safety
 
       const id = Number(update.id);
       if (!id) return;
 
-      // Force correct type flag
       update.is_cluster = false;
 
-      // Update or insert in jobsMap
-      let job = appState.jobsMap.get(id);
-      if (job) {
-        Object.assign(job, update);
-      } else {
-        job = { ...update, is_cluster: false };
-        appState.jobsMap.set(id, job);
-      }
+      // === SYNC STATE FIRST ===
+      const job = syncItemToState(update, false);
 
-      // Update tree object
-      const jobInTree = findJobById(appState.monitorData.tree, id);
-      if (jobInTree) {
-        Object.assign(jobInTree, update);
-      }
-
-      // Update or insert DOM row
+      // Update DOM
       let row = document.getElementById(`row-job-${id}`);
       if (row) {
-        updateRow(row, job);
+        updateJobRow(row, job);
       } else {
         const parentId = Number(update.cluster_id || update.parent_id);
-        insertRow(job, parentId);
+        insertJob(job, parentId);
       }
     });
   }
 
-  // === DASHBOARD REFRESH (debounced) ===
   refreshDashboardCards("jobs_changed");
 }
 

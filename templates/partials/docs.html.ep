@@ -52,6 +52,11 @@
               >
             </li>
             <li>
+              <a href="#" data-file="private-deployments.md" class="menu-link"
+                >Private Deployments</a
+              >
+            </li>
+            <li>
               <a href="#" data-file="faq.md" class="menu-link"
                 >FAQ</a
               >

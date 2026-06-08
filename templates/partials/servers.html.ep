@@ -76,8 +76,7 @@
             class="input"
             type="text"
             id="server-user"
-            value="broom"
-            placeholder="e.g. broom"
+            placeholder="e.g. ordo"
           />
         </div>
         <div class="form-group">
@@ -91,6 +90,7 @@
             max="65535"
           />
         </div>
+
         <div class="form-group" id="password-group">
           <label class="label" for="server-password"
             >Password (initial setup only)</label

@@ -82,9 +82,25 @@ if ($ENV{ORDO_CLUSTER_ID} == 27) {
 For production environments, we recommend:
 
 1. Create a dedicated **Monitoring** cluster.
-2. Add a job that runs `update_stats.pl`.
-3. Attach a calendar that triggers every 10–30 seconds.
+2. Add a job that runs `update_stats.pl` on each server you want to monitor.
+3. Attach a calendar that triggers every 30–60 seconds.
 4. (Optional) Add an On Fail cluster that notifies the team if monitoring stops.
+
+### Monitoring & Polling Best Practices
+
+The `update_stats.pl` script provides real-time visibility into your jobs and servers.
+
+**Recommended Settings:**
+
+- **Default / Recommended**: Poll every **30–60 seconds**
+- **High-frequency monitoring** (not recommended for most users): every 10–15 seconds
+- **Low-frequency** (cost-sensitive or large fleets): every 2–5 minutes
+
+**Why it matters:**
+- More frequent polling consumes more API quota.
+- With the current Pro tier (200,000 calls/month), polling every 10 seconds on 10+ servers can exhaust your quota very quickly.
+
+**Tip:** Start with 30-second intervals and adjust based on your monitoring needs. You can always increase frequency later if needed.
 
 ## Private Network & Firewall Deployments
 

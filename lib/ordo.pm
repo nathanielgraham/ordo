@@ -5790,8 +5790,8 @@ sub routing {
                mode          => 'm',
                needs_any     => 'a:s',
                needs_any_ids => 'a:i',
-               on_fail       => 'p',
-               on_fail_id    => 'i',
+               #on_fail       => 'p',
+               #on_fail_id    => 'i',
             }
          ],
          1
@@ -5824,8 +5824,8 @@ sub routing {
                loops         => 'i',
                delay         => 'i',
                priority      => 'i',
-               on_fail       => 'p',
-               on_fail_id    => 'i?',
+               #on_fail       => 'p',
+               #on_fail_id    => 'i?',
                remove_needs  => 'i',
             }
          ],

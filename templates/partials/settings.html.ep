@@ -159,16 +159,26 @@
       <!-- Billing Tab -->
       <div id="tab-billing" class="internal-tab-content" style="display: none">
         <div class="card-simple">
-          <h3 class="title-medium">
-            <i class="fas fa-credit-card"></i> Billing & Usage
-          </h3>
-
-          <div class="info-grid">
-            <div class="label-bold">Subscription Tier</div>
-            <p id="account-tier" class="text-cyan"></p>
+          <div class="flex justify-between items-start mb-large">
+            <div>
+              <h3 class="title-medium">
+                <i class="fas fa-credit-card"></i> Billing & Usage
+              </h3>
+            </div>
+            <div class="actions-right flex gap-3">
+              <button class="btn btn-primary" id="manage-subscription">
+                <i class="fas fa-cog"></i> Manage Subscription & Invoices
+              </button>
+              <button class="btn btn-ghost neon-ghost" id="view-plans-btn">
+                <i class="fas fa-arrow-up"></i> View Plans & Upgrade
+              </button>
+            </div>
           </div>
 
           <div class="info-grid">
+            <div class="label-bold">Subscription Tier</div>
+            <p id="account-tier" class="text-cyan font-bold"></p>
+
             <div class="label-bold">API Calls This Month</div>
             <div>
               <progress
@@ -178,31 +188,14 @@
                 max="100"
               ></progress>
               <p id="api-usage-text" class="text-grey"></p>
-              <p id="api-period" class="text-cyan"></p>
+              <p id="api-period" class="text-cyan small"></p>
             </div>
-          </div>
 
-          <div class="info-grid">
             <div class="label-bold">Servers</div>
             <div id="server-usage-text">0 / 3</div>
 
             <div class="label-bold">Team Members</div>
             <div id="team-usage-text">0 / 2</div>
-          </div>
-
-          <div class="border-top mt-large pt-large">
-            <h5 class="title-medium">Subscription Management (Stripe)</h5>
-            <p class="text-grey">Next Billing Date: —</p>
-            <p class="text-grey">Payment Method: —</p>
-            <button class="btn btn-ghost neon-ghost mt-large" disabled>
-              Manage Subscription & Invoices
-            </button>
-          </div>
-
-          <div class="actions-right mt-large">
-            <button class="btn btn-ghost neon-ghost" id="view-plans-btn">
-              <i class="fas fa-arrow-up"></i> View Plans & Upgrade
-            </button>
           </div>
         </div>
       </div>

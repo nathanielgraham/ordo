@@ -16,7 +16,9 @@ Let's get your first workflow running in minutes.
 3. Enter hostname, SSH port (usually 22), and credentials.
 4. Save.
 
-**[Screenshot: Servers tab with a newly added server]**
+![Servers Tab](img/servers-tab.png)
+
+*Servers tab showing a newly added server with live monitoring data.*
 
 ## 3. Create a Cluster
 
@@ -56,6 +58,10 @@ echo "Let-a da cake rest! Cool-a onna rack! Now froosty and servy! Bork bork bor
 sleep 1
 ```
 
+![New Job Modal with Template](img/job-modal-edit.png)
+
+*Creating a job using the script template dropdown for quick setup.*
+
 ## 5. Set Dependencies
 
 In the job modal, set **Needs Jobs** so the steps run in order:
@@ -63,12 +69,14 @@ In the job modal, set **Needs Jobs** so the steps run in order:
 - `bake` needs `mix`
 - `finish` needs `bake`
 
+![Job Dependencies](img/job-dependencies.png)
+
+*Setting up job dependencies (needs) in the modal.*
+
 ## 6. Run the Cluster
 
 1. Select **Run** from the `Bork da Cake` cluster menu.
 2. Watch the Swedish Chef work — jobs will light up in the correct order.
-
-**[Screenshot: Running cluster with live execution]**
 
 ## 7. View Logs 
 
@@ -86,6 +94,7 @@ Right after running:
   Now the Chef will bake automatically every morning.
 
 **Congratulations!** You just built, ran, and scheduled your first automated workflow.
+
 
 ### Next Step ###
 [Core Concepts](#docs/core-concepts.md) — Learn the foundational ideas to help you use Ordo effectively.

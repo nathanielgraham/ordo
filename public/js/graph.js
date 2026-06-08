@@ -1,4 +1,4 @@
-// graph.js – dependency graph visualization (Cytoscape + Dagre)
+// public/js/graph.js – Clean & Reliable Dependency Graph (Final)
 import { appState } from "./state.js";
 import { findClusterById, findJobById } from "./utils.js";
 import { openJobModal, openClusterModal } from "./modals.js";
@@ -21,203 +21,227 @@ export function openDependencyGraph(clusterId, clusterName) {
   }
 
   container.innerHTML = '<div class="has-text-centered p-6"><i class="fas fa-spinner fa-spin fa-3x"></i></div>';
-  // container.style.height = "calc(100vh - 180px)";
-  // container.style.minHeight = "600px";
-  container.style.height = "100%";   // Let CSS handle it
-  container.style.minHeight = "30rem";
-
+  container.style.height = "100%";
+  container.style.minHeight = "32rem";
 
   setTimeout(() => {
-    const rootNode = findClusterById(appState.monitorData.tree, clusterId);
+    const rootNode = findClusterById(appState.monitorData?.tree, clusterId);
     if (!rootNode) {
       container.innerHTML = '<p class="has-text-danger has-text-centered">Cluster not found</p>';
       return;
     }
 
     const elements = buildGraphElements(rootNode);
-
+    
     currentCy = cytoscape({
       container: container,
       elements: elements,
       style: getGraphStyle(),
       layout: {
         name: "dagre",
-        rankDir: "LR",
+        rankDir: "LR",           // Left → Right (best for dependency flows)
         spacingFactor: 1.4,
         nodeSep: 60,
-        edgeSep: 30,
-        rankSep: 120
+        edgeSep: 25,
+        rankSep: 110,
+        fit: true,
+        padding: 50,
+        animate: false
       },
       zoomingEnabled: true,
       panningEnabled: true,
       boxSelectionEnabled: false,
-      minZoom: 0.2,
-      maxZoom: 5,
+      minZoom: 0.25,
+      maxZoom: 6,
     });
 
-    // Click to edit - More robust lookup
-    // Click to edit - FIXED ID EXTRACTION
+    // Click to edit
     currentCy.on('tap', 'node', (evt) => {
       const node = evt.target;
-      let rawId = node.data('id');                    // e.g. "j123" or "c456"
-
-      // Extract numeric ID
-      const idStr = String(rawId).replace(/^[jc]/, '');   // remove 'j' or 'c' prefix
-      const id = Number(idStr);
-
-      const isCluster = node.data('is_cluster') === true || rawId.toString().startsWith('c');
-
-      console.log(`[Graph Click] rawId=${rawId}, extracted id=${id}, isCluster=${isCluster}`);
+      const rawId = node.data('id');
+      const idStr = String(rawId).replace(/^[jc]/, '');
+      const numericId = Number(idStr);
+      const isCluster = rawId.toString().startsWith('c');
 
       modal.classList.remove("active");
-
-      if (isCluster) {
-        openClusterModal("edit", id);
-      } else {
-        openJobModal("edit", id);
-      }
+      if (isCluster) openClusterModal("edit", numericId);
+      else openJobModal("edit", numericId);
     });
 
     currentCy.on('mouseover', 'node', (evt) => evt.target.addClass('highlight'));
     currentCy.on('mouseout', 'node', (evt) => evt.target.removeClass('highlight'));
 
-    // Zoom controls (unchanged)
+    // Controls
     document.getElementById("graph-fit-btn").onclick = () => currentCy.fit();
-    document.getElementById("graph-zoom-in").onclick = () => currentCy.zoom(currentCy.zoom() * 1.2);
+    document.getElementById("graph-zoom-in").onclick = () => currentCy.zoom(currentCy.zoom() * 1.25);
     document.getElementById("graph-zoom-out").onclick = () => currentCy.zoom(currentCy.zoom() * 0.8);
     document.getElementById("graph-reset").onclick = () => { currentCy.fit(); currentCy.center(); };
 
-    // Better spinner cleanup
     const removeSpinner = () => {
       const spinner = container.querySelector(".has-text-centered");
       if (spinner) spinner.remove();
     };
-
     currentCy.on("layoutstop", removeSpinner);
     currentCy.ready(removeSpinner);
-
-
-  }, 180);
+  }, 150);
 }
 
-// ==================== BUILD WITH COMPOUND NODES ====================
+// ==================== BUILD FUNCTION ====================
 function buildGraphElements(rootNode) {
   const elements = [];
-  const added = new Set();
+  const nodeMap = new Map();
+  const includedIds = new Set();
 
-  function traverse(node, parentCyId = null) {
-    if (!node) return;
-    const cyId = node.is_cluster ? `c${node.id}` : `j${node.id}`;
-    if (added.has(cyId)) return;
-    added.add(cyId);
+  const addNode = (item, parentPrefix = null, viaOnFail = false) => {
+    if (!item?.id) return null;
+    const isCluster = !!item.is_cluster || item.children?.length > 0;
+    const prefix = isCluster ? 'c' : 'j';
+    const pid = `${prefix}${item.id}`;
 
-    elements.push({
-      data: { 
-        id: cyId, 
-        label: node.is_cluster ? `${node.name}/` : node.name,
-        is_cluster: !!node.is_cluster,
-        parent: parentCyId
+    if (nodeMap.has(pid)) {
+      if (viaOnFail) {
+        const existing = nodeMap.get(pid);
+        if (existing) existing.classes.push('on-fail-target');
+      }
+      return pid;
+    }
+
+    const nodeEl = {
+      data: {
+        id: pid,
+        label: isCluster ? `${item.name}/` : item.name,
+        is_cluster: isCluster,
+        originalId: Number(item.id)
       },
-      classes: node.is_cluster ? "cluster" : "job"
-    });
+      classes: [
+        isCluster ? 'cluster-node' : 'job-node',
+        viaOnFail ? 'on-fail-target' : ''
+      ]
+    };
 
-    // Recurse children
-    if (node.children) node.children.forEach(child => traverse(child, cyId));
-    if (node.jobs) node.jobs.forEach(job => traverse({ ...job, is_cluster: false }, cyId));
+    if (parentPrefix) nodeEl.data.parent = parentPrefix;
 
-    // Edges (needs, needs_any, on_fail)
-    if (node.needs_ids?.length) {
-      node.needs_ids.forEach(depId => addEdge(cyId, depId, "needs"));
-    }
-    if (node.needs_any_ids?.length) {
-      node.needs_any_ids.forEach(depId => addEdge(cyId, depId, "needs_any"));
-    }
-    if (node.on_fail_id) {
-      addEdge(cyId, node.on_fail_id, "on_fail");
-    }
-  }
+    elements.push(nodeEl);
+    nodeMap.set(pid, nodeEl);
+    includedIds.add(Number(item.id));
+    return pid;
+  };
 
-  function addEdge(sourceId, targetIdRaw, type) {
-    const targetId = Number(targetIdRaw);
-    let targetNode = null;
-    if (type === "on_fail") {
-      targetNode = findClusterById(appState.monitorData.tree, targetId);
-    } else {
-      targetNode = findJobById(appState.monitorData.tree, targetId) || 
-                   findClusterById(appState.monitorData.tree, targetId);
-    }
-    if (targetNode) {
-      const targetCyId = targetNode.is_cluster ? `c${targetNode.id}` : `j${targetNode.id}`;
-      elements.push({
-        data: { source: sourceId, target: targetCyId },
-        classes: type
+  const findAny = (originalId) => {
+    const id = Number(originalId);
+    if (appState.clustersMap?.has(id)) return { ...appState.clustersMap.get(id), is_cluster: true };
+    if (appState.jobsMap?.has(id)) return { ...appState.jobsMap.get(id), is_cluster: false };
+    return findClusterById(rootNode, id) || findJobById(rootNode, id);
+  };
+
+  const traverse = (node, parentPrefix = null) => {
+    if (!node) return;
+    const myPrefix = addNode(node, parentPrefix);
+
+    // Children for compound nodes
+    if (node.is_cluster) {
+      [...(node.children || []), ...(node.jobs || [])].forEach(child => {
+        traverse(child, myPrefix);
       });
     }
-  }
+
+    // Dependencies (needs / needs_any) — supports external clusters
+    ['needs_ids', 'needs_any_ids'].forEach(key => {
+      if (!Array.isArray(node[key])) return;
+      node[key].forEach(depId => {
+        const dep = findAny(depId);
+        if (dep) {
+          const depPrefix = addNode(dep);
+          elements.push({
+            data: { id: `e${myPrefix}-${depPrefix}`, source: myPrefix, target: depPrefix },
+            classes: [key === 'needs_ids' ? 'needs' : 'needs-any']
+          });
+        }
+      });
+    });
+
+    // On Fail — special styling
+    if (node.on_fail_id) {
+      const fail = findAny(node.on_fail_id);
+      if (fail) {
+        const failPrefix = addNode(fail, null, true); // mark for orange border
+        elements.push({
+          data: { id: `of${myPrefix}-${failPrefix}`, source: myPrefix, target: failPrefix },
+          classes: ['on-fail']
+        });
+      }
+    }
+  };
 
   traverse(rootNode);
+  console.log(`[Graph] Built ${elements.length} elements for ${rootNode.name}`);
   return elements;
 }
 
 // ==================== STYLES ====================
 function getGraphStyle() {
   return [
-    {
-      selector: "node",
-      style: {
-        label: "data(label)",
-        "text-valign": "center",
-        color: "#fff",
-        "text-outline-width": 2,
-        "text-outline-color": "#111",
-        "font-size": 14,
-        "font-weight": "500",
-      }
-    },
-    {
-      selector: ".cluster",
-      style: {
-        "background-color": "#1e3a8a",
-        "background-opacity": 0.4,
-        "border-color": "#60a5fa",
-        "border-width": 6,
-        shape: "roundrectangle",
-        padding: 70,
-        "text-valign": "top",
-        "text-margin-y": -35,
-        "font-weight": "bold",
-        "font-size": 18,
-      }
-    },
-    // Job colors by state
-    {
-      selector: ".job",
-      style: {
-        shape: "rectangle",
-        width: 140,
-        height: 60,
-        "background-color": "#166534",   // default complete
-      }
-    },
-    { selector: ".job[state-id='1']", style: { "background-color": "#ca8a04" } }, // pending
-    { selector: ".job[state-id='2']", style: { "background-color": "#eab308" } }, // starting
-    { selector: ".job[state-id='3']", style: { "background-color": "#22c55e" } }, // running
-    { selector: ".job[state-id='4']", style: { "background-color": "#ef4444" } }, // failed
-    { selector: ".job[state-id='5']", style: { "background-color": "#8b5cf6" } }, // cancelled
-    { selector: ".job[state-id='6']", style: { "background-color": "#166534" } }, // complete
-
-    {
-      selector: ".highlight",
-      style: {
-        "border-color": "#67e8f9",
-        "border-width": 8,
-        "text-outline-color": "#67e8f9"
-      }
-    },
+    { selector: 'node', style: {
+      'label': 'data(label)',
+      'text-valign': 'center',
+      'color': '#fff',
+      'text-outline-width': 2,
+      'text-outline-color': '#0a0a0a',
+      'font-size': 13,
+      'font-weight': 500
+    }},
+    { selector: '.cluster-node', style: {
+      'background-color': '#1e3a8a',
+      'background-opacity': 0.35,
+      'border-color': '#60a5fa',
+      'border-width': 5,
+      'shape': 'roundrectangle',
+      'padding': 45,
+      'text-valign': 'top',
+      'text-margin-y': -32,
+      'font-size': 16,
+      'font-weight': 700
+    }},
+    { selector: '.job-node', style: {
+      'shape': 'rectangle',
+      'width': 135,
+      'height': 54,
+      'background-color': '#166534'
+    }},
+    { selector: '.on-fail-target', style: {
+      'border-style': 'dashed',
+      'border-color': '#f59e0b',
+      'border-width': 4,
+      'background-color': '#312e81',
+      'background-opacity': 0.8
+    }},
+    { selector: '.highlight', style: {
+      'border-color': '#67e8f9',
+      'border-width': 6
+    }},
 
     // Edges
-    { selector: ".needs", style: { width: 4, "line-color": "#f87171", "target-arrow-color": "#f87171", "target-arrow-shape": "triangle" }},
-    { selector: ".needs_any", style: { width: 3, "line-color": "#4ade80", "target-arrow-color": "#4ade80", "target-arrow-shape": "vee", "line-style": "dashed" }},
-    { selector: ".on_fail", style: { width: 3, "line-color": "#fbbf24", "target-arrow-color": "#fbbf24", "target-arrow-shape": "diamond" }}
+    { selector: '.needs', style: {
+      'width': 3.5,
+      'line-color': '#f87171',
+      'target-arrow-color': '#f87171',
+      'target-arrow-shape': 'triangle',
+      'curve-style': 'bezier'
+    }},
+    { selector: '.needs-any', style: {
+      'width': 3,
+      'line-color': '#4ade80',
+      'target-arrow-color': '#4ade80',
+      'target-arrow-shape': 'vee',
+      'line-style': 'dashed',
+      'curve-style': 'bezier'
+    }},
+    { selector: '.on-fail', style: {
+      'width': 3,
+      'line-color': '#fbbf24',
+      'target-arrow-color': '#fbbf24',
+      'target-arrow-shape': 'diamond',
+      'curve-style': 'bezier'
+    }}
   ];
 }
