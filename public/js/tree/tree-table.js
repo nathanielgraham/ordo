@@ -97,22 +97,22 @@ function generateRowContent(
       let cpuClass = "cpu-low";
       if (cpu > 80) cpuClass = "cpu-high";
       else if (cpu > 50) cpuClass = "cpu-medium";
-      
+
       statsDisplay = `<span class="stats-badge ${cpuClass}">${cpu.toFixed(1)}%</span>`;
       statsTooltipLines.push(`CPU: ${cpu.toFixed(1)}%`);
     }
-    
+
     // Memory
     if (item.pctmem !== null && item.pctmem !== undefined) {
       statsTooltipLines.push(`Memory: ${parseFloat(item.pctmem).toFixed(1)}%`);
     }
-    
+
     // RSS
     if (item.rss !== null && item.rss !== undefined) {
       const rssMB = Math.round(item.rss / 1024 / 1024);
       statsTooltipLines.push(`RSS: ${rssMB} MB`);
     }
-    
+
     // Process Info
     if (item.pid !== null && item.pid !== undefined) {
       statsTooltipLines.push(`PID: ${item.pid}`);
@@ -121,8 +121,10 @@ function generateRowContent(
       statsTooltipLines.push(`PPID: ${item.ppid}`);
     }
   }
-  
-  const statsTitle = statsTooltipLines.length ? statsTooltipLines.join("\n") : "";
+
+  const statsTitle = statsTooltipLines.length
+    ? statsTooltipLines.join("\n")
+    : "";
 
   // Actions HTML
   const menuItem = (text, disabled = false, action = null) => {
@@ -344,7 +346,9 @@ export function insertCluster(item, parentId = null) {
           parent.children.push(newCluster);
         }
       }
-      console.log(`[insertCluster] Force-added cluster ${item.id} to main tree`);
+      console.log(
+        `[insertCluster] Force-added cluster ${item.id} to main tree`,
+      );
     }
   }
 
@@ -354,7 +358,9 @@ export function insertCluster(item, parentId = null) {
     toggleSubtree(item.id, true);
   }
 
-  console.log(`[insertCluster] Inserted cluster ${item.id} under parent ${parentId}`);
+  console.log(
+    `[insertCluster] Inserted cluster ${item.id} under parent ${parentId}`,
+  );
 }
 
 export function insertJob(item, parentId = null) {
@@ -390,7 +396,10 @@ export function insertJob(item, parentId = null) {
         const rowParent = current.dataset.parent;
 
         // Stop at the first sub-cluster or when we leave this parent's subtree
-        if (isSubCluster || (rowParent && String(rowParent) !== String(parentId))) {
+        if (
+          isSubCluster ||
+          (rowParent && String(rowParent) !== String(parentId))
+        ) {
           break;
         }
 
@@ -418,7 +427,31 @@ export function insertJob(item, parentId = null) {
     }
   }
 
-  console.log(`[insertJob] Inserted job ${item.id} AFTER jobs, BEFORE subclusters in parent ${parentId}`);
+  console.log(
+    `[insertJob] Inserted job ${item.id} AFTER jobs, BEFORE subclusters in parent ${parentId}`,
+  );
+}
+
+/**
+ * Updates a tooltip cell (deps or stats) safely
+ */
+function updateTooltipCell(cell, html, tooltipText, hasTooltip) {
+  if (!cell) return;
+
+  const currentHtml = cell.innerHTML.trim();
+  const currentTooltip = cell.getAttribute("data-tooltip") || "";
+  const currentlyHasTooltip = cell.classList.contains("has-tooltip");
+
+  // Only update DOM if something actually changed
+  if (
+    html !== currentHtml ||
+    tooltipText !== currentTooltip ||
+    hasTooltip !== currentlyHasTooltip
+  ) {
+    cell.innerHTML = html;
+    cell.setAttribute("data-tooltip", tooltipText || "");
+    cell.classList.toggle("has-tooltip", hasTooltip);
+  }
 }
 
 // ==================== SURGICAL UPDATE FUNCTIONS ====================
@@ -431,7 +464,7 @@ export function updateClusterRow(row, item) {
 
   const state = (item.jobstate || item.state || "unknown").toLowerCase().trim();
 
-  // 0. NAME 
+  // 0. NAME
   if (cells[0]) {
     const nameCell = cells[0];
     const toggleHtml = '<span class="ordo-toggle"></span>';
@@ -447,13 +480,47 @@ export function updateClusterRow(row, item) {
   // 2. Server
   if (cells[2]) cells[2].textContent = item.server_name || "—";
 
-  // 3. Dependencies count
+  // Inside updateClusterRow function
   if (cells[3]) {
+    // assuming deps is column 3
+    const cell = cells[3];
     let count = 0;
-    if (Array.isArray(item.needs_ids)) count += item.needs_ids.length;
-    if (Array.isArray(item.needs_any_ids)) count += item.needs_any_ids.length;
-    if (item.on_fail_id) count += 1;
-    cells[3].textContent = count > 0 ? count : "—";
+    let tooltipLines = [];
+
+    if (Array.isArray(item.needs_ids) && item.needs_ids.length) {
+      count += item.needs_ids.length;
+      tooltipLines.push(
+        `Needs:\n${item.needs_ids
+          .map(
+            (id) => `• ${resolveDepName(id, appState.monitorData.tree, true)}`,
+          )
+          .join("\n")}`,
+      );
+    }
+    if (Array.isArray(item.needs_any_ids) && item.needs_any_ids.length) {
+      count += item.needs_any_ids.length;
+      tooltipLines.push(
+        `Needs Any:\n${item.needs_any_ids
+          .map(
+            (id) => `• ${resolveDepName(id, appState.monitorData.tree, true)}`,
+          )
+          .join("\n")}`,
+      );
+    }
+    if (item.on_fail_id) {
+      count += 1;
+      tooltipLines.push(
+        `On Fail: ${resolveDepName(item.on_fail_id, appState.monitorData.tree, true)}`,
+      );
+    }
+
+    const tooltipText = tooltipLines.join("\n\n");
+    const html = count > 0 ? String(count) : "—";
+
+    // Use the helper if you added it, otherwise direct update
+    cell.textContent = html;
+    cell.setAttribute("data-tooltip", tooltipText);
+    cell.classList.toggle("has-tooltip", count > 0);
   }
 
   // 4. Stats (CPU)
@@ -487,7 +554,9 @@ export function updateClusterRow(row, item) {
       tooltipLines.push(`Command: ${item.fname}`);
     }
 
-    const tooltipText = tooltipLines.length ? tooltipLines.join("\n") : "No stats available";
+    const tooltipText = tooltipLines.length
+      ? tooltipLines.join("\n")
+      : "No stats available";
 
     cells[4].innerHTML = html;
     cells[4].setAttribute("data-tooltip", tooltipText);
@@ -496,7 +565,8 @@ export function updateClusterRow(row, item) {
 
   // 5-7. Timing columns
   if (cells[5]) cells[5].textContent = formatTplus(item.started) || "—";
-  if (cells[6]) cells[6].textContent = formatDuration(item.started, item.ended) || "—";
+  if (cells[6])
+    cells[6].textContent = formatDuration(item.started, item.ended) || "—";
   if (cells[7]) cells[7].textContent = formatTminus(item.next_start) || "—";
 
   // 8. Calendar name (important for clusters)
@@ -530,49 +600,79 @@ export function updateJobRow(row, item) {
   // 2. Server
   if (cells[2]) cells[2].textContent = item.server_name || "—";
 
-  // 3. Dependencies count
+  // === 3. Dependencies Tooltip ===
   if (cells[3]) {
     let count = 0;
-    if (Array.isArray(item.needs_ids)) count += item.needs_ids.length;
-    if (Array.isArray(item.needs_any_ids)) count += item.needs_any_ids.length;
-    if (item.on_fail_id) count += 1;
-    cells[3].textContent = count > 0 ? count : "—";
+    let tooltipLines = [];
+
+    if (Array.isArray(item.needs_ids) && item.needs_ids.length) {
+      count += item.needs_ids.length;
+      tooltipLines.push(
+        `Needs:\n${item.needs_ids
+          .map(
+            (id) => `• ${resolveDepName(id, appState.monitorData.tree, false)}`,
+          )
+          .join("\n")}`,
+      );
+    }
+    if (Array.isArray(item.needs_any_ids) && item.needs_any_ids.length) {
+      count += item.needs_any_ids.length;
+      tooltipLines.push(
+        `Needs Any:\n${item.needs_any_ids
+          .map(
+            (id) => `• ${resolveDepName(id, appState.monitorData.tree, false)}`,
+          )
+          .join("\n")}`,
+      );
+    }
+    if (item.on_fail_id) {
+      count += 1;
+      tooltipLines.push(
+        `On Fail: ${resolveDepName(item.on_fail_id, appState.monitorData.tree, false)}`,
+      );
+    }
+
+    const tooltipText = tooltipLines.join("\n\n");
+    const html = count > 0 ? String(count) : "—";
+
+    updateTooltipCell(cells[3], html, tooltipText, count > 0);
   }
 
-  // 4. Stats (CPU)
-  // 4. Stats - Simple version (no "No stats available" tooltip)
+  // === 4. Stats Tooltip ===
   if (cells[4]) {
-    const cell = cells[4];
     let html = "—";
+    let tooltipLines = [];
     let hasStats = false;
 
     if (item.pctcpu != null) {
+      hasStats = true;
       const cpu = parseFloat(item.pctcpu);
       let cls = "cpu-low";
       if (cpu > 80) cls = "cpu-high";
       else if (cpu > 50) cls = "cpu-medium";
-      
-      html = `<span class="stats-badge ${cls}">${cpu.toFixed(1)}%</span>`;
-      hasStats = true;
-    }
 
-    cell.innerHTML = html;
-    
-    if (hasStats) {
-      cell.setAttribute("data-tooltip", `CPU: ${parseFloat(item.pctcpu || 0).toFixed(1)}%\n` +
-        (item.pctmem != null ? `Memory: ${parseFloat(item.pctmem).toFixed(1)}%\n` : '') +
-        (item.rss != null ? `RSS: ${Math.round(item.rss / 1024 / 1024)} MB\n` : '') +
-        (item.pid != null ? `PID: ${item.pid}` : ''));
-      cell.classList.add("has-tooltip");
-    } else {
-      cell.removeAttribute("data-tooltip");
-      cell.classList.remove("has-tooltip");
+      html = `<span class="stats-badge ${cls}">${cpu.toFixed(1)}%</span>`;
+      tooltipLines.push(`CPU: ${cpu.toFixed(1)}%`);
     }
+    if (item.pctmem != null)
+      tooltipLines.push(`Memory: ${parseFloat(item.pctmem).toFixed(1)}%`);
+    if (item.rss != null)
+      tooltipLines.push(`RSS: ${Math.round(item.rss / 1024 / 1024)} MB`);
+    if (item.pid != null) tooltipLines.push(`PID: ${item.pid}`);
+    if (item.ppid != null) tooltipLines.push(`PPID: ${item.ppid}`);
+    if (item.fname) tooltipLines.push(`Command: ${item.fname}`);
+
+    const tooltipText = tooltipLines.length
+      ? tooltipLines.join("\n")
+      : "No stats available";
+
+    updateTooltipCell(cells[4], html, tooltipText, hasStats);
   }
-   
+
   // 5-7. Timing columns
   if (cells[5]) cells[5].textContent = formatTplus(item.started) || "—";
-  if (cells[6]) cells[6].textContent = formatDuration(item.started, item.ended) || "—";
+  if (cells[6])
+    cells[6].textContent = formatDuration(item.started, item.ended) || "—";
   if (cells[7]) cells[7].textContent = formatTminus(item.next_start) || "—";
 
   console.log(`[updateJobRow] Updated job ${item.id}`);
@@ -679,8 +779,6 @@ export function buildRows(items, tbody, depth = 0, parentId = null) {
 
 // Live timings
 
-
-
 // Module-level cache for tree timings
 let treeTimingCache = null;
 let liveTimingInterval = null;
@@ -690,7 +788,7 @@ export function startLiveTimings() {
 
   // === CACHE TREE TIMING ELEMENTS ONCE ===
   treeTimingCache = {
-    rows: []
+    rows: [],
   };
 
   document.querySelectorAll("#tree-body tr[data-id]").forEach((row) => {
@@ -701,7 +799,7 @@ export function startLiveTimings() {
       row: row,
       tplusCell: cells[5],
       durationCell: cells[6],
-      tminusCell: cells[7]
+      tminusCell: cells[7],
     });
   });
 
@@ -718,9 +816,7 @@ export function updateLiveTimings() {
     document.querySelectorAll("#tree-body tr[data-id]").forEach((row) => {
       const id = row.dataset.id;
       const isCluster = row.classList.contains("ordo-cluster-row");
-      const item = isCluster 
-        ? findClusterByIdFast(id) 
-        : findJobByIdFast(id);
+      const item = isCluster ? findClusterByIdFast(id) : findJobByIdFast(id);
 
       if (!item) return;
 
@@ -729,16 +825,15 @@ export function updateLiveTimings() {
 
       // T+ (Started)
       if (cells[5]) cells[5].textContent = formatTplus(item.started) || "—";
-      
+
       // Duration
-      if (cells[6]) cells[6].textContent = formatDuration(item.started, item.ended) || "—";
-      
+      if (cells[6])
+        cells[6].textContent = formatDuration(item.started, item.ended) || "—";
+
       // T- (Next Run) - FIXED
       if (cells[7]) {
         const nextStart = Number(item.next_start);
-        cells[7].textContent = (nextStart > now) 
-          ? formatTminus(nextStart) 
-          : "—";
+        cells[7].textContent = nextStart > now ? formatTminus(nextStart) : "—";
       }
     });
   }
@@ -749,7 +844,9 @@ export function updateLiveTimings() {
     document.querySelectorAll("#servers-body tr").forEach((row) => {
       const updateTime = Number(row.dataset.updateTime);
       if (isNaN(updateTime) || updateTime <= 0) return;
-      const server = appState.serversData.find(s => Number(s.update_time) === updateTime);
+      const server = appState.serversData.find(
+        (s) => Number(s.update_time) === updateTime,
+      );
       if (server) updateFreshnessCell(row, server, now);
     });
   }
@@ -757,14 +854,16 @@ export function updateLiveTimings() {
   // === CALENDARS ===
   const calendarsContent = document.getElementById("calendars-content");
   if (calendarsContent && calendarsContent.offsetParent !== null) {
-    document.querySelectorAll("#calendars-body td[data-next-start]").forEach((cell) => {
-      const nextStart = Number(cell.dataset.nextStart);
-      if (nextStart > now) {
-        cell.textContent = formatTminus(nextStart) || "—";
-      } else {
-        cell.textContent = "—";
-      }
-    });
+    document
+      .querySelectorAll("#calendars-body td[data-next-start]")
+      .forEach((cell) => {
+        const nextStart = Number(cell.dataset.nextStart);
+        if (nextStart > now) {
+          cell.textContent = formatTminus(nextStart) || "—";
+        } else {
+          cell.textContent = "—";
+        }
+      });
   }
 }
 
@@ -775,4 +874,3 @@ export function stopLiveTimings() {
   }
   treeTimingCache = null; // clear cache
 }
-
