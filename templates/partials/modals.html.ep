@@ -101,9 +101,6 @@
 
       <!-- Bottom CTA with generous space -->
       <div class="strong-cta">
-        <p class="text-grey mb-medium">
-          Need more control, security, or scale?
-        </p>
         <a
           href="#docs/private-deployments"
           class="btn btn-ghost neon-ghost px-8 py-3 text-lg"

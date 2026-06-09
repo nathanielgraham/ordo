@@ -1311,7 +1311,210 @@ export function applyJobBroadcast(data) {
   refreshDashboardCards("jobs_changed");
 }
 
+/**
+ * Surgical update for a calendar row (preserves toggle state)
+ */
+export function updateCalendarRow(row, cal) {
+  if (!row || !cal) return;
+  const cells = row.cells;
+  if (!cells || cells.length < 8) return;
+
+  const now = Math.floor(Date.now() / 1000);
+  const hasValidNext = Array.isArray(cal.cluster_ids) && cal.cluster_ids.length > 0 
+    && Number(cal.next_start) > now;
+
+  // Column 0: Name + toggle (preserve collapsed state)
+  if (cells[0]) {
+    const toggle = cells[0].querySelector('.ordo-toggle');
+    const isCollapsed = toggle ? toggle.classList.contains('collapsed') : false;
+
+    const toggleHtml = toggle ? `<span class="ordo-toggle ${isCollapsed ? 'collapsed' : ''}"></span>` : '';
+    const iconHtml = '<i class="fas fa-folder mr-2 has-text-info"></i>';
+
+    cells[0].innerHTML = `${toggleHtml}${iconHtml}${escapeHtml(cal.name || "Unnamed Calendar")}`;
+  }
+
+  // Column 1: Timezone
+  if (cells[1]) cells[1].textContent = cal.tz || "—";
+
+  // Column 2: Description
+  if (cells[2]) cells[2].textContent = cal.description || "—";
+
+  // Column 3: Cron count
+  if (cells[3]) cells[3].textContent = Array.isArray(cal.crons) ? cal.crons.length : 0;
+
+  // Column 4: Cluster count
+  if (cells[4]) cells[4].textContent = Array.isArray(cal.cluster_ids) ? cal.cluster_ids.length : 0;
+
+  // Column 5: Begin
+  if (cells[5]) cells[5].textContent = cal.begin ? formatDate(cal.begin) : "Immediate";
+
+  // Column 6: Expire
+  if (cells[6]) cells[6].textContent = cal.expire ? formatDate(cal.expire) : "Never";
+
+  // Column 7: Next Start
+  if (cells[7]) {
+    cells[7].textContent = hasValidNext ? (formatTminus(cal.next_start) || "—") : "—";
+    cells[7].dataset.nextStart = hasValidNext ? String(cal.next_start) : "";
+  }
+}
+
+/**
+ * Surgical update for a cron row - more robust
+ */
+export function updateCronRow(row, cron) {
+  if (!row || !cron) return;
+  const cells = row.cells;
+  if (!cells || cells.length < 8) return;
+
+  // Column 0: Expression / Name
+  if (cells[0]) {
+    cells[0].innerHTML = `<i class="fas fa-clock mr-2 has-text-cyan"></i>${escapeHtml(cron.name || cron.expression || "—")}`;
+  }
+
+  // Column 1: English
+  if (cells[1]) cells[1].textContent = cron.english || "—";
+
+  // Column 2: Description
+  if (cells[2]) cells[2].textContent = cron.description || "—";
+
+  // Column 5: Begin
+  if (cells[5]) cells[5].textContent = cron.begin ? formatDate(cron.begin) : "Immediate";
+
+  // Column 6: Expire
+  if (cells[6]) cells[6].textContent = cron.expire ? formatDate(cron.expire) : "Never";
+
+  console.log(`[updateCronRow] Updated cron ${cron.id}`);
+}
+
+function createCronRowElement(calId, cron) {
+  const row = document.createElement('tr');
+  row.className = `ordo-cron-row`;
+  row.dataset.id = `cron-${calId}-${cron.id}`;
+  row.dataset.parent = calId;
+  row.dataset.depth = "1";
+
+  row.innerHTML = `
+    <td>
+      <i class="fas fa-clock mr-2 has-text-cyan"></i>
+      ${escapeHtml(cron.name || cron.expression || "—")}
+    </td>
+    <td>${escapeHtml(cron.english || "—")}</td>
+    <td>${escapeHtml(cron.description || "—")}</td>
+    <td>—</td>
+    <td>—</td>
+    <td>${cron.begin ? formatDate(cron.begin) : "Immediate"}</td>
+    <td>${cron.expire ? formatDate(cron.expire) : "Never"}</td>
+    <td>—</td>
+    <td>${generateCronActions(calId, cron.id)}</td>
+  `;
+
+  return row;
+}
+
 export function applyCalBroadcast(data) {
+  if (!data || data.broadcast !== "cals_changed") return;
+
+  console.log(`[applyCalBroadcast] updates:${data.updates?.length || 0}, deletes:${data.deletes?.length || 0}`);
+
+  let needsFullRender = false;
+
+  // === HANDLE DELETES ===
+  if (data.deletes && Array.isArray(data.deletes)) {
+    data.deletes.forEach((del) => {
+      const id = Number(del.id || del);
+      if (!id) return;
+
+      // Remove calendar if it's a calendar delete
+      const calRow = document.querySelector(`tr.ordo-calendar-row[data-id="${id}"]`);
+      if (calRow) {
+        calRow.remove();
+        // Also remove all its crons
+        document.querySelectorAll(`tr.ordo-cron-row[data-parent="${id}"]`).forEach(r => r.remove());
+        appState.calendarsData = appState.calendarsData.filter(c => Number(c.id) !== id);
+        return;
+      }
+
+      // If it's a cron delete (data-parent + cron id)
+      const cronRow = document.querySelector(`tr.ordo-cron-row[data-id="${id}"]`);
+      if (cronRow) {
+        cronRow.remove();
+      }
+    });
+  }
+
+  // === HANDLE UPDATES ===
+  if (data.updates && Array.isArray(data.updates)) {
+    data.updates.forEach((calUpdate) => {
+      const calId = Number(calUpdate.id);
+      if (!calId) return;
+
+      const existingIndex = appState.calendarsData.findIndex(c => Number(c.id) === calId);
+
+      if (existingIndex !== -1) {
+        // Update calendar data
+        appState.calendarsData[existingIndex] = {
+          ...appState.calendarsData[existingIndex],
+          ...calUpdate,
+          next_start: calUpdate.next_start !== undefined 
+            ? Number(calUpdate.next_start) 
+            : appState.calendarsData[existingIndex].next_start,
+        };
+
+        // Update calendar row
+        const calRow = document.querySelector(`tr.ordo-calendar-row[data-id="${calId}"]`);
+        if (calRow) {
+          updateCalendarRow(calRow, appState.calendarsData[existingIndex]);
+        }
+
+        // === CRON LEVEL SURGICAL UPDATES + DELETE + INSERT ===
+        if (Array.isArray(calUpdate.crons)) {
+          const currentCronRows = new Map();
+          document.querySelectorAll(`tr.ordo-cron-row[data-parent="${calId}"]`).forEach(row => {
+            const key = row.dataset.id.replace(`cron-${calId}-`, '');
+            currentCronRows.set(key, row);
+          });
+
+          const newCronIds = new Set(calUpdate.crons.map(c => String(c.id)));
+
+          // Remove crons that no longer exist
+          currentCronRows.forEach((row, cronId) => {
+            if (!newCronIds.has(cronId)) {
+              row.remove();
+            }
+          });
+
+          // Update or insert crons
+          calUpdate.crons.forEach(cron => {
+            const cronKey = String(cron.id);
+            const existingRow = currentCronRows.get(cronKey);
+
+            if (existingRow) {
+              updateCronRow(existingRow, cron);
+            } else {
+              // Insert new cron row
+              const newRow = createCronRowElement(calId, cron);
+              const targetCalRow = document.querySelector(`tr.ordo-calendar-row[data-id="${calId}"]`);
+              if (targetCalRow) {
+                targetCalRow.after(newRow);
+              }
+            }
+          });
+        }
+      } else {
+        // New calendar
+        appState.calendarsData.push({ ...calUpdate });
+        needsFullRender = true;
+      }
+    });
+  }
+
+  if (needsFullRender && document.getElementById("calendars")?.classList.contains("active")) {
+    renderCalendarsTable();
+  }
+}
+
+export function applyCalBroadcast2(data) {
   if (!data) return;
 
   console.log(

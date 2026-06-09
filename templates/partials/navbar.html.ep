@@ -2,11 +2,16 @@
 <nav class="topnav" role="navigation">
   <!-- Logo Row -->
   <div class="nav-logo-row">
-    <div class="nav-brand">
-      <a href="/" class="brand-link">
-        <img src="/img/ordo-logo.png" alt="Ordo" class="brand-logo-img">
-      </a>
-    </div>
+
+<div class="nav-brand">
+  <a href="/" class="brand-link">
+    <span class="nav-logo-text">
+<!--     &lt;!-- ordo imperat --&gt;  -->
+     ( ordo imperat )
+    </span>
+  </a>
+</div>
+
   </div>
 
   <!-- Tabs Row -->

@@ -89,7 +89,7 @@ Right after running:
 1. Go to the **Calendars** tab.
 2. Create a new calendar named `Daily Baking`.
 3. Add cron: `0 9 * * *` (every day at 9:00 AM).
-4. Go back to `Bork da Cake` → **Actions** → **Edit** → Attach calendar.
+4. Go back to `Bork da Cake` → **Actions** → Attach calendar.
 
   Now the Chef will bake automatically every morning.
 
