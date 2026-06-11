@@ -1514,54 +1514,6 @@ export function applyCalBroadcast(data) {
   }
 }
 
-export function applyCalBroadcast2(data) {
-  if (!data) return;
-
-  console.log(
-    `[applyCalBroadcast] updates:${data.updates?.length || 0}, deletes:${data.deletes?.length || 0}`,
-  );
-
-  // Handle deletes
-  if (data.deletes && Array.isArray(data.deletes)) {
-    data.deletes.forEach((del) => {
-      const id = Number(del.id || del);
-      if (!id) return;
-      appState.calendarsData = appState.calendarsData.filter(
-        (c) => Number(c.id) !== id,
-      );
-    });
-  }
-
-  // Handle updates / new calendars
-  if (data.updates && Array.isArray(data.updates)) {
-    data.updates.forEach((calUpdate) => {
-      const id = Number(calUpdate.id);
-      if (!id) return;
-
-      const existingIndex = appState.calendarsData.findIndex(
-        (c) => Number(c.id) === id,
-      );
-
-      if (existingIndex !== -1) {
-        appState.calendarsData[existingIndex] = {
-          ...appState.calendarsData[existingIndex],
-          ...calUpdate,
-          next_start: calUpdate.next_start !== undefined 
-            ? Number(calUpdate.next_start) 
-            : appState.calendarsData[existingIndex].next_start,
-        };
-      } else {
-        appState.calendarsData.push({ ...calUpdate });
-      }
-    });
-  }
-
-  // Refresh calendars tab if active
-  if (document.getElementById("calendars")?.classList.contains("active")) {
-    renderCalendarsTable();
-  }
-}
-
 function findCalendarById(calendars, calId) {
   return calendars.find((c) => Number(c.id) === Number(calId));
 }
@@ -1711,30 +1663,6 @@ export function attachCalendarsTreeListeners() {
 
     // Re-render is the most reliable way for calendars
     renderCalendarsTable();
-  });
-}
-
-export function attachCalendarsTreeListeners2() {
-  const tbody = document.getElementById("calendars-body");
-  if (!tbody) return;
-
-  tbody.addEventListener("click", (e) => {
-    const toggle = e.target.closest(".ordo-toggle");
-    if (!toggle || toggle.classList.contains("empty")) return;
-
-    const row = toggle.closest("tr");
-    if (!row?.dataset.id) return;
-
-    const calId = String(row.dataset.id);
-    const isNowCollapsed = !appState.collapsedCalendars.has(calId);
-
-    if (isNowCollapsed) {
-      appState.collapsedCalendars.add(calId);
-    } else {
-      appState.collapsedCalendars.delete(calId);
-    }
-
-    renderCalendarsTable(); // full re-render is safest and simplest
   });
 }
 

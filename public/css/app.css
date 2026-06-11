@@ -66,7 +66,7 @@ body {
   font-family: var(--font-primary);
   /*font-family: "Jost", sans-serif; */
   /* font-family: "Courier New", "Lucida Console", monospace; */
-  font-size: clamp(0.5rem, 1.4vw, 1.5rem);
+  font-size: clamp(0.5rem, 1.32vw, 1.5rem);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -1659,11 +1659,12 @@ tr:hover .fa-cog {
 }
 .stats-badge {
   display: inline-block;
-  padding: 0.25rem 0.625rem;
+  padding: 0.25rem 0.25rem;
+/*  padding: 0.25rem 0.625rem; */
   border-radius: 9999px;
   font-size: 0.82rem;
   font-weight: 600;
-  min-width: 3.4rem;
+  min-width: 2.4rem; 
   text-align: center;
   box-shadow: 0 0 0.5rem rgba(0, 0, 0, 0.4);
   pointer-events: none;
@@ -1690,6 +1691,11 @@ tr:hover .fa-cog {
   position: relative;
   cursor: help;
 }
+.stats-td {
+  font-weight: 700;
+  vertical-align: middle;
+  text-align: center;
+}
 .deps-td.has-tooltip:hover::after,
 .stats-td.has-tooltip:hover::after {
   content: attr(data-tooltip);
@@ -1703,7 +1709,8 @@ tr:hover .fa-cog {
   border-radius: 6px;
   font-size: 0.85rem;
   white-space: pre-wrap;
-  max-width: 340px;
+  /*max-width: 340px; */
+  min-width: 2.4rem;
   z-index: 50;
   box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.85);
   border: 1px solid #67e8f9;

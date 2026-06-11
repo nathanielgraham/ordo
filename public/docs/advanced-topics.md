@@ -98,7 +98,7 @@ The `update_stats.pl` script provides real-time visibility into your jobs and se
 
 **Why it matters:**
 - More frequent polling consumes more API quota.
-- With the current Pro tier (200,000 calls/month), polling every 10 seconds on 10+ servers can exhaust your quota very quickly.
+- With the current Pro tier (500,000 calls/month), polling every 10 seconds on 10+ servers can exhaust your quota very quickly.
 
 **Tip:** Start with 30-second intervals and adjust based on your monitoring needs. You can always increase frequency later if needed.
 

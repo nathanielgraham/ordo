@@ -550,9 +550,6 @@ export function updateClusterRow(row, item) {
     if (item.ppid != null) {
       tooltipLines.push(`PPID: ${item.ppid}`);
     }
-    if (item.fname) {
-      tooltipLines.push(`Command: ${item.fname}`);
-    }
 
     const tooltipText = tooltipLines.length
       ? tooltipLines.join("\n")
@@ -660,7 +657,6 @@ export function updateJobRow(row, item) {
       tooltipLines.push(`RSS: ${Math.round(item.rss / 1024 / 1024)} MB`);
     if (item.pid != null) tooltipLines.push(`PID: ${item.pid}`);
     if (item.ppid != null) tooltipLines.push(`PPID: ${item.ppid}`);
-    if (item.fname) tooltipLines.push(`Command: ${item.fname}`);
 
     const tooltipText = tooltipLines.length
       ? tooltipLines.join("\n")

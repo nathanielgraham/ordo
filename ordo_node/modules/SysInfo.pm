@@ -4,422 +4,380 @@ use warnings;
 use Exporter 'import';
 use IO::Socket::INET;
 
-our @EXPORT = qw(get_local_ip_address get_cores pid_info find_pids system_info);
+our @EXPORT = qw(get_local_ip_address get_cores pid_info find_pids system_info get_loadavg);
 
-my ($os) =
-    $^O =~ /MSWin32/i ? 'windows'
-  : $^O =~ /darwin/i ? 'darwin'
-  : 'linux';
+my $OS = $^O =~ /MSWin32/i ? 'windows'
+       : $^O =~ /darwin/i  ? 'darwin'
+       : 'linux';
+
+# ===================================================================
+# Stable / Cheap metrics
+# ===================================================================
 
 sub get_cores {
-   my $cores =
-       $os eq 'linux' ? get_linux_cores()
-     : $os eq 'darwin' ? get_macos_cores()
-     : $os eq 'windows' ? get_windows_cores()
-     : 1;
-   return $cores;
+    return $OS eq 'linux'  ? get_linux_cores()
+         : $OS eq 'darwin' ? get_macos_cores()
+         : $OS eq 'windows'? get_windows_cores()
+         : 1;
 }
 
 sub get_local_ip_address {
     my $socket = IO::Socket::INET->new(
-        Proto => 'udp',
-        PeerAddr => '198.41.0.4', # a.root-servers.net
+        Proto    => 'udp',
+        PeerAddr => '198.41.0.4',
         PeerPort => '53',
+        Timeout  => 2,
     );
-    return unless $socket;
-    my $local_ip = $socket->sockhost;
-    $socket->close;
-    return $local_ip;
+    return $socket ? $socket->sockhost : undef;
 }
 
-# Linux: parse /proc/cpuinfo
+# ===================================================================
+# Linux
+# ===================================================================
+
 sub get_linux_cores {
-   my $count = 0;
-   open( my $fh, '<', '/proc/cpuinfo' ) or return 1;
-   while (<$fh>) {
-      $count++ if /^processor\s+:/;
-   }
-   close $fh;
-   return $count || 1;
+    my $count = 0;
+    if (open my $fh, '<', '/proc/cpuinfo') {
+        while (<$fh>) {
+            $count++ if /^processor\s*:/;
+        }
+        close $fh;
+    }
+
+    # Fallback using cpu cores + siblings
+    if ($count == 0 || $count == 1) {
+        if (open my $fh, '<', '/proc/cpuinfo') {
+            my $cores = 0;
+            my $siblings = 0;
+            while (<$fh>) {
+                $cores = $1 if /^cpu cores\s*:\s*(\d+)/;
+                $siblings = $1 if /^siblings\s*:\s*(\d+)/;
+            }
+            close $fh;
+            $count = $siblings || $cores * 2 || 1;
+        }
+    }
+    return $count;
 }
-
-# macOS: sysctl
-sub get_macos_cores {
-   my $output = `sysctl -n hw.ncpu 2>/dev/null`;
-   chomp $output;
-   return $output || 1;
-}
-
-# Windows: WMIC or fallback
-sub get_windows_cores {
-   my $output = `wmic cpu get NumberOfLogicalProcessors /value 2>NUL`;
-   if ( $output =~ /NumberOfLogicalProcessors=(\d+)/ ) {
-      return $1;
-   }
-   return $ENV{'NUMBER_OF_PROCESSORS'} || 1;
-}
-
-# CPU % via top snapshot (internal delta, no state file)
-sub get_cpu_percent {
-  return undef unless $os eq 'linux';
-
-  my $top = `top -bn1 2>/dev/null`;
-  if ($top =~ /%Cpu\(s\):\s*([\d\.]+) us,\s*([\d\.]+) sy/) {
-    my $percent = $1 + $2;  # user + system
-    return sprintf("%.1f", $percent);
-  }
-  return undef; # fallback to loadavg
-}
-
-# Load averages 1/5/15 min
 
 sub get_loadavg {
-  my %load = (load_1 => undef, load_5 => undef, load_15 => undef);
+    my %load = (load_1 => undef, load_5 => undef, load_15 => undef);
+    open my $fh, '<', '/proc/loadavg' or return %load;
+    my $line = <$fh>;
+    close $fh;
+    return %load unless $line;
 
-  return %load unless $os eq 'linux';
+    chomp $line;
+    my @f = split /\s+/, $line;
+    $load{load_1}  = $f[0] if $f[0] =~ /^[\d\.]+$/;
+    $load{load_5}  = $f[1] if $f[1] =~ /^[\d\.]+$/;
+    $load{load_15} = $f[2] if $f[2] =~ /^[\d\.]+$/;
 
-  open my $fh, '<', '/proc/loadavg' or return %load;
-  my $line = <$fh>;
-  close $fh;
-
-  return %load unless defined $line && $line =~ /\S/;
-
-  # Trim trailing newline/spaces
-  chomp $line;
-  $line =~ s/\s+$//;
-
-  # Split on whitespace, take first 3 fields only
-  my @fields = split(/\s+/, $line);
-
-  # Validate and assign only if numeric
-  $load{load_1}  = $fields[0] =~ /^[\d\.]+$/ ? $fields[0] : undef;
-  $load{load_5}  = $fields[1] =~ /^[\d\.]+$/ ? $fields[1] : undef;
-  $load{load_15} = $fields[2] =~ /^[\d\.]+$/ ? $fields[2] : undef;
-
-  # Debug (remove later)
-  warn "[get_loadavg] Raw line: '$line'" if $ENV{ORDO_DEBUG};
-  warn "[get_loadavg] Parsed: load_1=$load{load_1}, load_5=$load{load_5}, load_15=$load{load_15}" if $ENV{ORDO_DEBUG};
-
-  return %load;
+    return %load;
 }
 
-
-# Memory + Swap
 sub get_memory_swap {
-  my %mem = (
-    total_memory => undef, used_memory => undef, free_memory => undef,
-    total_swap => undef, used_swap => undef, free_swap => undef
-  );
+    my %mem = (
+        total_memory => undef, used_memory => undef, free_memory => undef,
+        total_swap   => undef, used_swap   => undef, free_swap   => undef
+    );
+    open my $fh, '<', '/proc/meminfo' or return %mem;
+    while (<$fh>) {
+        $mem{total_memory} = $1 * 1024 if /^MemTotal:\s+(\d+)/;
+        $mem{free_memory}  = $1 * 1024 if /^MemFree:\s+(\d+)/;
+        $mem{total_swap}   = $1 * 1024 if /^SwapTotal:\s+(\d+)/;
+        $mem{free_swap}    = $1 * 1024 if /^SwapFree:\s+(\d+)/;
+    }
+    close $fh;
 
-  return %mem unless $os eq 'linux';
+    $mem{used_memory} = $mem{total_memory} - $mem{free_memory}
+        if defined $mem{total_memory} && defined $mem{free_memory};
 
-  open my $fh, '<', '/proc/meminfo' or return %mem;
-  while (<$fh>) {
-    $mem{total_memory} = $1 * 1024 if /^MemTotal:\s+(\d+)/;
-    $mem{free_memory} = $1 * 1024 if /^MemFree:\s+(\d+)/;
-    $mem{total_swap} = $1 * 1024 if /^SwapTotal:\s+(\d+)/;
-    $mem{free_swap} = $1 * 1024 if /^SwapFree:\s+(\d+)/;
-  }
-  close $fh;
+    $mem{used_swap} = $mem{total_swap} - $mem{free_swap}
+        if defined $mem{total_swap} && defined $mem{free_swap};
 
-  $mem{used_memory} = $mem{total_memory} - $mem{free_memory} if $mem{total_memory} && $mem{free_memory};
-  $mem{used_swap} = $mem{total_swap} - $mem{free_swap} if $mem{total_swap} && $mem{free_swap};
-
-  return %mem;
+    return %mem;
 }
 
-# Disk (aggregate + root separate)
 sub get_disk {
-  my %disk = (
-    total_disk => undef, used_disk => undef, free_disk => undef,
-    root_total_disk => undef, root_used_disk => undef, root_free_disk => undef
-  );
+    my %disk = (
+        total_disk => undef, used_disk => undef, free_disk => undef,
+        root_total_disk => undef, root_used_disk => undef, root_free_disk => undef
+    );
 
-  return %disk unless $os eq 'linux';
+    my @df = `df -lP --total 2>/dev/null`;
+    foreach (@df) {
+        next unless /^total/;
+        my @f = split /\s+/;
+        $disk{total_disk} = $f[1];
+        $disk{used_disk}  = $f[2];
+        $disk{free_disk}  = $f[3];
+        last;
+    }
 
-  # Aggregate
-  my @df = `df -lP --total 2>/dev/null`;
-  foreach (@df) {
-    next unless /^total/;
-    my @f = split(/\s+/);
-    $disk{total_disk} = $f[1];
-    $disk{used_disk} = $f[2];
-    $disk{free_disk} = $f[3];
-    last;
-  }
+    my $root = `df -B1 / 2>/dev/null | tail -1`;
+    if ($root =~ /\s+(\d+)\s+(\d+)\s+(\d+)/) {
+        $disk{root_total_disk} = $1;
+        $disk{root_used_disk}  = $2;
+        $disk{root_free_disk}  = $3;
+    }
 
-  # Root only
-  my $root = `df -B1 / 2>/dev/null | tail -1`;
-  if ($root =~ /\s+(\d+)\s+(\d+)\s+(\d+)/) {
-    $disk{root_total_disk} = $1;
-    $disk{root_used_disk} = $2;
-    $disk{root_free_disk} = $3;
-  }
-
-  return %disk;
+    return %disk;
 }
 
-# Network I/O (cumulative total bytes since boot — no delta)
 sub get_network_total {
-  my %net = (net_rx_bytes => 0, net_tx_bytes => 0);
-
-  return %net unless $os eq 'linux';
-
-  open my $fh, '<', '/proc/net/dev' or return %net;
-  while (<$fh>) {
-    next if /^Inter|^ face/;
-    my @f = split(/\s+/);
-    $net{net_rx_bytes} += $f[1] if $f[1] =~ /^\d+$/; # bytes received
-    $net{net_tx_bytes} += $f[9] if $f[9] =~ /^\d+$/; # bytes transmitted
-  }
-  close $fh;
-
-  return %net;
+    my %net = (net_rx_bytes => 0, net_tx_bytes => 0);
+    open my $fh, '<', '/proc/net/dev' or return %net;
+    while (<$fh>) {
+        next if /^Inter|^ face/;
+        my @f = split /\s+/;
+        $net{net_rx_bytes} += $f[1] if $f[1] =~ /^\d+$/;
+        $net{net_tx_bytes} += $f[9] if $f[9] =~ /^\d+$/;
+    }
+    close $fh;
+    return %net;
 }
 
-# Open file handles / max
 sub get_open_files {
-  my %files = (open_files => undef, max_files => undef);
-
-  return %files unless $os eq 'linux';
-
-  open my $fh, '<', '/proc/sys/fs/file-nr' or return %files;
-  my $line = <$fh>;
-  close $fh;
-
-  my ($allocated, $unused, $max) = split(/\s+/, $line);
-  $files{open_files} = $allocated;
-  $files{max_files} = $max;
-
-  return %files;
+    my %files = (open_files => undef, max_files => undef);
+    open my $fh, '<', '/proc/sys/fs/file-nr' or return %files;
+    my $line = <$fh>;
+    close $fh;
+    my ($allocated, $unused, $max) = split /\s+/, $line;
+    $files{open_files} = $allocated;
+    $files{max_files}  = $max;
+    return %files;
 }
 
-# Process count (total / zombies)
 sub get_processes {
-  my %proc = (total_processes => undef, zombie_processes => undef);
+    my %proc = (total_processes => 0, zombie_processes => 0);
+    return %proc unless $OS eq 'linux';
 
-  return %proc unless $os eq 'linux';
+    my $total = `ps -e | wc -l 2>/dev/null`;
+    chomp $total;
+    $proc{total_processes} = $total > 0 ? $total - 1 : 0;
 
-  # Total
-  my $total = `ps -e | wc -l`;
-  chomp $total;
-  $proc{total_processes} = $total - 1; # subtract header
+    my $zombies = `ps -eo stat | grep -c '^Z' 2>/dev/null`;
+    chomp $zombies;
+    $proc{zombie_processes} = $zombies || 0;
 
-  # Zombies
-  my $zombies = `ps -eo stat | grep -c '^Z'`;
-  chomp $zombies;
-  $proc{zombie_processes} = $zombies;
-
-  return %proc;
+    return %proc;
 }
 
-# Enhanced linux_info (combines all)
+sub get_cpu_percent {
+    return undef unless $OS eq 'linux';
+
+    my $stat1 = _read_proc_stat();
+    return undef unless $stat1;
+
+    select(undef, undef, undef, 0.2);   # 200ms — good balance
+
+    my $stat2 = _read_proc_stat();
+    return undef unless $stat2;
+
+    my $diff_user   = $stat2->{user}   - $stat1->{user};
+    my $diff_nice   = $stat2->{nice}   - $stat1->{nice};
+    my $diff_system = $stat2->{system} - $stat1->{system};
+    my $diff_idle   = $stat2->{idle}   - $stat1->{idle};
+    my $diff_iowait = $stat2->{iowait} - $stat1->{iowait};
+
+    my $total = $diff_user + $diff_nice + $diff_system + $diff_idle + $diff_iowait;
+
+    return $total > 0 
+        ? sprintf("%.1f", 100 * ($diff_user + $diff_nice + $diff_system) / $total) 
+        : 0;
+}
+
+sub _read_proc_stat {
+    open my $fh, '<', '/proc/stat' or return undef;
+    my $line = <$fh>;   # first line = aggregate "cpu "
+    close $fh;
+    return undef unless $line;
+
+    my @fields = split /\s+/, $line;
+    return {
+        user    => $fields[1] || 0,
+        nice    => $fields[2] || 0,
+        system  => $fields[3] || 0,
+        idle    => $fields[4] || 0,
+        iowait  => $fields[5] || 0,
+    };
+}
+
 sub linux_info {
-  my %sysinfo;
+    my %info;
 
-  # Memory + Swap
-  %sysinfo = (%sysinfo, get_memory_swap());
+    %info = (%info, get_memory_swap());
+    %info = (%info, get_loadavg());
+    %info = (%info, get_disk());
+    %info = (%info, get_network_total());
+    %info = (%info, get_open_files());
+    %info = (%info, get_processes());
 
-  # CPU %
-  $sysinfo{cpu_percent} = get_cpu_percent() // 0;
+    $info{cpu_percent} = get_cpu_percent() // 0;
 
-  # Loadavg
-  my %load = get_loadavg();
-  %sysinfo = (%sysinfo, %load);
+    if (open my $fh, '<', '/proc/uptime') {
+        ($info{uptime}) = split ' ', <$fh>;
+        close $fh;
+    }
 
-  # Disk
-  %sysinfo = (%sysinfo, get_disk());
-
-  # Network (cumulative)
-  %sysinfo = (%sysinfo, get_network_total());
-
-  # Open files
-  %sysinfo = (%sysinfo, get_open_files());
-
-  # Processes
-  %sysinfo = (%sysinfo, get_processes());
-
-  # Uptime
-  open my $fh, '<', '/proc/uptime' or return \%sysinfo;
-  ($sysinfo{uptime}) = split ' ', <$fh>;
-  close $fh;
-
-  return \%sysinfo;
+    return \%info;
 }
 
-# Stubs for macOS/Windows (minimal)
-sub darwin_info { return linux_info(); } # fallback
-sub windows_info { return linux_info(); } # fallback
+# ===================================================================
+# macOS & Windows fallbacks
+# ===================================================================
+
+sub darwin_info { return linux_info(); }
+sub windows_info { return linux_info(); }
+
+# ===================================================================
+# Main Entry Point
+# ===================================================================
 
 sub system_info {
-  my $coderef = $os eq 'windows' ? \&windows_info
-              : $os eq 'darwin' ? \&darwin_info
-              : \&linux_info;
-  return &{$coderef};
+    my $coderef = $OS eq 'windows' ? \&windows_info
+                : $OS eq 'darwin'  ? \&darwin_info
+                : \&linux_info;
+    return &{$coderef}();
 }
 
 sub pid_info {
    my $pid = shift;
-   my $coderef = $os eq 'windows'  ? \&windows_pid_info : \&linux_pid_info;
-   return &{ $coderef }($pid);
+   return $OS eq 'windows' ? windows_pid_info($pid) : linux_pid_info($pid);
 }
 
 sub find_pids {
-   my $pids = shift;
-   my %pid;
+   my $pids = shift || [];
    my (@found, @zombies);
 
-   for my $p (@{ $pids }) {
-      my $pid_data = &pid_info($p);
-      if ($pid_data) {
-         push @found, $pid_data;
-      }
-      else {
+   for my $p (@$pids) {
+      my $data = pid_info($p);
+      if ($data) {
+         push @found, $data;
+      } else {
          push @zombies, $p;
       }
    }
-   return ( \@found, \@zombies );
+   return (\@found, \@zombies);
 }
 
 sub linux_pid_info {
    my $pid = shift;
+   return unless $pid && $pid =~ /^\d+$/;
 
-   my ( $process_id, $process_name, $start_time, $cpu_percent, $mem_percent, $parent_pid, $priority);
+   my $ps_cmd = "ps -p $pid -o pid,comm,etime,%cpu,%mem,ppid,priority 2>/dev/null";
+   my @output = `$ps_cmd`;
+   return unless @output > 1;   # at least header + one line
 
-   # Unix-like: Use ps command
-   my $ps_cmd = "ps -p $pid -o pid,comm,etime,%cpu,%mem,ppid,priority";
-   #my $ps_cmd = "ps -p $pid -o pid,comm,etime,%cpu,%mem,ppid";
-   my @output = `$ps_cmd 2>/dev/null`;
-   my $found  = 0;
-
+   # Skip header and find the data line
    foreach my $line (@output) {
       chomp $line;
+      next if $line =~ /^\s*PID/ || $line =~ /^\s*$/;
 
-      # Skip header line
-      next if $line =~ /^\s*PID/;
+      # More robust regex
+      if ($line =~ /^\s*(\d+)\s+(\S+)\s+(\S+)\s+([\d\.]+)\s+([\d\.]+)\s+(\d+)\s+(-?\d+)/) {
+         my ($process_id, $process_name, $elapsed_time, $cpu_percent, $mem_percent, $parent_pid, $priority) =
+            ($1, $2, $3, $4, $5, $6, $7);
 
-      # Example output: " 1234 firefox 1-02:34:56  2.5  3.2  789"
-      #if ( $line =~ /^\s*(\d+)\s+(\S+)\s+(\S+)\s+(\d+\.\d+)\s+(\d+\.\d+)\s+(\d+)/ ) {
-      if ($line =~ /^\s*(\d+)\s+(\S+)\s+(\S+)\s+(\d+\.\d+)\s+(\d+\.\d+)\s+(\d+)\s+(-?\d+)/) {
-
-         $process_id   = $1;
-         $process_name = $2;
-         my $elapsed_time = $3;
-         $cpu_percent = $4;
-         $mem_percent = $5;
-         $parent_pid  = $6;
-         $priority = $7;
-
-         # Calculate start time in epoch seconds
-         my $current_time    = time;
+         # Better etime parsing
          my $seconds_elapsed = 0;
-
-         # Parse etime: DD-HH:MM:SS, HH:MM:SS, or MM:SS
-         if ( $elapsed_time =~ /^(\d+)-(\d{2}):(\d{2}):(\d{2})$/ ) {
-            my ( $days, $hours, $minutes, $seconds ) = ( $1, $2, $3, $4 );
-            $seconds_elapsed = $days * 86400 + $hours * 3600 + $minutes * 60 + $seconds;
-         }
-         elsif ( $elapsed_time =~ /^(\d{2}):(\d{2}):(\d{2})$/ ) {
-            my ( $hours, $minutes, $seconds ) = ( $1, $2, $3 );
-            $seconds_elapsed = $hours * 3600 + $minutes * 60 + $seconds;
-         }
-         elsif ( $elapsed_time =~ /^(\d+):(\d{2})$/ ) {
-            my ( $minutes, $seconds ) = ( $1, $2 );
-            $seconds_elapsed = $minutes * 60 + $seconds;
-         }
-         else {
-            $start_time = "N/A";
+         if ($elapsed_time =~ /^(\d+)-(\d{2}):(\d{2}):(\d{2})$/) {
+            $seconds_elapsed = $1 * 86400 + $2 * 3600 + $3 * 60 + $4;
+         } elsif ($elapsed_time =~ /^(\d{2}):(\d{2}):(\d{2})$/) {
+            $seconds_elapsed = $1 * 3600 + $2 * 60 + $3;
+         } elsif ($elapsed_time =~ /^(\d+):(\d{2})$/) {
+            $seconds_elapsed = $1 * 60 + $2;
          }
 
-         if ( $seconds_elapsed > 0 ) {
-            $start_time = $current_time - $seconds_elapsed;
-         }
-         else {
-            $start_time = "N/A";
-         }
-         $found = 1;
-         last;
+         my $start_time = $seconds_elapsed > 0 ? (time - $seconds_elapsed) : "N/A";
+
+         return {
+            pid      => $process_id,
+            ppid     => $parent_pid,
+            priority => $priority,
+            fname    => $process_name,
+            start    => $start_time,
+            pctcpu   => $cpu_percent,
+            pctmem   => $mem_percent,
+         };
       }
    }
-   return unless defined $process_id;
-   return { pid => $process_id, ppid => $parent_pid, priority => $priority, fname => $process_name, start => $start_time, pctcpu => $cpu_percent, pctmem => $mem_percent };
+
+   return;   # not found or parse failed
 }
+
 
 sub windows_pid_info {
    my $pid = shift;
+   return unless $pid && $pid =~ /^\d+$/;
 
-   #my ( $process_id, $process_name, $start_time, $cpu_percent, $mem_percent, $parent_pid );
    my ($process_id, $process_name, $start_time, $cpu_percent, $mem_percent, $parent_pid, $priority);
 
-
-   my $total_mem;
-
-   my $mem_cmd = "wmic os get TotalVisibleMemorySize /value";
-   my @mem_output = `$mem_cmd 2>nul`;
-   foreach my $mem_line (@mem_output) {
-       chomp $mem_line;
-       if ($mem_line =~ /TotalVisibleMemorySize=(\d+)/) {
-           $total_mem = $1 * 1024; # Convert KB to bytes
-           last;
-       }
-   }
-   $total_mem ||= 1; # Avoid division by zero
-
-   # Windows: Use wmic to get process info
-   my $wmic_cmd = "wmic process where ProcessId=$pid get Name,CreationDate,UserModeTime,WorkingSetSize,ParentProcessId,Priority /format:csv";
-   #my $wmic_cmd = "wmic process where ProcessId=$pid get Name,CreationDate,UserModeTime,WorkingSetSize,ParentProcessId /format:csv";
-   my @output   = `$wmic_cmd 2>nul`;
-   my $found    = 0;
-
-   foreach my $line (@output) {
+   # Get total memory once
+   my $total_mem = 0;
+   my $mem_cmd = "wmic os get TotalVisibleMemorySize /value 2>nul";
+   my @mem_output = `$mem_cmd`;
+   foreach my $line (@mem_output) {
       chomp $line;
-
-      # Skip header or empty lines
-      next if $line =~ /^Node,/ || $line =~ /^\s*$/;
-
-
-      # Example output: "Node,Name,CreationDate,UserModeTime,WorkingSetSize,ParentProcessId"
-      # "DESKTOP-XYZ,notepad.exe,20250825140723.123456-300,156250,5432000,789"
-
-      if ($line =~ /[^,]+,([^,]+),(\d{14}\.\d+-\d+),(\d+),(\d+),(\d+),(\d+)/) {
-         $process_name = $1;
-         $process_id = $pid;
-         my $creation_date = $2;
-         my $user_time = $3 / 10000000; # Convert 100-nanosecond intervals to seconds
-         my $working_set = $4; # Memory in bytes
-         $parent_pid = $5;
-         $priority = $6;
-
-         # Convert CreationDate (YYYYMMDDHHMMSS.ssssss-TZ) to epoch seconds
-         if ( $creation_date =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+-(\d+)/ ) {
-            my ( $year, $month, $day, $hour, $min, $sec, $tz_offset ) = ( $1, $2, $3, $4, $5, $6, $7 );
-            my $time_str = "$year-$month-$day $hour:$min:$sec";
-            my $time     = Time::Piece->strptime( $time_str, "%Y-%m-%d %H:%M:%S" );
-            $start_time = $time->epoch - ( $tz_offset * 60 );    # Adjust for timezone offset
-         }
-         else {
-            $start_time = "N/A";
-         }
-
-         # Calculate memory usage percentage
-         $mem_percent = sprintf( "%.2f", ( $working_set / $total_mem ) * 100 );
-
-         # Estimate CPU usage (user time / elapsed time)
-         if ( $start_time ne "N/A" ) {
-            my $elapsed = time - $start_time;
-            $cpu_percent = $elapsed > 0 ? sprintf( "%.2f", ( $user_time / $elapsed ) * 100 ) : "N/A";
-         }
-         else {
-            $cpu_percent = "N/A";
-         }
-
-         $found = 1;
+      if ($line =~ /TotalVisibleMemorySize=(\d+)/) {
+         $total_mem = $1 * 1024;
          last;
       }
    }
+   $total_mem ||= 1;   # avoid division by zero
 
-   return unless $process_id;
-   return { pid => $process_id, ppid => $parent_pid, fname => $process_name, start => $start_time, pctcpu => $cpu_percent, pctmem => $mem_percent };
+   # Get process info
+   my $wmic_cmd = "wmic process where ProcessId=$pid get Name,CreationDate,UserModeTime,WorkingSetSize,ParentProcessId,Priority /format:csv 2>nul";
+   my @output = `$wmic_cmd`;
+
+   foreach my $line (@output) {
+      chomp $line;
+      next if $line =~ /^Node,/ || $line =~ /^\s*$/;
+
+      if ($line =~ /[^,]+,([^,]+),(\d{14}\.\d+-\d+),(\d+),(\d+),(\d+),(\d+)/) {
+         $process_name = $1;
+         $process_id   = $pid;
+         my $creation_date = $2;
+         my $user_time     = $3 / 10000000;     # 100-nanosecond intervals -> seconds
+         my $working_set   = $4;                 # bytes
+         $parent_pid       = $5;
+         $priority         = $6;
+
+         # Parse CreationDate
+         if ($creation_date =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/) {
+            my $time_str = "$1-$2-$3 $4:$5:$6";
+            eval {
+               require Time::Piece;
+               my $t = Time::Piece->strptime($time_str, "%Y-%m-%d %H:%M:%S");
+               $start_time = $t->epoch;
+            };
+         }
+         $start_time ||= "N/A";
+
+         # Memory %
+         $mem_percent = sprintf("%.2f", ($working_set / $total_mem) * 100);
+
+         # CPU % estimate
+         if ($start_time ne "N/A") {
+            my $elapsed = time - $start_time;
+            $cpu_percent = $elapsed > 0 ? sprintf("%.2f", ($user_time / $elapsed) * 100) : "N/A";
+         } else {
+            $cpu_percent = "N/A";
+         }
+
+         return {
+            pid      => $process_id,
+            ppid     => $parent_pid,
+            fname    => $process_name,
+            start    => $start_time,
+            pctcpu   => $cpu_percent,
+            pctmem   => $mem_percent,
+         };
+      }
+   }
+
+   return;   # process not found or parse failed
 }
 
 1;

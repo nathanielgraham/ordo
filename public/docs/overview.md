@@ -8,7 +8,18 @@ While modern AI has become extraordinarily good at thinking, planning, and reaso
 
 ![Ordo Main Interface](img/main-table.png)
 
-*Real-time hierarchical job view with live timers, states, and dependency indicators.*
+*Real-time hierarchical job view with live timers, stats, and dependency indicators.*
+
+## Ordo + Grok in Action
+
+You can say things like:
+
+- “Create a new calendar called **US Holidays** that runs at midnight on every major US holiday and then attach it to the **Send Greeting Card** cluster.”
+- “Create a monitoring job called **Check Disk Space** that checks disk usage on all servers every 15 minutes, put it in the **Infrastructure Monitoring** cluster, and alert the team if anything exceeds 90%.”
+- “Analyze the logs of the job **Deployment v2.3** that failed yesterday and tell me what went wrong.”
+- “Create a job called **Daily DB Backup** that runs `pg_dump` on server **prod-db-01**, place it in the **Database Maintenance** cluster, and schedule it to run every night at 2 AM with 3 retries on failure.”
+
+Grok will generate **and test** the code on **your servers**, create the necessary calendars, set up dependencies, and even help debug issues in case something goes wrong.
 
 ---
 
@@ -28,18 +39,6 @@ While modern AI has become extraordinarily good at thinking, planning, and reaso
 
 - **Self-Healing Automation**  
   Automatic retries, failure routing, hold/ice/release controls, and escalation chains.
-
-## Ordo + Grok in Action
-
-You can say things like:
-
-- “Create a job called **Daily DB Backup** that runs `pg_dump` on server **prod-db-01**, place it in the **Database Maintenance** cluster, and schedule it to run every night at 2 AM with 3 retries on failure.”
-- “Create a monitoring job called **Disk Space Check** that checks disk usage on all servers every 15 minutes, put it in the **Infrastructure Monitoring** cluster, and alert the team if anything exceeds 90%.”
-- “Analyze the logs of the job **Deployment v2.3** that failed yesterday and tell me what went wrong.”
-
-**Tip**: When asking Grok to create jobs, be clear about four things: the purpose, the server, the target cluster, and the desired schedule.
-
-Grok can generate the code, create the necessary clusters and calendars, set up dependencies, and help debug issues.
 
 ---
 

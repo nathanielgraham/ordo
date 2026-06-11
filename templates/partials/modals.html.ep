@@ -73,6 +73,7 @@
             <li>1,000 API calls/month</li>
             <li>1 Server</li>
             <li>1 Team Member</li>
+            <li>Lower rate limits</li>
             <li>Online docs</li>
           </ul>
           <button class="btn btn-ghost neon-ghost w-full mt-large" disabled>
@@ -88,9 +89,10 @@
             ><span class="text-grey">/mo</span>
           </div>
           <ul class="feature-list">
-            <li>200,000 API calls/month</li>
+            <li>500,000 API calls/month</li>
             <li>10 Servers</li>
-            <li>10 Team Members</li>
+            <li>30 Team Members</li>
+            <li>Higher rate limits</li>
             <li>Email support</li>
           </ul>
           <button class="btn btn-primary w-full mt-large" data-plan="pro">

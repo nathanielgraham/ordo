@@ -51,7 +51,15 @@ Cloning is especially useful for long-running jobs that shouldn’t block the ne
 
 Every running job receives special `ORDO_*` variables that allow scripts to interact with Ordo itself. See the [Advanced Topics](#docs/advanced-topics.md) guide for details and examples.
 
-## 7. The Visual Dependency Graph
+## 7. Stats Polling & Monitoring
+
+Ordo provides optional real-time stats polling for running jobs and servers (CPU, memory, disk usage, load average, ping latency, and more).
+
+**Important:** Stats polling is **completely optional**. The core scheduling engine, dependencies, calendars, and job execution work perfectly without it. The main Dashboard primarily shows scheduling metrics and does not require polling.
+
+For recommended intervals, API impact, best practices, and how to minimize quota usage, see [Stats Polling & Monitoring](#docs/stats-polling).
+
+## 8. The Visual Dependency Graph
 
 Click **View Graph** on any cluster to see a live diagram showing all dependency relationships (Needs, Needs Any, and On Fail). 
 

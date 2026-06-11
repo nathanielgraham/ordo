@@ -15,9 +15,9 @@ Ordo is designed to give organizations maximum flexibility and control. Whether 
 
 ### Pro SaaS Limits
 
-- **200,000 API calls per month**
+- **500,000 API calls per month**
 - Up to **10 servers**
-- 10 Team Members
+- 30 Team Members
 
 **Important Note on Stats Polling:**  
 Stats polling is **completely optional**. The core scheduling, dependencies, job execution, and self-healing features work perfectly well **without any monitoring**.
@@ -41,10 +41,10 @@ We provision and manage a **dedicated VPS instance** of Ordo exclusively for you
 - Proactive maintenance and security updates
 - Priority support
 
+**Best for:** Teams that want strong isolation and security without managing infrastructure themselves.
+
 **Note on Polling:**  
 Higher frequency polling (e.g. every 10 seconds) is fully supported here, as it does not consume shared SaaS API quota. You can also choose larger VPS sizes (more CPU, memory, and bandwidth) to comfortably support aggressive polling if needed.
-
-**Best for:** Teams that want strong isolation and security without managing infrastructure themselves.
 
 ---
 
@@ -67,7 +67,7 @@ Run Ordo completely on **your own infrastructure**.
 Fully customized deployments for the most demanding and regulated environments.
 
 **Key Features:**
-- On-prem or air-gapped installation support
+- On-premises or air-gapped installation support
 - Custom compliance assistance
 - Long-term support contracts
 - Flexible support processes tailored to your security constraints

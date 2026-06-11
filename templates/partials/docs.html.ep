@@ -47,6 +47,11 @@
               >
             </li>
             <li>
+              <a href="#" data-file="stats-polling.md" class="menu-link"
+                >Stats Polling</a
+              >
+            </li>
+            <li>
               <a href="#" data-file="advanced-topics.md" class="menu-link"
                 >Advanced Topics</a
               >
