@@ -505,6 +505,36 @@ export function updateAccount(data) {
 }
 
 export function updateOrgAndTeam(data) {
+  if (!data || data.command_reply !== "read_org" || !data.success) {
+    console.warn("[updateOrgAndTeam] Invalid or failed read_org response", data);
+    return;
+  }
+
+  // Store normalized org data in appState
+  appState.orgData = {
+    id: data.id,
+    name: data.name,
+    tier: (data.tier || "free").toLowerCase(),
+    api_calls_this_month: Number(data.api_calls_this_month || 0),
+    monthly_call_limit: Number(data.monthly_call_limit || 1000),
+    api_calls_reset_date: Number(data.api_calls_reset_date || 0),
+    current_month_year: data.current_month_year,
+    server_count: Number(data.server_count || 0),
+    server_limit: Number(data.server_limit || 1),           // ← new
+    member_limit: Number(data.member_limit || 1),           // ← new
+    members: Array.isArray(data.members) ? data.members : [],
+    rate_limit_org_per_minute: Number(data.rate_limit_org_per_minute || 500),
+    rate_limit_user_per_minute: Number(data.rate_limit_user_per_minute || 100),
+    _raw: data  // for debugging
+  };
+
+  console.log("[updateOrgAndTeam] Org data updated:", appState.orgData);
+
+  renderBillingAndOrg();
+  renderTeamMembers(appState.orgData.members || []);
+}
+
+export function updateOrgAndTeam2(data) {
   if (data.command_reply === "read_org") {
     appState.orgData = data;
     renderOrgAndBilling(data);
@@ -529,51 +559,44 @@ function renderUserProfile(user) {
   if (execTokenInput) execTokenInput.value = user.token || "";
 }
 
-function renderOrgAndBilling(org) {
-  document.getElementById("org-id").textContent = org.id || "—";
-
-  const nameInput = document.getElementById("edit-org-name");
-  if (nameInput) nameInput.value = org.name || "";
-
-  const descInput = document.getElementById("edit-org-desc");
-  if (descInput) descInput.value = org.description || "";
+export function renderBillingAndOrg() {
+  const org = appState.orgData;
+  if (!org) {
+    console.warn("[renderBillingAndOrg] No orgData available");
+    return;
+  }
 
   // Tier
   const tierEl = document.getElementById("account-tier");
-  if (tierEl) {
-    tierEl.textContent = (org.tier || "free").toUpperCase();
-  }
-
-  // Servers
-  const serverCount =
-    org.server_count !== undefined
-      ? org.server_count
-      : appState.serversData
-        ? appState.serversData.length
-        : 0;
-  document.getElementById("server-usage-text").textContent =
-    `${serverCount} / 3`;
-
-  // Team Members
-  const memberCount = org.members ? org.members.length : 0;
-  document.getElementById("team-usage-text").textContent = `${memberCount} / 2`;
+  if (tierEl) tierEl.textContent = org.tier.toUpperCase();
 
   // API Usage
-  const apiUsed = Number(org.api_calls_this_month) || 0;
-  const apiMax = tierLimits[org.tier || "free"].api || 1000;
-  document.getElementById("api-usage-text").textContent =
-    `${apiUsed} / ${apiMax === Infinity ? "∞" : apiMax}`;
+  const used = org.api_calls_this_month;
+  const limit = org.monthly_call_limit;
+  const percent = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
 
-  const progress = document.getElementById("api-progress");
-  if (progress) {
-    progress.value =
-      apiMax === Infinity
-        ? 0
-        : Math.min(100, Math.round((apiUsed / apiMax) * 100));
+  const progressEl = document.getElementById("api-progress");
+  if (progressEl) progressEl.value = percent;
+
+  const usageText = document.getElementById("api-usage-text");
+  if (usageText) {
+    usageText.textContent = `${used.toLocaleString()} / ${limit.toLocaleString()} calls this month`;
+    usageText.className = percent >= 90 ? "text-red" : percent >= 75 ? "text-orange" : "text-grey";
   }
 
-  document.getElementById("api-period").textContent =
-    `Current period: ${org.current_month_year || "—"}`;
+  // Reset date
+  const periodEl = document.getElementById("api-period");
+  if (periodEl && org.api_calls_reset_date) {
+    const resetDate = new Date(org.api_calls_reset_date * 1000);
+    periodEl.textContent = `Resets ${resetDate.toLocaleDateString()}`;
+  }
+
+  // Server & Team usage — now dynamic from DB
+  document.getElementById("server-usage-text").textContent = 
+    `${org.server_count} / ${org.server_limit || 1}`;
+
+  document.getElementById("team-usage-text").textContent = 
+    `${org.members.length} / ${org.member_limit || 1}`;
 }
 
 function renderTeamMembers(members) {
@@ -607,7 +630,6 @@ function renderTeamMembers(members) {
 export async function refreshSettings() {
    sendWS({ command: "read_user" });
    sendWS({ command: "read_org" });
-   sendWS({ command: "find_monitor" });
 }
 
 export async function saveAccount() {
@@ -1692,6 +1714,7 @@ function initLoginModalListeners() {
   });
 
   // Form submit
+/*
   const form = document.getElementById("login-form");
   if (form) {
     form.addEventListener("submit", async (e) => {
@@ -1720,6 +1743,7 @@ function initLoginModalListeners() {
       }
     });
   }
+*/
 }
 
 // ==================== PRICING MODAL ====================
@@ -2379,8 +2403,8 @@ export function initResyncButton() {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resyncing...';
 
     sendWS({ command: "sync" });
-    sendWS({ command: "find_stats", since: getStartOfTodayUnix() });
-    sendWS({ command: "find_cluster", name: "root" });
+    // sendWS({ command: "find_stats", since: getStartOfTodayUnix() });
+    // sendWS({ command: "find_cluster", name: "root" });
 
     setTimeout(() => {
       if (btn.disabled) {

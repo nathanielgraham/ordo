@@ -70,6 +70,7 @@ sub default {
          my $user = $self->app->user->{$connection_id};
          if ($user && $user->org_id) {
             my $org_id = $user->org_id;
+            delete $self->app->last_warning_cache->{$org_id};
             $self->app->clients_by_org->{$org_id} = [
                grep { $_ != $tx } @{$self->app->clients_by_org->{$org_id} || []}
             ];

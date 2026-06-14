@@ -86,30 +86,27 @@ export function openDependencyGraph(clusterId, clusterName) {
   }, 150);
 }
 
-// ==================== BUILD FUNCTION ====================
+// ==================== BUILD FUNCTION (Clean & Type-Safe) ====================
 function buildGraphElements(rootNode) {
   const elements = [];
   const nodeMap = new Map();
-  const includedIds = new Set();
 
   const addNode = (item, parentPrefix = null, viaOnFail = false) => {
     if (!item?.id) return null;
+
     const isCluster = !!item.is_cluster || item.children?.length > 0;
     const prefix = isCluster ? 'c' : 'j';
     const pid = `${prefix}${item.id}`;
 
     if (nodeMap.has(pid)) {
-      if (viaOnFail) {
-        const existing = nodeMap.get(pid);
-        if (existing) existing.classes.push('on-fail-target');
-      }
+      if (viaOnFail) nodeMap.get(pid).classes.push('on-fail-target');
       return pid;
     }
 
     const nodeEl = {
       data: {
         id: pid,
-        label: isCluster ? `${item.name}/` : item.name,
+        label: isCluster ? `${item.name || 'Cluster'}/` : (item.name || 'Job'),
         is_cluster: isCluster,
         originalId: Number(item.id)
       },
@@ -123,48 +120,62 @@ function buildGraphElements(rootNode) {
 
     elements.push(nodeEl);
     nodeMap.set(pid, nodeEl);
-    includedIds.add(Number(item.id));
     return pid;
   };
 
-  const findAny = (originalId) => {
-    const id = Number(originalId);
-    if (appState.clustersMap?.has(id)) return { ...appState.clustersMap.get(id), is_cluster: true };
-    if (appState.jobsMap?.has(id)) return { ...appState.jobsMap.get(id), is_cluster: false };
-    return findClusterById(rootNode, id) || findJobById(rootNode, id);
+  // Strict lookup by expected type
+  const findTyped = (id, expectedIsCluster) => {
+    const numId = Number(id);
+    if (!numId) return null;
+
+    if (expectedIsCluster) {
+      return findClusterById(rootNode, numId) || 
+             (appState.clustersMap?.has(numId) ? appState.clustersMap.get(numId) : null);
+    } else {
+      return findJobById(rootNode, numId) || 
+             (appState.jobsMap?.has(numId) ? appState.jobsMap.get(numId) : null);
+    }
   };
 
   const traverse = (node, parentPrefix = null) => {
     if (!node) return;
+
+    const isCluster = !!node.is_cluster || node.children?.length > 0;
     const myPrefix = addNode(node, parentPrefix);
 
-    // Children for compound nodes
-    if (node.is_cluster) {
+    // Children
+    if (isCluster) {
       [...(node.children || []), ...(node.jobs || [])].forEach(child => {
         traverse(child, myPrefix);
       });
     }
 
-    // Dependencies (needs / needs_any) — supports external clusters
+    // Dependencies - STRICT: same type only
     ['needs_ids', 'needs_any_ids'].forEach(key => {
       if (!Array.isArray(node[key])) return;
+
       node[key].forEach(depId => {
-        const dep = findAny(depId);
+        const dep = findTyped(depId, isCluster);
         if (dep) {
           const depPrefix = addNode(dep);
           elements.push({
             data: { id: `e${myPrefix}-${depPrefix}`, source: myPrefix, target: depPrefix },
             classes: [key === 'needs_ids' ? 'needs' : 'needs-any']
           });
+        } else {
+          console.warn(`[Graph] Invalid dependency skipped: ${isCluster ? 'cluster' : 'job'} ${node.id} → ${depId}`);
         }
       });
     });
 
-    // On Fail — special styling
+    // On Fail - More flexible (can point to job or cluster)
     if (node.on_fail_id) {
-      const fail = findAny(node.on_fail_id);
+      const fail = findTyped(node.on_fail_id, isCluster) || 
+                   findClusterById(rootNode, node.on_fail_id) || 
+                   findJobById(rootNode, node.on_fail_id);
+
       if (fail) {
-        const failPrefix = addNode(fail, null, true); // mark for orange border
+        const failPrefix = addNode(fail, null, true);
         elements.push({
           data: { id: `of${myPrefix}-${failPrefix}`, source: myPrefix, target: failPrefix },
           classes: ['on-fail']
@@ -174,6 +185,7 @@ function buildGraphElements(rootNode) {
   };
 
   traverse(rootNode);
+
   console.log(`[Graph] Built ${elements.length} elements for ${rootNode.name}`);
   return elements;
 }

@@ -319,6 +319,61 @@ select:focus {
   border-radius: 0.75rem;
   background: #0f172a;
 }
+
+/* ==================== Dependency Graph Legend ==================== */
+.graph-legend {
+  position: absolute;
+  bottom: 2.5rem;           /* better breathing room from bottom */
+  left: 2rem;
+  background: rgba(10, 10, 20, 0.95);
+  border: 1px solid #444;
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  font-size: 0.85rem;
+  color: #ccc;
+  z-index: 100;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  min-width: 13rem;
+}
+
+.graph-legend strong {
+  display: block;
+  margin-bottom: 0.75rem;
+  color: var(--glow-cyan);
+  font-size: 0.95rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.5rem 0;
+  white-space: nowrap;
+}
+
+.legend-line {
+  display: inline-block;
+  width: 2.5rem;
+  height: 0.2rem;
+  border-radius: 0.1rem;
+  flex-shrink: 0;
+}
+
+.legend-line.needs      { background: #f87171; }
+.legend-line.needs-any  { background: #4ade80; border: 1px dashed #4ade80; height: 0.18rem; }
+.legend-line.on-fail    { background: #fbbf24; }
+
+@media (max-width: 768px) {
+  .graph-legend {
+    bottom: 1.5rem;
+    left: 1.25rem;
+    padding: 0.85rem 1rem;
+    font-size: 0.8rem;
+    min-width: 11rem;
+  }
+}
+
 .card-simple {
   background: #1a1a1a;
   border: 1px solid #444;
@@ -2128,4 +2183,71 @@ html,
   font-family: var(--font-primary);
 }
 
+/* ==================== Footer ==================== */
+.footer {
+  background: var(--bg-secondary);
+  border-top: 1px solid #333;
+  padding: 1.5rem 2.5rem;
+  margin-top: auto;
+  font-size: 0.9rem;
+  color: #888;
+  flex-shrink: 0;
+}
+
+.footer-content {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.footer-left {
+  color: #666;
+}
+
+.footer-links {
+  display: flex;
+  gap: 2rem;
+}
+
+.footer-links a {
+  color: var(--chrome-mid);
+  text-decoration: none;
+  transition: all 0.25s ease;
+}
+
+.footer-links a:hover {
+  color: var(--glow-cyan);
+  text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
+}
+
+@media (max-width: 768px) {
+  .footer-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+}
+
+.legal-checkbox {
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.legal-checkbox input[type="checkbox"] {
+  accent-color: var(--glow-cyan);
+  transform: scale(1.1);
+}
+
+.legal-checkbox a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.legal-checkbox a:hover {
+  color: var(--glow-cyan);
+}
 

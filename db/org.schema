@@ -7,9 +7,10 @@ CREATE TABLE org (
         name varchar,
         description varchar,
         update_time integer,
+        server_limit integer DEFAULT 1,
+        member_limit integer DEFAULT 1,
         tier text DEFAULT 'free',
-        execution_token varchar,
-        execution_token_created_at integer DEFAULT (strftime('%s', 'now')),
+        monthly_call_limit INTEGER DEFAULT 1000,
         rate_limit_user_per_minute INTEGER DEFAULT 100,
         rate_limit_org_per_minute INTEGER DEFAULT 500,
         creation_time integer DEFAULT (strftime('%s', 'now'))

@@ -9,9 +9,15 @@ has 'root_cluster_id' => ( is => 'rw', );
 
 has 'base_cluster_id' => ( is => 'rw', );
 
+has 'monthly_call_limit' => ( is => 'rw', );
+
+has 'rate_limit_user_per_minute' => ( is => 'rw', );
+
+has 'rate_limit_org_per_minute' => ( is => 'rw', );
+
 has 'token' => ( is => 'rw', );
 
-has 'is_execution_token' => ( 
+has 'execution_token' => ( 
    is => 'rw', 
 );
 
@@ -24,7 +30,7 @@ has 'level' => (
 
 has 'request_count' => ( 
    is => 'rw', 
-   default => sub { 0 },
+   default => sub { {} },
 );
 
 has 'email' => ( is => 'rw', );

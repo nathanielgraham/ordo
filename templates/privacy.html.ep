@@ -1,0 +1,30 @@
+% layout 'default';
+% title 'Privacy Policy';
+
+<div class="docs-content">
+  <h1>Ordo Privacy Policy</h1>
+  <p class="text-grey"><strong>Last Updated:</strong> June 13, 2026</p>
+
+  <h2>Information We Collect</h2>
+  <p>Account information, usage data, server monitoring data (when enabled), and technical connection data.</p>
+
+  <h2>How We Use Your Information</h2>
+  <p>To provide the scheduling service, enforce limits, send notifications, and improve the product.</p>
+
+  <h2>Data Sharing</h2>
+  <p>We do not sell your data. Limited sharing occurs only with service providers under strict confidentiality.</p>
+
+  <h2>Self-Hosted Deployments</h2>
+  <p>All data remains under your full control. No telemetry is collected unless explicitly enabled.</p>
+
+  <h2>Data Retention & Deletion</h2>
+  <p>We retain usage data as long as your account is active. You may request deletion by emailing <a href="mailto:ordosched@proton.me">ordosched@proton.me</a>.</p>
+
+  <h2>Security</h2>
+  <p>We use industry-standard practices, but no system is 100% secure.</p>
+
+  <h2>Your Rights</h2>
+  <p>You may access, correct, or delete your personal data by contacting us.</p>
+
+  <p class="mt-large text-grey">Questions? Contact <a href="mailto:ordosched@proton.me">ordosched@proton.me</a></p>
+</div>

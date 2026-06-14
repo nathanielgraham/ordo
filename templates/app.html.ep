@@ -41,7 +41,7 @@
       <%= include 'partials/dashboard' %>
       <%= include 'partials/settings' %>
     </main>
-
+    <%= include 'partials/footer' %>
   </div>
 
   <%= include 'partials/modals' %>

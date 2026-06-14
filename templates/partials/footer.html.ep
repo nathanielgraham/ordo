@@ -1,0 +1,13 @@
+<footer class="footer">
+  <div class="footer-content">
+    <div class="footer-left">
+      <span>&copy; <%= DateTime->now->year %> Ordo AI Scheduler</span>
+    </div>
+    
+    <div class="footer-links">
+      <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>
+      <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>
+      <a href="mailto:ordosched@proton.me">Contact</a>
+    </div>
+  </div>
+</footer>

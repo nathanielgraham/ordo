@@ -1,0 +1,48 @@
+% layout 'default';
+% title 'Terms of Service';
+
+<div class="docs-content">
+  <h1>Ordo Terms of Service</h1>
+  <p class="text-grey"><strong>Last Updated:</strong> June 13, 2026</p>
+
+  <h2>1. Service Overview</h2>
+  <p>Ordo is a modern hierarchical job scheduler with real-time monitoring, dependency management, calendar-based scheduling, and optional AI integration via the MCP protocol.</p>
+
+  <h2>2. "As Is" Service</h2>
+  <p>Ordo is provided <strong>"AS IS" and "AS AVAILABLE"</strong> without any warranties. We do not guarantee job execution, timing, or reliability.</p>
+
+  <h2>3. Limitation of Liability</h2>
+  <p>To the maximum extent permitted by law, Ordo and its operators shall <strong>not be liable</strong> for any damages arising from the use or inability to use the service. You are solely responsible for your jobs and their outcomes.</p>
+
+  <h2>4. SSH Key Access</h2>
+  <p>Ordo uses SSH keys to execute jobs on your remote servers.</p>
+  <ul>
+    <li>A dedicated public SSH key is deployed to each server you configure.</li>
+    <li>The corresponding private key remains on the Ordo platform and is used only to run scheduled jobs on your behalf.</li>
+    <li>You are responsible for the security of your servers. We recommend using dedicated low-privilege service accounts and applying strict key restrictions where possible.</li>
+    <li>Currently, key rotation is a manual process. You may remove Ordo’s public key from any server at any time.</li>
+  </ul>
+
+  <h2>5. User Content & License Grant</h2>
+  <p>You retain ownership of your jobs, schedules, and data. By using Ordo, you grant us a limited, non-exclusive, royalty-free license to access, store, process, and execute your data solely as necessary to provide the service.</p>
+
+  <h2>6. Acceptable Use</h2>
+  <p>You agree not to use Ordo for illegal activities, to circumvent rate limits, or in any way that harms other users or systems.</p>
+
+  <h2>7. Usage Limits & Billing</h2>
+  <p>All tiers have strict monthly API call limits and server limits. Exceeding limits may restrict functionality (except critical state updates). Subscriptions are billed monthly. <strong>No refunds</strong> for partial months or unused time.</p>
+
+  <h2>8. Indemnification</h2>
+  <p>You agree to indemnify and hold Ordo harmless from any claims, damages, or liabilities arising from your use of the service or violation of these terms.</p>
+
+  <h2>9. Self-Hosted Deployments</h2>
+  <p>Self-hosted and private deployments are governed by separate licensing terms. Contact us for details.</p>
+
+  <h2>10. Termination</h2>
+  <p>We may suspend or terminate access for violations of these terms or service abuse.</p>
+
+  <h2>11. Governing Law</h2>
+  <p>These terms are governed by the laws of the State of Minnesota, United States.</p>
+
+  <p class="mt-large text-grey">Questions? Contact <a href="mailto:ordosched@proton.me">ordosched@proton.me</a></p>
+</div>

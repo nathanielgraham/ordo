@@ -12,8 +12,8 @@
         <p class="text-center text-grey mb-large">
           We'll send you a magic login link.
         </p>
-
-        <form id="login-form" action="/login" method="POST">
+       
+        <form id="login-form" novalidate>
           <div class="form-group">
             <label class="label-bold">Email Address</label>
             <input
@@ -26,27 +26,42 @@
             />
           </div>
 
+          <!-- Legal Agreement -->
+          <div class="legal-checkbox mt-large">
+            <label class="flex items-center gap-small cursor-pointer">
+              <input 
+                type="checkbox" 
+                id="agree-terms" 
+                name="agree_terms" 
+                required
+              >
+              <span class="text-grey text-small">
+                I agree to the 
+                <a href="/terms" target="_blank" class="text-cyan">Terms of Service</a> 
+                and 
+                <a href="/privacy" target="_blank" class="text-cyan">Privacy Policy</a>
+              </span>
+            </label>
+          </div>
+
           <div class="mt-large">
-            <button
-              type="submit"
-              class="btn btn-primary w-full"
-              id="send-magic-link-btn"
-            >
+            <button type="submit" class="btn btn-primary w-full" id="send-magic-link-btn">
               Send Magic Link
             </button>
           </div>
         </form>
       </div>
 
-      <div
-        id="login-success"
-        style="display: none; text-align: center; padding: 2rem 1rem"
-      >
+      <!-- Success State -->
+      <div id="login-success" style="display: none; text-align: center; padding: 2rem 1rem">
         <i class="fas fa-envelope fa-3x text-cyan mb-medium"></i>
         <h4>Check your inbox</h4>
-        <p class="text-grey">
-          We've sent you a magic login link.<br />It may take up to 30 seconds.
-        </p>
+        <p class="text-grey">We've sent you a magic login link.<br>It expires in 15 minutes.</p>
+      </div>
+
+      <!-- Error State -->
+      <div id="login-error" style="display: none; text-align: center; padding: 1.5rem; color: #ef4444;">
+        <p id="login-error-text"></p>
       </div>
     </div>
   </div>

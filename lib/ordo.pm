@@ -17,7 +17,7 @@ use UUID::Tiny ':std';
 use IO::Socket::INET;
 use Email::Valid;
 use Mojo::JWT;
-use Email::Simple;
+use Email::MIME;
 use Email::Sender::Simple;
 use Email::Sender::Transport::SMTP;
 use POSIX       qw(strftime);
@@ -76,6 +76,11 @@ has 'local_url' => sub {
    state $url = 'http://' . &get_local_ip_address() . ':3000';
 };
 
+has 'last_warning_cache' => sub {
+   state $cache = {};
+   return $cache;
+};
+
 # This method will run once at server start
 sub startup {
 
@@ -88,6 +93,12 @@ sub startup {
    # In-memory storage for emails
    #$self->attr( emails => sub { {} } );
 
+   # Add this to your main app class
+   has 'last_warning_cache' => sub {
+      state $cache = {};
+      return $cache;
+   };
+
    $self->_preload_documents();
 
    # Plugins
@@ -99,42 +110,11 @@ sub startup {
    # Helpers
 
    $self->helper(
-      send_email => sub {
-         my ( $c, $address, $subject, $body ) = @_;
-         print " email: $address, $subject, $body \n";
-
-         require Email::Simple;
-         require Email::Sender::Simple;
-         require Email::Sender::Transport::SMTP;
-
-         my $email = Email::Simple->create(
-            header => [
-               To      => $address,
-               From    => $ENV{EMAIL_SENDER_SMTP_USER} || 'noreply@example.com',
-               Subject => $subject,
-            ],
-            body => $body,
-         );
-
-         my $transport = Email::Sender::Transport::SMTP->new(
-            {
-               host          => 'smtp.gmail.com',
-               port          => 587,
-               ssl           => 'starttls',
-               sasl_username => $ENV{EMAIL_SENDER_SMTP_USER},
-               sasl_password => $ENV{EMAIL_SENDER_SMTP_PASS},
-            }
-         );
-
-         Email::Sender::Simple->send( $email, { transport => $transport } );
-      }
-   );
-
-   $self->helper(
       jwt => sub { Mojo::JWT->new( secret => shift->app->secrets->[0] || die ) }
    );
-   $self->helper(
-      email => sub { shift->minion->enqueue( email_task => [@_] ) } );
+
+   #$self->helper(
+   #   email => sub { shift->minion->enqueue( email_task => [@_] ) } );
 
 # $self->helper( to_index => sub { shift->flash( message => shift )->redirect_to('index') } );
 
@@ -175,59 +155,144 @@ sub startup {
    );
 
    # Minion task
-   $self->minion->add_task(
-      email_task => sub {
-         my ( $job, @args ) = @_;
-         eval { shift->app->send_email(@args); };
-         if ($@) { $job->fail($@); }
-      }
-   );
+   #$self->minion->add_task(
+   #   email_task => sub {
+   #      my ( $job, @args ) = @_;
+   #      eval { shift->app->send_email(@args); };
+   #      if ($@) { $job->fail($@); }
+   #   }
+   #);
+
+# ==================== MINION EMAIL SETUP ====================
+# Minion Task - Background Email Sender
+$self->minion->add_task(
+   email_task => sub {
+      my ($job, $to, $subject, $html_body, $plain_text) = @_;
+
+      $plain_text //= $html_body;
+
+      eval {
+         $job->app->send_email($to, $subject, $html_body, $plain_text);
+         $job->finish("Email sent to $to");
+      } or do {
+         my $error = $@ || 'Unknown error';
+         $job->app->log->error("Minion email_task failed for $to: $error");
+         $job->fail($error);
+      };
+   }
+);
+
+$self->helper(
+   email => sub {
+      my ($c, $to, $subject, $html_body, $plain_text) = @_;
+
+      $c->minion->enqueue('email_task', [ $to, $subject, $html_body, $plain_text ]);
+
+      $c->log->debug("Enqueued email to $to: $subject");
+   }
+);
+
+$self->helper(
+   send_email => sub {
+      my ($c, $to, $subject, $html_body, $plain_text) = @_;
+
+      $plain_text //= $html_body;
+
+      require Email::MIME;
+      require Email::Sender::Simple;
+      require Email::Sender::Transport::SMTP;
+
+      my $transport = Email::Sender::Transport::SMTP->new({
+         host          => 'smtp.gmail.com',
+         port          => 587,
+         ssl           => 'starttls',
+         sasl_username => $ENV{EMAIL_SENDER_SMTP_USER},
+         sasl_password => $ENV{EMAIL_SENDER_SMTP_PASS},
+      });
+
+      my $email = Email::MIME->create(
+         header_str => [
+            From    => 'Ordo Machinae <ordosched@proton.me>',
+            To      => $to,
+            Subject => $subject,
+         ],
+         parts => [
+            # HTML version FIRST (preferred by modern clients)
+            Email::MIME->create(
+               attributes => {
+                  content_type => 'text/html',
+                  encoding     => 'quoted-printable',
+                  charset      => 'UTF-8',
+               },
+               body => $html_body,
+            ),
+            # Plain text fallback
+            Email::MIME->create(
+               attributes => {
+                  content_type => 'text/plain',
+                  encoding     => 'quoted-printable',
+                  charset      => 'UTF-8',
+               },
+               body => $plain_text,
+            ),
+         ],
+      );
+
+      eval {
+         Email::Sender::Simple->send($email, { transport => $transport });
+         $c->log->info("Email sent successfully to $to");
+      } or do {
+         $c->log->error("Failed to send email to $to: $@");
+      };
+   }
+);
 
    # Router
    my $r = $self->routes;
 
-=pod
-    # Public routes
-    $r->get(
-        '/login' => sub {
-            my $c = shift;
-            $c->render( template => 'login' );
-        }
-    );
+   $r->get('/terms')->to('pages#terms');
+   $r->get('/privacy')->to('pages#privacy');
 
    $r->post(
       '/login' => sub {
-         my $c     = shift;
+         my $c = shift;
+
          my $email = $c->param('email') || '';
-         return $c->render( text => 'Invalid email', status => 404 )
-           unless $email && Email::Valid->address($email);
 
-         state $user =
+         # Early validation
+         unless ( $email && Email::Valid->address($email) ) {
+            return $c->render(
+               json => {
+                  success => 0,
+                  message => 'Please enter a valid email address'
+               }
+            );
+         }
+
+         # Create user model
+         my $user_model =
            ordo::Model::User->new( remote_address => $c->tx->remote_address );
-         my $res = $self->request( $user,
-            { command => 'register_user', email => $email } );
 
-         #if ( $res->{success} ) {
-         #    $c->flash( message => "Login link sent to $email" );
-         #    $c->redirect_to('/login');
-         #}
-         #else {
-         #    $c->render(
-         #        template => 'login',
-         #        error    => $res->{message} || 'Failed'
-         #    );
-         #}
+         # Call register_user
+         my $result = $c->app->request(
+            $user_model,
+            {
+               command => 'register_user',
+               email   => $email
+            }
+         );
+
+         $c->render( json => $result );
       }
    );
 
-    $r->get(
-        '/logout' => sub {
-            my $c = shift;
-            $c->cookie( ordo_token => '', { expires => 1, path => '/' } );
-            $c->redirect_to('/login');
-        }
-    );
-=cut
+   $r->get(
+      '/logout' => sub {
+         my $c = shift;
+         $c->cookie( ordo_token => '', { expires => 1, path => '/' } );
+         $c->redirect_to('/login');
+      }
+   );
 
    # Confirmation - Magic Link with Smart Redirect
    $r->get(
@@ -235,35 +300,48 @@ sub startup {
          my $c   = shift;
          my $jwt = $c->param('jwt');
 
-         #my $redirect_to = $c->param('redirect_to') || '';
-
          unless ($jwt) {
-            $c->render( text => 'Missing JWT', status => 400 );
+            $c->render( text => 'Missing login link', status => 400 );
             return;
          }
 
          my $payload;
-         eval { $payload = $c->jwt->decode($jwt) };
+         eval { $payload = $c->jwt->decode($jwt); };
+
          if ( $@ || !$payload || !$payload->{email} ) {
-            $c->render( text => 'Invalid link', status => 400 );
+            $c->render(
+               text   => 'Invalid or expired login link',
+               status => 400
+            );
             return;
          }
 
          my $email = $payload->{email};
-         my $u =
-           $c->sqlite->db->select( 'user', ['*'], { email => $email } )->hash;
 
-         unless ( $u && $u->{id} ) {
+         # Get full user
+         my $user = $c->app->_make_user( { email => $email } );
+
+         unless ( $user && $user->id ) {
             $c->render( text => 'User not found', status => 404 );
             return;
          }
 
-         # Activate user if needed
-         $c->sqlite->db->update( 'user', { level => 1 }, { id => $u->{id} } );
+         # === AUTO-ROTATE TOKEN ===
+         my $rotate_result = $c->app->new_token( $user, { id => $user->id } );
 
-         # Set long-lived auth cookie
+         if ( !$rotate_result->{success} ) {
+            $c->app->log->error("Token rotation failed for user $email");
+         }
+
+         # Activate user if needed
+         $c->sqlite->db->update( 'user', { level => 1 }, { id => $user->id } );
+
+         # Use new token if rotation succeeded
+         my $token_to_use = $rotate_result->{token} || $user->token;
+
+         # Set secure cookie
          $c->cookie(
-            ordo_token => $u->{token},
+            ordo_token => $token_to_use,
             {
                secure    => $c->req->is_secure,
                same_site => 'Lax',
@@ -272,22 +350,13 @@ sub startup {
             }
          );
 
-         $c->redirect_to('/#dashboard');    # Returning user → Dashboard
-
-         # Smart redirect logic
-         #if ( $redirect_to eq 'pricing' || $redirect_to eq 'upgrade' ) {
-         #   $c->redirect_to('/#settings')
-         #     ;    # Return to Settings after upgrade intent
-         #}
-
-         #elsif ( !$u->{update_time} || $u->{creation_time} > time - 86400 ) {
-
-         # New user (created in last 24 hours)
-         #$c->redirect_to('/#docs/quickstart');    # Best onboarding
-         #}
-         #else {
-         #   $c->redirect_to('/#dashboard');    # Returning user → Dashboard
-         #}
+         # Smart redirect
+         if ( !$user->{update_time} || $user->{creation_time} > time - 86400 ) {
+            $c->redirect_to('/#docs/quickstart');    # New user
+         }
+         else {
+            $c->redirect_to('/#dashboard');          # Returning user
+         }
       }
    );
 
@@ -304,8 +373,9 @@ sub startup {
          #    return undef;
          #}
 
-         my $user =
-           ordo::Model::User->new( remote_address => $c->tx->remote_address );
+         my $user = $c->app->_make_user( { token => $token } );
+
+         #  ordo::Model::User->new( remote_address => $c->tx->remote_address );
          my $res = $c->app->request( $user,
             { command => 'login_user', token => $token } );
 
@@ -355,18 +425,21 @@ sub startup {
          }
 
          # Authenticate
-         my $temp_user =
-           ordo::Model::User->new( remote_address => $c->tx->remote_address, );
+         #my $temp_user =
+         #  ordo::Model::User->new( remote_address => $c->tx->remote_address, );
 
-         my $auth = $c->app->request(
-            $temp_user,
-            {
-               command => 'login_user',
-               token   => $token
-            }
-         );
+         my $mcp_user = $self->_make_user( { token => $token } );
 
-         unless ( $auth->{success} && ( $auth->{level} // 0 ) >= 1 ) {
+         #my $auth = $c->app->request(
+         #   $temp_user,
+         #   {
+         #      command => 'login_user',
+         #      token   => $token
+         #   }
+         #);
+
+         #unless ( $auth->{success} && ( $auth->{level} // 0 ) >= 1 ) {
+         unless ( $mcp_user && ( $mcp_user->level // 0 ) >= 1 ) {
             return $c->render(
                json => {
                   error =>
@@ -377,17 +450,17 @@ sub startup {
             );
          }
 
-         my $user = ordo::Model::User->new(
-            id              => $auth->{user_id} || $auth->{id},
-            level           => $auth->{level},
-            org_id          => $auth->{org_id},
-            token           => $auth->{token},
-            remote_address  => $c->tx->remote_address,
-            base_cluster_id => $auth->{base_cluster_id},
-            root_cluster_id => $auth->{root_cluster_id},
-         );
+         #my $user = ordo::Model::User->new(
+         #   id              => $auth->{user_id} || $auth->{id},
+         #   level           => $auth->{level},
+         #   org_id          => $auth->{org_id},
+         #   token           => $auth->{token},
+         #   remote_address  => $c->tx->remote_address,
+         #   base_cluster_id => $auth->{base_cluster_id},
+         #   root_cluster_id => $auth->{root_cluster_id},
+         #);
 
-         $c->stash( user => $user );
+         $c->stash( user => $mcp_user );
 
          # Discovery
          my $tool_name = $json->{tool} // $json->{method};
@@ -445,63 +518,49 @@ sub startup {
             return;
          }
 
+         #my $exec_user = $self->sqlite->db->select( 'user', ['*'],
+         #   { execution_token => $token } )->hash;
+
+         my $exec_user = $self->_make_user( { execution_token => $token } );
+
          # Try execution token first
-         if ($token) {
-            my $org = $self->sqlite->db->select( 'org', ['*'],
-               { execution_token => $token } )->hash;
+         if ($exec_user) {
 
-            if ($org) {
-               my $exec_user = ordo::Model::User->new(
-                  id              => 0,
-                  level           => 1,
-                  org_id          => $org->{id},
-                  token           => $token,
-                  remote_address  => $c->tx->remote_address,
-                  root_cluster_id => $org->{root_cluster_id},
-               );
-
-               if ( $self->_is_execution_command($command) ) {
-                  my $res = $self->request( $exec_user, $json );
-                  $c->render( json => $res );
-               }
-               else {
-                  $c->render(
-                     json => {
-                        success => 0,
-                        message =>
-                          "Execution token not authorized for '$command'"
-                     },
-                     status => 403
-                  );
-               }
-               return;
+            if ( $self->_is_execution_command($command) ) {
+               my $res = $self->request( $exec_user, $json );
+               $c->render( json => $res );
             }
-         }
-
-         # Normal user path
-         my $auth = $self->request( $temp_user,
-            { command => 'login_user', token => $token } );
-
-         unless ( $auth->{success} ) {
-            $c->render(
-               json   => { success => 0, message => 'Unauthorized' },
-               status => 401
-            );
+            else {
+               $c->render(
+                  json => {
+                     success => 0,
+                     message => "Execution token not authorized for '$command'"
+                  },
+                  status => 403
+               );
+            }
             return;
          }
 
-         my $user = ordo::Model::User->new(
-            id              => $auth->{id},
-            level           => $auth->{level},
-            org_id          => $auth->{org_id},
-            token           => $auth->{token},
-            remote_address  => $c->tx->remote_address,
-            base_cluster_id => $auth->{base_cluster_id},
-            root_cluster_id => $auth->{root_cluster_id},
-         );
+         # api token
+         else {
+            my $api_user = $self->_make_user( { token => $token } );
 
-         my $res = $self->request( $user, $json );
-         $c->render( json => $res );
+            # Normal user path
+            my $auth = $self->request( $api_user,
+               { command => 'login_user', token => $token } );
+
+            unless ( $auth->{success} ) {
+               $c->render(
+                  json   => { success => 0, message => 'Unauthorized' },
+                  status => 401
+               );
+               return;
+            }
+
+            my $res = $self->request( $api_user, $json );
+            $c->render( json => $res );
+         }
       }
    );
 
@@ -578,6 +637,106 @@ sub startup {
 
 # HELPERS
 
+sub check_and_send_usage_warning {
+   my ( $self, $user, $used, $limit ) = @_;
+
+   my $org_id = $user->org_id;
+
+   return unless $org_id && $limit && $limit > 0;
+
+   my $percent = int( ( $used / $limit ) * 100 );
+   my $now     = time();
+   my $cache   = $self->app->last_warning_cache;
+
+   my @thresholds = (
+      { key => '80',  percent => 80,  level => 'warning' },
+      { key => '95',  percent => 95,  level => 'warning' },
+      { key => '100', percent => 100, level => 'error' }
+   );
+
+   foreach my $t (@thresholds) {
+      next unless $percent >= $t->{percent};
+
+      my $last_sent = $cache->{$org_id}{ $t->{key} } || 0;
+
+      if ( $now - $last_sent > 3600 ) {
+         $self->send_usage_warning_broadcast(
+            $user,
+            {
+               org_id        => $org_id,
+               level         => $t->{level},
+               usage_percent => $percent,
+               used          => $used,
+               limit         => $limit
+            }
+         );
+
+         $cache->{$org_id}{ $t->{key} } = $now;
+      }
+      last;
+   }
+}
+
+sub send_usage_warning_broadcast {
+   my ( $self, $user, $args ) = @_;
+
+   my $payload = {
+      broadcast       => "usage_warning",
+      level           => $args->{level},
+      limit_type      => "monthly",
+      usage_percent   => $args->{usage_percent},
+      api_calls_used  => $args->{used},
+      api_calls_limit => $args->{limit},
+      message         => $self->build_usage_message(
+         $args->{usage_percent},
+         $args->{used}, $args->{limit}
+      ),
+      persistent => ( $args->{level} eq 'error' ) ? 1 : 0,
+      timestamp  => time()
+   };
+
+   $self->_broadcast( $user, $payload );
+}
+
+sub build_usage_message {
+   my ( $self, $percent, $used, $limit ) = @_;
+
+   if ( $percent >= 100 ) {
+      return "Monthly API limit exceeded. Some operations are now restricted.";
+   }
+   elsif ( $percent >= 95 ) {
+      return "You're nearly at your monthly API limit (${percent}% used)";
+   }
+   else {
+      return "You're approaching your monthly API limit (${percent}% used)";
+   }
+}
+
+sub _make_user {
+   my $self  = shift;
+   my $where = shift;
+
+   my $user = $self->sqlite->db->select( 'user', ['*'], $where )->hash;
+   return unless $user->{id};
+
+   my $org =
+     $self->sqlite->db->select( 'org', ['*'], { id => $user->{org_id} } )->hash;
+
+   my $u = ordo::Model::User->new(
+      id                         => $user->{id},
+      level                      => $user->{level},
+      org_id                     => $user->{org_id},
+      token                      => $user->{token},
+      execution_token            => $user->{execution_token},
+      base_cluster_id            => $user->{base_cluster_id},
+      root_cluster_id            => $org->{root_cluster_id},
+      monthly_call_limit         => $org->{monthly_call_limit},
+      rate_limit_user_per_minute => $org->{rate_limit_user_per_minute},
+      rate_limit_org_per_minute  => $org->{rate_limit_org_per_minute},
+   );
+   return $u;
+}
+
 sub _preload_documents {
    my $self = shift;
    my $base = $self->home->child('public/docs');
@@ -604,27 +763,15 @@ sub _preload_documents {
    for my $sec ( keys %summaries ) {
       my $file = $base->child("$sec.md");
       print "FILE: $file\n";
-      $full_docs{$sec} =
-        -e $file
-        ? decode('UTF-8', $file->slurp)
+      $full_docs{$sec} = -e $file
+        ? decode( 'UTF-8', $file->slurp )
+
         #? $file->slurp->decode('UTF-8')
         : "Document not found: $sec.md";
    }
 
    $self->doc_cache->{summaries} = \%summaries;
    $self->doc_cache->{full}      = \%full_docs;
-}
-
-sub _get_execution_token {
-   my ( $self, $org_id ) = @_;
-   return undef unless $org_id;
-
-   my $row =
-     $self->sqlite->db->select( 'org', ['execution_token'], { id => $org_id } )
-     ->hash;
-
-   my $token = $row ? $row->{execution_token} : undef;
-   return $token;
 }
 
 sub _is_execution_command {
@@ -836,71 +983,73 @@ sub validate_params {
 }
 
 sub throttle_exceeded {
-   my ( $self, $user_id, $org_id, $user_limit, $org_limit ) = @_;
-
-   state $cache =
-     {};    # { user_id => { minute => count }, org_id => { minute => count } }
+   my ( $self, $user ) = @_;
 
    my $minute = strftime( '%Y-%m-%d %H:%M', localtime );
 
-   # Per-user/token
-   my $user_cache = $cache->{$user_id} //= {};
-   if ( exists $user_cache->{$minute} ) {
-      $user_cache->{$minute}++;
+   if ( exists $user->request_count->{$minute} ) {
+      $user->request_count->{$minute}++;
    }
    else {
-      %$user_cache = ( $minute => 1 );    # reset to current minute only
+      $user->request_count->{$minute} = 1;
    }
-   return 1 if $user_cache->{$minute} > $user_limit;
 
-   # Per-org
-   my $org_cache = $cache->{"org:$org_id"} //= {};
-   if ( exists $org_cache->{$minute} ) {
-      $org_cache->{$minute}++;
-   }
-   else {
-      %$org_cache = ( $minute => 1 );
-   }
-   return 1 if $org_cache->{$minute} > $org_limit;
-
-   # Per-IP (backup — fixed global limit)
-   my $ip       = $ENV{REMOTE_ADDR} || 'unknown';
-   my $ip_cache = $cache->{"ip:$ip"} //= {};
-   if ( exists $ip_cache->{$minute} ) {
-      $ip_cache->{$minute}++;
-   }
-   else {
-      %$ip_cache = ( $minute => 1 );
-   }
-   return 1 if $ip_cache->{$minute} > 1000;
-
+   print "RCRL: "
+     . $user->request_count->{$minute} . " "
+     . $user->rate_limit_org_per_minute . " "
+     . $user->rate_limit_user_per_minute . "\n";
+   return 1
+     if $user->request_count->{$minute} > $user->rate_limit_user_per_minute;
    return 0;
 }
 
 sub increment_usage {
-   my ( $self, $org_id, $command ) = @_;
+   my ( $self, $user ) = @_;
+
+   my $org_id = $user->org_id;
+   return 0 unless $org_id;
 
    my $year_month = strftime( '%Y-%m', localtime );
 
-   # Use Mojo::SQLite's clean, chainable API
+   # Get current usage
+   my $row = $self->sqlite->db->select( 'usage_counters', ['call_count'],
+      { org_id => $org_id, year_month => $year_month } )->hash;
+
+   my $current_count = $row->{call_count} || 0;
+
+   # Check and send warnings (before incrementing)
+   $self->check_and_send_usage_warning( $user, $current_count,
+      $user->monthly_call_limit );
+
+   # Enforce monthly limit
+   if ( $current_count >= $user->monthly_call_limit ) {
+      return 0;    # Limit exceeded
+   }
+
+   # Increment the counter
+   $self->_increment_counter( $org_id, $year_month );
+
+   return 1;
+}
+
+# Small helper to keep the main function readable
+sub _increment_counter {
+   my ( $self, $org_id, $year_month ) = @_;
+
    $self->sqlite->db->query(
       q{
-      INSERT OR REPLACE INTO usage_counters
-      (org_id, year_month, call_count, last_updated)
-      VALUES (?, ?,
-        COALESCE(
-          (SELECT call_count
-           FROM usage_counters
-           WHERE org_id = ? AND year_month = ?),
-          0
-        ) + 1,
-        CURRENT_TIMESTAMP
-      )
-    },
-      $org_id,
-      $year_month,
-      $org_id,
-      $year_month
+        INSERT OR REPLACE INTO usage_counters
+        (org_id, year_month, call_count, last_updated)
+        VALUES (?, ?,
+          COALESCE(
+            (SELECT call_count FROM usage_counters
+             WHERE org_id = ? AND year_month = ?),
+            0
+          ) + 1,
+          CURRENT_TIMESTAMP
+        )
+      },
+      $org_id, $year_month, $org_id, $year_month
    );
 }
 
@@ -909,16 +1058,6 @@ sub request {
    my $response = {};
 
    die "Decoded must be HASH ref" unless $decoded && ref $decoded eq 'HASH';
-
-   # === MCP / API FRIENDLY AUTH ===
-   #if ( !defined $user && $decoded->{token} ) {
-
-   # Auto-create a minimal user object for pure API calls (MCP, /api, etc.)
-   #    $user = ordo::Model::User->new(
-   #        remote_address =>
-   #          'api',    # or $self->tx ?->remote_address if available
-   #    );
-   #}
 
    my $command = delete $decoded->{command};
    my $params  = {
@@ -957,49 +1096,39 @@ sub request {
             }
             else {
                # ==================== NORMAL COMMANDS ====================
-               my $org_id  = $user->org_id;
-               my $user_id = $user->id;
-               return { success => 0, message => 'no org_id' }
-                 unless $org_id;
-
-               # Read current tier and limits from DB
-               my $org = $self->sqlite->db->query(
-"SELECT tier, rate_limit_user_per_minute, rate_limit_org_per_minute
-                   FROM org WHERE id = ?",
-                  $org_id
-               )->hash;
-
-               my $user_limit =
-                 $org
-                 ? ( $org->{rate_limit_user_per_minute} // 100 )
-                 : 100;
-               my $org_limit =
-                 $org ? ( $org->{rate_limit_org_per_minute} // 500 ) : 500;
-
-# Debug log (remove/comment in production)
-#$self->log->debug(
-# "Throttle check for org $org_id (command $command): user_limit=$user_limit, org_limit=$org_limit"
-#                    );
 
                # Throttle (always apply, even for non-counted commands)
-               if (
-                  $self->throttle_exceeded(
-                     $user->id, $org_id, $user_limit, $org_limit
-                  )
-                 )
+               my $user_id = $user->id;
+               my $org_id  = $user->org_id;
+               if (  $command ne 'update_job_state'
+                  && $self->throttle_exceeded($user) )
                {
                   $self->log->warn(
-"Throttle hit for user $user_id / org $org_id (command $command)"
+"Rate limit hit for user $user_id / org $org_id (command $command)"
                   );
-                  $response =
-                    { success => 0, message => "Rate limit exceeded" };
+                  $response = {
+                     success    => 0,
+                     persistent => 1,
+                     limit_type => 'rate',
+                     message    =>
+                       "Too many requests (wait a minute and try again)"
+                  };
+               }
+               elsif ( $command ne 'update_job_state'
+                  && $count_usage
+                  && !$self->increment_usage($user) )
+               {
+                  $response = {
+                     success    => 0,
+                     persistent => 1,
+                     limit_type => 'monthly',
+                     message    => "Monthly API limit reached"
+                  };
+                  $self->log->warn(
+"Monthly API limit hit for user $user_id / org $org_id (command $command)"
+                  );
                }
                else {
-                  # Log usage only if flag is set
-                  if ($count_usage) {
-                     $self->increment_usage( $org_id, $command );
-                  }
-
                   # Execute as method
                   $response = $self->$sub_name( $user, $clean_params_or_error );
                }
@@ -2079,8 +2208,10 @@ sub login_user {
 
    my $results =
      $self->sqlite->db->select( 'user', ['*'], { token => $d->{token} } )->hash;
-   my $org = $self->sqlite->db->select( 'org', ['root_cluster_id'],
-      { id => $results->{org_id} } )->hash;
+
+   my $org =
+     $self->sqlite->db->select( 'org', ['*'], { id => $results->{org_id} } )
+     ->hash;
 
    my $team = $self->sqlite->db->select( 'user', [qw(id email level)],
       { org_id => $results->{org_id} } )->hashes->to_array;
@@ -2100,8 +2231,12 @@ sub login_user {
       $user->level( $results->{level} );
       $user->org_id( $results->{org_id} );
       $user->token( $results->{token} );
+      $user->execution_token( $results->{execution_token} );
       $user->base_cluster_id( $results->{base_cluster_id} );
       $user->root_cluster_id( $org->{root_cluster_id} );
+      $user->monthly_call_limit( $org->{monthly_call_limit} );
+      $user->rate_limit_user_per_minute( $org->{rate_limit_user_per_minute} );
+      $user->rate_limit_org_per_minute( $org->{rate_limit_org_per_minute} );
       $user->email( $results->{email} );
       $user->team($team);
       $path    = $self->id2path( $user, { id => $results->{base_cluster_id} } );
@@ -2130,13 +2265,12 @@ sub login_user {
 
 sub register_user {
    my ( $self, $user, $d ) = @_;
-   my $valid = Email::Valid->new;
 
-# Comment out the next line to disable MX record checking (requires network access)
+   my $valid = Email::Valid->new;
    $valid->mxcheck(1);
 
    unless ( $d->{email} && $valid->address( $d->{email} ) ) {
-      return { success => 0, message => 'invalid email' };
+      return { success => 0, message => 'Invalid email address' };
    }
 
    my $login_token;
@@ -2164,32 +2298,79 @@ sub register_user {
       }
    }
 
-   # send email
-   my $jwt = $self->jwt->claims( { email => $d->{email} } )->encode;
+   # Generate JWT with short expiration
+   my $jwt = $self->jwt->claims(
+      {
+         email => $d->{email},
+         exp   => time() + 900    # 15 minutes
+      }
+   )->encode;
 
-   #my $url = $self->url_for('confirm')->to_abs->query(jwt => $jwt);
    my $url = $self->local_url . $self->url_for('confirm')->query( jwt => $jwt );
 
-   my $confirm_message = <<~"MSG";
-   Welcome to the Ordo job scheduler!
+   my $html_body = <<~"HTML";
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Arial, sans-serif; background:#0f0f1f; color:#e0e0e0; padding:20px;">
+  <div style="max-width:600px; margin:0 auto; background:#1a1a1a; padding:30px; border-radius:8px;">
+    <h2 style="color:#00ffff;">Welcome to Ordo Machinae</h2>
+    
+    <p style="font-size:16px;">Please click the button below to sign in:</p>
+    
+    <p style="margin:30px 0;">
+      <a href="$url" 
+         style="background:#00ffcc; color:#000; padding:16px 32px; 
+                text-decoration:none; border-radius:6px; font-weight:bold; display:inline-block;">
+        Sign in to Ordo
+      </a>
+    </p>
 
-   Please click the following link to activate your account:
-   $url
-   MSG
+    <p style="color:#aaa; font-size:15px;">
+      This link will expire in 15 minutes.
+    </p>
 
-   $self->email( $d->{email}, 'Ordo Registration', $confirm_message );
+    <p style="color:#888; font-size:14px; margin-top:30px;">
+      By signing in, you agree to our 
+      <a href="https://yourdomain.com/terms" style="color:#00ffff;">Terms of Service</a> 
+      and 
+      <a href="https://yourdomain.com/privacy" style="color:#00ffff;">Privacy Policy</a>.
+    </p>
 
-   my $register_message = <<~"MSG";
-   A confirmation email has been sent to $d->{email}
-   Click the link in the email to confirm and then run this script again.
-   MSG
+    <p style="color:#555; font-size:13px; margin-top:40px;">
+      If you didn't request this link, please ignore this email.
+    </p>
+  </div>
+</body>
+</html>
+HTML
 
-# login new user
-# my $login = $self->login_user( $user, { token => $login_token } );
-#return $login->{success} ? { success => 1, token => $login_token, message => $register_message } : { success => 0, message => 'registration failed' };
-   return $login_token
-     ? { success => 1, token => $login_token, message => $register_message }
-     : { success => 0, message => 'registration failed' };
+   my $plain_text = <<~"TEXT";
+Welcome to Ordo Machinae!
+
+Please click the link below to sign in:
+
+$url
+
+This link will expire in 15 minutes.
+
+By signing in, you agree to our:
+- Terms of Service: https://yourdomain.com/terms
+- Privacy Policy:   https://yourdomain.com/privacy
+
+If you didn't request this, please ignore this email.
+
+-- The Ordo Team
+TEXT
+
+   $self->email( $d->{email}, 'Ordo Magic Login Link', $html_body,
+      $plain_text );
+
+   return {
+      success => 1,
+      message => "A magic login link has been sent to $d->{email}"
+   };
+
 }
 
 sub create_user {
@@ -2202,7 +2383,7 @@ sub create_user {
       remote_address => $user->remote_address,
       level          => defined $d->{level} ? $d->{level} : 1,
    };
-   my ( $user_id, $user_token, $org_id );
+   my ( $user_id, $api_token, $exec_token, $org_id );
 
    eval {
       my $tx = $db->begin;
@@ -2215,15 +2396,15 @@ sub create_user {
          $org_id = $db->query("INSERT INTO org DEFAULT VALUES")->last_insert_id;
          die "unable to create org" unless $org_id;
 
-         my $exec_token = $self->_new_token();
-         $db->update(
-            'org',
-            {
-               execution_token            => $exec_token,
-               execution_token_created_at => time()
-            },
-            { id => $org_id }
-         );
+         #my $exec_token = $self->_new_token();
+         #$db->update(
+         #   'org',
+         #   {
+         #      execution_token            => $exec_token,
+         #      execution_token_created_at => time()
+         #   },
+         #   { id => $org_id }
+         #);
       }
 
       # create root cluster
@@ -2247,16 +2428,14 @@ sub create_user {
 
       die "unable to create root cluster" unless $root_id;
 
-      $user_token                     = $self->_new_token();
-      $user_insert->{token}           = $user_token;
+      $api_token                      = $self->_new_token();
+      $exec_token                     = $self->_new_token();
+      $user_insert->{token}           = $api_token;
+      $user_insert->{execution_token} = $exec_token;
       $user_insert->{org_id}          = $org_id;
       $user_insert->{base_cluster_id} = $root_id;
       $user_id = $db->insert( 'user', $user_insert )->last_insert_id;
       die unless $user_id;
-
-      my $org_token = $self->_new_token();
-
-      #$user->id($user_id);
 
       $db->update( 'org', { root_cluster_id => $root_id }, { id => $org_id } );
 
@@ -2268,13 +2447,10 @@ sub create_user {
       return { message => $@, success => 0 };
    }
    else {
-      #$self->_broadcast_org( $user, [$org_id] );
-
-      # $self->_broadcast_org( $user );
       return {
          success => 1,
          id      => $user_id,
-         token   => $user_token,
+         token   => $api_token,
          message => "user $user_id created"
       };
    }
@@ -2282,13 +2458,14 @@ sub create_user {
 
 sub rotate_execution_token {
    my ( $self, $user, $d ) = @_;
-   my $user_id = $d->{id} || $user->id;
-   my $token   = $self->_new_token();
+   my $token = $self->_new_token();
+
    $self->sqlite->db->update(
-      'org',
+      'user',
       { execution_token => $token },
-      { id              => $user_id }
+      { id              => $user->id }
    )->hash;
+
    return {
       success => 1,
       token   => $token,
@@ -3556,7 +3733,7 @@ sub update_job_state {
    # Step 4: Broadcast state/runtime update
    $self->_broadcast_job( $user, [$job_id] );
 
-   return { success => 1 };
+   return { success => 0 };
 }
 
 sub update_job_config {
@@ -4331,8 +4508,7 @@ sub _start_job {
    my $needed = join( ' ', @{ $job->{needed} } )     if $job->{needed};
 
    # === Use Execution Token for all job launches ===
-   my $launch_token = $self->_get_execution_token( $user->org_id )
-     || $user->token;    # fallback, in case something goes wrong
+   my $launch_token = $user->execution_token;
 
    my $opts = {
       token      => $launch_token,               # ← Always use execution token
@@ -5739,8 +5915,9 @@ sub routing {
    state %routing = (
 
       # Docs
-      'get_documentation' =>
-        [ 'get_documentation', 1, [ { section => 'n', format => 'n' }, {} ], 1 ],
+      'get_documentation' => [
+         'get_documentation', 1, [ { section => 'n', format => 'n' }, {} ], 1
+      ],
 
       # Stats
       'find_stats' => [ 'find_stats', 1, [ {}, { since => 'i' } ], 1 ],
@@ -5769,7 +5946,7 @@ sub routing {
       'rotate_execution_token' =>
         [ 'rotate_execution_token', 1, [ {}, {} ], 0 ],
       'register_user' =>
-        [ 'register_user', 0, [ { email => 'e' }, { team_member => 'i' } ], 1 ],
+        [ 'register_user', 0, [ { email => 'e' }, { team_member => 'i' } ], 0 ],
 
       # Job related
       'create_job' => [
@@ -5790,6 +5967,7 @@ sub routing {
                mode          => 'm',
                needs_any     => 'a:s',
                needs_any_ids => 'a:i',
+
                #on_fail       => 'p',
                #on_fail_id    => 'i',
             }
@@ -5797,8 +5975,10 @@ sub routing {
          1
       ],
       'read_job' => [
-         'read_job',                                            1,
-         [ {}, { name => 'n', id => 'i', cluster_id => 'i' } ], 0
+         'read_job',
+         1,
+         [ {}, { name => 'n', id => 'i', cluster_id => 'i' } ],
+         1
       ],
 
       'update_job_config' => [
@@ -5824,9 +6004,10 @@ sub routing {
                loops         => 'i',
                delay         => 'i',
                priority      => 'i',
+
                #on_fail       => 'p',
                #on_fail_id    => 'i?',
-               remove_needs  => 'i',
+               remove_needs => 'i',
             }
          ],
          1    # billable
@@ -5860,7 +6041,7 @@ sub routing {
         [ 'start_job', 1, [ {}, { name => 'n', id => 'i', force => 'b' } ], 1 ],
       'watch_job' => [
          'watch_job',
-         1,
+         99,
          [
             {},
             {
@@ -5872,7 +6053,7 @@ sub routing {
                match     => 'c'
             }
          ],
-         0
+         1
       ],
       'kill_job'    => [ 'kill_job', 1, [ {}, { name => 'n', id => 'i' } ], 1 ],
       'nice_job'    => [ 'nice_job', 1, [ {}, { name => 'n', id => 'i' } ], 1 ],
@@ -5914,7 +6095,7 @@ sub routing {
          1
       ],
       'read_cluster' =>
-        [ 'read_cluster', 1, [ {}, { name => 'n', id => 'i' } ], 0 ],
+        [ 'read_cluster', 1, [ {}, { name => 'n', id => 'i' } ], 1 ],
       'update_cluster' => [
          'update_cluster',
          1,
@@ -5950,7 +6131,7 @@ sub routing {
       'change_cluster' =>
         [ 'change_cluster', 1, [ {}, { name => 'n', id => 'i' } ], 1 ],
       'find_cluster' =>
-        [ 'find_cluster', 1, [ {}, { name => 'n', id => 'i' } ], 0 ],
+        [ 'find_cluster', 1, [ {}, { name => 'n', id => 'i' } ], 1 ],
       'reset_cluster' =>
         [ 'reset_cluster', 1, [ {}, { name => 'n', id => 'i' } ], 1 ],
       'start_cluster' => [
@@ -5981,8 +6162,8 @@ sub routing {
          'create_cal',                                            1,
          [ { name => 'n', tz => 'tz' }, { description => 'd' } ], 1
       ],
-      'read_cal'   => [ 'read_cal', 1, [ {}, { name => 'n', id => 'i' } ], 0 ],
-      'find_cal'   => [ 'find_cal', 1, [ {}, { name => 'n', id => 'i' } ], 0 ],
+      'read_cal'   => [ 'read_cal', 1, [ {}, { name => 'n', id => 'i' } ], 1 ],
+      'find_cal'   => [ 'find_cal', 1, [ {}, { name => 'n', id => 'i' } ], 1 ],
       'update_cal' => [
          'update_cal',
          1,
@@ -6043,9 +6224,9 @@ sub routing {
       ],
 
       # Logs
-      'find_log' => [ 'find_log', 1, [ {}, { name => 'n', id => 'i' } ], 0 ],
+      'find_log' => [ 'find_log', 1, [ {}, { name => 'n', id => 'i' } ], 1 ],
       'read_log' =>
-        [ 'read_log', 1, [ {}, { name => 'n', id => 'i', log_id => 'i' } ], 0 ],
+        [ 'read_log', 1, [ {}, { name => 'n', id => 'i', log_id => 'i' } ], 1 ],
 
       # Monitor related
       'create_monitor' => [
@@ -6058,9 +6239,9 @@ sub routing {
          1
       ],
       'find_monitor' =>
-        [ 'find_monitor', 1, [ {}, { id => 'i', name => 'n' } ], 0 ],
+        [ 'find_monitor', 1, [ {}, { id => 'i', name => 'n' } ], 1 ],
       'read_monitor' =>
-        [ 'read_monitor', 1, [ {}, { id => 'i', name => 'n' } ], 0 ],
+        [ 'read_monitor', 1, [ {}, { id => 'i', name => 'n' } ], 1 ],
       'update_monitor' => [
          'update_monitor',
          1,
@@ -6091,7 +6272,7 @@ sub routing {
       'upgrade_monitor' =>
         [ 'upgrade_monitor', 1, [ {}, { id => 'i', name => 'n' } ], 1 ],
       'active_pids'    => [ 'active_pids', 1, [ { id => 'i' }, {} ], 0 ],
-      'sync'           => [ 'sync',        1, [ {},            {} ], 0 ],
+      'sync'           => [ 'sync',        1, [ {},            {} ], 1 ],
       'update_sysinfo' => [
          'update_sysinfo',
          1,
@@ -6126,7 +6307,7 @@ sub routing {
             },
             {}
          ],
-         0
+         1
       ],
    );
 
