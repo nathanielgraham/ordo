@@ -288,8 +288,6 @@ function buildSingleRow(
   );
 }
 
-// ==================== SURGICAL ROW UPDATE (Preserves dropdowns & state) ====================
-
 // ==================== INSERT FUNCTIONS (with tree sync) ====================
 
 export function insertCluster(item, parentId = null) {
@@ -313,18 +311,23 @@ export function insertCluster(item, parentId = null) {
 
   buildSingleRow(newRow, item, depth, parentId);
 
-  // Smart DOM insertion
+  // === CORRECT INSERTION LOGIC ===
+  // Insert after ALL sibling clusters AND after all their jobs
   if (parentId) {
     const parentRow = document.getElementById(`row-cluster-${parentId}`);
     if (parentRow) {
-      let last = parentRow;
-      let curr = parentRow.nextElementSibling;
-      while (curr) {
-        if (curr.dataset.parent !== String(parentId)) break;
-        last = curr;
-        curr = curr.nextElementSibling;
+      let insertionPoint = parentRow;
+
+      let current = parentRow.nextElementSibling;
+      while (current) {
+        const isSameParent = current.dataset.parent === String(parentId);
+        if (!isSameParent) break;   // left this subtree
+
+        insertionPoint = current;
+        current = current.nextElementSibling;
       }
-      last.after(newRow);
+
+      insertionPoint.after(newRow);
     } else {
       tbody.appendChild(newRow);
     }
@@ -332,7 +335,7 @@ export function insertCluster(item, parentId = null) {
     tbody.appendChild(newRow);
   }
 
-  // === FORCE TREE SYNC ===
+  // Tree state sync
   if (appState.monitorData?.tree) {
     let treeCluster = findClusterById(appState.monitorData.tree, item.id);
     if (!treeCluster) {
@@ -346,21 +349,16 @@ export function insertCluster(item, parentId = null) {
           parent.children.push(newCluster);
         }
       }
-      console.log(
-        `[insertCluster] Force-added cluster ${item.id} to main tree`,
-      );
     }
   }
 
-  // Re-apply collapse
+  // Apply collapse if needed
   if (appState.collapsedClusters.has(String(item.id))) {
     newRow.classList.add("collapsed");
     toggleSubtree(item.id, true);
   }
 
-  console.log(
-    `[insertCluster] Inserted cluster ${item.id} under parent ${parentId}`,
-  );
+  console.log(`[insertCluster] ✅ Inserted new cluster ${item.id} at the END of siblings under parent ${parentId}`);
 }
 
 export function insertJob(item, parentId = null) {

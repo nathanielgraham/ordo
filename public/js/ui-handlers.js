@@ -272,7 +272,7 @@ export function updateFreshnessCell(row, server, now) {
   const updatedAgo =
     updateTime != null && !isNaN(updateTime) ? now - updateTime : Infinity;
 
-  let status = "Never Connected";
+  let status = "New";
   let statusClass = "is-danger";
   let statusTooltip = "";
 
@@ -323,10 +323,11 @@ export function updateFreshnessCell(row, server, now) {
 }
 
 export function renderServersTable() {
+  console.log("[DEBUG Servers] renderServersTable started");
+
   const tbody = document.getElementById("servers-body");
   const table = document.getElementById("servers-table");
   const noServers = document.getElementById("no-servers");
-
   if (!tbody || !table || !noServers) return;
 
   if (!appState.serversData || appState.serversData.length === 0) {
@@ -337,154 +338,152 @@ export function renderServersTable() {
 
   table.style.display = "table";
   noServers.style.display = "none";
-  tbody.innerHTML = "";
 
   const now = Math.floor(Date.now() / 1000);
 
-  appState.serversData.forEach((server, index) => {
-    const updateTime =
-      server.update_time != null ? Number(server.update_time) : null;
-    const updatedAgo =
-      updateTime != null && !isNaN(updateTime) ? now - updateTime : Infinity;
+  // Preserve all existing rows (important for open menus)
+  const existingRows = new Map();
+  document.querySelectorAll("#servers-body tr").forEach((row) => {
+    const id = row.dataset.serverId;
+    if (id) existingRows.set(id, row);
+  });
 
-    let relTime = "—";
-    if (Number.isFinite(updatedAgo)) {
-      relTime = formatRelativeTime(updatedAgo);
+  // Sort for consistent order
+  const sortedServers = [...appState.serversData].sort(
+    (a, b) =>
+      (a.name || "").localeCompare(b.name || "") || Number(a.id) - Number(b.id),
+  );
+
+  // Update or create rows WITHOUT clearing tbody first
+  const processedIds = new Set();
+
+  sortedServers.forEach((server) => {
+    const serverId = String(server.id);
+    processedIds.add(serverId);
+
+    let row = existingRows.get(serverId);
+
+    if (row) {
+      console.log(`[DEBUG Servers] Surgical update for ${server.name}`);
+      updateServerRow(row, server, now);
+      // Re-order if necessary (move to correct position)
+      // For simplicity we can leave order as-is for now, or implement move logic
+    } else {
+      console.log(`[DEBUG Servers] Creating new row for ${server.name}`);
+      row = createServerRow(server, now);
+      tbody.appendChild(row);
     }
+  });
 
-    // Load Avg
-    const load1 = server.load_1 != null ? server.load_1.toFixed(2) : "—";
-    const coresText = server.cores != null ? ` (on ${server.cores} cores)` : "";
-    const loadTooltip =
-      server.load_1 != null
-        ? `1-min: ${server.load_1.toFixed(2)}${coresText}\n5-min: ${server.load_5?.toFixed(2) ?? "—"}\n15-min: ${server.load_15?.toFixed(2) ?? "—"}`
-        : "Load averages not available";
-
-    // CPU %
-    const cpu =
-      server.cpu_percent != null ? `${server.cpu_percent.toFixed(1)}%` : "—";
-
-    // Memory + Swap
-    let mem = "—";
-    let memTooltip = "Memory usage not available";
-    if (server.total_memory != null && server.total_memory > 0) {
-      const usedBytes = server.used_memory != null ? server.used_memory : 0;
-      const totalBytes = server.total_memory;
-      let unit = "GB";
-      let divisor = 1024 * 1024 * 1024;
-      let precision = 1;
-      if (totalBytes < 10 * 1024 * 1024 * 1024) {
-        unit = "MB";
-        divisor = 1024 * 1024;
-        precision = 2;
-      }
-      const usedDisplay = (usedBytes / divisor).toFixed(precision);
-      const totalDisplay = (totalBytes / divisor).toFixed(precision);
-      const pct = (usedBytes / totalBytes) * 100;
-      const memPct = isNaN(pct) ? "—" : pct.toFixed(1);
-      mem = `${memPct}% (${usedDisplay}/${totalDisplay} ${unit})`;
-      const swapPct =
-        server.total_swap != null && server.total_swap > 0
-          ? (((server.used_swap || 0) / server.total_swap) * 100).toFixed(1) +
-            "%"
-          : "—";
-      memTooltip = `RAM: ${memPct}% (${usedDisplay}/${totalDisplay} ${unit})\nSwap: ${swapPct}`;
+  // Remove deleted servers
+  existingRows.forEach((row, id) => {
+    if (!processedIds.has(id)) {
+      console.log(`[DEBUG Servers] Removing deleted server ${id}`);
+      row.remove();
     }
+  });
 
-    // Disk (server sends values in KB)
-    let disk = "—";
-    let diskTooltip = "Disk usage not available";
-    if (server.total_disk != null && server.total_disk > 0) {
-      const usedKB = Number(server.used_disk || 0);
-      const totalKB = Number(server.total_disk);
-      const usedGB = usedKB / 1024 / 1024;
-      const totalGB = totalKB / 1024 / 1024;
+  console.log("[DEBUG Servers] renderServersTable finished");
+}
 
-      let unit = "GB";
-      let precision = 2;
-      if (totalGB >= 1000) {
-        unit = "TB";
-        precision = 2;
-      } else if (totalGB < 1) {
-        unit = "MB";
-        precision = 0;
-      }
+function createServerRow(server, now) {
+  const tr = document.createElement("tr");
+  tr.dataset.serverId = String(server.id);
+  tr.dataset.updateTime = server.update_time || "";
 
-      const usedDisplay = usedGB.toFixed(precision);
-      const totalDisplay = totalGB.toFixed(precision);
-      const pct = totalGB > 0 ? (usedGB / totalGB) * 100 : 0;
-      const diskPct = pct.toFixed(1);
-
-      disk = `${diskPct}% (${usedDisplay}/${totalDisplay} ${unit})`;
-
-      let rootInfo = "";
-      if (server.root_total_disk != null && server.root_total_disk > 0) {
-        const rootPct = (
-          ((server.root_used_disk || 0) / server.root_total_disk) *
-          100
-        ).toFixed(1);
-        rootInfo = `\nRoot: ${rootPct}%`;
-      }
-      diskTooltip = `Aggregate: ${diskPct}% (${usedDisplay}/${totalDisplay} ${unit})${rootInfo}`;
-    }
-
-    // Uptime
-    const uptime = server.uptime != null ? formatUptime(server.uptime) : "—";
-
-    // Host tooltip
-    const pingText =
-      typeof server.ping === "number" && !isNaN(server.ping)
-        ? server.ping.toFixed(3) + "s"
-        : "—";
-    const hostTooltip = [
-      `Host: ${server.host || server.ip_address || "—"}`,
-      `Port: ${server.port || "—"}`,
-      `Ping: ${pingText}`,
-      `OS: ${server.os || "—"}`,
-      `CWD: ${server.cwd || "—"}`,
-      `Home: ${server.home || "—"}`,
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    // Row creation
-    const tr = document.createElement("tr");
-    tr.dataset.updateTime = server.update_time || "";
-    tr.innerHTML = `
-      <td>${server.name || "—"}</td>
-      <td title="${hostTooltip}">
-        ${server.host || server.ip_address || "—"}
-      </td>
-      <td>
-        <span class="tag is-danger" title="">Never Connected</span>
-      </td>
-      <td class="time-text text-grey">${relTime}</td>
-      <td title="${loadTooltip}">${load1}</td>
-      <td>${cpu}</td>
-      <td title="${memTooltip}">${mem}</td>
-      <td title="${diskTooltip}">${disk}</td>
-      <td>${uptime}</td>
-      <td>
-        <div class="dropdown is-right">
-          <div class="dropdown-trigger">
-            <button class="btn btn-sm btn-ghost" aria-haspopup="menu" title="Actions">
-              <i class="fas fa-ellipsis-v"></i>
-            </button>
-          </div>
-          <div class="dropdown-menu" role="menu">
-            <div class="dropdown-content">
-              <a href="#" class="dropdown-item" data-action="edit-server" data-id="${server.id}">Edit</a>
-              <hr class="dropdown-divider">
-              <a href="#" class="dropdown-item is-danger" data-action="delete-server" data-id="${server.id}">Delete</a>
-            </div>
+  tr.innerHTML = `
+    <td>${escapeHtml(server.name || "—")}</td>
+    <td title="${getHostTooltip(server)}">${escapeHtml(server.host || server.ip_address || "—")}</td>
+    <td><span class="tag is-danger">Never Connected</span></td>
+    <td class="time-text text-grey">—</td>
+    <td>—</td>
+    <td>—</td>
+    <td>—</td>
+    <td>—</td>
+    <td>—</td>
+    <td>
+      <div class="dropdown is-right">
+        <div class="dropdown-trigger">
+          <button class="btn btn-sm btn-ghost" aria-haspopup="menu" title="Actions">
+            <i class="fas fa-ellipsis-v"></i>
+          </button>
+        </div>
+        <div class="dropdown-menu" role="menu">
+          <div class="dropdown-content">
+            <a href="#" class="dropdown-item" data-action="edit-server" data-id="${server.id}">Edit</a>
+            <hr class="dropdown-divider">
+            <a href="#" class="dropdown-item is-danger" data-action="delete-server" data-id="${server.id}">Delete</a>
           </div>
         </div>
-      </td>
-    `;
-    tbody.appendChild(tr);
+      </div>
+    </td>
+  `;
 
-    updateFreshnessCell(tr, server, now);
-  });
+  updateServerRow(tr, server, now);
+  return tr;
+}
+
+function getLoadTooltip(server) {
+  const cores = server.cores != null ? ` (${server.cores} cores)` : "";
+  return server.load_1 != null
+    ? `1-min: ${server.load_1.toFixed(2)}${cores}\n5-min: ${server.load_5?.toFixed(2) ?? "—"}\n15-min: ${server.load_15?.toFixed(2) ?? "—"}`
+    : "Load averages not available";
+}
+
+function formatMemory(server) {
+  if (!server.total_memory || server.total_memory <= 0) {
+    return { mem: "—", tooltip: "Memory data unavailable" };
+  }
+  const used = server.used_memory || 0;
+  const total = server.total_memory;
+  const pct = (used / total) * 100;
+  const usedGB = (used / 1024 ** 3).toFixed(1);
+  const totalGB = (total / 1024 ** 3).toFixed(1);
+  const mem = `${pct.toFixed(1)}% (${usedGB}/${totalGB} GB)`;
+
+  const swapPct =
+    server.total_swap && server.total_swap > 0
+      ? (((server.used_swap || 0) / server.total_swap) * 100).toFixed(1) + "%"
+      : "—";
+
+  const tooltip = `RAM: ${pct.toFixed(1)}% (${usedGB}/${totalGB} GB)\nSwap: ${swapPct}`;
+  return { mem, tooltip };
+}
+
+function formatDisk(server) {
+  if (!server.total_disk || server.total_disk <= 0) {
+    return { display: "—", tooltip: "Disk data unavailable" };
+  }
+  const usedGB = (Number(server.used_disk || 0) / 1024 ** 2).toFixed(1);
+  const totalGB = (Number(server.total_disk) / 1024 ** 2).toFixed(1);
+  const pct = (Number(server.used_disk || 0) / Number(server.total_disk)) * 100;
+  const display = `${pct.toFixed(1)}%`;
+
+  let tooltip = `Disk: ${pct.toFixed(1)}% (${usedGB}/${totalGB} GB)`;
+  if (server.root_total_disk) {
+    const rootPct =
+      (Number(server.root_used_disk || 0) / Number(server.root_total_disk)) *
+      100;
+    tooltip += `\nRoot: ${rootPct.toFixed(1)}%`;
+  }
+  return { display, tooltip };
+}
+
+function getHostTooltip(server) {
+  const pingText =
+    typeof server.ping === "number" && !isNaN(server.ping)
+      ? server.ping.toFixed(3) + "s"
+      : "—";
+  return [
+    `Host: ${server.host || server.ip_address || "—"}`,
+    `Port: ${server.port || "—"}`,
+    `Ping: ${pingText}`,
+    `OS: ${server.os || "—"}`,
+    `CWD: ${server.cwd || "—"}`,
+    `Home: ${server.home || "—"}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 // ==================== TIER LIMITS ====================
@@ -506,7 +505,10 @@ export function updateAccount(data) {
 
 export function updateOrgAndTeam(data) {
   if (!data || data.command_reply !== "read_org" || !data.success) {
-    console.warn("[updateOrgAndTeam] Invalid or failed read_org response", data);
+    console.warn(
+      "[updateOrgAndTeam] Invalid or failed read_org response",
+      data,
+    );
     return;
   }
 
@@ -514,18 +516,18 @@ export function updateOrgAndTeam(data) {
   appState.orgData = {
     id: data.id,
     name: data.name,
+    description: data.description,
     tier: (data.tier || "free").toLowerCase(),
     api_calls_this_month: Number(data.api_calls_this_month || 0),
     monthly_call_limit: Number(data.monthly_call_limit || 1000),
     api_calls_reset_date: Number(data.api_calls_reset_date || 0),
     current_month_year: data.current_month_year,
     server_count: Number(data.server_count || 0),
-    server_limit: Number(data.server_limit || 1),           // ← new
-    member_limit: Number(data.member_limit || 1),           // ← new
+    server_limit: Number(data.server_limit || 1), // ← new
+    member_limit: Number(data.member_limit || 1), // ← new
     members: Array.isArray(data.members) ? data.members : [],
     rate_limit_org_per_minute: Number(data.rate_limit_org_per_minute || 500),
     rate_limit_user_per_minute: Number(data.rate_limit_user_per_minute || 100),
-    _raw: data  // for debugging
   };
 
   console.log("[updateOrgAndTeam] Org data updated:", appState.orgData);
@@ -566,6 +568,14 @@ export function renderBillingAndOrg() {
     return;
   }
 
+  document.getElementById("org-id").textContent = org.id || "—";
+
+  const nameInput = document.getElementById("edit-org-name");
+  if (nameInput) nameInput.value = org.name || "";
+
+  const descInput = document.getElementById("edit-org-desc");
+  if (descInput) descInput.value = org.description || "";
+
   // Tier
   const tierEl = document.getElementById("account-tier");
   if (tierEl) tierEl.textContent = org.tier.toUpperCase();
@@ -573,7 +583,8 @@ export function renderBillingAndOrg() {
   // API Usage
   const used = org.api_calls_this_month;
   const limit = org.monthly_call_limit;
-  const percent = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const percent =
+    limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
 
   const progressEl = document.getElementById("api-progress");
   if (progressEl) progressEl.value = percent;
@@ -581,7 +592,8 @@ export function renderBillingAndOrg() {
   const usageText = document.getElementById("api-usage-text");
   if (usageText) {
     usageText.textContent = `${used.toLocaleString()} / ${limit.toLocaleString()} calls this month`;
-    usageText.className = percent >= 90 ? "text-red" : percent >= 75 ? "text-orange" : "text-grey";
+    usageText.className =
+      percent >= 90 ? "text-red" : percent >= 75 ? "text-orange" : "text-grey";
   }
 
   // Reset date
@@ -592,10 +604,10 @@ export function renderBillingAndOrg() {
   }
 
   // Server & Team usage — now dynamic from DB
-  document.getElementById("server-usage-text").textContent = 
+  document.getElementById("server-usage-text").textContent =
     `${org.server_count} / ${org.server_limit || 1}`;
 
-  document.getElementById("team-usage-text").textContent = 
+  document.getElementById("team-usage-text").textContent =
     `${org.members.length} / ${org.member_limit || 1}`;
 }
 
@@ -628,8 +640,8 @@ function renderTeamMembers(members) {
 // ==================== ACTIONS ====================
 
 export async function refreshSettings() {
-   sendWS({ command: "read_user" });
-   sendWS({ command: "read_org" });
+  sendWS({ command: "read_user" });
+  sendWS({ command: "read_org" });
 }
 
 export async function saveAccount() {
@@ -838,7 +850,6 @@ export function updateLogHistory(data) {
   tbody.appendChild(fragment);
 }
 
-
 export function renderCalendarsTable() {
   const tbody = document.getElementById("calendars-body");
   const table = document.getElementById("calendars-table");
@@ -866,8 +877,8 @@ export function renderCalendarsTable() {
     // Next Start Logic
     const calNextStart = Number(cal.next_start || 0);
     const hasValidNext = cal.cluster_ids?.length > 0 && calNextStart > now;
-    const nextStartHtml = hasValidNext 
-      ? (formatTminus(calNextStart) || "—") 
+    const nextStartHtml = hasValidNext
+      ? formatTminus(calNextStart) || "—"
       : "—";
 
     // Calendar Row
@@ -889,7 +900,7 @@ export function renderCalendarsTable() {
       <td>${cal.cluster_ids?.length || 0}</td>
       <td>—</td>
       <td>—</td>
-      <td data-next-start="${hasValidNext ? calNextStart : ''}">${nextStartHtml}</td>
+      <td data-next-start="${hasValidNext ? calNextStart : ""}">${nextStartHtml}</td>
       <td>${generateCalendarActions(cal.id, hasCrons)}</td>
     `;
 
@@ -1107,38 +1118,6 @@ export function updateServers(data) {
   renderServersTable(); // your render must handle empty array gracefully
 }
 
-export function applyServerBroadcast(data) {
-  // Ensure the array exists
-  if (!appState.serversData) {
-    appState.serversData = [];
-  }
-
-  if (data.updates) {
-    data.updates.forEach((update) => {
-      const id = Number(update.id);
-
-      const idx = appState.serversData.findIndex((s) => Number(s.id) === id);
-
-      if (idx !== -1) {
-        // Update existing
-        appState.serversData[idx] = { ...appState.serversData[idx], ...update };
-      } else {
-        // Add new
-        appState.serversData.push(update);
-      }
-    });
-  }
-
-  if (data.deletes) {
-    const deleteIds = data.deletes.map((d) => Number(d.id || d));
-    appState.serversData = appState.serversData.filter(
-      (s) => !deleteIds.includes(Number(s.id)),
-    );
-  }
-
-  renderServersTable(); // ← your server render function
-}
-
 // ==================== DASHBOARD CORE ====================
 
 function ensureClusterInState(update) {
@@ -1165,6 +1144,115 @@ function ensureClusterInState(update) {
   return cluster;
 }
 
+export function updateServerRow(row, server, now) {
+  console.log(
+    `[DEBUG Servers] updateServerRow called for ${server?.name} (actions cell: ${!!row?.cells?.[9]})`,
+  );
+
+  if (!row || !server) return;
+  const cells = row.cells;
+  if (!cells || cells.length < 10) return;
+
+  if (server.update_time != null) {
+    row.dataset.updateTime = server.update_time;
+  }
+
+  // 0: Name
+  if (cells[0]) cells[0].textContent = server.name || "—";
+
+  // 1: Host
+  if (cells[1]) {
+    cells[1].innerHTML = `<span title="${getHostTooltip(server)}">${escapeHtml(server.host || server.ip_address || "—")}</span>`;
+  }
+
+  // Status + freshness (column 2 + 3)
+  updateFreshnessCell(row, server, now);
+
+  // 4: Load Avg + tooltip
+  if (cells[4]) {
+    const load1 = server.load_1 != null ? server.load_1.toFixed(2) : "—";
+    cells[4].textContent = load1;
+    cells[4].title = getLoadTooltip(server);
+  }
+
+  // 5: CPU
+  if (cells[5]) {
+    const cpu =
+      server.cpu_percent != null ? `${server.cpu_percent.toFixed(1)}%` : "—";
+    cells[5].textContent = cpu;
+  }
+
+  // 6: Memory + tooltip
+  if (cells[6]) {
+    const { mem, tooltip } = formatMemory(server);
+    cells[6].textContent = mem;
+    cells[6].title = tooltip;
+  }
+
+  // 7: Disk (simple for now)
+  if (cells[7]) {
+    const disk = formatDisk(server);
+    cells[7].textContent = disk.display;
+    cells[7].title = disk.tooltip;
+  }
+
+  // 8: Uptime
+  if (cells[8]) {
+    const uptime = server.uptime != null ? formatUptime(server.uptime) : "—";
+    cells[8].textContent = uptime;
+  }
+
+  // === COLUMN 9: ACTIONS — EXTREMELY CONSERVATIVE ===
+  if (cells[9]) {
+    const current = cells[9].innerHTML.trim();
+    const newActions = `... your actions HTML ...`;
+
+    // Only replace if the structure is different (e.g. new server id or something structural)
+    if (!current.includes(`data-id="${server.id}"`)) {
+      cells[9].innerHTML = newActions;
+      console.log(`[DEBUG Servers] Replaced actions HTML for ${server.name}`);
+    }
+  }
+}
+
+export function applyServerBroadcast(data) {
+  console.log("[DEBUG Servers] applyServerBroadcast received", data);
+  if (!appState.serversData) appState.serversData = [];
+
+  let changed = false;
+
+  if (data.updates) {
+    data.updates.forEach((update) => {
+      console.log(`[DEBUG Servers] Updating server ${update.id}`);
+      const id = Number(update.id);
+      const idx = appState.serversData.findIndex((s) => Number(s.id) === id);
+      if (idx !== -1) {
+        appState.serversData[idx] = { ...appState.serversData[idx], ...update };
+      } else {
+        appState.serversData.push(update);
+      }
+      changed = true;
+    });
+  }
+
+  if (data.deletes) {
+    console.log("[DEBUG Servers] Deletes:", data.deletes);
+    const deleteIds = data.deletes.map((d) => Number(d.id || d));
+    appState.serversData = appState.serversData.filter(
+      (s) => !deleteIds.includes(Number(s.id)),
+    );
+    changed = true;
+  }
+
+  if (
+    changed &&
+    document.getElementById("servers")?.classList.contains("active")
+  ) {
+    console.log("[DEBUG Servers] Calling renderServersTable");
+    renderServersTable();
+  }
+}
+
 export function applyClusterBroadcast(data) {
   if (!data) return;
   console.log(
@@ -1178,10 +1266,8 @@ export function applyClusterBroadcast(data) {
     data.deletes.forEach((del) => {
       const id = Number(del.id || del);
       if (!id) return;
-
       removeClusterRow(id, true);
       appState.clustersMap.delete(id);
-
       // Remove child jobs
       const jobsToRemove = [];
       appState.jobsMap.forEach((job, jobId) => {
@@ -1191,7 +1277,6 @@ export function applyClusterBroadcast(data) {
         removeJobRow(jobId, false);
         appState.jobsMap.delete(jobId);
       });
-
       if (appState.monitorData?.tree) {
         removeClusterById(appState.monitorData.tree, id);
       }
@@ -1203,16 +1288,27 @@ export function applyClusterBroadcast(data) {
     data.updates.forEach((update) => {
       const id = Number(update.id);
       if (!id) return;
-
       update.is_cluster = true;
 
-      // Calendar sync
+      // Calendar sync — but don't force full render on every next_start tick
       if (update.cal_id !== undefined || update.next_start !== undefined) {
-        shouldRefreshCalendars = true;
+        shouldRefreshCalendars = true; // still mark it, but we'll be smarter below
+
         if (update.next_start !== undefined) {
           const calId = Number(update.cal_id);
-          const calendar = appState.calendarsData.find(c => Number(c.id) === calId);
-          if (calendar) calendar.next_start = Number(update.next_start);
+          const calendar = appState.calendarsData.find(
+            (c) => Number(c.id) === calId,
+          );
+          if (calendar) {
+            calendar.next_start = Number(update.next_start);
+            // === SURGICAL CALENDAR UPDATE INSTEAD OF FULL RENDER ===
+            const calRow = document.querySelector(
+              `tr.ordo-calendar-row[data-id="${calId}"]`,
+            );
+            if (calRow) {
+              updateCalendarRow(calRow, calendar);
+            }
+          }
         }
       }
 
@@ -1230,8 +1326,17 @@ export function applyClusterBroadcast(data) {
     });
   }
 
-  if (shouldRefreshCalendars && document.getElementById("calendars")?.classList.contains("active")) {
-    renderCalendarsTable();
+  // === ONLY full render calendars if we really need it (new calendar, delete, etc.) ===
+  if (
+    shouldRefreshCalendars &&
+    document.getElementById("calendars")?.classList.contains("active")
+  ) {
+    // Prefer surgical updates when possible
+    // Only fall back to full render if there were structural changes
+    console.log(
+      "[applyClusterBroadcast] Calendars refreshed surgically where possible",
+    );
+    // renderCalendarsTable();   // ← Comment this out or make it conditional
   }
 
   refreshDashboardCards("clusters_changed");
@@ -1334,51 +1439,62 @@ export function applyJobBroadcast(data) {
 }
 
 /**
- * Surgical update for a calendar row (preserves toggle state)
+ * Surgical update for a calendar row — NEVER destroys open dropdowns
  */
 export function updateCalendarRow(row, cal) {
   if (!row || !cal) return;
   const cells = row.cells;
-  if (!cells || cells.length < 8) return;
+  if (!cells || cells.length < 9) return;
 
   const now = Math.floor(Date.now() / 1000);
-  const hasValidNext = Array.isArray(cal.cluster_ids) && cal.cluster_ids.length > 0 
-    && Number(cal.next_start) > now;
+  const hasValidNext =
+    Array.isArray(cal.cluster_ids) &&
+    cal.cluster_ids.length > 0 &&
+    Number(cal.next_start) > now;
 
-  // Column 0: Name + toggle (preserve collapsed state)
+  // Column 0: Name + toggle (preserve collapsed)
   if (cells[0]) {
-    const toggle = cells[0].querySelector('.ordo-toggle');
-    const isCollapsed = toggle ? toggle.classList.contains('collapsed') : false;
+    const nameCell = cells[0];
+    const toggle = nameCell.querySelector(".ordo-toggle");
+    const isCollapsed = toggle?.classList.contains("collapsed") || false;
+    const toggleHtml = toggle
+      ? `<span class="ordo-toggle ${isCollapsed ? "collapsed" : ""}"></span>`
+      : "";
+    const newNameHTML = `${toggleHtml}<i class="fas fa-folder mr-2 has-text-info"></i>${escapeHtml(cal.name || "Unnamed Calendar")}`;
 
-    const toggleHtml = toggle ? `<span class="ordo-toggle ${isCollapsed ? 'collapsed' : ''}"></span>` : '';
-    const iconHtml = '<i class="fas fa-folder mr-2 has-text-info"></i>';
-
-    cells[0].innerHTML = `${toggleHtml}${iconHtml}${escapeHtml(cal.name || "Unnamed Calendar")}`;
+    if (nameCell.innerHTML !== newNameHTML) {
+      nameCell.innerHTML = newNameHTML;
+    }
   }
 
-  // Column 1: Timezone
+  // Columns 1-6: Safe text updates
   if (cells[1]) cells[1].textContent = cal.tz || "—";
-
-  // Column 2: Description
   if (cells[2]) cells[2].textContent = cal.description || "—";
+  if (cells[3])
+    cells[3].textContent = Array.isArray(cal.crons) ? cal.crons.length : 0;
+  if (cells[4])
+    cells[4].textContent = Array.isArray(cal.cluster_ids)
+      ? cal.cluster_ids.length
+      : 0;
+  if (cells[5])
+    cells[5].textContent = cal.begin ? formatDate(cal.begin) : "Immediate";
+  if (cells[6])
+    cells[6].textContent = cal.expire ? formatDate(cal.expire) : "Never";
 
-  // Column 3: Cron count
-  if (cells[3]) cells[3].textContent = Array.isArray(cal.crons) ? cal.crons.length : 0;
-
-  // Column 4: Cluster count
-  if (cells[4]) cells[4].textContent = Array.isArray(cal.cluster_ids) ? cal.cluster_ids.length : 0;
-
-  // Column 5: Begin
-  if (cells[5]) cells[5].textContent = cal.begin ? formatDate(cal.begin) : "Immediate";
-
-  // Column 6: Expire
-  if (cells[6]) cells[6].textContent = cal.expire ? formatDate(cal.expire) : "Never";
-
-  // Column 7: Next Start
+  // Column 7: Next Start (the frequent changer)
   if (cells[7]) {
-    cells[7].textContent = hasValidNext ? (formatTminus(cal.next_start) || "—") : "—";
-    cells[7].dataset.nextStart = hasValidNext ? String(cal.next_start) : "";
+    const newText = hasValidNext ? formatTminus(cal.next_start) || "—" : "—";
+    if (cells[7].textContent !== newText) {
+      cells[7].textContent = newText;
+      cells[7].dataset.nextStart = hasValidNext ? String(cal.next_start) : "";
+    }
   }
+
+  // === ACTIONS COLUMN: DO NOT TOUCH AT ALL DURING LIVE UPDATES ===
+  // We only update actions on full render or when crons actually change structurally
+  console.log(
+    `[updateCalendarRow] Updated calendar ${cal.id} (actions preserved)`,
+  );
 }
 
 /**
@@ -1401,16 +1517,18 @@ export function updateCronRow(row, cron) {
   if (cells[2]) cells[2].textContent = cron.description || "—";
 
   // Column 5: Begin
-  if (cells[5]) cells[5].textContent = cron.begin ? formatDate(cron.begin) : "Immediate";
+  if (cells[5])
+    cells[5].textContent = cron.begin ? formatDate(cron.begin) : "Immediate";
 
   // Column 6: Expire
-  if (cells[6]) cells[6].textContent = cron.expire ? formatDate(cron.expire) : "Never";
+  if (cells[6])
+    cells[6].textContent = cron.expire ? formatDate(cron.expire) : "Never";
 
   console.log(`[updateCronRow] Updated cron ${cron.id}`);
 }
 
 function createCronRowElement(calId, cron) {
-  const row = document.createElement('tr');
+  const row = document.createElement("tr");
   row.className = `ordo-cron-row`;
   row.dataset.id = `cron-${calId}-${cron.id}`;
   row.dataset.parent = calId;
@@ -1437,7 +1555,9 @@ function createCronRowElement(calId, cron) {
 export function applyCalBroadcast(data) {
   if (!data || data.broadcast !== "cals_changed") return;
 
-  console.log(`[applyCalBroadcast] updates:${data.updates?.length || 0}, deletes:${data.deletes?.length || 0}`);
+  console.log(
+    `[applyCalBroadcast] updates:${data.updates?.length || 0}, deletes:${data.deletes?.length || 0}`,
+  );
 
   let needsFullRender = false;
 
@@ -1448,17 +1568,25 @@ export function applyCalBroadcast(data) {
       if (!id) return;
 
       // Remove calendar if it's a calendar delete
-      const calRow = document.querySelector(`tr.ordo-calendar-row[data-id="${id}"]`);
+      const calRow = document.querySelector(
+        `tr.ordo-calendar-row[data-id="${id}"]`,
+      );
       if (calRow) {
         calRow.remove();
         // Also remove all its crons
-        document.querySelectorAll(`tr.ordo-cron-row[data-parent="${id}"]`).forEach(r => r.remove());
-        appState.calendarsData = appState.calendarsData.filter(c => Number(c.id) !== id);
+        document
+          .querySelectorAll(`tr.ordo-cron-row[data-parent="${id}"]`)
+          .forEach((r) => r.remove());
+        appState.calendarsData = appState.calendarsData.filter(
+          (c) => Number(c.id) !== id,
+        );
         return;
       }
 
       // If it's a cron delete (data-parent + cron id)
-      const cronRow = document.querySelector(`tr.ordo-cron-row[data-id="${id}"]`);
+      const cronRow = document.querySelector(
+        `tr.ordo-cron-row[data-id="${id}"]`,
+      );
       if (cronRow) {
         cronRow.remove();
       }
@@ -1471,20 +1599,25 @@ export function applyCalBroadcast(data) {
       const calId = Number(calUpdate.id);
       if (!calId) return;
 
-      const existingIndex = appState.calendarsData.findIndex(c => Number(c.id) === calId);
+      const existingIndex = appState.calendarsData.findIndex(
+        (c) => Number(c.id) === calId,
+      );
 
       if (existingIndex !== -1) {
         // Update calendar data
         appState.calendarsData[existingIndex] = {
           ...appState.calendarsData[existingIndex],
           ...calUpdate,
-          next_start: calUpdate.next_start !== undefined 
-            ? Number(calUpdate.next_start) 
-            : appState.calendarsData[existingIndex].next_start,
+          next_start:
+            calUpdate.next_start !== undefined
+              ? Number(calUpdate.next_start)
+              : appState.calendarsData[existingIndex].next_start,
         };
 
         // Update calendar row
-        const calRow = document.querySelector(`tr.ordo-calendar-row[data-id="${calId}"]`);
+        const calRow = document.querySelector(
+          `tr.ordo-calendar-row[data-id="${calId}"]`,
+        );
         if (calRow) {
           updateCalendarRow(calRow, appState.calendarsData[existingIndex]);
         }
@@ -1492,12 +1625,14 @@ export function applyCalBroadcast(data) {
         // === CRON LEVEL SURGICAL UPDATES + DELETE + INSERT ===
         if (Array.isArray(calUpdate.crons)) {
           const currentCronRows = new Map();
-          document.querySelectorAll(`tr.ordo-cron-row[data-parent="${calId}"]`).forEach(row => {
-            const key = row.dataset.id.replace(`cron-${calId}-`, '');
-            currentCronRows.set(key, row);
-          });
+          document
+            .querySelectorAll(`tr.ordo-cron-row[data-parent="${calId}"]`)
+            .forEach((row) => {
+              const key = row.dataset.id.replace(`cron-${calId}-`, "");
+              currentCronRows.set(key, row);
+            });
 
-          const newCronIds = new Set(calUpdate.crons.map(c => String(c.id)));
+          const newCronIds = new Set(calUpdate.crons.map((c) => String(c.id)));
 
           // Remove crons that no longer exist
           currentCronRows.forEach((row, cronId) => {
@@ -1507,7 +1642,7 @@ export function applyCalBroadcast(data) {
           });
 
           // Update or insert crons
-          calUpdate.crons.forEach(cron => {
+          calUpdate.crons.forEach((cron) => {
             const cronKey = String(cron.id);
             const existingRow = currentCronRows.get(cronKey);
 
@@ -1516,7 +1651,9 @@ export function applyCalBroadcast(data) {
             } else {
               // Insert new cron row
               const newRow = createCronRowElement(calId, cron);
-              const targetCalRow = document.querySelector(`tr.ordo-calendar-row[data-id="${calId}"]`);
+              const targetCalRow = document.querySelector(
+                `tr.ordo-calendar-row[data-id="${calId}"]`,
+              );
               if (targetCalRow) {
                 targetCalRow.after(newRow);
               }
@@ -1531,7 +1668,10 @@ export function applyCalBroadcast(data) {
     });
   }
 
-  if (needsFullRender && document.getElementById("calendars")?.classList.contains("active")) {
+  if (
+    needsFullRender &&
+    document.getElementById("calendars")?.classList.contains("active")
+  ) {
     renderCalendarsTable();
   }
 }
@@ -1559,16 +1699,18 @@ export function loadDoc(file) {
       }
 
       // Update active TOC link
-      document.querySelectorAll("#docs-toc a").forEach((a) =>
-        a.classList.remove("active")
+      document
+        .querySelectorAll("#docs-toc a")
+        .forEach((a) => a.classList.remove("active"));
+      const activeLink = document.querySelector(
+        `#docs-toc a[data-file="${file}"]`,
       );
-      const activeLink = document.querySelector(`#docs-toc a[data-file="${file}"]`);
       if (activeLink) activeLink.classList.add("active");
 
       // === FOCUS THE CONTENT AREA FOR IMMEDIATE KEYBOARD SCROLLING ===
       const docsContent = document.getElementById("docs-content");
       if (docsContent) {
-        docsContent.tabIndex = -1;       
+        docsContent.tabIndex = -1;
         docsContent.focus();
         docsContent.scrollTop = 0;
       }
@@ -1714,7 +1856,7 @@ function initLoginModalListeners() {
   });
 
   // Form submit
-/*
+  /*
   const form = document.getElementById("login-form");
   if (form) {
     form.addEventListener("submit", async (e) => {
@@ -1863,7 +2005,9 @@ export function getLongestRunningJobsHTML(max = 5) {
   const jobMap = new Map();
 
   appState.jobsMap.forEach((job) => {
-    const state = String(job.jobstate || "").toLowerCase().trim();
+    const state = String(job.jobstate || "")
+      .toLowerCase()
+      .trim();
     if (state !== "running" && state !== "starting") return;
 
     const jobId = Number(job.id);
@@ -1875,11 +2019,11 @@ export function getLongestRunningJobsHTML(max = 5) {
 
     const existing = jobMap.get(jobId);
     if (!existing || started > Number(existing.started || 0)) {
-      jobMap.set(jobId, { 
-        name: job.name || "Unnamed", 
+      jobMap.set(jobId, {
+        name: job.name || "Unnamed",
         fullPath,
-        started, 
-        runtime 
+        started,
+        runtime,
       });
     }
   });
@@ -1906,7 +2050,7 @@ export function getLongestRunningJobsHTML(max = 5) {
         ${job.runtime}
       </div>
     </div>
-  `
+  `,
     )
     .join("");
 }
@@ -1916,7 +2060,9 @@ export function getRecentlyFailedListHTML(max = 5) {
   const failed = [];
 
   appState.jobsMap.forEach((job) => {
-    const state = String(job.jobstate || "").toLowerCase().trim();
+    const state = String(job.jobstate || "")
+      .toLowerCase()
+      .trim();
     if (!["failed", "killed", "zombie"].includes(state) || !job.ended) return;
 
     const endedTs = Number(job.ended);
@@ -1955,7 +2101,7 @@ export function getRecentlyFailedListHTML(max = 5) {
           ${formatRelativeTime(item.agoSeconds)}
         </div>
       </div>
-    `
+    `,
     )
     .join("");
 }
@@ -1971,7 +2117,7 @@ export function getOverdueClustersListHTML(max = 5) {
     overdue.push({
       name: cluster.name || "Unnamed",
       nextStart: next,
-      overdueBy: formatTminus(next) || "Overdue"
+      overdueBy: formatTminus(next) || "Overdue",
     });
   });
 
@@ -1996,7 +2142,7 @@ export function getOverdueClustersListHTML(max = 5) {
         ${item.overdueBy}
       </div>
     </div>
-  `
+  `,
     )
     .join("");
 }
@@ -2005,7 +2151,7 @@ export function updateNextScheduledClusters() {
   const container = document.getElementById("dash-next-5");
   if (!container) return;
 
-  const upcoming = collectNextScheduledClusters(5);   // assuming this helper exists
+  const upcoming = collectNextScheduledClusters(5); // assuming this helper exists
 
   const countEl = document.getElementById("dash-next-count");
   if (countEl) countEl.textContent = upcoming.length;
@@ -2026,7 +2172,7 @@ export function updateNextScheduledClusters() {
         ${formatTminus(item.next_start) || "—"}
       </div>
     </div>
-  `
+  `,
     )
     .join("");
 }
@@ -2078,22 +2224,29 @@ export function startDashboardLiveTimer() {
 
 function refreshDashboardTimingCache() {
   dashboardTimingCache = {
-    countdowns: document.querySelectorAll(".countdown, [data-nextstart], [data-next-start]"),
+    countdowns: document.querySelectorAll(
+      ".countdown, [data-nextstart], [data-next-start]",
+    ),
     runtimes: document.querySelectorAll(".runtime, [data-started]"),
-    recentTimes: document.querySelectorAll("#dash-recent-body td[data-timestamp]"),
-    failedTimes: document.querySelectorAll(".failed-time, [data-ended]")
+    recentTimes: document.querySelectorAll(
+      "#dash-recent-body td[data-timestamp]",
+    ),
+    failedTimes: document.querySelectorAll(".failed-time, [data-ended]"),
   };
 
-  console.log(`[DashboardTimer] Cache refreshed: ${dashboardTimingCache.countdowns.length} countdowns, ${dashboardTimingCache.runtimes.length} runtimes`);
+  console.log(
+    `[DashboardTimer] Cache refreshed: ${dashboardTimingCache.countdowns.length} countdowns, ${dashboardTimingCache.runtimes.length} runtimes`,
+  );
 }
 
 export function updateDashboardLiveTimings() {
-  if (!document.getElementById("dashboard")?.classList.contains("active")) return;
+  if (!document.getElementById("dashboard")?.classList.contains("active"))
+    return;
 
   const now = Math.floor(Date.now() / 1000);
 
   // Live countdowns (T-minus) - Next Scheduled
-  dashboardTimingCache.countdowns.forEach(el => {
+  dashboardTimingCache.countdowns.forEach((el) => {
     const next = parseInt(el.dataset.nextStart || el.dataset.nextstart || 0);
     if (next > 0) {
       el.textContent = formatTminus(next) || "—";
@@ -2101,7 +2254,7 @@ export function updateDashboardLiveTimings() {
   });
 
   // Running job timers (T-plus)
-  dashboardTimingCache.runtimes.forEach(el => {
+  dashboardTimingCache.runtimes.forEach((el) => {
     const started = parseInt(el.dataset.started || 0);
     if (started > 0) {
       el.textContent = formatTplus(started) || "—";
@@ -2109,13 +2262,13 @@ export function updateDashboardLiveTimings() {
   });
 
   // Recent activity "ago" times
-  dashboardTimingCache.recentTimes.forEach(td => {
+  dashboardTimingCache.recentTimes.forEach((td) => {
     const ts = parseInt(td.dataset.timestamp || 0);
     if (ts > 0) td.textContent = formatRelativeTime(now - ts);
   });
 
   // Recently failed times
-  dashboardTimingCache.failedTimes.forEach(el => {
+  dashboardTimingCache.failedTimes.forEach((el) => {
     const endedTs = parseInt(el.dataset.ended || 0);
     if (endedTs > 0) el.textContent = formatRelativeTime(now - endedTs);
   });
@@ -2218,11 +2371,10 @@ function refreshDashboardCardsInternal() {
   updateNextScheduledClusters();
   renderRecentActivityTable();
   updateDashboardLiveTimings();
-// IMPORTANT: Refresh cache after rebuild
+  // IMPORTANT: Refresh cache after rebuild
   if (typeof refreshDashboardTimingCache === "function") {
     refreshDashboardTimingCache();
   }
-
 }
 
 // KPI Bar Updater
@@ -2348,7 +2500,7 @@ export function getNextScheduledHTML(max = 5) {
     upcoming.push({
       name: cluster.name || "Unnamed",
       nextStart: next,
-      tminus: formatTminus(next) || "—"
+      tminus: formatTminus(next) || "—",
     });
   });
 
@@ -2373,11 +2525,10 @@ export function getNextScheduledHTML(max = 5) {
         ${item.tminus}
       </div>
     </div>
-  `
+  `,
     )
     .join("");
 }
-
 
 // Initial stats load - called once after login or when dashboard tab is first activated
 export function loadDashboardStats() {

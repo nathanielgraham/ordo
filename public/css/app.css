@@ -93,7 +93,7 @@ body {
   overflow: hidden;
   padding-left: 1.5rem;
   padding-right: 1.5rem;
-  padding-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
   display: flex;
   flex-direction: column;
 }
@@ -320,59 +320,46 @@ select:focus {
   background: #0f172a;
 }
 
-/* ==================== Dependency Graph Legend ==================== */
+/* ==================== COMPACT DEPENDENCY GRAPH LEGEND ==================== */
 .graph-legend {
   position: absolute;
-  bottom: 2.5rem;           /* better breathing room from bottom */
-  left: 2rem;
-  background: rgba(10, 10, 20, 0.95);
+  bottom: 22px;
+  right: 22px;
+  background: rgba(12, 12, 18, 0.96);
   border: 1px solid #444;
-  border-radius: 0.5rem;
-  padding: 1rem 1.25rem;
-  font-size: 0.85rem;
-  color: #ccc;
-  z-index: 100;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
-  pointer-events: none;
-  min-width: 13rem;
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-shadow: 0 0 22px rgba(0, 255, 255, 0.25);
+  z-index: 1000;
+  min-width: 205px;
+  font-size: 0.84rem;
+  line-height: 1.35;
 }
 
-.graph-legend strong {
-  display: block;
-  margin-bottom: 0.75rem;
-  color: var(--glow-cyan);
-  font-size: 0.95rem;
+.graph-legend-title {
+  font-weight: 700;
+  color: #00ffff;
+  margin-bottom: 8px;
+  font-size: 0.88rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin: 0.5rem 0;
-  white-space: nowrap;
+  gap: 10px;
+  margin-bottom: 5px;
 }
 
-.legend-line {
-  display: inline-block;
-  width: 2.5rem;
-  height: 0.2rem;
-  border-radius: 0.1rem;
+.legend-svg {
   flex-shrink: 0;
 }
 
-.legend-line.needs      { background: #f87171; }
-.legend-line.needs-any  { background: #4ade80; border: 1px dashed #4ade80; height: 0.18rem; }
-.legend-line.on-fail    { background: #fbbf24; }
-
-@media (max-width: 768px) {
-  .graph-legend {
-    bottom: 1.5rem;
-    left: 1.25rem;
-    padding: 0.85rem 1rem;
-    font-size: 0.8rem;
-    min-width: 11rem;
-  }
-}
+/* Colors matching your Cytoscape graph */
+.legend-needs     .legend-line { background: #ff3366; }   /* Red - needs */
+.legend-needs-any .legend-line { background: #00ff9d; }   /* Green - needs_any */
+.legend-on-fail   .legend-line { background: #ffaa00; }   /* Orange - on_fail */
 
 .card-simple {
   background: #1a1a1a;
@@ -1920,14 +1907,14 @@ body.is-logged-in .private-tabs {
   padding: 1.75rem 2rem;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
-/*
+
 #tab-billing .actions-right {
   margin-bottom: 1.75rem;
   display: flex;
   gap: 1rem;
   flex-wrap: wrap;
 }
-*/
+
 #tab-billing #manage-subscription {
   background: #67e8f9;
   color: #000;
@@ -1967,26 +1954,49 @@ body.is-logged-in .private-tabs {
   transform: translateY(-2px);
   box-shadow: 0 0 25px rgba(103, 232, 249, 0.5);
 }
+/*
 #servers .tag {
   background: 0 0;
   border: 1px solid currentColor;
   padding: 0.25rem 0.5rem;
   font-size: 0.85rem;
 }
-#servers .tag.is-success {
+*/
+
+/* Servers Table - Prevent status tag wrapping */
+#servers-table .tag {
+  white-space: nowrap;
+  background: 0 0;
+  border: 1px solid currentColor;
+  display: inline-flex;
+  padding: 0.25rem 0.5rem;
+  align-items: center;
+  justify-content: center;
+  min-width: 6.5rem;      
+  font-size: 0.85rem;
+  line-height: 1.1;
+}
+
+#servers-table .tag.is-danger,
+#servers-table .tag.is-warning,
+#servers-table .tag.is-success {
+  white-space: nowrap;
+}
+
+#servers-table .tag.is-success {
   color: #66bb6a;
   border-color: #66bb6a;
 }
-#servers .tag.is-warning {
+#servers-table .tag.is-warning {
   color: #ffb74d;
   border-color: #ffb74d;
 }
-#servers .tag.is-danger,
-#servers .tag.zombie {
+#servers-table .tag.is-danger,
+#servers-table .tag.zombie {
   color: #ef5350;
   border-color: #ef5350;
 }
-#servers .tag.zombie {
+#servers-table .tag.zombie {
   font-weight: 600;
 }
 

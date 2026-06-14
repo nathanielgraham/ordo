@@ -192,6 +192,7 @@ $self->helper(
    }
 );
 
+=pod
 $self->helper(
    send_email => sub {
       my ($c, $to, $subject, $html_body, $plain_text) = @_;
@@ -246,6 +247,57 @@ $self->helper(
       };
    }
 );
+=cut
+
+$self->helper(
+   send_email => sub {
+      my ($c, $to, $subject, $html_body, $plain_text) = @_;
+
+      $plain_text //= $html_body;
+
+      require Email::MIME;
+      require Email::Sender::Simple;
+      require Email::Sender::Transport::Sendmail;
+
+      my $transport = Email::Sender::Transport::Sendmail->new();
+
+      my $email = Email::MIME->create(
+         header_str => [
+            From    => 'Ordo Machinae <ordosched@proton.me>',
+            To      => $to,
+            Subject => $subject,
+         ],
+         parts => [
+            # HTML version first (preferred by modern clients)
+            Email::MIME->create(
+               attributes => {
+                  content_type => 'text/html',
+                  encoding     => 'quoted-printable',
+                  charset      => 'UTF-8',
+               },
+               body => $html_body,
+            ),
+            # Plain text fallback
+            Email::MIME->create(
+               attributes => {
+                  content_type => 'text/plain',
+                  encoding     => 'quoted-printable',
+                  charset      => 'UTF-8',
+               },
+               body => $plain_text,
+            ),
+         ],
+      );
+
+      eval {
+         Email::Sender::Simple->send($email, { transport => $transport });
+         $c->log->info("Email sent successfully to $to");
+      } or do {
+         $c->log->error("Failed to send email to $to: $@");
+      };
+   }
+);
+
 
    # Router
    my $r = $self->routes;
