@@ -5,7 +5,7 @@
   <div class="modal-dialog">
     <div class="modal-header">
       <h3 class="modal-title">Sign in to Ordo</h3>
-      <button class="close-btn"></button>
+      <button class="close-btn" data-dismiss="login-modal"></button>
     </div>
     <div class="modal-body">
       <div id="login-form-container">
@@ -72,7 +72,7 @@
   <div class="modal-dialog">
     <div class="modal-header">
       <h3 class="modal-title">Plans & Pricing</h3>
-      <button class="close-btn"></button>
+      <button class="close-btn" data-dismiss="pricing-modal"></button>
     </div>
 
     <div class="modal-body">
@@ -194,29 +194,54 @@
 
 <!-- Invite Team Member Modal -->
 <div id="invite-modal" class="app-modal">
-  <div class="modal-backdrop"></div>
   <div class="modal-dialog">
-    <header class="modal-header">
-      <p class="modal-title">Invite Team Member</p>
+    <div class="modal-header">
+      <h3 class="modal-title">Invite Team Member</h3>
       <button class="close-btn" data-dismiss="invite-modal"></button>
-    </header>
-    <section class="modal-body">
-      <div class="form-group">
-        <label class="label" for="invite-email">Email Address</label>
-        <input
-          class="input"
-          type="email"
-          id="invite-email"
-          placeholder="Enter email to invite"
-        />
+    </div>
+    <div class="modal-body">
+      <div id="invite-form-container">
+        <p class="text-grey mb-large">
+          Invite someone to join your organization. They will have access to your jobs, clusters, and calendars.
+        </p>
+       
+        <form id="invite-form" novalidate>
+          <div class="form-group">
+            <label class="label-bold">Email Address</label>
+            <input
+              type="email"
+              name="email"
+              id="invite-email"
+              class="input"
+              placeholder="colleague@example.com"
+              required
+            />
+          </div>
+
+          <p class="help-text small text-grey mt-medium">
+            <strong>Note:</strong> If they already have an Ordo account, they must use a <strong>different email address</strong> to join your team.
+          </p>
+
+          <div class="mt-large">
+            <button type="submit" class="btn btn-primary w-full" id="send-invite-btn">
+              Send Invitation
+            </button>
+          </div>
+        </form>
       </div>
-    </section>
-    <footer class="modal-footer">
-      <button class="btn btn-secondary" data-dismiss="invite-modal">
-        Cancel
-      </button>
-      <button class="btn btn-primary" id="send-invite">Send Invite</button>
-    </footer>
+
+      <!-- Success State -->
+      <div id="invite-success" style="display: none; text-align: center; padding: 2rem 1rem;">
+        <i class="fas fa-check-circle fa-3x text-green mb-medium"></i>
+        <h4>Invitation Sent!</h4>
+        <p class="text-grey" id="invite-success-text"></p>
+      </div>
+
+      <!-- Error State -->
+      <div id="invite-error" style="display: none; text-align: center; padding: 1.5rem; color: #ef4444;">
+        <p id="invite-error-text"></p>
+      </div>
+    </div>
   </div>
 </div>
 

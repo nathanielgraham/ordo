@@ -3,7 +3,6 @@ BEGIN TRANSACTION;
 DROP TABLE IF EXISTS user;
 CREATE TABLE user (
         id INTEGER PRIMARY KEY NOT NULL,
-  	mode varchar NOT NULL DEFAULT '770',
 	org_id integer REFERENCES org(id) ON DELETE CASCADE,
 	base_cluster_id integer REFERENCES cluster(id) ON DELETE SET NULL,
         level tinyint NOT NULL DEFAULT 1,

@@ -21,6 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initTabSystem();
   initPricingModalLink();
   initLoginModal();
+  initInviteModal();
   window.addEventListener("hashchange", () => activateTab());
 
 });
@@ -39,6 +40,7 @@ function initPricingModalLink() {
   });
 }
 
+// ==================== LOGIN MODAL ====================
 export function initLoginModal() {
   const form = document.getElementById('login-form');
   if (!form) return;
@@ -59,7 +61,7 @@ export function initLoginModal() {
     errorContainer.style.display = 'none';
 
     // Checkbox enforcement
-    if (!document.getElementById('agree-terms').checked) {
+    if (!document.getElementById('agree-terms')?.checked) {
       errorText.textContent = 'You must agree to the Terms of Service and Privacy Policy';
       errorContainer.style.display = 'block';
       return;
@@ -84,12 +86,98 @@ export function initLoginModal() {
         errorContainer.style.display = 'block';
       }
     } catch (err) {
-      console.error(err);
+      console.error('Login error:', err);
       errorText.textContent = 'Network error. Please try again.';
       errorContainer.style.display = 'block';
     } finally {
       btn.disabled = false;
       btn.textContent = originalText;
     }
+  });
+}
+
+// ==================== INVITE MODAL ====================
+export function initInviteModal() {
+  const modal = document.getElementById('invite-modal');
+  if (!modal) return;
+
+  const form = document.getElementById('invite-form');
+  const formContainer = document.getElementById('invite-form-container');
+  const successContainer = document.getElementById('invite-success');
+  const errorContainer = document.getElementById('invite-error');
+  const emailInput = document.getElementById('invite-email');
+
+  // Reset function
+  function resetInviteModal() {
+    formContainer.style.display = 'block';
+    successContainer.style.display = 'none';
+    errorContainer.style.display = 'none';
+    if (emailInput) emailInput.value = '';
+  }
+
+  // Form submit handler
+  form?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const btn = document.getElementById('send-invite-btn');
+    const originalText = btn.textContent;
+
+    // Reset states before sending
+    successContainer.style.display = 'none';
+    errorContainer.style.display = 'none';
+
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+
+    try {
+      const formData = new FormData(this);
+      formData.append('team_member', '1');
+
+      const response = await fetch('/login', {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        formContainer.style.display = 'none';
+        successContainer.style.display = 'block';
+        document.getElementById('invite-success-text').textContent = 
+          `Invitation sent to ${emailInput.value.trim()}`;
+      } else {
+        document.getElementById('invite-error-text').textContent = 
+          result.message || 'Failed to send invitation';
+        errorContainer.style.display = 'block';
+      }
+    } catch (err) {
+      console.error('Invite error:', err);
+      document.getElementById('invite-error-text').textContent = 
+        'Network error. Please try again.';
+      errorContainer.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  });
+
+  // Reset when modal opens
+  new MutationObserver(() => {
+    if (modal.classList.contains('active')) {
+      resetInviteModal();
+    }
+  }).observe(modal, { 
+    attributes: true, 
+    attributeFilter: ['class'] 
+  });
+
+  // Also reset when modal closes (extra cleanliness)
+  new MutationObserver(() => {
+    if (!modal.classList.contains('active')) {
+      resetInviteModal();
+    }
+  }).observe(modal, { 
+    attributes: true, 
+    attributeFilter: ['class'] 
   });
 }

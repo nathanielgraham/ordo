@@ -305,38 +305,48 @@ $self->helper(
    $r->get('/terms')->to('pages#terms');
    $r->get('/privacy')->to('pages#privacy');
 
-   $r->post(
-      '/login' => sub {
-         my $c = shift;
+# Login / Invite Route (reused for both)
+$r->post(
+    '/login' => sub {
+        my $c = shift;
 
-         my $email = $c->param('email') || '';
+        my $email = $c->param('email') || '';
+        my $team_member = $c->param('team_member') ? 1 : 0;   # ← New
 
-         # Early validation
-         unless ( $email && Email::Valid->address($email) ) {
+        my $valid = Email::Valid->new;
+        $valid->mxcheck(1); 
+
+        # Early validation
+        unless ($email && $valid->address($email)) {
             return $c->render(
-               json => {
-                  success => 0,
-                  message => 'Please enter a valid email address'
-               }
+                json => {
+                    success => 0,
+                    message => 'Please enter a valid email address'
+                }
             );
-         }
+        }
 
-         # Create user model
-         my $user_model =
-           ordo::Model::User->new( remote_address => $c->tx->remote_address );
+        # Create user model
 
-         # Call register_user
-         my $result = $c->app->request(
+        my $user_model = $c->app->_make_user({ email => $email });
+
+        #my $user_model = ordo::Model::User->new(
+        #    remote_address => $c->tx->remote_address
+        #);
+
+        # Call register_user with team_member flag when needed
+        my $result = $c->app->request(
             $user_model,
             {
-               command => 'register_user',
-               email   => $email
+                command      => 'register_user',
+                email        => $email,
+                team_member  => $team_member     # ← Passed to register_user
             }
-         );
+        );
 
-         $c->render( json => $result );
-      }
-   );
+        $c->render(json => $result);
+    }
+);
 
    $r->get(
       '/logout' => sub {
@@ -346,9 +356,61 @@ $self->helper(
       }
    );
 
+# Confirmation - Magic Link (works for both normal login and team invites)
+$r->get(
+    '/confirm' => sub {
+        my $c = shift;
+        my $jwt = $c->param('jwt');
+
+        unless ($jwt) {
+            $c->render(text => 'Missing confirmation link', status => 400);
+            return;
+        }
+
+        my $payload;
+        eval { $payload = $c->jwt->decode($jwt); };
+
+        if ($@ || !$payload || !$payload->{email}) {
+            $c->render(text => 'Invalid or expired link', status => 400);
+            return;
+        }
+
+        my $email = $payload->{email};
+
+        # Get or refresh user
+        my $user = $c->app->_make_user({ email => $email });
+        unless ($user && $user->id) {
+            $c->render(text => 'User not found', status => 404);
+            return;
+        }
+
+        # Auto-rotate token (security best practice)
+        my $rotate_result = $c->app->new_token($user, { id => $user->id });
+        my $token_to_use = $rotate_result->{token} || $user->token;
+
+        # Set cookie
+        $c->cookie(
+            ordo_token => $token_to_use,
+            {
+                secure    => $c->req->is_secure,
+                same_site => 'Lax',
+                expires   => time + 10 * 365 * 24 * 3600,
+                path      => '/',
+            }
+        );
+
+        # Smart redirect
+        if (!$user->{update_time} || $user->{creation_time} > time - 86400) {
+            $c->redirect_to('/#docs/quickstart');   # New user experience
+        } else {
+            $c->redirect_to('/#dashboard');
+        }
+    }
+);
+
    # Confirmation - Magic Link with Smart Redirect
    $r->get(
-      '/confirm' => sub {
+      '/confirmokok' => sub {
          my $c   = shift;
          my $jwt = $c->param('jwt');
 
@@ -2325,40 +2387,74 @@ sub register_user {
       return { success => 0, message => 'Invalid email address' };
    }
 
-   my $login_token;
+   my $email = lc($d->{email});
+   my $is_team_invite = $d->{team_member} ? 1 : 0;
 
-   my $existing_user =
-     $self->sqlite->db->select( 'user', ['*'], { email => $d->{email} } )->hash;
-   if ( $existing_user && $existing_user->{email} ) {
-      $login_token = $existing_user->{token};
-      my $rows = $self->sqlite->db->update(
-         'user',
-         { level => 0 },
-         { email => $d->{email} }
-      )->rows;
-      return { success => 0, message => 'email update error' } unless $rows;
+   my $existing_user = $self->sqlite->db->select('user', ['*'], { email => $email })->hash;
+
+   if ($existing_user) {
+      # Block invite to user in a different org
+      if ($is_team_invite && $existing_user->{org_id} != $user->org_id) {
+         return {
+            success => 0,
+            message => "This email is already registered with a different organization. "
+                     . "They must use a different email address to join your team."
+         };
+      }
+
+      # Existing user in same org -> just send magic link (re-login)
+      $d->{level} = 0;
    }
    else {
-      # create new user
+      # New user
       $d->{level} = 0;
-      my $new_user = $self->create_user( $user, $d );
-      if ( $new_user->{success} ) {
-         $login_token = $new_user->{token};
-      }
-      else {
-         return $new_user;
+
+      if ($is_team_invite && $user && $user->org_id) {
+         $d->{org_id} = $user->org_id;
       }
    }
 
-   # Generate JWT with short expiration
-   my $jwt = $self->jwt->claims(
-      {
-         email => $d->{email},
-         exp   => time() + 900    # 15 minutes
-      }
-   )->encode;
+   # ==================== ONLY CREATE IF NEW USER ====================
+   my $result;
+   if ($existing_user) {
+      $result = { success => 1 };   # Skip create_user for existing users
+   } else {
+      $result = $self->create_user($user, $d);
+      return $result unless $result->{success};
+   }
+   # ============================================================
 
-   my $url = $self->local_url . $self->url_for('confirm')->query( jwt => $jwt );
+   # Generate JWT
+   my $exp_seconds = $is_team_invite ? 24 * 3600 : 900;   # 24h vs 15min
+   my $jwt = $self->jwt->claims({
+      email => $email,
+      exp   => time() + $exp_seconds
+   })->encode;
+
+   my $url = $self->local_url . $self->url_for('confirm')->query(jwt => $jwt);
+
+   # Choose email template
+   my ($html_body, $plain_text) = $is_team_invite
+       ? $self->_fetch_invite($user, $email, $url)
+       : $self->_fetch_reg($user, $email, $url);
+
+   $self->email(
+      $email,
+      $is_team_invite ? 'Ordo Team Invitation' : 'Ordo Magic Login Link',
+      $html_body,
+      $plain_text
+   );
+
+   return {
+      success => 1,
+      message => $is_team_invite
+         ? "Invitation sent successfully to $email"
+         : "Magic login link sent to $email"
+   };
+}
+
+sub _fetch_reg {
+   my ($self, $user, $email, $url) = @_;
 
    my $html_body = <<~"HTML";
 <!DOCTYPE html>
@@ -2366,32 +2462,25 @@ sub register_user {
 <head><meta charset="utf-8"></head>
 <body style="font-family: Arial, sans-serif; background:#0f0f1f; color:#e0e0e0; padding:20px;">
   <div style="max-width:600px; margin:0 auto; background:#1a1a1a; padding:30px; border-radius:8px;">
-    <h2 style="color:#00ffff;">Welcome to Ordo Machinae</h2>
-    
-    <p style="font-size:16px;">Please click the button below to sign in:</p>
-    
+    <h2>Welcome to Ordo Machinae</h2>
+   
+    <p>Please click the button below to sign in:</p>
+   
     <p style="margin:30px 0;">
-      <a href="$url" 
-         style="background:#00ffcc; color:#000; padding:16px 32px; 
+      <a href="$url"
+         style="background:#00ffcc; color:#000; padding:16px 32px;
                 text-decoration:none; border-radius:6px; font-weight:bold; display:inline-block;">
         Sign in to Ordo
       </a>
     </p>
-
-    <p style="color:#aaa; font-size:15px;">
-      This link will expire in 15 minutes.
+    <p>This link will expire in 15 minutes.</p>
+    <p>
+      By signing in, you agree to our
+      <a href="https://ordoscheduler.com/terms">Terms of Service</a>
+      and
+      <a href="https://ordoscheduler.com/privacy">Privacy Policy</a>.
     </p>
-
-    <p style="color:#888; font-size:14px; margin-top:30px;">
-      By signing in, you agree to our 
-      <a href="https://yourdomain.com/terms" style="color:#00ffff;">Terms of Service</a> 
-      and 
-      <a href="https://yourdomain.com/privacy" style="color:#00ffff;">Privacy Policy</a>.
-    </p>
-
-    <p style="color:#555; font-size:13px; margin-top:40px;">
-      If you didn't request this link, please ignore this email.
-    </p>
+    <p>If you didnt request this link, please ignore this email.</p>
   </div>
 </body>
 </html>
@@ -2401,28 +2490,89 @@ HTML
 Welcome to Ordo Machinae!
 
 Please click the link below to sign in:
-
 $url
 
 This link will expire in 15 minutes.
 
 By signing in, you agree to our:
-- Terms of Service: https://yourdomain.com/terms
-- Privacy Policy:   https://yourdomain.com/privacy
+- Terms of Service: https://ordoscheduler.com/terms
+- Privacy Policy: https://ordoscheduler.com/privacy
 
-If you didn't request this, please ignore this email.
+If you didnt request this, please ignore this email.
 
 -- The Ordo Team
 TEXT
 
-   $self->email( $d->{email}, 'Ordo Magic Login Link', $html_body,
-      $plain_text );
+   return ($html_body, $plain_text);
+}
 
-   return {
-      success => 1,
-      message => "A magic login link has been sent to $d->{email}"
-   };
+sub _fetch_invite {
+   my ($self, $inviter, $email, $url) = @_;
 
+   print Dumper($inviter);
+   my $inviter_name = $inviter && $inviter->email ? $inviter->email : "a team member";
+
+   my $html_body = <<~"HTML";
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Arial, sans-serif; background:#0f0f1f; color:#e0e0e0; padding:20px;">
+  <div style="max-width:600px; margin:0 auto; background:#1a1a1a; padding:30px; border-radius:8px;">
+    
+    <h2>Youve been invited to Ordo</h2>
+    
+    <p>$inviter_name has invited you to join their organization on Ordo.</p>
+    
+    <p>Ordo is a modern AI-native job scheduler for teams and power users.</p>
+    
+    <p style="margin:35px 0;">
+      <a href="$url" 
+         style="background:#00ffcc; color:#000; padding:16px 36px; 
+                text-decoration:none; border-radius:6px; font-weight:bold; 
+                display:inline-block; font-size:17px;">
+        Accept Invitation
+      </a>
+    </p>
+    
+    <p>This invitation link will expire in 24 hours.</p>
+    
+    <p>
+      By accepting, you agree to our 
+      <a href="https://ordoscheduler.com/terms">Terms of Service</a> 
+      and 
+      <a href="https://ordoscheduler.com/privacy">Privacy Policy</a>.
+    </p>
+    
+    <p>If you werent expecting this invitation, you can safely ignore this email.</p>
+    
+    <p>-- The Ordo Team</p>
+  </div>
+</body>
+</html>
+HTML
+
+   my $plain_text = <<~"TEXT";
+Youve been invited to Ordo
+
+$inviter_name has invited you to join their organization.
+
+Ordo is a modern AI-native job scheduler.
+
+Accept the invitation here:
+$url
+
+This link will expire in 24 hours.
+
+By accepting, you agree to our Terms of Service and Privacy Policy:
+https://ordoscheduler.com/terms
+https://ordoscheduler.com/privacy
+
+If you werent expecting this invitation, you can safely ignore this email.
+
+-- The Ordo Team
+TEXT
+
+   return ($html_body, $plain_text);
 }
 
 sub create_user {
