@@ -471,6 +471,7 @@ export function openConfirmModal(
   message = "Are you sure?",
   onConfirm = null,
   onCancel = null,
+  requireDeleteConfirmation = false   // Only true for dangerous actions
 ) {
   const modal = document.getElementById("confirm-modal");
   if (!modal) {
@@ -478,22 +479,28 @@ export function openConfirmModal(
     return;
   }
 
-  // Set title and message
   const titleEl = modal.querySelector(".modal-title");
-  if (titleEl) titleEl.textContent = title;
-
   const msgEl = document.getElementById("confirm-message");
+
+  if (titleEl) titleEl.textContent = title;
   if (msgEl) msgEl.textContent = message;
 
-  // Get buttons
+  // Remove any previous delete input
+  const oldInput = document.getElementById("confirm-delete-container");
+  if (oldInput) oldInput.remove();
+
+  // Add delete confirmation input only when requested
+  if (requireDeleteConfirmation) {
+    const inputHTML = `
+      <div id="confirm-delete-container" class="mt-medium">
+        <label class="label-bold text-red">Type DELETE to confirm</label>
+        <input type="text" id="confirm-delete-input" class="input" placeholder="DELETE" autocomplete="off">
+      </div>`;
+    msgEl.insertAdjacentHTML('afterend', inputHTML);
+  }
+
   const yesBtn = document.getElementById("confirm-yes");
   const noBtn = document.getElementById("confirm-no");
-
-  if (!yesBtn) {
-    console.error("[openConfirmModal] #confirm-yes button missing");
-    modal.classList.add("active");
-    return;
-  }
 
   // Clone buttons to clear old listeners
   const newYes = yesBtn.cloneNode(true);
@@ -502,16 +509,21 @@ export function openConfirmModal(
   if (noBtn) {
     const newNo = noBtn.cloneNode(true);
     noBtn.parentNode.replaceChild(newNo, noBtn);
-
-    // No button = cancel
     newNo.addEventListener("click", () => {
       modal.classList.remove("active");
       if (typeof onCancel === "function") onCancel();
     });
   }
 
-  // Yes button = confirm / delete
   newYes.addEventListener("click", () => {
+    if (requireDeleteConfirmation) {
+      const input = document.getElementById("confirm-delete-input");
+      if (!input || input.value.trim().toUpperCase() !== "DELETE") {
+        showToast("You must type exactly DELETE to confirm", "danger");
+        return;
+      }
+    }
+
     modal.classList.remove("active");
     if (typeof onConfirm === "function") onConfirm();
   });
@@ -1193,6 +1205,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("invite-email").value = "";
   });
 
+/*
   document.getElementById("cancel-invite")?.addEventListener("click", () => {
     document.getElementById("invite-modal").classList.remove("active");
   });
@@ -1234,4 +1247,5 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
   });
+*/
 });

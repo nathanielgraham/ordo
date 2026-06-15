@@ -163,34 +163,35 @@ sub startup {
    #   }
    #);
 
-# ==================== MINION EMAIL SETUP ====================
-# Minion Task - Background Email Sender
-$self->minion->add_task(
-   email_task => sub {
-      my ($job, $to, $subject, $html_body, $plain_text) = @_;
+   # ==================== MINION EMAIL SETUP ====================
+   # Minion Task - Background Email Sender
+   $self->minion->add_task(
+      email_task => sub {
+         my ( $job, $to, $subject, $html_body, $plain_text ) = @_;
 
-      $plain_text //= $html_body;
+         $plain_text //= $html_body;
 
-      eval {
-         $job->app->send_email($to, $subject, $html_body, $plain_text);
-         $job->finish("Email sent to $to");
-      } or do {
-         my $error = $@ || 'Unknown error';
-         $job->app->log->error("Minion email_task failed for $to: $error");
-         $job->fail($error);
-      };
-   }
-);
+         eval {
+            $job->app->send_email( $to, $subject, $html_body, $plain_text );
+            $job->finish("Email sent to $to");
+         } or do {
+            my $error = $@ || 'Unknown error';
+            $job->app->log->error("Minion email_task failed for $to: $error");
+            $job->fail($error);
+         };
+      }
+   );
 
-$self->helper(
-   email => sub {
-      my ($c, $to, $subject, $html_body, $plain_text) = @_;
+   $self->helper(
+      email => sub {
+         my ( $c, $to, $subject, $html_body, $plain_text ) = @_;
 
-      $c->minion->enqueue('email_task', [ $to, $subject, $html_body, $plain_text ]);
+         $c->minion->enqueue( 'email_task',
+            [ $to, $subject, $html_body, $plain_text ] );
 
-      $c->log->debug("Enqueued email to $to: $subject");
-   }
-);
+         $c->log->debug("Enqueued email to $to: $subject");
+      }
+   );
 
 =pod
 $self->helper(
@@ -249,55 +250,56 @@ $self->helper(
 );
 =cut
 
-$self->helper(
-   send_email => sub {
-      my ($c, $to, $subject, $html_body, $plain_text) = @_;
+   $self->helper(
+      send_email => sub {
+         my ( $c, $to, $subject, $html_body, $plain_text ) = @_;
 
-      $plain_text //= $html_body;
+         $plain_text //= $html_body;
 
-      require Email::MIME;
-      require Email::Sender::Simple;
-      require Email::Sender::Transport::Sendmail;
+         require Email::MIME;
+         require Email::Sender::Simple;
+         require Email::Sender::Transport::Sendmail;
 
-      my $transport = Email::Sender::Transport::Sendmail->new();
+         my $transport = Email::Sender::Transport::Sendmail->new();
 
-      my $email = Email::MIME->create(
-         header_str => [
-            From    => 'Ordo Machinae <ordosched@proton.me>',
-            To      => $to,
-            Subject => $subject,
-         ],
-         parts => [
-            # HTML version first (preferred by modern clients)
-            Email::MIME->create(
-               attributes => {
-                  content_type => 'text/html',
-                  encoding     => 'quoted-printable',
-                  charset      => 'UTF-8',
-               },
-               body => $html_body,
-            ),
-            # Plain text fallback
-            Email::MIME->create(
-               attributes => {
-                  content_type => 'text/plain',
-                  encoding     => 'quoted-printable',
-                  charset      => 'UTF-8',
-               },
-               body => $plain_text,
-            ),
-         ],
-      );
+         my $email = Email::MIME->create(
+            header_str => [
+               From    => 'Ordo Machinae <ordosched@proton.me>',
+               To      => $to,
+               Subject => $subject,
+            ],
+            parts => [
 
-      eval {
-         Email::Sender::Simple->send($email, { transport => $transport });
-         $c->log->info("Email sent successfully to $to");
-      } or do {
-         $c->log->error("Failed to send email to $to: $@");
-      };
-   }
-);
+               # HTML version first (preferred by modern clients)
+               Email::MIME->create(
+                  attributes => {
+                     content_type => 'text/html',
+                     encoding     => 'quoted-printable',
+                     charset      => 'UTF-8',
+                  },
+                  body => $html_body,
+               ),
 
+               # Plain text fallback
+               Email::MIME->create(
+                  attributes => {
+                     content_type => 'text/plain',
+                     encoding     => 'quoted-printable',
+                     charset      => 'UTF-8',
+                  },
+                  body => $plain_text,
+               ),
+            ],
+         );
+
+         eval {
+            Email::Sender::Simple->send( $email, { transport => $transport } );
+            $c->log->info("Email sent successfully to $to");
+         } or do {
+            $c->log->error("Failed to send email to $to: $@");
+         };
+      }
+   );
 
    # Router
    my $r = $self->routes;
@@ -305,48 +307,48 @@ $self->helper(
    $r->get('/terms')->to('pages#terms');
    $r->get('/privacy')->to('pages#privacy');
 
-# Login / Invite Route (reused for both)
-$r->post(
-    '/login' => sub {
-        my $c = shift;
+   # Login / Invite Route (reused for both)
+   $r->post(
+      '/login' => sub {
+         my $c = shift;
 
-        my $email = $c->param('email') || '';
-        my $team_member = $c->param('team_member') ? 1 : 0;   # ← New
+         my $email       = $c->param('email') || '';
+         my $team_member = $c->param('team_member') ? 1 : 0;    # ← New
 
-        my $valid = Email::Valid->new;
-        $valid->mxcheck(1); 
+         my $valid = Email::Valid->new;
+         $valid->mxcheck(1);
 
-        # Early validation
-        unless ($email && $valid->address($email)) {
+         # Early validation
+         unless ( $email && $valid->address($email) ) {
             return $c->render(
-                json => {
-                    success => 0,
-                    message => 'Please enter a valid email address'
-                }
+               json => {
+                  success => 0,
+                  message => 'Please enter a valid email address'
+               }
             );
-        }
+         }
 
-        # Create user model
+         # Create user model
 
-        my $user_model = $c->app->_make_user({ email => $email });
+         #my $user_model = $c->app->_make_user( { email => $email } );
 
-        #my $user_model = ordo::Model::User->new(
-        #    remote_address => $c->tx->remote_address
-        #);
+         my $user_model = ordo::Model::User->new(
+             remote_address => $c->tx->remote_address
+         );
 
-        # Call register_user with team_member flag when needed
-        my $result = $c->app->request(
+         # Call register_user with team_member flag when needed
+         my $result = $c->app->request(
             $user_model,
             {
-                command      => 'register_user',
-                email        => $email,
-                team_member  => $team_member     # ← Passed to register_user
+               command     => 'register_user',
+               email       => $email,
+               team_member => $team_member       # ← Passed to register_user
             }
-        );
+         );
 
-        $c->render(json => $result);
-    }
-);
+         $c->render( json => $result );
+      }
+   );
 
    $r->get(
       '/logout' => sub {
@@ -356,66 +358,14 @@ $r->post(
       }
    );
 
-# Confirmation - Magic Link (works for both normal login and team invites)
-$r->get(
-    '/confirm' => sub {
-        my $c = shift;
-        my $jwt = $c->param('jwt');
-
-        unless ($jwt) {
-            $c->render(text => 'Missing confirmation link', status => 400);
-            return;
-        }
-
-        my $payload;
-        eval { $payload = $c->jwt->decode($jwt); };
-
-        if ($@ || !$payload || !$payload->{email}) {
-            $c->render(text => 'Invalid or expired link', status => 400);
-            return;
-        }
-
-        my $email = $payload->{email};
-
-        # Get or refresh user
-        my $user = $c->app->_make_user({ email => $email });
-        unless ($user && $user->id) {
-            $c->render(text => 'User not found', status => 404);
-            return;
-        }
-
-        # Auto-rotate token (security best practice)
-        my $rotate_result = $c->app->new_token($user, { id => $user->id });
-        my $token_to_use = $rotate_result->{token} || $user->token;
-
-        # Set cookie
-        $c->cookie(
-            ordo_token => $token_to_use,
-            {
-                secure    => $c->req->is_secure,
-                same_site => 'Lax',
-                expires   => time + 10 * 365 * 24 * 3600,
-                path      => '/',
-            }
-        );
-
-        # Smart redirect
-        if (!$user->{update_time} || $user->{creation_time} > time - 86400) {
-            $c->redirect_to('/#docs/quickstart');   # New user experience
-        } else {
-            $c->redirect_to('/#dashboard');
-        }
-    }
-);
-
-   # Confirmation - Magic Link with Smart Redirect
+   # Confirmation - Magic Link (works for both normal login and team invites)
    $r->get(
-      '/confirmokok' => sub {
+      '/confirm' => sub {
          my $c   = shift;
          my $jwt = $c->param('jwt');
 
          unless ($jwt) {
-            $c->render( text => 'Missing login link', status => 400 );
+            $c->render( text => 'Missing confirmation link', status => 400 );
             return;
          }
 
@@ -423,37 +373,26 @@ $r->get(
          eval { $payload = $c->jwt->decode($jwt); };
 
          if ( $@ || !$payload || !$payload->{email} ) {
-            $c->render(
-               text   => 'Invalid or expired login link',
-               status => 400
-            );
+            $c->render( text => 'Invalid or expired link', status => 400 );
             return;
          }
 
          my $email = $payload->{email};
 
-         # Get full user
+         # Get or refresh user
          my $user = $c->app->_make_user( { email => $email } );
-
          unless ( $user && $user->id ) {
             $c->render( text => 'User not found', status => 404 );
             return;
          }
 
-         # === AUTO-ROTATE TOKEN ===
+         # Auto-rotate token (security best practice)
          my $rotate_result = $c->app->new_token( $user, { id => $user->id } );
+         my $token_to_use  = $rotate_result->{token} || $user->token;
 
-         if ( !$rotate_result->{success} ) {
-            $c->app->log->error("Token rotation failed for user $email");
-         }
-
-         # Activate user if needed
          $c->sqlite->db->update( 'user', { level => 1 }, { id => $user->id } );
 
-         # Use new token if rotation succeeded
-         my $token_to_use = $rotate_result->{token} || $user->token;
-
-         # Set secure cookie
+         # Set cookie
          $c->cookie(
             ordo_token => $token_to_use,
             {
@@ -466,10 +405,10 @@ $r->get(
 
          # Smart redirect
          if ( !$user->{update_time} || $user->{creation_time} > time - 86400 ) {
-            $c->redirect_to('/#docs/quickstart');    # New user
+            $c->redirect_to('/#docs/quickstart');    # New user experience
          }
          else {
-            $c->redirect_to('/#dashboard');          # Returning user
+            $c->redirect_to('/#dashboard');
          }
       }
    );
@@ -622,59 +561,46 @@ $r->get(
          my $command = $json->{command} || '';
          my $token   = $json->{token}   || '';
 
-         my $temp_user =
-           ordo::Model::User->new( remote_address => $c->tx->remote_address );
-
-         # Public commands
-         if ( $command eq 'register_user' || $command eq 'login_user' ) {
+         # ==================== PUBLIC REGISTRATION ====================
+         # Only normal sign-up (no team_member flag) is allowed without auth
+         if ( $command eq 'register_user' && !$json->{team_member} ) {
+            my $temp_user = ordo::Model::User->new(
+               remote_address => $c->tx->remote_address );
             my $res = $self->request( $temp_user, $json );
             $c->render( json => $res );
             return;
          }
 
-         #my $exec_user = $self->sqlite->db->select( 'user', ['*'],
-         #   { execution_token => $token } )->hash;
+         # ==================== ALL OTHER COMMANDS ====================
+         # Require valid authenticated user (including team invites)
+         my $user = undef;
 
-         my $exec_user = $self->_make_user( { execution_token => $token } );
+         if ($token) {
 
-         # Try execution token first
-         if ($exec_user) {
-
-            if ( $self->_is_execution_command($command) ) {
-               my $res = $self->request( $exec_user, $json );
-               $c->render( json => $res );
-            }
-            else {
-               $c->render(
-                  json => {
-                     success => 0,
-                     message => "Execution token not authorized for '$command'"
-                  },
-                  status => 403
-               );
-            }
-            return;
+            # Try execution token first
+            $user = $self->_make_user( { execution_token => $token } );
          }
 
-         # api token
-         else {
-            my $api_user = $self->_make_user( { token => $token } );
+         if ( !$user && $token ) {
 
-            # Normal user path
-            my $auth = $self->request( $api_user,
-               { command => 'login_user', token => $token } );
-
-            unless ( $auth->{success} ) {
-               $c->render(
-                  json   => { success => 0, message => 'Unauthorized' },
-                  status => 401
-               );
-               return;
-            }
-
-            my $res = $self->request( $api_user, $json );
-            $c->render( json => $res );
+            # Then try normal API token
+            $user = $self->_make_user( { token => $token } );
          }
+
+         # No valid user → reject
+         unless ( $user && $user->id ) {
+            return $c->render(
+               json => {
+                  success => 0,
+                  message => 'Unauthorized. Please log in.'
+               },
+               status => 401
+            );
+         }
+
+         # Execute with authenticated user
+         my $res = $self->request( $user, $json );
+         $c->render( json => $res );
       }
    );
 
@@ -841,6 +767,7 @@ sub _make_user {
       level                      => $user->{level},
       org_id                     => $user->{org_id},
       token                      => $user->{token},
+      email                      => $user->{email},
       execution_token            => $user->{execution_token},
       base_cluster_id            => $user->{base_cluster_id},
       root_cluster_id            => $org->{root_cluster_id},
@@ -1168,6 +1095,103 @@ sub _increment_counter {
 }
 
 sub request {
+   my ( $self, $user, $decoded ) = @_;
+   my $response = {};
+   die "Decoded must be HASH ref" unless $decoded && ref $decoded eq 'HASH';
+
+   my $command = delete $decoded->{command};
+   my $params  = {
+      map  { $_ => $decoded->{$_} }
+      grep { defined $decoded->{$_} } keys %$decoded
+   };
+
+   if ( exists $self->routing->{$command} ) {
+      my $level = $user->level || 0;
+      my ( $sub_name, $min_level, $legal_options, $count_usage ) =
+        @{ $self->routing->{$command} };
+
+      my ( $required_types, $optional_types ) = @{$legal_options};
+      $optional_types->{token}      = 's';
+      $optional_types->{tz}         = 'tz';
+      $optional_types->{request_id} = 's';
+
+      if ( $level < $min_level ) {
+         $response->{success} = 0;
+         $response->{message} = 'permission denied';
+      }
+      else {
+         # ==================== VALIDATION ====================
+         my ( $valid, $clean_params_or_error ) =
+           $self->validate_params( $required_types, $optional_types, $params );
+
+         if ( !$valid ) {
+            $response = { success => 0, message => $clean_params_or_error };
+         }
+         else {
+      # ==================== SPECIAL CASE: LOGIN / REGISTER ====================
+            if (
+               $command eq 'login_user'
+               || ( $command eq 'register_user'
+                  && !$clean_params_or_error->{team_member} )
+              )
+            {
+
+               # Normal registration / magic login — keep open (no throttling)
+               $response = $self->$sub_name( $user, $clean_params_or_error );
+
+            }
+            else {
+# ==================== ALL OTHER COMMANDS + TEAM INVITES ====================
+# Team invites (register_user with team_member=1) get throttled like normal commands
+
+               my $user_id = $user->id;
+               my $org_id  = $user->org_id;
+
+               if (  $command ne 'update_job_state'
+                  && $self->throttle_exceeded($user) )
+               {
+                  $self->log->warn(
+"Rate limit hit for user $user_id / org $org_id (command $command)"
+                  );
+                  $response = {
+                     success    => 0,
+                     persistent => 1,
+                     limit_type => 'rate',
+                     message    =>
+                       "Too many requests (wait a minute and try again)"
+                  };
+               }
+               elsif ( $command ne 'update_job_state'
+                  && $count_usage
+                  && !$self->increment_usage($user) )
+               {
+                  $response = {
+                     success    => 0,
+                     persistent => 1,
+                     limit_type => 'monthly',
+                     message    => "Monthly API limit reached"
+                  };
+                  $self->log->warn(
+"Monthly API limit hit for user $user_id / org $org_id (command $command)"
+                  );
+               }
+               else {
+                  # Execute command
+                  $response = $self->$sub_name( $user, $clean_params_or_error );
+               }
+            }
+         }
+      }
+   }
+   else {
+      $response = { success => 0, message => 'no such command' };
+   }
+
+   $response->{command_reply} = $command;
+   return $response;
+}
+
+sub request2 {
    my ( $self, $user, $decoded ) = @_;
    my $response = {};
 
@@ -1603,11 +1627,6 @@ sub _start_cluster {
    my $ready    = $self->job_states->{ready};
    my $hold     = $self->job_states->{hold};
    my $ice      = $self->job_states->{ice};
-
-   #print "CLUSTER\n";
-   #print Dumper($cluster);
-   #print "USER\n";
-   #print Dumper($user);
 
    if ( $cluster->{id} == $user->root_cluster_id ) {
       return { success => 0, message => 'root cluster cannot be started' };
@@ -2387,18 +2406,21 @@ sub register_user {
       return { success => 0, message => 'Invalid email address' };
    }
 
-   my $email = lc($d->{email});
+   my $email          = lc( $d->{email} );
    my $is_team_invite = $d->{team_member} ? 1 : 0;
 
-   my $existing_user = $self->sqlite->db->select('user', ['*'], { email => $email })->hash;
+   my $existing_user =
+     $self->sqlite->db->select( 'user', ['*'], { email => $email } )->hash;
 
    if ($existing_user) {
+
       # Block invite to user in a different org
-      if ($is_team_invite && $existing_user->{org_id} != $user->org_id) {
+      if ( $is_team_invite && $existing_user->{org_id} != $user->org_id ) {
          return {
             success => 0,
-            message => "This email is already registered with a different organization. "
-                     . "They must use a different email address to join your team."
+            message =>
+              "This email is already registered with a different organization. "
+              . "They must use a different email address to join your team."
          };
       }
 
@@ -2409,7 +2431,7 @@ sub register_user {
       # New user
       $d->{level} = 0;
 
-      if ($is_team_invite && $user && $user->org_id) {
+      if ( $is_team_invite && $user && $user->org_id ) {
          $d->{org_id} = $user->org_id;
       }
    }
@@ -2417,44 +2439,46 @@ sub register_user {
    # ==================== ONLY CREATE IF NEW USER ====================
    my $result;
    if ($existing_user) {
-      $result = { success => 1 };   # Skip create_user for existing users
-   } else {
-      $result = $self->create_user($user, $d);
+      $result = { success => 1 };    # Skip create_user for existing users
+   }
+   else {
+      $result = $self->create_user( $user, $d );
       return $result unless $result->{success};
    }
+
    # ============================================================
 
    # Generate JWT
-   my $exp_seconds = $is_team_invite ? 24 * 3600 : 900;   # 24h vs 15min
-   my $jwt = $self->jwt->claims({
-      email => $email,
-      exp   => time() + $exp_seconds
-   })->encode;
+   my $exp_seconds = $is_team_invite ? 24 * 3600 : 900;    # 24h vs 15min
+   my $jwt         = $self->jwt->claims(
+      {
+         email => $email,
+         exp   => time() + $exp_seconds
+      }
+   )->encode;
 
-   my $url = $self->local_url . $self->url_for('confirm')->query(jwt => $jwt);
+   my $url = $self->local_url . $self->url_for('confirm')->query( jwt => $jwt );
 
    # Choose email template
-   my ($html_body, $plain_text) = $is_team_invite
-       ? $self->_fetch_invite($user, $email, $url)
-       : $self->_fetch_reg($user, $email, $url);
+   my ( $html_body, $plain_text ) =
+       $is_team_invite
+     ? $self->_fetch_invite( $user, $email, $url )
+     : $self->_fetch_reg( $user, $email, $url );
 
-   $self->email(
-      $email,
+   $self->email( $email,
       $is_team_invite ? 'Ordo Team Invitation' : 'Ordo Magic Login Link',
-      $html_body,
-      $plain_text
-   );
+      $html_body, $plain_text );
 
    return {
       success => 1,
       message => $is_team_invite
-         ? "Invitation sent successfully to $email"
-         : "Magic login link sent to $email"
+      ? "Invitation sent successfully to $email"
+      : "Magic login link sent to $email"
    };
 }
 
 sub _fetch_reg {
-   my ($self, $user, $email, $url) = @_;
+   my ( $self, $user, $email, $url ) = @_;
 
    my $html_body = <<~"HTML";
 <!DOCTYPE html>
@@ -2503,14 +2527,14 @@ If you didnt request this, please ignore this email.
 -- The Ordo Team
 TEXT
 
-   return ($html_body, $plain_text);
+   return ( $html_body, $plain_text );
 }
 
 sub _fetch_invite {
-   my ($self, $inviter, $email, $url) = @_;
+   my ( $self, $inviter, $email, $url ) = @_;
 
-   print Dumper($inviter);
-   my $inviter_name = $inviter && $inviter->email ? $inviter->email : "a team member";
+   my $inviter_name =
+     $inviter && $inviter->email ? $inviter->email : "a team member";
 
    my $html_body = <<~"HTML";
 <!DOCTYPE html>
@@ -2572,7 +2596,7 @@ If you werent expecting this invitation, you can safely ignore this email.
 -- The Ordo Team
 TEXT
 
-   return ($html_body, $plain_text);
+   return ( $html_body, $plain_text );
 }
 
 sub create_user {
@@ -2798,11 +2822,10 @@ sub _update_org {
 sub delete_user {
    my ( $self, $user, $d ) = @_;
    my $rows;
-   eval {
-      $rows = $self->sqlite->db->delete( 'user', { id => $d->{id} } )->rows;
-   };
-   return { success => 0, message => $@ } if $@;
-   return { success => $rows, id => $d->{id} };
+   $rows = $self->sqlite->db->delete( 'user', { id => $d->{id} } )->rows;
+
+   #return { success => 0, message => 'user not found' } unless $rows;
+   return { success => 1, message => 'Your account has been deleted' };
 }
 
 sub delete_me {
@@ -6142,7 +6165,7 @@ sub routing {
       'update_user' =>
         [ 'update_user', 1, [ {}, { mode => 'm', name => 'n' } ], 1 ],
       'delete_user' => [ 'delete_user', 3, [ { id    => 'i' }, {} ], 1 ],
-      'delete_me'   => [ 'delete_me',   1, [ { id    => 'i' }, {} ], 1 ],
+      'delete_me'   => [ 'delete_me',   1, [ {}, {} ], 1 ],
       'login_user'  => [ 'login_user',  0, [ { token => 's' }, {} ], 0 ],
       'new_token'   => [ 'new_token',   1, [ {}, {} ], 0 ],
       'rotate_execution_token' =>

@@ -1,5 +1,5 @@
 // app.js – Main entry point & orchestration
-import { validateCollapsedStorage } from "./state.js";
+import { appState, validateCollapsedStorage } from "./state.js";
 import { initTabSystem, activateTab } from "./tabs.js";
 import { checkLoginAndConnect } from "./websocket.js";
 import { attachTreeListeners } from "./tree/tree-listeners.js";
@@ -107,7 +107,6 @@ export function initInviteModal() {
   const errorContainer = document.getElementById('invite-error');
   const emailInput = document.getElementById('invite-email');
 
-  // Reset function
   function resetInviteModal() {
     formContainer.style.display = 'block';
     successContainer.style.display = 'none';
@@ -115,14 +114,19 @@ export function initInviteModal() {
     if (emailInput) emailInput.value = '';
   }
 
-  // Form submit handler
   form?.addEventListener('submit', async function(e) {
     e.preventDefault();
 
     const btn = document.getElementById('send-invite-btn');
     const originalText = btn.textContent;
+    const inviteeEmail = emailInput.value.trim();
 
-    // Reset states before sending
+    if (!inviteeEmail) {
+      document.getElementById('invite-error-text').textContent = 'Please enter an email address';
+      errorContainer.style.display = 'block';
+      return;
+    }
+
     successContainer.style.display = 'none';
     errorContainer.style.display = 'none';
 
@@ -130,21 +134,38 @@ export function initInviteModal() {
     btn.textContent = 'Sending...';
 
     try {
-      const formData = new FormData(this);
-      formData.append('team_member', '1');
+      // Get token from appState (preferred) or cookie fallback
+      const token = appState.accountData?.token || 
+                    document.cookie.split('; ').find(row => row.startsWith('ordo_token='))?.split('=')[1];
 
-      const response = await fetch('/login', {
+      console.log("🔑 Invite attempt - Token present:", !!token);
+
+      if (!token) {
+        document.getElementById('invite-error-text').textContent = 'You must be logged in to send invites';
+        errorContainer.style.display = 'block';
+        return;
+      }
+
+      const response = await fetch('/api', {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          command: "register_user",
+          email: inviteeEmail,
+          team_member: 1,
+          token: token
+        })
       });
 
       const result = await response.json();
+      console.log("📥 Invite response:", result);
 
       if (result.success) {
         formContainer.style.display = 'none';
         successContainer.style.display = 'block';
         document.getElementById('invite-success-text').textContent = 
-          `Invitation sent to ${emailInput.value.trim()}`;
+          `Invitation sent to ${inviteeEmail}`;
+        //showToast("Invitation sent successfully", "success");
       } else {
         document.getElementById('invite-error-text').textContent = 
           result.message || 'Failed to send invitation';
@@ -161,19 +182,9 @@ export function initInviteModal() {
     }
   });
 
-  // Reset when modal opens
+  // Reset modal when opened
   new MutationObserver(() => {
     if (modal.classList.contains('active')) {
-      resetInviteModal();
-    }
-  }).observe(modal, { 
-    attributes: true, 
-    attributeFilter: ['class'] 
-  });
-
-  // Also reset when modal closes (extra cleanliness)
-  new MutationObserver(() => {
-    if (!modal.classList.contains('active')) {
       resetInviteModal();
     }
   }).observe(modal, { 

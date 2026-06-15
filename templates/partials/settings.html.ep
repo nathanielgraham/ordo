@@ -6,7 +6,7 @@
       <p class="mt-medium">Loading settings...</p>
     </div>
     <div id="settings-content" style="display: none">
-<!--
+      <!--
       <div class="actions-right">
         <button id="refresh-settings" class="btn btn-ghost neon-ghost">
           <i class="fas fa-sync-alt"></i> Refresh
@@ -111,6 +111,21 @@
               active.
             </p>
           </div>
+
+          <!-- ==================== DANGER ZONE ==================== -->
+          <div class="danger-zone">
+            <h4><i class="fas fa-skull-crossbones"></i> Danger Zone</h4>
+            <p>
+              <strong>Warning:</strong> This action is permanent and cannot be
+              undone. Your account, all jobs, clusters, calendars, and data will
+              be permanently deleted.
+            </p>
+
+            <button id="delete-my-account" class="btn btn-danger w-full">
+              <i class="fas fa-trash"></i> Delete My Account
+            </button>
+          </div>
+          <!-- ==================================================== -->
 
           <div class="actions-right mt-large">
             <button class="btn btn-primary" id="save-account">

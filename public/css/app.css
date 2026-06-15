@@ -2262,3 +2262,38 @@ html,
   color: var(--glow-cyan);
 }
 
+.danger-zone {
+  border: 2px solid #b91c1c;
+  background: rgba(185, 28, 28, 0.08);
+  border-radius: 8px;
+  padding: 1.75rem 1.5rem;
+  margin: 2.25rem 0 1.5rem 0;
+}
+
+.danger-zone h4 {
+  color: #ef4444;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.danger-zone p {
+  color: #f87171;
+  line-height: 1.5;
+  margin-bottom: 1.25rem;
+}
+
+#delete-my-account {
+  background-color: #b91c1c;
+  border: none;
+  color: white;
+  font-weight: 600;
+  padding: 0.85rem 1.5rem;
+  transition: all 0.2s;
+}
+
+#delete-my-account:hover {
+  background-color: #991b1b;
+  transform: translateY(-1px);
+}

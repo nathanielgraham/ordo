@@ -206,6 +206,25 @@ export function handleCommandReply(data) {
       }
       break;
 
+    case "delete_me":
+      if (data.success) {
+
+        // Clear cookie
+        document.cookie =
+          "ordo_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+
+        // Optional: clear localStorage too
+        localStorage.clear();
+
+        // Redirect to home after short delay
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 1800);
+      } else {
+        showToast(data.message || "Failed to delete account", "danger");
+      }
+      break;
+
     default:
       console.debug(
         `[handleCommandReply] Unhandled command_reply: ${data.command_reply}`,
@@ -1725,6 +1744,67 @@ document.getElementById("refresh-usage")?.addEventListener("click", () => {
   appState.ws.send(JSON.stringify({ command: "read_org" }));
   showToast("Refreshing usage...", "info");
 });
+
+// ==================== DELETE MY ACCOUNT ====================
+document.getElementById("delete-my-account")?.addEventListener("click", () => {
+  openConfirmModal(
+    "Delete My Account",
+    "⚠️ This action is PERMANENT and cannot be undone.\n\n" +
+    "Your account, all jobs, clusters, calendars, and data will be permanently deleted.\n\n" +
+    "Type DELETE below to confirm.",
+    () => {
+      // Send delete command
+      if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+        appState.ws.send(JSON.stringify({ command: "delete_me" }));
+        showToast("Account deletion requested...", "info");
+      } else {
+        showToast("Not connected to server", "danger");
+      }
+    },
+    null,      // onCancel
+    true       // requireDeleteConfirmation = true
+  );
+});
+
+// ==================== DELETE MY ACCOUNT ====================
+/*
+document.getElementById("delete-my-account")?.addEventListener("click", () => {
+  openConfirmModal(
+    "Delete My Account",
+    "⚠️ This action is PERMANENT and cannot be undone.\n\n" +
+    "Your account, all jobs, clusters, calendars, and data will be permanently deleted.\n\n" +
+    "Type DELETE below to confirm.",
+    (confirmedText) => {
+      if (confirmedText !== "DELETE") {
+        showToast("You must type exactly 'DELETE' to confirm", "danger");
+        return;
+      }
+
+      // Disable button during request
+      const deleteBtn = document.getElementById("delete-my-account");
+      if (deleteBtn) {
+        deleteBtn.disabled = true;
+        deleteBtn.textContent = "Deleting Account...";
+      }
+
+      // Send delete command via WebSocket
+      if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+        appState.ws.send(JSON.stringify({
+          command: "delete_me"
+        }));
+
+        showToast("Account deletion requested...", "info");
+      } else {
+        showToast("Not connected to server", "danger");
+        if (deleteBtn) {
+          deleteBtn.disabled = false;
+          deleteBtn.textContent = "Delete My Account";
+        }
+      }
+    }
+  );
+});
+*/
 
 // Internal tabs in Settings
 document.addEventListener("click", (e) => {
