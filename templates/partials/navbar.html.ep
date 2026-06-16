@@ -6,8 +6,7 @@
 <div class="nav-brand">
   <a href="/" class="brand-link">
     <span class="nav-logo-text">
-<!--     &lt;!-- ordo imperat --&gt;  -->
-      ( ordo machinae ) 
+      ( ordo scheduler ) 
     </span>
   </a>
 </div>

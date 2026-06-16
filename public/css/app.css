@@ -455,16 +455,15 @@ select:focus {
 }
 .internal-tab.active {
   color: var(--glow-cyan);
-  border-bottom: 3px solid var(--glow-cyan);
 }
 .internal-tab.active::after,
 .nav-tab.active::after {
   content: "";
   position: absolute;
-  bottom: -0.2rem;
+  bottom: -0.1rem;
   left: 0;
   width: 100%;
-  height: 0.3rem;
+  height: 0.4rem;
   background: var(--glow-cyan);
 }
 .info-grid {
@@ -798,14 +797,18 @@ progress::-webkit-progress-value {
 .nav-tabs-row {
   align-items: center;
   justify-content: center;
-  padding: 0.65rem 1.5rem 0.85rem ;
+  padding: 0.4rem 1.5rem 0.85rem ;
   flex-shrink: 1 ; 
   display: flex ;
   min-height: 6rem;
 }
 
 .nav-logo-row {
+/*
   padding: 1.1rem 1.5rem 0.8rem;
+*/
+  padding-top: 1.1rem;
+  padding-bottom: 0.1rem;
   display: flex;
   align-items: center;
 }
@@ -826,11 +829,7 @@ progress::-webkit-progress-value {
   overflow: hidden;
   border-radius: 0.5rem 0.5rem 0 0;
 }
-.nav-tab.active,
-.nav-tab:hover {
-  background: rgba(0, 255, 255, 0.1);
-  color: var(--glow-cyan);
-}
+
 .tab-content.active {
   padding: clamp(0.6rem, 0.8vw, 1rem);
 }
@@ -977,12 +976,10 @@ progress::-webkit-progress-value {
   min-height: 0;
 }
 
+/*
 .docs-sidebar {
   flex: 1 1 25rem;
   flex-shrink: 1;
-  /* min-width: 0; */
-  /*max-width: 320px; */
-
   align-self: stretch;
   overflow-y: auto;
   overflow-x: hidden;
@@ -992,9 +989,26 @@ progress::-webkit-progress-value {
   scrollbar-gutter: stable;
   background: #1a1a1a;
 }
+*/
 
-.docs-content pre,
 .docs-sidebar {
+  flex: 0 0 16.25rem;        /* ~260px */
+  min-width: 13.75rem;       /* ~220px */
+  max-width: 21.25rem;       /* ~340px */
+  align-self: stretch;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1.5rem 1.25rem;
+  border-right: 1px solid #444;
+  border-radius: 0.5rem;
+  margin-left: 0.1rem;
+  scrollbar-gutter: stable;
+  background: #1a1a1a;
+  height: fit-content;
+  max-height: 100%;
+}
+
+.docs-content pre {
   border-radius: 0.5rem;
   padding: 1.25rem;
 }
@@ -1270,7 +1284,7 @@ progress::-webkit-progress-value {
 #docs .docs-grid {
   display: flex;
   flex-direction: row;
-  gap: 2rem;
+  gap: 1.5rem;
   height: 100%;
   overflow: hidden;
   flex: 1 1 auto;
@@ -1565,12 +1579,14 @@ progress::-webkit-progress-value {
 }
 .state-badge.retrying::before {
   content: "";
+  animation: spin 1.5s linear infinite;
 }
 .state-badge.retrying {
   color: #039be5;
 }
 .state-badge.looping::before {
   content: "";
+  animation: spin 1.5s linear infinite;
 }
 .state-badge.looping {
   color: #29b6f6;
@@ -1891,9 +1907,11 @@ body.is-logged-in .private-tabs {
   display: flex !important;
 }
 .nav-tab.active {
+/*
   background-color: #1f2937;
   border-bottom: 3px solid #67e8f9;
-  color: #67e8f9;
+*/
+  color: var(--glow-cyan);
   font-weight: 600;
 }
 
@@ -2198,7 +2216,7 @@ html,
 .footer {
   background: var(--bg-secondary);
   border-top: 1px solid #333;
-  padding: 1.5rem 2.5rem;
+  padding: 1.2rem 3rem;
   margin-top: auto;
   font-size: 0.9rem;
   color: #888;

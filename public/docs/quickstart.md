@@ -93,8 +93,13 @@ Right after running:
 
   Now the Chef will bake automatically every morning.
 
-**Congratulations!** You just built, ran, and scheduled your first automated workflow.
+## 9. Full Walkthrough Video
 
+For a complete guided tour using the "Bake da Cake" example, watch this video:
+
+<iframe src="https://player.vimeo.com/video/123456789" width="100%" height="480" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>
+
+**Congratulations!** You just built, ran, and scheduled your first automated workflow.
 
 ### Next Step ###
 [Core Concepts](#docs/core-concepts.md) — Learn the foundational ideas to help you use Ordo effectively.

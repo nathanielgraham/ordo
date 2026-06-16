@@ -302,6 +302,77 @@ export function insertCluster(item, parentId = null) {
 
   const newRow = document.createElement("tr");
   newRow.id = rowId;
+  let depth = 0;
+  if (parentId) {
+    const parentRow = document.getElementById(`row-cluster-${parentId}`);
+    if (parentRow) depth = Number(parentRow.dataset.depth || 0) + 1;
+  }
+
+  buildSingleRow(newRow, item, depth, parentId);
+
+  // === CORRECT INSERTION: After ALL siblings AND their entire job subtrees ===
+  if (parentId) {
+    const parentRow = document.getElementById(`row-cluster-${parentId}`);
+    if (parentRow) {
+      let insertionPoint = parentRow;
+      let current = parentRow.nextElementSibling;
+
+      while (current) {
+        const currentDepth = Number(current.dataset.depth || 0);
+        if (currentDepth <= depth) {
+          // Left the subtree of the parent
+          break;
+        }
+        insertionPoint = current;
+        current = current.nextElementSibling;
+      }
+
+      insertionPoint.after(newRow);
+      console.log(`[insertCluster] ✅ Inserted cluster ${item.id} after full subtree of parent ${parentId}`);
+    } else {
+      tbody.appendChild(newRow);
+    }
+  } else {
+    // Root level
+    tbody.appendChild(newRow);
+  }
+
+  // Tree state sync
+  if (appState.monitorData?.tree) {
+    let treeCluster = findClusterById(appState.monitorData.tree, item.id);
+    if (!treeCluster) {
+      const newCluster = { ...item, is_cluster: true, children: [] };
+      if (!parentId || parentId === 1) {
+        appState.monitorData.tree.push(newCluster);
+      } else {
+        const parent = findClusterById(appState.monitorData.tree, parentId);
+        if (parent) {
+          if (!parent.children) parent.children = [];
+          parent.children.push(newCluster);
+        }
+      }
+    }
+  }
+
+  // Apply collapse state if needed
+  if (appState.collapsedClusters.has(String(item.id))) {
+    newRow.classList.add("collapsed");
+    toggleSubtree(item.id, true);
+  }
+}
+
+export function insertCluster2(item, parentId = null) {
+  const tbody = document.getElementById("tree-body");
+  if (!tbody) return;
+
+  const rowId = `row-cluster-${item.id}`;
+  if (document.getElementById(rowId)) {
+    updateClusterRow(document.getElementById(rowId), item);
+    return;
+  }
+
+  const newRow = document.createElement("tr");
+  newRow.id = rowId;
 
   let depth = 0;
   if (parentId) {

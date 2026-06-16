@@ -214,7 +214,7 @@ $self->helper(
 
       my $email = Email::MIME->create(
          header_str => [
-            From    => 'Ordo Machinae <ordosched@proton.me>',
+            From    => 'Ordo Scheduler <ordosched@proton.me>',
             To      => $to,
             Subject => $subject,
          ],
@@ -264,7 +264,7 @@ $self->helper(
 
          my $email = Email::MIME->create(
             header_str => [
-               From    => 'Ordo Machinae <ordosched@proton.me>',
+               From    => 'Ordo Scheduler <ordosched@proton.me>',
                To      => $to,
                Subject => $subject,
             ],
@@ -2486,7 +2486,7 @@ sub _fetch_reg {
 <head><meta charset="utf-8"></head>
 <body style="font-family: Arial, sans-serif; background:#0f0f1f; color:#e0e0e0; padding:20px;">
   <div style="max-width:600px; margin:0 auto; background:#1a1a1a; padding:30px; border-radius:8px;">
-    <h2>Welcome to Ordo Machinae</h2>
+    <h2>Welcome to Ordo Scheduler</h2>
    
     <p>Please click the button below to sign in:</p>
    
@@ -2511,7 +2511,7 @@ sub _fetch_reg {
 HTML
 
    my $plain_text = <<~"TEXT";
-Welcome to Ordo Machinae!
+Welcome to Ordo Scheduler!
 
 Please click the link below to sign in:
 $url
@@ -2692,6 +2692,8 @@ sub rotate_execution_token {
       { id              => $user->id }
    )->hash;
 
+   $user->execution_token( $token );
+
    return {
       success => 1,
       token   => $token,
@@ -2705,7 +2707,7 @@ sub new_token {
    my $token   = $self->_new_token();
    $self->sqlite->db->update( 'user', { token => $token }, { id => $user_id } )
      ->hash;
-
+   $user->token($token);
    return { success => 1, token => $token, message => 'New token generated' };
 }
 

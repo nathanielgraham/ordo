@@ -6,10 +6,6 @@ While modern AI has become extraordinarily good at thinking, planning, and reaso
 
 **Ordo** is the bridge — a modern, hierarchical job scheduler with native MCP support. This allows Grok to directly explore, create, schedule, monitor, and debug jobs running on **your** servers.
 
-![Ordo Main Interface](img/main-table.png)
-
-*Real-time hierarchical job view with live timers, stats, and dependency indicators.*
-
 ## Ordo + Grok in Action
 
 You can say things like:

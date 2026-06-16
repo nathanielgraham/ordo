@@ -27,7 +27,7 @@ See [Jobs & Clusters](#docs/jobs-and-clusters) for more details.
 **Best practice**: Set On Fail at the **cluster level**. See [Core Concepts](#docs/core-concepts).
 
 **Q: How do I schedule jobs?**  
-**A:** Create a **Calendar** with cron expressions, then attach it to a cluster. See [Calendars & Cron](#docs/calendars-and-cron).
+**A:** Create a **Calendar** with cron expressions, then attach it to a cluster. See [Calendars & Crons](#docs/calendars-and-crons).
 
 **Q: How do I view job logs?**  
 **A:** Click the **⋯** (Actions) menu on any job → **View Log**. Logs are stored in `~/ordo_node/logs/` on the server.
