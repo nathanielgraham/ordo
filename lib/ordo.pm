@@ -2696,7 +2696,7 @@ sub rotate_execution_token {
 
    return {
       success => 1,
-      token   => $token,
+      execution_token   => $token,
       message => 'New exec token generated'
    };
 }
@@ -2748,6 +2748,7 @@ sub _user_info {
       org_id          => $info->{org_id},
       name            => $info->{name},
       token           => $info->{token},
+      execution_token => $info->{execution_token},
       level           => $info->{level},
       email           => $info->{email},
       base_cluster_id => $info->{base_cluster_id},
@@ -2786,7 +2787,7 @@ sub _org_info {
    $org->{members} = $self->sqlite->db->select( 'user', [qw(id email level)],
       { org_id => $user->org_id } )->hashes->to_array;
    $org->{api_calls_reset_date} =
-     timelocal( 0, 0, 0, 1, (localtime)[4] + 2, (localtime)[5] );
+     timelocal( 0, 0, 0, 1, (localtime)[4] + 1, (localtime)[5] );
    my $org_id = $user->org_id;
 
    my $sql = <<~"SQL";

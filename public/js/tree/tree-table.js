@@ -64,26 +64,27 @@ function generateRowContent(
   if (item.needs_ids?.length) {
     depsCount += item.needs_ids.length;
     const lines = item.needs_ids.map(
-      (id) => `• ${resolveDepName(id, appState.monitorData.tree, isCluster)}`,
+      (id) => `${resolveDepName(id, appState.monitorData.tree, isCluster)}`,
     );
-    depsTooltipLines.push(`Needs (blocking):\n${lines.join("\n")}`);
+    depsTooltipLines.push(`Needs: ${lines.join("\n")}`);
   }
   if (item.needs_any_ids?.length) {
     depsCount += item.needs_any_ids.length;
     const lines = item.needs_any_ids.map(
-      (id) => `• ${resolveDepName(id, appState.monitorData.tree, isCluster)}`,
+      (id) => `${resolveDepName(id, appState.monitorData.tree, isCluster)}`,
     );
-    depsTooltipLines.push(`Needs Any (flexible):\n${lines.join("\n")}`);
+    depsTooltipLines.push(`Needs Any: ${lines.join("\n")}`);
   }
   if (item.on_fail_id) {
     depsCount += 1;
     const node = findClusterById(appState.monitorData.tree, item.on_fail_id);
     const path = node ? getFullPath(node) : `ID:${item.on_fail_id} (missing)`;
-    depsTooltipLines.push(`On Fail:\n• ${path}`);
+    depsTooltipLines.push(`On Fail: ${path}`);
+    //depsTooltipLines.push(`On_Fail: ${node.name} \n`);
   }
   const depsDisplay = depsCount > 0 ? depsCount : "—";
   const depsTitle = depsTooltipLines.length
-    ? depsTooltipLines.join("\n\n")
+    ? depsTooltipLines.join("\n")
     : "";
 
   // Stats
@@ -559,9 +560,9 @@ export function updateClusterRow(row, item) {
     if (Array.isArray(item.needs_ids) && item.needs_ids.length) {
       count += item.needs_ids.length;
       tooltipLines.push(
-        `Needs:\n${item.needs_ids
+        `Needs: ${item.needs_ids
           .map(
-            (id) => `• ${resolveDepName(id, appState.monitorData.tree, true)}`,
+            (id) => `${resolveDepName(id, appState.monitorData.tree, true)}`,
           )
           .join("\n")}`,
       );
@@ -569,9 +570,9 @@ export function updateClusterRow(row, item) {
     if (Array.isArray(item.needs_any_ids) && item.needs_any_ids.length) {
       count += item.needs_any_ids.length;
       tooltipLines.push(
-        `Needs Any:\n${item.needs_any_ids
+        `Needs Any: ${item.needs_any_ids
           .map(
-            (id) => `• ${resolveDepName(id, appState.monitorData.tree, true)}`,
+            (id) => `${resolveDepName(id, appState.monitorData.tree, true)}`,
           )
           .join("\n")}`,
       );
@@ -579,11 +580,11 @@ export function updateClusterRow(row, item) {
     if (item.on_fail_id) {
       count += 1;
       tooltipLines.push(
-        `On Fail: ${resolveDepName(item.on_fail_id, appState.monitorData.tree, true)}`,
+        `On Fail: ${resolveDepName(item.on_fail_id, appState.monitorData.tree, true)}\n`,
       );
     }
 
-    const tooltipText = tooltipLines.join("\n\n");
+    const tooltipText = tooltipLines.join("\n");
     const html = count > 0 ? String(count) : "—";
 
     // Use the helper if you added it, otherwise direct update
@@ -674,9 +675,9 @@ export function updateJobRow(row, item) {
     if (Array.isArray(item.needs_ids) && item.needs_ids.length) {
       count += item.needs_ids.length;
       tooltipLines.push(
-        `Needs:\n${item.needs_ids
+        `Needs: ${item.needs_ids
           .map(
-            (id) => `• ${resolveDepName(id, appState.monitorData.tree, false)}`,
+            (id) => `${resolveDepName(id, appState.monitorData.tree, false)}`,
           )
           .join("\n")}`,
       );
@@ -684,9 +685,9 @@ export function updateJobRow(row, item) {
     if (Array.isArray(item.needs_any_ids) && item.needs_any_ids.length) {
       count += item.needs_any_ids.length;
       tooltipLines.push(
-        `Needs Any:\n${item.needs_any_ids
+        `Needs Any: ${item.needs_any_ids
           .map(
-            (id) => `• ${resolveDepName(id, appState.monitorData.tree, false)}`,
+            (id) => `${resolveDepName(id, appState.monitorData.tree, false)}`,
           )
           .join("\n")}`,
       );
@@ -694,11 +695,11 @@ export function updateJobRow(row, item) {
     if (item.on_fail_id) {
       count += 1;
       tooltipLines.push(
-        `On Fail: ${resolveDepName(item.on_fail_id, appState.monitorData.tree, false)}`,
+        `On Fail: ${resolveDepName(item.on_fail_id, appState.monitorData.tree, false)}\n`,
       );
     }
 
-    const tooltipText = tooltipLines.join("\n\n");
+    const tooltipText = tooltipLines.join("\n");
     const html = count > 0 ? String(count) : "—";
 
     updateTooltipCell(cells[3], html, tooltipText, count > 0);

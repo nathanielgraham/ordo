@@ -7,11 +7,9 @@ Ordo supports **Model Context Protocol (MCP)**, allowing trusted AI models like 
 1. Go to **Settings** → copy your **API Token**.
 2. Tell Grok in the chat:
 
-> Connect to Ordo at `https://your-ordo-server/mcp` with token `YOUR_TOKEN_HERE`
+> Connect to Ordo at `https://ordoscheduler.com/mcp` with token `YOUR_TOKEN_HERE`
 
 Grok will remember the connection for the rest of the conversation.
-
-```Screenshot: /mcp_connect page showing endpoint and example prompt```
 
 ---
 
@@ -24,8 +22,6 @@ Grok will remember the connection for the rest of the conversation.
 - Start, stop, hold, kill, reset jobs and clusters
 - Sync servers and manage state
 - Check organization usage and rate limits
-
-```Screenshot: Grok discovering Ordo tools```
 
 ---
 
@@ -42,8 +38,6 @@ Grok will remember the connection for the rest of the conversation.
 ### Daily Backup (Every Night at 2 AM)
 **Prompt:**
 > Create a job called "daily-backup" in the "backups" cluster on server "liono" that runs every night at 2 AM and performs a full backup.
-
-```Screenshot: Example conversation with Grok creating a job```
 
 ---
 

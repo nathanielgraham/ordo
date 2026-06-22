@@ -203,14 +203,15 @@
                 max="100"
               ></progress>
               <p id="api-usage-text" class="text-grey"></p>
-              <p id="api-period" class="text-cyan small"></p>
             </div>
 
+            <div class="label-bold">Next Reset Date</div>
+            <div id="api-period"></div>
             <div class="label-bold">Servers</div>
-            <div id="server-usage-text">0 / 3</div>
+            <div id="server-usage-text"></div>
 
             <div class="label-bold">Team Members</div>
-            <div id="team-usage-text">0 / 2</div>
+            <div id="team-usage-text"></div>
           </div>
         </div>
       </div>

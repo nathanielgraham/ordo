@@ -195,11 +195,11 @@ export function handleCommandReply(data) {
       break;
 
     case "rotate_execution_token":
-      if (data.success && data.token) {
+      if (data.success && data.execution_token) {
         // Update visible token field
         const tokenField = document.getElementById("execution-token");
         if (tokenField) {
-          tokenField.value = data.token;
+          tokenField.value = data.execution_token;
         }
       } else {
         showToast(data.message || "Failed to rotate exec token", "error");
@@ -577,7 +577,7 @@ function renderUserProfile(user) {
   if (tokenInput) tokenInput.value = user.token || "";
 
   const execTokenInput = document.getElementById("execution-token");
-  if (execTokenInput) execTokenInput.value = user.token || "";
+  if (execTokenInput) execTokenInput.value = user.execution_token || "";
 }
 
 export function renderBillingAndOrg() {
@@ -619,7 +619,7 @@ export function renderBillingAndOrg() {
   const periodEl = document.getElementById("api-period");
   if (periodEl && org.api_calls_reset_date) {
     const resetDate = new Date(org.api_calls_reset_date * 1000);
-    periodEl.textContent = `Resets ${resetDate.toLocaleDateString()}`;
+    periodEl.textContent = `${resetDate.toLocaleDateString()}`;
   }
 
   // Server & Team usage — now dynamic from DB
@@ -1260,16 +1260,16 @@ export function applyServerBroadcast(data) {
     appState.serversData = appState.serversData.filter(
       (s) => !deleteIds.includes(Number(s.id)),
     );
-    changed = true;
+    //changed = true;
   }
 
-  if (
-    changed &&
-    document.getElementById("servers")?.classList.contains("active")
-  ) {
+  //if (
+  //  changed &&
+  //  document.getElementById("servers")?.classList.contains("active")
+  //) {
     console.log("[DEBUG Servers] Calling renderServersTable");
     renderServersTable();
-  }
+  //}
 }
 
 export function applyClusterBroadcast(data) {

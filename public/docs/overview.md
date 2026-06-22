@@ -6,18 +6,9 @@ While modern AI has become extraordinarily good at thinking, planning, and reaso
 
 **Ordo** is the bridge — a modern, hierarchical job scheduler with native MCP support. This allows Grok to directly explore, create, schedule, monitor, and debug jobs running on **your** servers.
 
-## Ordo + Grok in Action
+If you'd like to hear the rest of this somewhat dry and technical document sung to you by a psychedelic bubblegum pop rock female vocalist from the 1980's, click the video below. Otherwise, ignore the last sentence and continue to read normally.
 
-You can say things like:
-
-- “Create a new calendar called **US Holidays** that runs at midnight on every major US holiday and then attach it to the **Send Greeting Card** cluster.”
-- “Create a monitoring job called **Check Disk Space** that checks disk usage on all servers every 15 minutes, put it in the **Infrastructure Monitoring** cluster, and alert the team if anything exceeds 90%.”
-- “Analyze the logs of the job **Deployment v2.3** that failed yesterday and tell me what went wrong.”
-- “Create a job called **Daily DB Backup** that runs `pg_dump` on server **prod-db-01**, place it in the **Database Maintenance** cluster, and schedule it to run every night at 2 AM with 3 retries on failure.”
-
-Grok will generate **and test** the code on **your servers**, create the necessary calendars, set up dependencies, and even help debug issues in case something goes wrong.
-
----
+<iframe src="https://placeholder.bubblegumvideo.com/video/123456789" width="100%" height="480" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>
 
 ## Standout Features
 
@@ -35,6 +26,19 @@ Grok will generate **and test** the code on **your servers**, create the necessa
 
 - **Self-Healing Automation**  
   Automatic retries, failure routing, hold/ice/release controls, and escalation chains.
+
+---
+
+## Ordo + Grok in Action
+
+You can say things like:
+
+- “Create a new calendar called **US Holidays** that runs at midnight on every major US holiday and then attach it to the **Send Greeting Card** cluster.”
+- “Create a monitoring job called **Check Disk Space** that checks disk usage on all servers every 15 minutes, put it in the **Infrastructure Monitoring** cluster, and alert the team if anything exceeds 90%.”
+- “Analyze the logs of the job **Deployment v2.3** that failed yesterday and tell me what went wrong.”
+- “Create a job called **Daily DB Backup** that runs `pg_dump` on server **prod-db-01**, place it in the **Database Maintenance** cluster, and schedule it to run every night at 2 AM with 3 retries on failure.”
+
+Grok will generate **and test** the code on **your servers**, create the necessary calendars, set up dependencies, and even help debug issues in case something goes wrong.
 
 ---
 
