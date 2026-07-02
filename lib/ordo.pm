@@ -3,6 +3,7 @@ package ordo;
 use Mojo::Base 'Mojolicious';
 use Mojo::SQLite;
 use ordo::Model::User;
+use ordo::Stripe;
 use JSON;
 use Digest::SHA qw(hmac_sha1_hex);
 use FindBin     qw($Bin);
@@ -24,13 +25,8 @@ use POSIX       qw(strftime);
 use Time::Local qw(timelocal);
 use ordo::MCP::Tools;
 use Encode 'decode';
+use Mojolicious::Plugin::JSONConfig;
 use Data::Dumper;
-
-$ENV{EMAIL_SENDER_SMTP_USER} = 'nathanielgraham1@gmail.com';
-$ENV{EMAIL_SENDER_SMTP_PASS} = 'sscy mwcr ybcg vxga';
-
-# TODO: logs, time series stats, runtime alarms, state alarms, threshold alarms, eggs (lay, hatch, rezrov, blorb)
-# TODO: add json column to cluster and job, and needs and needed env variables
 
 $SIG{CHLD} = sub {
    1 while ( ( waitpid( -1, WNOHANG ) ) > 0 );
@@ -86,12 +82,24 @@ sub startup {
 
    my $self = shift;
 
-   # Configure the application
-   $self->secrets(
-      [ 'gu$!$#UessM%#eI36#$fYo43@#$uC^%5an', '%!#GDA$#!gfds%#@sdf' ] );
+   my $config = $self->plugin(
+      JSONConfig => {
+         file => 'config/ordo.json'
+      }
+   );
 
-   # In-memory storage for emails
-   #$self->attr( emails => sub { {} } );
+   $self->secrets( config => $config );
+
+   $ENV{EMAIL_SENDER_SMTP_USER} = $self->config->{smtp_user};
+   $ENV{EMAIL_SENDER_SMTP_PASS} = $self->config->{smtp_pass};
+
+   # Load Stripe helper
+   $self->helper(
+      stripe => sub {
+         state $stripe = ordo::Stripe->new( config => $self->config );
+         return $stripe;
+      }
+   );
 
    # Add this to your main app class
    has 'last_warning_cache' => sub {
@@ -110,7 +118,8 @@ sub startup {
    # Helpers
 
    $self->helper(
-      jwt => sub { Mojo::JWT->new( secret => shift->app->secrets->[0] || die ) }
+      jwt =>
+        sub { Mojo::JWT->new( secret => shift->config->{secrets}->[0] || die ) }
    );
 
    #$self->helper(
@@ -332,9 +341,8 @@ $self->helper(
 
          #my $user_model = $c->app->_make_user( { email => $email } );
 
-         my $user_model = ordo::Model::User->new(
-             remote_address => $c->tx->remote_address
-         );
+         my $user_model =
+           ordo::Model::User->new( remote_address => $c->tx->remote_address );
 
          # Call register_user with team_member flag when needed
          my $result = $c->app->request(
@@ -446,7 +454,7 @@ $self->helper(
    $r->get( '/app' => sub { shift->render( template => 'app' ); } );
 
    # Root redirects to public SPA
-   $r->get( '/' => sub { shift->redirect_to('/app'); } );
+   $r->get( '/' => sub { shift->redirect_to('/app/#docs/overview'); } );
 
    # MCP Connect Page
    $r->get(
@@ -552,6 +560,52 @@ $self->helper(
 
    $r->websocket('/websocket')
      ->to( controller => 'websocket', action => 'default' );
+
+   # === STRIPE WEBHOOK ===
+   $r->post(
+      '/api/stripe/webhook' => sub {
+         my $c          = shift;
+         my $payload    = $c->req->body;
+         my $sig_header = $c->req->headers->header('Stripe-Signature');
+
+         # TODO: Add signature verification later for security
+
+         eval {
+            $self->stripe->verify_webhook($payload, $sig_header);
+         };
+
+         if ($@) {
+            warn "Webhook signature verification failed: $@";
+            return $c->render(text => 'Invalid signature', status => 400);
+         }
+
+         my $event = decode_json($payload);
+         print "WEBHOOK\n";
+         print Dumper($event);
+
+         if ( $event->{type} eq 'checkout.session.completed' ) {
+            my $session = $event->{data}{object};
+            my $org_id  = $session->{metadata}{org_id};
+
+            if ($org_id) {
+               $c->sqlite->db->update(
+                  'org',
+                  {
+                     tier                   => 'pro',
+                     monthly_call_limit     => 500000,    # adjust as needed
+                     stripe_customer_id     => $session->{customer},
+                     stripe_subscription_id => $session->{subscription},
+                     subscription_status    => 'active'
+                  },
+                  { id => $org_id }
+               );
+            }
+         }
+
+         # Acknowledge receipt
+         $c->render( text => 'ok', status => 200 );
+      }
+   );
 
    # API — token in JSON
    $r->post(
@@ -762,19 +816,28 @@ sub _make_user {
    my $org =
      $self->sqlite->db->select( 'org', ['*'], { id => $user->{org_id} } )->hash;
 
+   # my $host  = hostname()        || get_local_ip_address();
+
+   my $team = $self->sqlite->db->select( 'user', [qw(id email level)],
+      { org_id => $user->{org_id} } )->hashes->to_array;
+
    my $u = ordo::Model::User->new(
       id                         => $user->{id},
       level                      => $user->{level},
       org_id                     => $user->{org_id},
       token                      => $user->{token},
       email                      => $user->{email},
+      team                       => $team,
+      remote_address             => $user->{remote_address},
       execution_token            => $user->{execution_token},
       base_cluster_id            => $user->{base_cluster_id},
       root_cluster_id            => $org->{root_cluster_id},
       monthly_call_limit         => $org->{monthly_call_limit},
       rate_limit_user_per_minute => $org->{rate_limit_user_per_minute},
       rate_limit_org_per_minute  => $org->{rate_limit_org_per_minute},
+      stripe_customer_id         => $org->{stripe_customer_id},
    );
+
    return $u;
 }
 
@@ -858,6 +921,12 @@ sub validate_params {
       if ( $type eq 's' ) {    # generic string
          $clean->{$key} = $value =~ s/^\s+|\s+$//gr;
       }
+
+      elsif ( $type eq 'p' ) {    # integer
+         return ( 0, "invalid value for $key" ) unless $value eq 'pro';
+         $clean->{$key} = $value;
+      }
+
       elsif ( $type eq 'i' ) {    # integer
          return ( 0, "invalid integer for $key" ) unless $value =~ /^\d+$/;
          $clean->{$key} = $value + 0;
@@ -1177,97 +1246,6 @@ sub request {
                }
                else {
                   # Execute command
-                  $response = $self->$sub_name( $user, $clean_params_or_error );
-               }
-            }
-         }
-      }
-   }
-   else {
-      $response = { success => 0, message => 'no such command' };
-   }
-
-   $response->{command_reply} = $command;
-   return $response;
-}
-
-sub request2 {
-   my ( $self, $user, $decoded ) = @_;
-   my $response = {};
-
-   die "Decoded must be HASH ref" unless $decoded && ref $decoded eq 'HASH';
-
-   my $command = delete $decoded->{command};
-   my $params  = {
-      map  { $_ => $decoded->{$_} }
-      grep { defined $decoded->{$_} } keys %$decoded
-   };
-
-   if ( exists $self->routing->{$command} ) {
-      my $level = $user->level || 0;
-      my ( $sub_name, $min_level, $legal_options, $count_usage ) =
-        @{ $self->routing->{$command} };
-      my ( $required_types, $optional_types ) = @{$legal_options};
-
-      $optional_types->{token}      = 's';
-      $optional_types->{tz}         = 'tz';
-      $optional_types->{request_id} = 's';
-
-      if ( $level < $min_level ) {
-         $response->{success} = 0;
-         $response->{message} = 'permission denied';
-      }
-      else {
-         # ==================== VALIDATION ====================
-         my ( $valid, $clean_params_or_error ) =
-           $self->validate_params( $required_types, $optional_types, $params );
-
-         if ( !$valid ) {
-            $response = { success => 0, message => $clean_params_or_error };
-         }
-         else {
-        # ==================== SPECIAL CASE: SKIP FOR LOGIN ====================
-            if ( $command eq 'login_user' || $command eq 'register_user' ) {
-
-               # Skip throttling/logging for login (low-impact auth command)
-               $response = $self->$sub_name( $user, $clean_params_or_error );
-            }
-            else {
-               # ==================== NORMAL COMMANDS ====================
-
-               # Throttle (always apply, even for non-counted commands)
-               my $user_id = $user->id;
-               my $org_id  = $user->org_id;
-               if (  $command ne 'update_job_state'
-                  && $self->throttle_exceeded($user) )
-               {
-                  $self->log->warn(
-"Rate limit hit for user $user_id / org $org_id (command $command)"
-                  );
-                  $response = {
-                     success    => 0,
-                     persistent => 1,
-                     limit_type => 'rate',
-                     message    =>
-                       "Too many requests (wait a minute and try again)"
-                  };
-               }
-               elsif ( $command ne 'update_job_state'
-                  && $count_usage
-                  && !$self->increment_usage($user) )
-               {
-                  $response = {
-                     success    => 0,
-                     persistent => 1,
-                     limit_type => 'monthly',
-                     message    => "Monthly API limit reached"
-                  };
-                  $self->log->warn(
-"Monthly API limit hit for user $user_id / org $org_id (command $command)"
-                  );
-               }
-               else {
-                  # Execute as method
                   $response = $self->$sub_name( $user, $clean_params_or_error );
                }
             }
@@ -2335,65 +2313,43 @@ sub id2path {
 }
 
 # user related subroutines
-
 sub login_user {
    my ( $self, $user, $d ) = @_;
 
-   my $results =
-     $self->sqlite->db->select( 'user', ['*'], { token => $d->{token} } )->hash;
+   my $found_user = $self->_make_user( { token => $d->{token} } );
+   return { success => 0, message => 'login failed' } unless $found_user->id;
 
-   my $org =
-     $self->sqlite->db->select( 'org', ['*'], { id => $results->{org_id} } )
-     ->hash;
+   $self->sqlite->db->update(
+      'user',
+      { update_time => time },
+      { id          => $found_user->id }
+   );
 
-   my $team = $self->sqlite->db->select( 'user', [qw(id email level)],
-      { org_id => $results->{org_id} } )->hashes->to_array;
+   my $path = $self->id2path( $user, { id => $found_user->base_cluster_id } );
+   my $host = hostname() || get_local_ip_address();
 
-   my ( $message, $success, $path );
-   my $host  = hostname()        || get_local_ip_address();
-   my $login = $results->{email} || $results->{id};
+   my @user_keys =
+     grep { $found_user->{$_} } qw( id level org_id token execution_token base_cluster_id root_cluster_id monthly_call_limit rate_limit_user_per_minute rate_limit_org_per_minute email team stripe_customer_id);
 
-   if ( $results->{id} ) {
-      $self->sqlite->db->update(
-         'user',
-         { update_time => time },
-         { id          => $results->{id} }
-      );
-
-      $user->id( $results->{id} );
-      $user->level( $results->{level} );
-      $user->org_id( $results->{org_id} );
-      $user->token( $results->{token} );
-      $user->execution_token( $results->{execution_token} );
-      $user->base_cluster_id( $results->{base_cluster_id} );
-      $user->root_cluster_id( $org->{root_cluster_id} );
-      $user->monthly_call_limit( $org->{monthly_call_limit} );
-      $user->rate_limit_user_per_minute( $org->{rate_limit_user_per_minute} );
-      $user->rate_limit_org_per_minute( $org->{rate_limit_org_per_minute} );
-      $user->email( $results->{email} );
-      $user->team($team);
-      $path    = $self->id2path( $user, { id => $results->{base_cluster_id} } );
-      $message = 'login success';
-      $success = 1;
+   for my $key (@user_keys) {
+      $user->{$key} = $found_user->{$key};
    }
-   else {
-      $message = 'login failed';
-      $success = 0;
-   }
-   return {
-      message         => $message,
-      success         => $success,
-      email           => $login,
-      id              => $results->{id},
-      org_id          => $results->{org_id},
-      remote_address  => $results->{remote_address},
-      token           => $results->{token},
+
+   my $rv = {
+      message         => 'login success',
+      success         => 1,
+      email           => $user->email,
+      id              => $user->id,
+      org_id          => $user->org_id,
+      remote_address  => $user->remote_address,
+      token           => $user->token,
       host            => $host,
       path            => $path,
-      level           => $results->{level},
-      base_cluster_id => $results->{base_cluster_id},
-      root_cluster_id => $org->{root_cluster_id},
+      level           => $user->level,
+      base_cluster_id => $user->base_cluster_id,
+      root_cluster_id => $user->root_cluster_id,
    };
+   return $rv;
 }
 
 sub register_user {
@@ -2692,12 +2648,12 @@ sub rotate_execution_token {
       { id              => $user->id }
    )->hash;
 
-   $user->execution_token( $token );
+   $user->execution_token($token);
 
    return {
-      success => 1,
-      execution_token   => $token,
-      message => 'New exec token generated'
+      success         => 1,
+      execution_token => $token,
+      message         => 'New exec token generated'
    };
 }
 
@@ -3926,6 +3882,7 @@ sub _update_job_log {
 sub update_job_state {
    my ( $self, $user, $d ) = @_;
    my $job = $self->_job_info( $user, $d );
+
    return { success => 0, message => 'job not found' } unless $job->{id};
 
    my $job_id = $job->{id};
@@ -3940,6 +3897,9 @@ sub update_job_state {
 
    $self->sqlite->db->update( 'job', $runtime_hash, { id => $job_id } )
      if scalar keys %$runtime_hash;
+
+   #my $jj = $self->sqlite->db->select( 'job', ['*'], { id => $job_id } )->hash;
+   #print Dumper($jj);
 
    # Step 2: Job log handling
    if ( $d->{ppid} && $d->{log_id} && $d->{state} ) {
@@ -4853,6 +4813,8 @@ sub kill_job {
       return $self->_hard_kill_job( $user, { id => $job->{id} } );
    }
 
+   print "PID: $job->{pid} PPID: $job->{ppid} \n";
+
    # check connection
    my $ssh = $self->ssh_connection->{ $job->{server_id} };
    $self->_connect_ssh( $user, { id => $job->{server_id} } )
@@ -4867,6 +4829,8 @@ sub kill_job {
 
    $self->_set_job_state( $user, { id => $job->{id}, state => 'stopping' } );
    my $rv      = $ssh->system("perl -e 'kill TERM, $pid_list'");
+   print "KILL $pid_list\n";
+   print Dumper($rv);
    my $success = $rv ? 1 : 0;
    return { success => $success };
 }
@@ -5431,6 +5395,7 @@ sub find_log {
    while ( my $log = $logs->hash ) {
       push @all, $log;
    }
+
    my $path = $self->id2path( $user, { id => $job->{cluster_id} } );
    return scalar @all
      ? {
@@ -5610,7 +5575,8 @@ sub _create_cron_object {
          # delete cal if no next start date
          unless ( $self->_cal_next_start( $user, { id => $cal_id } ) ) {
             $self->_stop_cal( $user, { id => $cal_id } );
-            $self->_delete_cal( $user, { id => $cal_id } );
+
+            #$self->_delete_cal( $user, { id => $cal_id } );
          }
       }
    );
@@ -6102,6 +6068,60 @@ sub find_stats {
    };
 }
 
+# STRIPE
+sub create_checkout_session {
+   my ( $self, $user, $d ) = @_;
+
+   my $session = {};
+   eval {
+      $session = $self->app->stripe->create_checkout_session(
+         customer_email => $user->{email},
+         price_id       => $self->app->config->{stripe}{pro_price_id},
+         org_id         => $user->org_id,
+         success_url => 'http://localhost:3000/app#settings/billing?success=1',
+         cancel_url  => 'http://localhost:3000/app#settings/billing',
+      );
+   };
+   return {
+      success => 0,
+      %$session, message => 'error creating checkout session'
+     }
+     unless $session->{url};
+   return { success => 1, %$session };
+}
+
+sub create_customer_portal {
+    my ($self, $user, $d) = @_;
+
+    unless ($user && $user->{stripe_customer_id}) {
+        return { 
+            success => 0, 
+            message => 'No active subscription found' 
+        };
+    }
+
+    my $portal = {};
+
+    eval {
+        $portal = $self->app->stripe->create_customer_portal(
+            customer_id => $user->{stripe_customer_id},
+            return_url  => 'http://localhost:3000/app#settings/billing',
+        );
+    };
+
+    if ($@ || !$portal->{url}) {
+        return { 
+            success => 0, 
+            message => 'Failed to open billing portal' 
+        };
+    }
+
+    return { 
+        success => 1, 
+        redirect_url => $portal->{url} 
+    };
+}
+
 sub get_documentation {
    my ( $self, $user, $d ) = @_;
 
@@ -6142,6 +6162,12 @@ sub _get_doc_content {
 sub routing {
    state %routing = (
 
+      # Stripe
+      'create_checkout_session' =>
+        [ 'create_checkout_session', 1, [ { plan => 'p' }, {} ], 1 ],
+      'create_customer_portal' =>
+        [ 'create_customer_portal', 1, [ {}, {} ], 1 ],
+
       # Docs
       'get_documentation' => [
          'get_documentation', 1, [ { section => 'n', format => 'n' }, {} ], 1
@@ -6167,10 +6193,10 @@ sub routing {
       'read_user'   => [ 'read_user', 0, [ {}, {} ], 0 ],
       'update_user' =>
         [ 'update_user', 1, [ {}, { mode => 'm', name => 'n' } ], 1 ],
-      'delete_user' => [ 'delete_user', 3, [ { id    => 'i' }, {} ], 1 ],
-      'delete_me'   => [ 'delete_me',   1, [ {}, {} ], 1 ],
+      'delete_user' => [ 'delete_user', 3, [ { id => 'i' },    {} ], 1 ],
+      'delete_me'   => [ 'delete_me',   1, [ {},               {} ], 1 ],
       'login_user'  => [ 'login_user',  0, [ { token => 's' }, {} ], 0 ],
-      'new_token'   => [ 'new_token',   1, [ {}, {} ], 0 ],
+      'new_token'   => [ 'new_token',   1, [ {},               {} ], 0 ],
       'rotate_execution_token' =>
         [ 'rotate_execution_token', 1, [ {}, {} ], 0 ],
       'register_user' =>

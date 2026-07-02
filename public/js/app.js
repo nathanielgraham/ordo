@@ -22,8 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initPricingModalLink();
   initLoginModal();
   initInviteModal();
-  window.addEventListener("hashchange", () => activateTab());
-
+  // window.addEventListener("hashchange", () => activateTab());
 });
 
 // Direct listener for Private & Enterprise link

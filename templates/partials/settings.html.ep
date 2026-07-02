@@ -15,7 +15,7 @@
 -->
       <!-- Internal Tabs -->
       <div class="internal-tabs">
-        <button class="internal-tab active" data-tab="account-tab">
+        <button class="internal-tab active" data-tab="account">
           Account
         </button>
         <button class="internal-tab" data-tab="team">Members</button>
@@ -23,7 +23,7 @@
       </div>
 
       <!-- Account Tab -->
-      <div id="tab-account-tab" class="internal-tab-content">
+      <div id="tab-account" class="internal-tab-content">
         <div class="card-simple">
           <h3 class="title-medium"><i class="fas fa-user"></i> Account</h3>
           <div class="info-grid">

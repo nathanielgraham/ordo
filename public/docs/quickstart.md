@@ -58,8 +58,6 @@ echo "Let-a da cake rest! Cool-a onna rack! Now froosty and servy! Bork bork bor
 sleep 1
 ```
 
-![New Job Modal with Template](img/job-modal-edit.png)
-
 *Creating a job using the script template dropdown for quick setup.*
 
 ## 5. Set Dependencies
@@ -68,8 +66,6 @@ In the job modal, set **Needs Jobs** so the steps run in order:
 - `mix` needs `prep`
 - `bake` needs `mix`
 - `finish` needs `bake`
-
-![Job Dependencies](img/job-dependencies.png)
 
 *Setting up job dependencies (needs) in the modal.*
 
@@ -92,12 +88,6 @@ Right after running:
 4. Go back to `Bork da Cake` → **Actions** → Attach calendar.
 
   Now the Chef will bake automatically every morning.
-
-## 9. Full Walkthrough Video
-
-For a complete guided tour using the "Bake da Cake" example, watch this video:
-
-<iframe src="https://player.vimeo.com/video/123456789" width="100%" height="480" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>
 
 **Congratulations!** You just built, ran, and scheduled your first automated workflow.
 

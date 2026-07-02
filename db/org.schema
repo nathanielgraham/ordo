@@ -2,17 +2,22 @@ PRAGMA foreign_keys=on;
 BEGIN TRANSACTION;
 DROP TABLE IF EXISTS org;
 CREATE TABLE org (
-        id INTEGER PRIMARY KEY NOT NULL,
-        root_cluster_id integer,
-        name varchar,
-        description varchar,
-        update_time integer,
-        server_limit integer DEFAULT 1,
-        member_limit integer DEFAULT 1,
-        tier text DEFAULT 'free',
-        monthly_call_limit INTEGER DEFAULT 1000,
-        rate_limit_user_per_minute INTEGER DEFAULT 100,
-        rate_limit_org_per_minute INTEGER DEFAULT 500,
-        creation_time integer DEFAULT (strftime('%s', 'now'))
+    id INTEGER PRIMARY KEY NOT NULL,
+    root_cluster_id integer,
+    name varchar,
+    description varchar,
+    update_time integer,
+    server_limit integer DEFAULT 1,
+    member_limit integer DEFAULT 1,
+    tier text DEFAULT 'free',
+    monthly_call_limit INTEGER DEFAULT 1000,
+    rate_limit_user_per_minute INTEGER DEFAULT 100,
+    rate_limit_org_per_minute INTEGER DEFAULT 500,
+    creation_time integer DEFAULT (strftime('%s', 'now')),
+    stripe_customer_id TEXT,
+    stripe_subscription_id TEXT,
+    subscription_status TEXT DEFAULT 'free',
+    subscription_updated_at INTEGER
 );
+
 COMMIT;

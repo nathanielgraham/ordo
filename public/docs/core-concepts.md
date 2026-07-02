@@ -43,10 +43,6 @@ If a cluster is still running when its next scheduled time arrives, Ordo can:
 
 Cloning is especially useful for long-running jobs that shouldn’t block the next cycle.
 
-![Cloning Example](img/clonable.png)
-
-*Image shows how to make a cluster clonable*
-
 ## 6. Environment Variables
 
 Every running job receives special `ORDO_*` variables that allow scripts to interact with Ordo itself. See the [Advanced Topics](#docs/advanced-topics.md) guide for details and examples.
@@ -58,12 +54,3 @@ Ordo provides optional real-time stats polling for running jobs and servers (CPU
 **Important:** Stats polling is **completely optional**. The core scheduling engine, dependencies, calendars, and job execution work perfectly without it. The main Dashboard primarily shows scheduling metrics and does not require polling.
 
 For recommended intervals, API impact, best practices, and how to minimize quota usage, see [Stats Polling & Monitoring](#docs/stats-polling).
-
-## 8. The Visual Dependency Graph
-
-Click **View Graph** on any cluster to see a live diagram showing all dependency relationships (Needs, Needs Any, and On Fail). 
-
-![Dependency Graph Example](img/dependency-graph.png)
-
-*Visual dependency graph showing needs (red), needs_any (green dashed), and on_fail (orange) relationships.*
-

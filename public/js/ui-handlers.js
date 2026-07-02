@@ -225,6 +225,22 @@ export function handleCommandReply(data) {
       }
       break;
 
+    case "create_checkout_session":
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        showToast(data.error || 'Failed to start checkout', 'danger');
+      }
+      break;
+
+    case "create_customer_portal":
+      if (data.redirect_url) {
+        window.location.href = data.redirect_url;
+      } else {
+        //showToast(data.message || 'Failed to create portal', 'danger');
+      }
+      break;
+
     default:
       console.debug(
         `[handleCommandReply] Unhandled command_reply: ${data.command_reply}`,
@@ -555,14 +571,6 @@ export function updateOrgAndTeam(data) {
   renderTeamMembers(appState.orgData.members || []);
 }
 
-export function updateOrgAndTeam2(data) {
-  if (data.command_reply === "read_org") {
-    appState.orgData = data;
-    renderOrgAndBilling(data);
-    renderTeamMembers(data.members || []);
-  }
-}
-
 function renderUserProfile(user) {
   document.getElementById("account-email").textContent = user.email || "—";
   document.getElementById("account-id").textContent = user.id || "—";
@@ -658,7 +666,7 @@ function renderTeamMembers(members) {
 
 // ==================== ACTIONS ====================
 
-export async function refreshSettings() {
+export function refreshSettings() {
   sendWS({ command: "read_user" });
   sendWS({ command: "read_org" });
 }
@@ -674,6 +682,7 @@ export async function saveAccount() {
     name: document.getElementById("edit-org-name").value.trim(),
     description: document.getElementById("edit-org-desc").value.trim(),
   };
+
 
   try {
     if (userPayload.name) {
@@ -1991,37 +2000,69 @@ export function showPricingModal() {
   modal.classList.add("active");
 }
 
-function initPricingModalListeners() {
-  const modal = document.getElementById("pricing-modal");
-  if (!modal) return;
+// ==================== STRIPE UPGRADE HANDLER ====================
 
-  modal.addEventListener("click", (e) => {
-    const upgradeBtn = e.target.closest("button[data-plan]");
-    if (upgradeBtn) {
-      const plan = upgradeBtn.dataset.plan;
-      modal.classList.remove("active");
+function handleUpgrade(plan = 'pro') {
+  const isLoggedIn = document.body.classList.contains("is-logged-in");
+  
+  if (!isLoggedIn) {
+    showLoginModal("pricing");
+    return;
+  }
 
-      const isLoggedIn = document.body.classList.contains("is-logged-in");
+  showToast(`Redirecting to ${plan} checkout...`, "info");
 
-      if (!isLoggedIn) {
-        showLoginModal("pricing"); // Ask to log in first
-      } else {
-        sendWS({ command: "create_checkout_session", plan: plan });
-        showToast(`Redirecting to ${plan} checkout...`, "info");
-      }
-      return;
-    }
-
-    if (e.target.id === "contact-sales-btn") {
-      modal.classList.remove("active");
-      window.location.href =
-        "mailto:ordosched@proton.me?subject=Enterprise%20Inquiry";
-    }
-
-    if (e.target.classList.contains("close-btn")) {
-      modal.classList.remove("active");
-    }
+  sendWS({ 
+    command: "create_checkout_session", 
+    plan: plan
   });
+}
+
+function handleManageSubscription() {
+  const btn = this; // if called from event listener
+  const originalText = btn ? btn.textContent : 'Manage Subscription';
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Opening portal...';
+  }
+
+  sendWS({ 
+    command: "create_customer_portal" 
+  });
+
+  // Optional timeout fallback
+  setTimeout(() => {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }, 4000);
+}
+
+// Attach listeners
+export function initStripeListeners() {
+
+  // Pricing modal
+  const pricingModal = document.getElementById("pricing-modal");
+  if (pricingModal) {
+    pricingModal.addEventListener("click", (e) => {
+      const upgradeBtn = e.target.closest("button[data-plan]");
+      if (upgradeBtn) {
+        const plan = upgradeBtn.dataset.plan || 'pro';
+        pricingModal.classList.remove("active");
+        handleUpgrade(plan);
+        return;
+      }
+      // ... other modal handlers
+    });
+  }
+
+  // Billing / Settings page
+  // document.getElementById('upgrade-to-pro')?.addEventListener('click', () => handleUpgrade('pro'));
+
+  // Manage Subscription button in Billing tab
+  document.getElementById('manage-subscription')?.addEventListener('click', handleManageSubscription);
 }
 
 function debugDumpTreeContext() {
@@ -2856,7 +2897,8 @@ function collectRecentActivity(tree, max = 12) {
 export function initModals() {
   initSettingsListeners();
   initLoginModalListeners();
-  initPricingModalListeners();
+  //initPricingModalListeners();
+  initStripeListeners();
   initResyncButton();
 
   // Logged-out "Log in" tab

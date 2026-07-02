@@ -39,10 +39,6 @@ Ordo supports two types of dependencies:
 - **Needs** — "AND" logic. All referenced items must complete successfully.
 - **Needs Any** — "OR" logic. Only one of the referenced items needs to complete.
 
-![Setting Job Dependencies](img/job-dependencies.png)
-
-*Configuring job dependencies (needs) in the modal.*
-
 ## On Fail Handling
 
 **On Fail** is a **cluster-level** feature only.
@@ -65,10 +61,6 @@ Each job and cluster has an actions menu (...) with the following controls:
 - **Reset** — Clear current state and return the job to `ready`.
 - **Complete** — Manually mark a job as successfully completed.
 - **Delete** — Permanently remove the job or cluster.
-
-![Actions Dropdown Menu](img/attach-calendar.png)
-
-*Actions menu (ellipses) available on each job and cluster row.*
 
 ## Visual Dependency Graph
 

@@ -103,20 +103,6 @@ if ( $delay && $delay <= 86400 ) {
 my $start_state =
   $origin eq 'retry' ? 'retrying' : $origin eq 'loop' ? 'looping' : 'running';
 
-# ==================== INITIAL STATE ====================
-&post(
-   {
-      command => 'update_job_state',
-      token   => $token,
-      id      => $id,
-      started => time,
-      state   => $start_state,
-      pid     => $$,
-      ppid    => $ppid,
-      log_id  => $time
-   }
-);
-
 # ==================== SMART EXECUTION ====================
 my $child_pid;
 
@@ -146,6 +132,20 @@ else {
       exec( '/bin/sh', '-c', $command ) or die "Exec failed: $!";
    }
 }
+
+# ==================== INITIAL STATE ====================
+&post(
+   {
+      command => 'update_job_state',
+      token   => $token,
+      id      => $id,
+      started => time,
+      state   => $start_state,
+      pid     => $child_pid,
+      ppid    => $ppid,
+      log_id  => $time
+   }
+);
 
 # ==================== PARENT SUPERVISOR ====================
 if ( $child_pid > 0 ) {
