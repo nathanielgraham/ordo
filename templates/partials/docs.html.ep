@@ -57,6 +57,11 @@
               >
             </li>
             <li>
+              <a href="#" data-file="cli.md" class="menu-link"
+                >Ordo CLI</a
+              >
+            </li>
+            <li>
               <a href="#" data-file="private-deployments.md" class="menu-link"
                 >Private Deployments</a
               >
