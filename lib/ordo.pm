@@ -2317,7 +2317,7 @@ sub login_user {
    my ( $self, $user, $d ) = @_;
 
    my $found_user = $self->_make_user( { token => $d->{token} } );
-   return { success => 0, message => 'login failed' } unless $found_user->id;
+   return { success => 0, message => 'login failed' } unless $found_user && $found_user->id;
 
    $self->sqlite->db->update(
       'user',
@@ -3897,9 +3897,6 @@ sub update_job_state {
 
    $self->sqlite->db->update( 'job', $runtime_hash, { id => $job_id } )
      if scalar keys %$runtime_hash;
-
-   #my $jj = $self->sqlite->db->select( 'job', ['*'], { id => $job_id } )->hash;
-   #print Dumper($jj);
 
    # Step 2: Job log handling
    if ( $d->{ppid} && $d->{log_id} && $d->{state} ) {
