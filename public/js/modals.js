@@ -51,7 +51,7 @@ function resetAllModals() {
     "cluster-name",
     //"cluster-description",
     "cluster-loops",
-    "cluster-clonable",
+    //"cluster-clonable",
     "attach-cal-select",
     "calendar-name",
     "calendar-tz",
@@ -80,6 +80,7 @@ function resetAllModals() {
     "cluster-needs",
     "cluster-needs-any",
     "cluster-on-fail",
+    "cluster-on-overdue",
     "attach-cal-select",
   ].forEach((id) => {
     const sel = document.getElementById(id);
@@ -90,7 +91,6 @@ function resetAllModals() {
   });
 }
 
-// ==================== JOB MODAL ====================
 // ==================== JOB MODAL ====================
 export function openJobModal(
   mode = "create",
@@ -172,11 +172,23 @@ export function openJobModal(
     if (templateSelect.tomselect) templateSelect.tomselect.destroy();
 
     const isEditMode = mode === "edit";
+
     new TomSelect(templateSelect, {
       maxItems: 1,
-      placeholder: isEditMode ? "Replace with Template..." : "Insert Template...",
+      placeholder: isEditMode
+        ? "Replace with Template..."
+        : "Insert Template...",
+      //width: '100%',                    // ensure full width
+      dropdownParent: "body", // better positioning
+      maxOptions: 20,
+      controlInput: "<input>", // force full width
+      //onInitialize: function() {
+      //  this.control.style.minWidth = '340px';
+      //},
+
       onChange: function (value) {
         if (!value || !scriptTextarea) return;
+
         switch (value) {
           case "shell":
             scriptTextarea.value = `#!/bin/sh
@@ -185,6 +197,7 @@ echo "Starting task at $(date)"
 echo "Task completed at $(date)"
 `;
             break;
+
           case "python":
             scriptTextarea.value = `#!/usr/bin/env python3
 import datetime
@@ -193,6 +206,7 @@ print("Started at:", datetime.datetime.now())
 print("Python script finished successfully")
 `;
             break;
+
           case "perl":
             scriptTextarea.value = `#!/usr/bin/env perl
 use strict;
@@ -202,26 +216,96 @@ print "Started at: " . localtime() . "\\n";
 print "Perl script finished.\\n";
 `;
             break;
-          case "ruby":
-            scriptTextarea.value = `#!/usr/bin/env ruby
-puts "Started at: \#{Time.now}"
-# Your Ruby code here...
-puts "Ruby script finished successfully"
-`;
-            break;
+
+          // === Utility Templates ===
           case "stats":
             scriptTextarea.value = `#!/bin/sh
+
+# === Update Stats ===
+# This is a simple wrapper that calls the full update_stats.pl script.
+# It collect real-time server metrics (CPU, memory, disk, load average, etc.)
+# and process-level stats (CPU %, memory %, PID, runtime) for the server it runs on.
+# 
+# Recommended: Run this frequently (every 30-60 seconds) in a dedicated "Monitoring" cluster.
+
 update_stats.pl
 `;
             break;
-          case "email":
-            scriptTextarea.value = `#!/bin/sh
-email_team.pl "Job completed successfully"
+
+          case "on-fail-alert":
+            scriptTextarea.value = `#!/usr/bin/env perl
+use strict;
+use warnings;
+
+# === On Fail Alert Template ===
+# This job is typically used in an On Fail Handler cluster.
+# It receives ORDO_FAILED_CLUSTER_ID.
+
+my $failed_id = $ENV{ORDO_FAILED_CLUSTER_ID} || "unknown";
+
+print "=== JOB FAILURE ALERT ===\\n";
+print "Failed cluster ID: $failed_id\\n";
+print "Time: " . localtime() . "\\n";
+
+# Customize your alert here (email, Slack, PagerDuty, etc.)
+# Example:
+# system("echo 'Job failed in cluster $failed_id' | mail -s 'Ordo Alert' admin@example.com");
 `;
             break;
+
+          case "clone-overdue":
+            scriptTextarea.value = `#!/usr/bin/env perl
+use strict;
+use warnings;
+use LWP::UserAgent;
+use JSON::MaybeXS;
+
+# === Clone Overdue Cluster ===
+# This job is typically used in an On Overdue Handler.
+# It automatically clones and starts the overdue cluster.
+
+my $overdue_id = $ENV{ORDO_OVERDUE_CLUSTER_ID} 
+  or die "ORDO_OVERDUE_CLUSTER_ID not set\\n";
+
+my $api_url = $ENV{ORDO_API} or die "ORDO_API not set\\n";
+my $token   = $ENV{ORDO_TOKEN} or die "ORDO_TOKEN not set\\n";
+
+my $ua = LWP::UserAgent->new;
+
+sub post {
+  my ($cmd, $payload) = @_;
+  my $res = $ua->post(
+    $api_url,
+    Content_Type => 'application/json',
+    Content      => encode_json({
+      command => $cmd,
+      id      => $payload,
+      token   => $token,
+    })
+  );
+  die "$cmd failed: " . $res->status_line unless $res->is_success;
+  return decode_json($res->decoded_content);
+}
+
+# Clone
+my $clone_data = post("clone_cluster", $overdue_id);
+my $clone_id = $clone_data->{clone_id} or die "No clone_id returned";
+
+print "Cloned $overdue_id -> $clone_id\\n";
+
+# Start clone
+post("start_cluster", $clone_id);
+
+print "Started cloned cluster $clone_id\\n";
+`;
+            break;
+
+          default:
+            console.warn("Unknown template:", value);
         }
         scriptTextarea.focus();
         updateClearButton();
+        scriptTextarea.scrollTop = 0;
       },
     });
   }
@@ -256,6 +340,36 @@ email_team.pl "Job completed successfully"
     maxItems: null,
     options: jobOptions,
   }).setValue((item?.needs_any_ids || []).map(String));
+
+  // Max Runtime
+  const maxRuntimeInput = document.getElementById("job-max-runtime");
+  if (maxRuntimeInput) {
+    maxRuntimeInput.value =
+      isEdit && item?.max_runtime_seconds ? item.max_runtime_seconds : "";
+  }
+
+  // Max Runtime Handler
+  const rootId = appState.accountData?.root_cluster_id || 1;
+  const clusterOptions = Array.from(appState.clustersMap.values())
+    .filter((c) => {
+      const cid = Number(c.id);
+      return cid !== rootId && cid !== numericId; // exclude root and self
+    })
+    .map((c) => ({
+      value: String(c.id),
+      text: c.name || `Cluster ${c.id}`,
+    }));
+
+  initModalTomSelect("job-max-runtime-handler", {
+    maxItems: 1,
+    options: clusterOptions,
+  });
+
+  if (isEdit && item?.max_runtime_cluster_id) {
+    document
+      .getElementById("job-max-runtime-handler")
+      .tomselect?.setValue([String(item.max_runtime_cluster_id)]);
+  }
 
   // ==================== ON_FAIL REMOVED FOR JOBS ====================
 
@@ -315,13 +429,13 @@ export function openClusterModal(
   }
 
   const isEdit = mode === "edit";
-
   modal.dataset.editId = isEdit ? String(itemId) : "";
   modal.dataset.parentId = parentId || "";
 
   document.getElementById("cluster-modal-title").textContent = isEdit
     ? "Edit Cluster"
     : "New Cluster";
+
   document.getElementById("cluster-context").textContent = isEdit
     ? `Editing: ${item?.name || "—"}`
     : parentName
@@ -330,19 +444,28 @@ export function openClusterModal(
 
   // Basic fields
   document.getElementById("cluster-name").value = item?.name || "";
-  //document.getElementById("cluster-description").value = item?.description || "";
   document.getElementById("cluster-loops").value = item?.loops ?? 0;
-  document.getElementById("cluster-clonable").checked = !!item?.clonable;
+
+  // Auto Start (default true)
+  const autoStartCheckbox = document.getElementById("cluster-auto-start");
+  if (autoStartCheckbox) {
+    autoStartCheckbox.checked = item ? !!item.auto_start : true;
+  }
 
   // Options (exclude root and self)
+  const rootId = appState.accountData?.root_cluster_id || 1;
+  const currentId = Number(itemId);
+
   const clusterOptions = Array.from(appState.clustersMap.values())
-    .filter((c) => Number(c.id) !== 1 && Number(c.id) !== Number(itemId))
+    .filter((c) => {
+      const cid = Number(c.id);
+      return cid !== rootId && cid !== currentId;
+    })
     .map((c) => ({
       value: String(c.id),
       text: c.name || `Cluster ${c.id}`,
     }));
 
-  // Initialize TomSelects (persistent)
   initModalTomSelect("cluster-needs", {
     maxItems: null,
     options: clusterOptions,
@@ -351,7 +474,13 @@ export function openClusterModal(
     maxItems: null,
     options: clusterOptions,
   });
+
   initModalTomSelect("cluster-on-fail", {
+    maxItems: 1,
+    options: clusterOptions,
+  });
+
+  initModalTomSelect("cluster-on-overdue", {
     maxItems: 1,
     options: clusterOptions,
   });
@@ -364,10 +493,115 @@ export function openClusterModal(
     document
       .getElementById("cluster-needs-any")
       .tomselect?.setValue((item.needs_any_ids || []).map(String));
+
     if (item.on_fail_id) {
       document
         .getElementById("cluster-on-fail")
         .tomselect?.setValue([String(item.on_fail_id)]);
+    }
+
+    if (item.on_overdue_id) {
+      document
+        .getElementById("cluster-on-overdue")
+        .tomselect?.setValue([String(item.on_overdue_id)]);
+    }
+  }
+
+  modal.classList.add("active");
+  document.getElementById("cluster-name").focus();
+}
+
+export function openClusterModal2(
+  mode = "create",
+  itemId = null,
+  parentId = null,
+  parentName = null,
+) {
+  const modal = document.getElementById("cluster-modal");
+  if (!modal) return;
+
+  let item = null;
+  if (mode === "edit" && itemId) {
+    item =
+      appState.clustersMap.get(Number(itemId)) ||
+      findClusterById(appState.monitorData.tree, itemId);
+  }
+
+  const isEdit = mode === "edit";
+  modal.dataset.editId = isEdit ? String(itemId) : "";
+  modal.dataset.parentId = parentId || "";
+
+  document.getElementById("cluster-modal-title").textContent = isEdit
+    ? "Edit Cluster"
+    : "New Cluster";
+
+  document.getElementById("cluster-context").textContent = isEdit
+    ? `Editing: ${item?.name || "—"}`
+    : parentName
+      ? `In cluster: ${parentName}`
+      : "In root";
+
+  // Basic fields
+  document.getElementById("cluster-name").value = item?.name || "";
+  document.getElementById("cluster-loops").value = item?.loops ?? 0;
+  //document.getElementById("cluster-clonable").checked = !!item?.clonable;
+
+  // === OPTIONS FOR SELECTS (exclude root and self) ===
+  const rootId = appState.accountData?.root_cluster_id || 1;
+  const currentId = Number(itemId);
+
+  const clusterOptions = Array.from(appState.clustersMap.values())
+    .filter((c) => {
+      const cid = Number(c.id);
+      return cid !== rootId && cid !== currentId;
+    })
+    .map((c) => ({
+      value: String(c.id),
+      text: c.name || `Cluster ${c.id}`,
+    }));
+
+  // Initialize TomSelects
+  initModalTomSelect("cluster-needs", {
+    maxItems: null,
+    options: clusterOptions,
+  });
+  initModalTomSelect("cluster-needs-any", {
+    maxItems: null,
+    options: clusterOptions,
+  });
+
+  // On Fail Handler
+  initModalTomSelect("cluster-on-fail", {
+    maxItems: 1,
+    options: clusterOptions,
+  });
+
+  // On Overdue Handler
+  initModalTomSelect("cluster-on-overdue", {
+    maxItems: 1,
+    options: clusterOptions,
+  });
+
+  // Restore values on edit
+  if (isEdit && item) {
+    document
+      .getElementById("cluster-needs")
+      .tomselect?.setValue((item.needs_ids || []).map(String));
+
+    document
+      .getElementById("cluster-needs-any")
+      .tomselect?.setValue((item.needs_any_ids || []).map(String));
+
+    if (item.on_fail_id) {
+      document
+        .getElementById("cluster-on-fail")
+        .tomselect?.setValue([String(item.on_fail_id)]);
+    }
+
+    if (item.on_overdue_id) {
+      document
+        .getElementById("cluster-on-overdue")
+        .tomselect?.setValue([String(item.on_overdue_id)]);
     }
   }
 
@@ -471,7 +705,7 @@ export function openConfirmModal(
   message = "Are you sure?",
   onConfirm = null,
   onCancel = null,
-  requireDeleteConfirmation = false   // Only true for dangerous actions
+  requireDeleteConfirmation = false, // Only true for dangerous actions
 ) {
   const modal = document.getElementById("confirm-modal");
   if (!modal) {
@@ -496,7 +730,7 @@ export function openConfirmModal(
         <label class="label-bold text-red">Type DELETE to confirm</label>
         <input type="text" id="confirm-delete-input" class="input" placeholder="DELETE" autocomplete="off">
       </div>`;
-    msgEl.insertAdjacentHTML('afterend', inputHTML);
+    msgEl.insertAdjacentHTML("afterend", inputHTML);
   }
 
   const yesBtn = document.getElementById("confirm-yes");
@@ -800,11 +1034,60 @@ export function saveJob() {
       .tomselect?.getValue()
       .map(Number) || [];
 
-/*
-  const onFailValue = document
-    .getElementById("job-on-fail")
+  // ==================== MAX RUNTIME HANDLER ====================
+  const maxRuntimeEl = document.getElementById("job-max-runtime");
+  const maxSeconds = maxRuntimeEl ? parseInt(maxRuntimeEl.value) || 0 : 0;
+
+  const maxHandlerEl = document.getElementById("job-max-runtime-handler");
+  let maxClusterId = null;
+
+  if (maxHandlerEl && maxHandlerEl.tomselect) {
+    const val = maxHandlerEl.tomselect.getValue();
+    if (val && String(val).trim() !== "" && String(val) !== "null") {
+      maxClusterId = Number(val);
+    }
+  }
+
+  // Validation: one but not both
+  if ((maxSeconds > 0 && !maxClusterId) || (maxClusterId && maxSeconds === 0)) {
+    showToast(
+      "Max Runtime requires both seconds AND a handler (or neither)",
+      "danger",
+    );
+    return; // stop save
+  }
+
+  // Send to server
+  if (maxSeconds > 0 && maxClusterId) {
+    payload.max_runtime_seconds = maxSeconds;
+    payload.max_runtime_cluster_id = maxClusterId;
+  } else {
+    payload.max_runtime_seconds = 0;
+    payload.max_runtime_cluster_id = null;
+  }
+
+  console.log("[saveJob] Max Runtime →", {
+    max_runtime_seconds: maxSeconds,
+    max_runtime_cluster_id: maxClusterId,
+  });
+
+  /*
+  const maxRuntimeVal = parseInt(document.getElementById("job-max-runtime").value) || 0;
+  const maxRuntimeHandlerVal = document
+    .getElementById("job-max-runtime-handler")
     .tomselect?.getValue();
-  if (onFailValue) payload.on_fail_id = Number(onFailValue);
+
+  if (maxRuntimeVal > 0) {
+    payload.max_runtime_seconds = maxRuntimeVal;
+    if (maxRuntimeHandlerVal && maxRuntimeHandlerVal.length > 0) {
+      payload.max_runtime_cluster_id = Number(maxRuntimeHandlerVal);
+    }
+  } else if (maxRuntimeHandlerVal && maxRuntimeHandlerVal.length > 0) {
+    // If handler is set but no seconds, show error
+    payload.max_runtime_cluster_id = null;   // explicitly clear
+    showToast("Max Runtime (seconds) is required when using a handler", "danger");
+    return;
+  }
 */
 
   // ==================== PARENT / RENAME HANDLING ====================
@@ -844,10 +1127,13 @@ export function saveCluster() {
   const payload = {
     command: isEdit ? "update_cluster" : "create_cluster",
     name: (document.getElementById("cluster-name").value || "").trim(),
-    //description: (document.getElementById("cluster-description").value || "").trim(),
     loops: parseInt(document.getElementById("cluster-loops").value) || 0,
-    clonable: document.getElementById("cluster-clonable").checked || false,
+    //auto_start: document.getElementById("cluster-auto-start").checked ? 1 : 0
   };
+
+  // Auto Start (default 1)
+  const autoStartEl = document.getElementById("cluster-auto-start");
+  payload.auto_start = autoStartEl && autoStartEl.checked ? 1 : 0;
 
   // Read current TomSelect values
   payload.needs_ids =
@@ -855,16 +1141,28 @@ export function saveCluster() {
       .getElementById("cluster-needs")
       .tomselect?.getValue()
       .map(Number) || [];
+
   payload.needs_any_ids =
     document
       .getElementById("cluster-needs-any")
       .tomselect?.getValue()
       .map(Number) || [];
 
+  // On Fail Handler
   const onFailValue = document
     .getElementById("cluster-on-fail")
     .tomselect?.getValue();
-  if (onFailValue) payload.on_fail_id = Number(onFailValue);
+  if (onFailValue && onFailValue.length > 0) {
+    payload.on_fail_id = Number(onFailValue);
+  }
+
+  // On Overdue Handler
+  const onOverdueValue = document
+    .getElementById("cluster-on-overdue")
+    .tomselect?.getValue();
+  if (onOverdueValue && onOverdueValue.length > 0) {
+    payload.on_overdue_id = Number(onOverdueValue); // ← use _id to match routing
+  }
 
   // ==================== PARENT / RENAME HANDLING ====================
   if (!isEdit) {
@@ -873,11 +1171,10 @@ export function saveCluster() {
   } else {
     payload.id = id;
 
-    // Rename handling
     const newName = payload.name;
     if (newName) {
       payload.newname = newName;
-      delete payload.name; // backend expects newname on update
+      delete payload.name;
     }
   }
 
@@ -891,8 +1188,9 @@ export function saveCluster() {
   sendWS(payload);
 
   modal.classList.remove("active");
-  //showToast(isEdit ? "Cluster updated" : "Cluster created", "success");
 }
+
+// ==================== SAVE CLUSTER ====================
 
 export function saveCalendar() {
   const modal = document.getElementById("calendar-modal");
@@ -1205,7 +1503,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("invite-email").value = "";
   });
 
-/*
+  /*
   document.getElementById("cancel-invite")?.addEventListener("click", () => {
     document.getElementById("invite-modal").classList.remove("active");
   });

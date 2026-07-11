@@ -12,7 +12,7 @@
         <p class="text-center text-grey mb-large">
           We'll send you a magic login link.
         </p>
-       
+
         <form id="login-form" novalidate>
           <div class="form-group">
             <label class="label-bold">Email Address</label>
@@ -29,23 +29,31 @@
           <!-- Legal Agreement -->
           <div class="legal-checkbox mt-large">
             <label class="flex items-center gap-small cursor-pointer">
-              <input 
-                type="checkbox" 
-                id="agree-terms" 
-                name="agree_terms" 
+              <input
+                type="checkbox"
+                id="agree-terms"
+                name="agree_terms"
                 required
-              >
+              />
               <span class="text-grey text-small">
-                I agree to the 
-                <a href="/terms" target="_blank" class="text-cyan">Terms of Service</a> 
-                and 
-                <a href="/privacy" target="_blank" class="text-cyan">Privacy Policy</a>
+                I agree to the
+                <a href="/terms" target="_blank" class="text-cyan"
+                  >Terms of Service</a
+                >
+                and
+                <a href="/privacy" target="_blank" class="text-cyan"
+                  >Privacy Policy</a
+                >
               </span>
             </label>
           </div>
 
           <div class="mt-large">
-            <button type="submit" class="btn btn-primary w-full" id="send-magic-link-btn">
+            <button
+              type="submit"
+              class="btn btn-primary w-full"
+              id="send-magic-link-btn"
+            >
               Send Magic Link
             </button>
           </div>
@@ -53,14 +61,27 @@
       </div>
 
       <!-- Success State -->
-      <div id="login-success" style="display: none; text-align: center; padding: 2rem 1rem">
+      <div
+        id="login-success"
+        style="display: none; text-align: center; padding: 2rem 1rem"
+      >
         <i class="fas fa-envelope fa-3x text-cyan mb-medium"></i>
         <h4>Check your inbox</h4>
-        <p class="text-grey">We've sent you a magic login link.<br>It expires in 15 minutes.</p>
+        <p class="text-grey">
+          We've sent you a magic login link.<br />It expires in 15 minutes.
+        </p>
       </div>
 
       <!-- Error State -->
-      <div id="login-error" style="display: none; text-align: center; padding: 1.5rem; color: #ef4444;">
+      <div
+        id="login-error"
+        style="
+          display: none;
+          text-align: center;
+          padding: 1.5rem;
+          color: #ef4444;
+        "
+      >
         <p id="login-error-text"></p>
       </div>
     </div>
@@ -202,9 +223,10 @@
     <div class="modal-body">
       <div id="invite-form-container">
         <p class="text-grey mb-large">
-          Invite someone to join your organization. They will have access to your jobs, clusters, and calendars.
+          Invite someone to join your organization. They will have access to
+          your jobs, clusters, and calendars.
         </p>
-       
+
         <form id="invite-form" novalidate>
           <div class="form-group">
             <label class="label-bold">Email Address</label>
@@ -219,11 +241,17 @@
           </div>
 
           <p class="help-text small text-grey mt-medium">
-            <strong>Note:</strong> If they already have an Ordo account, they must use a <strong>different email address</strong> to join your team.
+            <strong>Note:</strong> If they already have an Ordo account, they
+            must use a <strong>different email address</strong> to join your
+            team.
           </p>
 
           <div class="mt-large">
-            <button type="submit" class="btn btn-primary w-full" id="send-invite-btn">
+            <button
+              type="submit"
+              class="btn btn-primary w-full"
+              id="send-invite-btn"
+            >
               Send Invitation
             </button>
           </div>
@@ -231,14 +259,25 @@
       </div>
 
       <!-- Success State -->
-      <div id="invite-success" style="display: none; text-align: center; padding: 2rem 1rem;">
+      <div
+        id="invite-success"
+        style="display: none; text-align: center; padding: 2rem 1rem"
+      >
         <i class="fas fa-check-circle fa-3x text-green mb-medium"></i>
         <h4>Invitation Sent!</h4>
         <p class="text-grey" id="invite-success-text"></p>
       </div>
 
       <!-- Error State -->
-      <div id="invite-error" style="display: none; text-align: center; padding: 1.5rem; color: #ef4444;">
+      <div
+        id="invite-error"
+        style="
+          display: none;
+          text-align: center;
+          padding: 1.5rem;
+          color: #ef4444;
+        "
+      >
         <p id="invite-error-text"></p>
       </div>
     </div>
@@ -325,14 +364,17 @@
       <div class="form-group">
         <div class="template-row">
           <label class="label" for="script-template">Insert Template</label>
-          <select id="script-template" class="template-select">
-            <option value="">— Choose Template —</option>
+
+          <select id="script-template">
+            <option value="">— Select Template —</option>
             <option value="shell">Shell Script</option>
             <option value="python">Python Script</option>
             <option value="perl">Perl Script</option>
-            <option value="ruby">Ruby Script</option>
             <option value="stats">Update Stats</option>
-            <option value="email">Email Team</option>
+
+            <!-- Handler Templates -->
+            <option value="on-fail-alert">On-Fail Alert</option>
+            <option value="clone-overdue">Clone Overdue Cluster</option>
           </select>
         </div>
 
@@ -360,7 +402,9 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="label" for="job-needs">Needs Jobs (blocking AND)</label>
+          <label class="label" for="job-needs"
+            >Needs All Jobs (blocking AND)</label
+          >
           <select
             id="job-needs"
             placeholder="Select dependencies..."
@@ -409,6 +453,30 @@
           <label class="label">Delay (seconds)</label>
           <input class="input" type="number" id="job-delay" min="0" value="1" />
         </div>
+
+        <!-- Max Runtime -->
+        <div class="form-group">
+          <label class="label" for="job-max-runtime"
+            >Max Runtime (seconds)</label
+          >
+          <input
+            class="input"
+            type="number"
+            id="job-max-runtime"
+            min="0"
+            placeholder="e.g. 7200 (2 hours)"
+          />
+        </div>
+
+        <!-- Max Runtime Handler -->
+        <div class="form-group">
+          <label class="label" for="job-max-runtime-handler"
+            >Max Runtime Handler</label
+          >
+          <select id="job-max-runtime-handler">
+            <option value="">None</option>
+          </select>
+        </div>
       </div>
     </section>
     <footer class="modal-footer">
@@ -447,7 +515,7 @@
       <div class="form-row">
         <div class="form-group">
           <label class="label" for="cluster-needs"
-            >Needs Clusters (blocking AND)</label
+            >Needs All Clusters (blocking AND)</label
           >
           <select
             id="cluster-needs"
@@ -470,12 +538,23 @@
           </p>
         </div>
       </div>
+
+      <!-- On Fail Handler -->
       <div class="form-group">
-        <label class="label" for="cluster-on-fail">On Fail Cluster</label>
+        <label class="label" for="cluster-on-fail">On Fail Handler</label>
         <select id="cluster-on-fail">
           <option value="">None</option>
         </select>
       </div>
+
+      <!-- On Overdue Handler -->
+      <div class="form-group">
+        <label class="label" for="cluster-on-overdue">On Overdue Handler</label>
+        <select id="cluster-on-overdue">
+          <option value="">None</option>
+        </select>
+      </div>
+
       <div class="form-group">
         <label class="label"
           >Loops <span class="text-grey">(0 = run once)</span></label
@@ -488,15 +567,13 @@
           value="0"
         />
       </div>
+
+      <!-- Auto Start -->
       <div class="form-group">
-        <label class="label">
-          <input type="checkbox" id="cluster-clonable" />
-          Clonable
+        <label class="label" for="cluster-auto-start">
+          <input type="checkbox" id="cluster-auto-start" checked />
+          Auto-start when parent cluster starts
         </label>
-        <p class="help-text">
-          If checked, starting a running cluster creates & starts an exact clone
-          instead of erroring.
-        </p>
       </div>
     </section>
     <footer class="modal-footer">
@@ -547,12 +624,12 @@
 
       <button class="close-btn" data-dismiss="graph-modal"></button>
     </header>
+
     <section class="modal-body graph-body">
       <div id="graph-container"></div>
-
       <div class="graph-legend">
-        <!-- Your existing legend stays exactly the same -->
         <div class="graph-legend-title">Legend</div>
+
         <div class="legend-item">
           <svg width="60" height="14" class="legend-svg">
             <line
@@ -565,8 +642,9 @@
             />
             <polygon points="52,7 46,3 46,11" fill="#ff3366" />
           </svg>
-          <span><strong>needs</strong> — must complete (AND)</span>
+          <span><strong>Needs All</strong> — must complete (AND)</span>
         </div>
+
         <div class="legend-item">
           <svg width="60" height="14" class="legend-svg">
             <line
@@ -580,8 +658,9 @@
             />
             <polygon points="52,7 46,3 46,11" fill="#00ff9d" />
           </svg>
-          <span><strong>needs_any</strong> — any one is enough (OR)</span>
+          <span><strong>Needs Any</strong> — any one is enough (OR)</span>
         </div>
+
         <div class="legend-item">
           <svg width="60" height="14" class="legend-svg">
             <line
@@ -594,7 +673,23 @@
             />
             <polygon points="52,7 46,3 46,11" fill="#ffaa00" />
           </svg>
-          <span><strong>on_fail</strong> — run if parent fails</span>
+          <span><strong>On Fail</strong> — run if parent fails</span>
+        </div>
+
+        <div class="legend-item">
+          <svg width="60" height="14" class="legend-svg">
+            <line
+              x1="4"
+              y1="7"
+              x2="52"
+              y2="7"
+              stroke="#fb923c"
+              stroke-width="3"
+              stroke-dasharray="6,4"
+            />
+            <polygon points="52,7 46,3 46,11" fill="#fb923c" />
+          </svg>
+          <span><strong>On Overdue</strong> — run if parent is overdue</span>
         </div>
       </div>
     </section>

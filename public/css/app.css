@@ -2318,3 +2318,12 @@ html,
   background-color: #991b1b;
   transform: translateY(-1px);
 }
+
+#script-template {
+  width: 100% !important;
+  min-width: 22rem !important;     /* ~ 352px - should fit longest text */
+}
+
+#script-template .ts-control {
+  min-width: 22rem !important;
+}

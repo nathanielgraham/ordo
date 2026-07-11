@@ -91,6 +91,113 @@ function buildGraphElements(rootNode) {
   const elements = [];
   const nodeMap = new Map();
 
+  const addNode = (item, parentPrefix = null, viaHandler = false) => {
+    if (!item?.id) return null;
+    const isCluster = !!item.is_cluster || item.children?.length > 0;
+    const prefix = isCluster ? 'c' : 'j';
+    const pid = `${prefix}${item.id}`;
+
+    if (nodeMap.has(pid)) {
+      if (viaHandler) nodeMap.get(pid).classes.push('handler-target');
+      return pid;
+    }
+
+    const nodeEl = {
+      data: {
+        id: pid,
+        label: isCluster ? `${item.name || 'Cluster'}/` : (item.name || 'Job'),
+        is_cluster: isCluster,
+        originalId: Number(item.id)
+      },
+      classes: [
+        isCluster ? 'cluster-node' : 'job-node',
+        viaHandler ? 'handler-target' : ''
+      ]
+    };
+
+    if (parentPrefix) nodeEl.data.parent = parentPrefix;
+    elements.push(nodeEl);
+    nodeMap.set(pid, nodeEl);
+    return pid;
+  };
+
+  const findTyped = (id, expectedIsCluster) => {
+    const numId = Number(id);
+    if (!numId) return null;
+    if (expectedIsCluster) {
+      return findClusterById(rootNode, numId) ||
+             (appState.clustersMap?.has(numId) ? appState.clustersMap.get(numId) : null);
+    } else {
+      return findJobById(rootNode, numId) ||
+             (appState.jobsMap?.has(numId) ? appState.jobsMap.get(numId) : null);
+    }
+  };
+
+  const traverse = (node, parentPrefix = null) => {
+    if (!node) return;
+    const isCluster = !!node.is_cluster || node.children?.length > 0;
+    const myPrefix = addNode(node, parentPrefix);
+
+    // Children
+    if (isCluster) {
+      [...(node.children || []), ...(node.jobs || [])].forEach(child => {
+        traverse(child, myPrefix);
+      });
+    }
+
+    // Normal Dependencies
+    ['needs_ids', 'needs_any_ids'].forEach(key => {
+      if (!Array.isArray(node[key])) return;
+      node[key].forEach(depId => {
+        const dep = findTyped(depId, isCluster);
+        if (dep) {
+          const depPrefix = addNode(dep);
+          elements.push({
+            data: { id: `e${myPrefix}-${depPrefix}`, source: myPrefix, target: depPrefix },
+            classes: [key === 'needs_ids' ? 'needs' : 'needs-any']
+          });
+        }
+      });
+    });
+
+    // On Fail Handler
+    if (node.on_fail_id) {
+      const fail = findTyped(node.on_fail_id, isCluster) ||
+                   findClusterById(rootNode, node.on_fail_id) ||
+                   findJobById(rootNode, node.on_fail_id);
+      if (fail) {
+        const failPrefix = addNode(fail, null, true);
+        elements.push({
+          data: { id: `of${myPrefix}-${failPrefix}`, source: myPrefix, target: failPrefix },
+          classes: ['on-fail']
+        });
+      }
+    }
+
+    // On Overdue Handler
+    if (node.on_overdue_id) {
+      const overdue = findTyped(node.on_overdue_id, isCluster) ||
+                      findClusterById(rootNode, node.on_overdue_id) ||
+                      findJobById(rootNode, node.on_overdue_id);
+      if (overdue) {
+        const overduePrefix = addNode(overdue, null, true);
+        elements.push({
+          data: { id: `oo${myPrefix}-${overduePrefix}`, source: myPrefix, target: overduePrefix },
+          classes: ['on-overdue']
+        });
+      }
+    }
+  };
+
+  traverse(rootNode);
+  console.log(`[Graph] Built ${elements.length} elements for ${rootNode.name}`);
+  return elements;
+}
+
+function buildGraphElements2(rootNode) {
+  const elements = [];
+  const nodeMap = new Map();
+
   const addNode = (item, parentPrefix = null, viaOnFail = false) => {
     if (!item?.id) return null;
 
@@ -254,6 +361,21 @@ function getGraphStyle() {
       'target-arrow-color': '#fbbf24',
       'target-arrow-shape': 'diamond',
       'curve-style': 'bezier'
+    }},
+    { selector: '.on-overdue', style: {
+      'width': 3,
+      'line-color': '#fb923c',           // orange
+      'target-arrow-color': '#fb923c',
+      'target-arrow-shape': 'diamond',
+      'curve-style': 'bezier',
+      'line-style': 'dashed'
+    }},
+    { selector: '.handler-target', style: {
+      'border-style': 'dashed',
+      'border-color': '#fbbf24',
+      'border-width': 4,
+      'background-color': '#312e81',
+      'background-opacity': 0.85
     }}
   ];
 }

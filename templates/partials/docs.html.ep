@@ -57,6 +57,11 @@
               >
             </li>
             <li>
+              <a href="#" data-file="rest-api.md" class="menu-link"
+                >REST API</a
+              >
+            </li>
+            <li>
               <a href="#" data-file="cli.md" class="menu-link"
                 >Ordo CLI</a
               >

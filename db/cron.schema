@@ -11,7 +11,7 @@ CREATE TABLE cron (
         next_start integer,
         begin integer,
         expire integer,
-	update_time integer,
+	updated_at integer,
         creation_time integer DEFAULT (strftime('%s', 'now'))
 );
 

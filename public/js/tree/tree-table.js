@@ -154,7 +154,7 @@ function generateRowContent(
     `;
   } else if (isCluster) {
     const runDisabled =
-      (stateLower === "running" && !item.clonable) ||
+      (stateLower === "running") ||
       ["immutable", "ice", "hold"].includes(stateLower);
     const killDisabled = stateLower !== "running";
     const holdDisabled = ["hold", "immutable", "ice"].includes(stateLower);
@@ -195,7 +195,7 @@ function generateRowContent(
     `;
   } else {
     const runDisabled =
-      (stateLower === "running" && !item.clonable) ||
+      (stateLower === "running") ||
       ["immutable", "ice", "hold"].includes(stateLower);
     const killDisabled = stateLower !== "running";
     const holdDisabled = ["hold", "immutable", "ice"].includes(stateLower);
@@ -692,12 +692,15 @@ export function updateJobRow(row, item) {
           .join("\n")}`,
       );
     }
+
+/*
     if (item.on_fail_id) {
       count += 1;
       tooltipLines.push(
         `On Fail: ${resolveDepName(item.on_fail_id, appState.monitorData.tree, false)}\n`,
       );
     }
+*/
 
     const tooltipText = tooltipLines.join("\n");
     const html = count > 0 ? String(count) : "—";

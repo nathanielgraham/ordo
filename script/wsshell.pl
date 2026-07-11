@@ -24,7 +24,7 @@ $ua->websocket(
     }
 
     #my $request_number = 0;
-    $tx->send('{ "command":"login_user", "token":"1a5877790e81aec032f5105b12703f3a36ab2a43" }');
+    $tx->send('{ "command":"login_user", "token":"f9aa4d9bbe502ff23a11416761660651b8da69b4" }');
 
     my $rl = new AnyEvent::ReadLine::Gnu
      prompt  => "ordo> ",

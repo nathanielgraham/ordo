@@ -1,3 +1,7 @@
+PRAGMA foreign_keys=on;
+BEGIN TRANSACTION;
+DROP TABLE IF EXISTS server;
+
 CREATE TABLE server (
     id INTEGER PRIMARY KEY NOT NULL,
     org_id INTEGER REFERENCES org(id) ON DELETE CASCADE,
@@ -18,7 +22,7 @@ CREATE TABLE server (
     free_disk INTEGER,
     uptime INTEGER,
     ping REAL,
-    update_time INTEGER,
+    updated_at INTEGER,
     creation_time INTEGER DEFAULT (strftime('%s', 'now')),
 
     -- New stats from enhanced SysInfo.pm / update_stats.pl
@@ -41,3 +45,5 @@ CREATE TABLE server (
 );
 
 CREATE UNIQUE INDEX server_idx1 ON server (org_id, host);
+
+COMMIT;

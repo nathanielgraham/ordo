@@ -7,7 +7,7 @@ CREATE TABLE cal (
         name varchar,
         tz varchar not null,
         description varchar,
-	update_time integer,
+	updated_at integer,
         creation_time integer DEFAULT (strftime('%s', 'now'))
 );
 

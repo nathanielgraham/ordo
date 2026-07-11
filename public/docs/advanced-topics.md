@@ -4,52 +4,68 @@ This section explores special patterns and advanced usage of Ordo.
 
 ## Self-Healing Workflows
 
-One of Ordo’s most powerful capabilities is building **self-healing automation** using On Fail clusters.
+One of Ordo’s most powerful capabilities is building **self-healing automation** using handlers.
 
-### Key Limitation
+### On Fail & On Overdue Handlers
 
-Each cluster can have **only one** `On Fail` cluster assigned. However, that single On Fail cluster can contain **multiple jobs** (and even sub-clusters), allowing you to perform several actions when a failure occurs.
+- **On Fail Handler** — Triggered when a cluster fails.
+- **On Overdue Handler** — Triggered when a cluster is still not ready at its next scheduled time. Common reasons include still `running` or `looping`, `failed`, `killed`, or `hold`.
 
-### Basic Self-Healing Pattern
+**Setup:**
+1. Create a handler cluster (e.g. "Alert & Clone").
+2. In the main cluster’s edit modal, select the handler in the **On Fail Handler** or **On Overdue Handler** dropdown.
+3. In the handler cluster, add jobs for alerting, cloning, cleanup, etc.
 
-1. Create your main workflow cluster.
-2. Create a separate **On Fail** cluster (e.g. "Alert on Failure").
-3. In the main cluster, set the **On Fail** field to point to your alert cluster.
-4. In the alert cluster, add one or more jobs (send email, log incident, run cleanup, etc.).
+**Handler Environment Variables**
 
-### Chained Escalation (Advanced)
+Handler jobs receive special variables:
+- `ORDO_OVERDUE_CLUSTER_ID`
+- `ORDO_FAILED_CLUSTER_ID`
 
-You can create escalation ladders by chaining On Fail clusters:
+Use these to make intelligent decisions (e.g. clone the original cluster).
 
-- Main Workflow → On Fail → **Alert Level 1** (Email Team)
-- Alert Level 1 → On Fail → **Alert Level 2** (SMS / PagerDuty)
-- Alert Level 2 → On Fail → **Alert Level 3** (Wake on-call engineer)
+### Cloning Strategy
 
-**Important**: For the chain to work as intended, each alert job should **succeed** (exit code `0`) if its notification was delivered successfully. Only if the notification step itself fails should it return a non-zero exit code to trigger the next level.
+Use an **On Overdue Handler** that calls `clone_cluster` for long-running jobs where missing a cycle would be worse than running two instances in parallel.
+
+**Example Clone Job Template** (available in the job modal):
+- "Clone Overdue Cluster" template automatically clones and starts the new instance.
+
+## Max Runtime Watchdog Pattern
+
+For jobs or clusters with strict time limits, use a **Watchdog** job:
+
+1. Create a watchdog job in the same cluster (or a dedicated Watchdogs cluster).
+2. Set a **Delay** equal to your max runtime + buffer (e.g. 7260 seconds for a 2-hour limit).
+3. Use the **Max Runtime Watchdog** template.
+4. Customize the action when the limit is exceeded (alert, kill, trigger handler, etc.).
+
+**Tip:** The watchdog checks completion status of all other jobs and sub-clusters (treating `ice` as complete).
 
 ## Meta-Automation Using Environment Variables
 
-Your scripts can interact with Ordo itself using the built-in `ORDO_*` environment variables. This enables powerful self-managing workflows.
+Your scripts can interact with Ordo using built-in `ORDO_*` variables.
 
 ### Available Variables
 
-| Variable              | Description |
-|-----------------------|-----------|
-| `ORDO_JOB_ID`         | ID of the currently running job |
-| `ORDO_CLUSTER_ID`     | ID of the parent cluster |
-| `ORDO_SERVER_ID`      | ID of the server the job is running on |
-| `ORDO_EMAIL`          | Email address of the job owner |
-| `ORDO_TEAM`           | JSON array of team members |
-| `ORDO_TOKEN`          | Execution token |
-| `ORDO_API`            | Base URL of the Ordo API |
-| `ORDO_JSON`           | Custom JSON data attached to the job (if any) |
+| Variable                    | Description |
+|-----------------------------|-----------|
+| `ORDO_JOB_ID`               | Current job ID |
+| `ORDO_CLUSTER_ID`           | Parent cluster ID |
+| `ORDO_SERVER_ID`            | Server ID |
+| `ORDO_EMAIL`                | Owner email |
+| `ORDO_TOKEN`                | Execution token |
+| `ORDO_API`                  | API base URL |
+| `ORDO_DELAY`                | Delay value set on this job (in seconds) |
+| `ORDO_JSON`                 | Custom JSON data attached to the job |
+| `ORDO_TEAM`                 | JSON array of team members |
+| `ORDO_OVERDUE_CLUSTER_ID`   | Source cluster if triggered by overdue handler |
+| `ORDO_FAILED_CLUSTER_ID`    | Source cluster if triggered by on_fail handler |
 
 ### Practical Examples
 
-**Example 1: Trigger Another Job**
+**Trigger Another Job**
 ```
-#!/bin/sh
-# Start another job after this one completes
 curl -X POST "$ORDO_API" \
   -H "Content-Type: application/json" \
   -d '{
@@ -59,63 +75,15 @@ curl -X POST "$ORDO_API" \
   }'
 ```
 
-**Example 2: Smart Notification**
+**Smart Notification**
 ```
-#!/bin/sh
-if [ "$ORDO_JOB_ID" = "45" ]; then
-  email_team.pl "Critical backup job $ORDO_JOB_ID failed on server $ORDO_SERVER_ID"
-else
-  email_team.pl "Job $ORDO_JOB_ID failed"
-fi
-```
-
-**Example 3: Conditional Logic (Perl)**
-```
-#!/usr/bin/env perl
-if ($ENV{ORDO_CLUSTER_ID} == 27) {
-    system("email_team.pl", "Production issue detected");
+if ($ENV{ORDO_OVERDUE_CLUSTER_ID}) {
+    system("email_team.pl", "Overdue alert for cluster $ENV{ORDO_OVERDUE_CLUSTER_ID}");
 }
 ```
 
 ## Advanced Monitoring Setup
 
-For production environments, we recommend:
+For production environments, we recommend a dedicated **Monitoring** cluster that runs `update_stats.pl` on a regular schedule.
 
-1. Create a dedicated **Monitoring** cluster.
-2. Add a job that runs `update_stats.pl` on each server you want to monitor.
-3. Attach a calendar that triggers every 30–60 seconds.
-4. (Optional) Add an On Fail cluster that notifies the team if monitoring stops.
-
-### Monitoring & Polling Best Practices
-
-The `update_stats.pl` script provides real-time visibility into your jobs and servers.
-
-**Recommended Settings:**
-
-- **Default / Recommended**: Poll every **30–60 seconds**
-- **High-frequency monitoring** (not recommended for most users): every 10–15 seconds
-- **Low-frequency** (cost-sensitive or large fleets): every 2–5 minutes
-
-**Why it matters:**
-- More frequent polling consumes more API quota.
-- With the current Pro tier (500,000 calls/month), polling every 10 seconds on 10+ servers can exhaust your quota very quickly.
-
-**Tip:** Start with 30-second intervals and adjust based on your monitoring needs. You can always increase frequency later if needed.
-
-## Private Network & Firewall Deployments
-
-Ordo is well-suited for restricted environments. Common approaches include private VPS deployments with strict firewalls, fully on-premise installations, or hybrid setups.
-
-Contact **ordosched@proton.me** for assistance with custom deployments.
-
-## Cloning Strategy
-
-Enable **Clone on Overdue** for long-running jobs where missing a scheduled cycle would be worse than running two instances in parallel.
-
-## Performance & Scaling Tips
-
-- Keep high-frequency jobs lightweight.
-- Avoid sub-minute schedules on large numbers of clusters.
-- Rotate Execution Tokens during low-activity windows.
-- Monitor the **Servers** tab regularly for resource usage.
-
+See [Stats Polling & Monitoring](#docs/stats-polling.md) for best practices and quota considerations.

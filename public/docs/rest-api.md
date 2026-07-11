@@ -1,171 +1,104 @@
-# Ordo REST API Reference
+# REST API Reference
 
-Ordo provides a full-featured REST API for programmatic control — perfect for CI/CD integration, custom dashboards, or automation scripts.
+Ordo provides a full REST API for scripting, automation, and meta-automation (e.g. watchdog jobs, custom handlers, etc.).
 
 **Base URL**  
-https://your-ordo-instance.com/api
+`https://ordoscheduler.com/api`
 
 **Authentication**  
-All requests require a valid user token in the request body:
+All requests require a valid user token in the body:
 
-    {
-      "token": "your-user-token-from-account-tab"
-    }
-
-Tokens are returned on login and visible in the Account tab.
+```
+{
+  "token": "your-user-token-from-account-tab"
+}
+```
 
 **Content-Type**  
-application/json
+`application/json`
 
-## Response Format
+**Response Format**
 
 Every response follows this structure:
 
-    {
-      "success": 1,                     // 1 = success, 0 = error
-      "command_reply": "command_name",  // echoes the command you sent
-      "message": "human-readable text"  // optional status or error message
-      // ... command-specific data ...
-    }
+```
+{
+  "success": 1,                     // 1 = success, 0 = error
+  "command_reply": "command_name",  // echoes the command you sent
+  "message": "human-readable text"  // optional status or error message
+  // ... command-specific data ...
+}
+```
 
-**Success Example**
+---
 
-    {
-      "success": 1,
-      "command_reply": "start_job",
-      "message": "Job started"
-    }
+## Most Useful Commands for Scripting
 
-**Error Example**
+**Note**: Many commands accept either `id` or `name` (path). Example: `"name": "/root/Bork da Cake/Prep"`.
 
-    {
-      "success": 0,
-      "command_reply": "start_job",
-      "message": "Job is already running"
-    }
+### Practical Examples
 
-## Command vs Command Reply
+**1. Clone and start a cluster (common in On Overdue Handlers)**
+```
+curl -X POST https://your-ordo.com/api \
+  -H "Content-Type: application/json" \
+  -d '{
+    "command": "clone_cluster",
+    "id": 7,
+    "token": "your-token-here"
+  }'
+```
 
-- **command** (your request): the action you want Ordo to perform (e.g., "start_job")
-- **command_reply** (response): echoes the command name so you can match responses in async environments
+**2. Get full cluster hierarchy (very useful for watchdog scripts)**
+```
+curl -X POST https://your-ordo.com/api \
+  -H "Content-Type: application/json" \
+  -d '{
+    "command": "find_cluster",
+    "id": 7,
+    "token": "your-token-here"
+  }'
+```
 
-This pattern makes it easy to handle multiple concurrent requests.
+**3. Start a cluster immediately**
+```
+curl -X POST https://your-ordo.com/api \
+  -H "Content-Type: application/json" \
+  -d '{
+    "command": "start_cluster",
+    "id": 7,
+    "token": "your-token-here"
+  }'
+```
 
-## Real-Time Updates via WebSocket (Broadcasts)
+**4. Read latest log of a job**
+```
+curl -X POST https://your-ordo.com/api \
+  -H "Content-Type: application/json" \
+  -d '{
+    "command": "read_log",
+    "id": 2,
+    "token": "your-token-here"
+  }'
+```
 
-For live status without polling, connect to the WebSocket:
+### Key Commands
 
-wss://your-ordo.com/websocket
+- `find_cluster` — Get full hierarchy
+- `read_cluster` — Get details of one cluster
+- `clone_cluster` — Clone a cluster
+- `start_cluster` — Run a cluster immediately
+- `start_job` — Run a single job
+- `read_log` — Get latest log of a job
+- `find_log` — Get log history for a job
+- `update_cluster` — Update cluster settings (e.g. on_fail_id, on_overdue_id)
+- `sync` — Resync servers and handle zombies
 
-After sending your token, you'll receive **broadcast** messages when state changes:
+---
 
-    {
-      "broadcast": "jobs_changed" | "clusters_changed" | "cals_changed" | "servers_changed" | "org_changed",
-      "updates": [ ... changed objects ... ],
-      "deletes": [ ... deleted IDs ... ]
-    }
+**Best Practices for Scripting**
 
-**Common broadcasts**:
-- jobs_changed — a job started, completed, failed, etc.
-- clusters_changed — cluster state or structure changed
-- org_changed — team or permissions updated
-
-Use these to update your UI in real time — just like the web interface does.
-
-## Core Endpoint: /api
-
-**POST** /api
-
-All commands are sent here.
-
-**Generic Request Example**
-
-    {
-      "token": "abc123...",
-      "command": "start_job",
-      "id": "5"
-    }
-
-## Commands
-
-### Job Commands
-
-| Command         | Description                              | Required Params              | Example Request |
-|-----------------|------------------------------------------|------------------------------|-----------------|
-| start_job       | Run a job immediately                    | id                           | See below |
-| kill_job        | Kill a running job                       | id                           | See below |
-| hold_job        | Prevent future runs                      | id                           | See below |
-| release_job     | Resume after hold                        | id                           | See below |
-| ice_job         | Skip this scheduled run                  | id                           | See below |
-| melt_job        | Undo ice                                 | id                           | See below |
-| complete_job    | Force job to complete state              | id                           | See below |
-| delete_job      | Permanently delete job                   | id                           | See below |
-| read_log        | Get latest log output                    | id                           | See below |
-| read_log        | Get specific historical log              | id, log_id                   | See below |
-
-### Cluster Commands
-
-| Command            | Description                                   | Required Params | Example |
-|--------------------|-----------------------------------------------|-----------------|---------|
-| start_cluster      | Run entire cluster now                        | id              | See below |
-| hold_cluster       | Hold all future runs                          | id              | See below |
-| release_cluster    | Resume after hold                             | id              | See below |
-| ice_cluster        | Skip this run of cluster                      | id              | See below |
-| melt_cluster       | Undo ice                                      | id              | See below |
-| complete_cluster   | Force entire cluster to complete              | id              | See below |
-| reset_cluster      | Reset all jobs to ready (clean slate)         | id              | See below |
-| delete_cluster     | Permanently delete cluster and contents       | id              | See below |
-
-### Data Retrieval
-
-| Command         | Description                           | Params                  | Returns |
-|-----------------|---------------------------------------|-------------------------|---------|
-| find_cluster    | Get full hierarchy                    | none (optional name)    | clusters array with nested jobs |
-| find_cal        | List all calendars                    | none                    | cals array |
-| find_monitor    | List connected servers                | none                    | servers array |
-| find_log        | Get log history for job               | id                      | logs array (id, started, ended, exit_code) |
-| read_user       | Get current user info                 | none                    | user object + token |
-| read_org        | Get organization + team members       | none                    | org object |
-
-## Examples
-
-**Run a job**
-
-    curl -X POST https://your-ordo.com/api/command \
-      -H "Content-Type: application/json" \
-      -d '{
-        "token": "abc123...",
-        "command": "start_job",
-        "id": "5"
-      }'
-
-**Get full hierarchy**
-
-    curl -X POST https://your-ordo.com/api/command \
-      -H "Content-Type: application/json" \
-      -d '{
-        "token": "abc123...",
-        "command": "find_cluster"
-      }'
-
-**View specific log run**
-
-    curl -X POST https://your-ordo.com/api/command \
-      -H "Content-Type: application/json" \
-      -d '{
-        "token": "abc123...",
-        "command": "read_log",
-        "id": "3",
-        "log_id": 127
-      }'
-
-## Tips for Integration
-
-- Prefer id over path names — more reliable.
-- All commands are idempotent where possible.
-- Errors return success: 0 + message.
-- Rate limiting: be reasonable (Ordo is self-hosted).
-
-Happy automating!
-
-[← Back to Documentation](/docs)
+- Prefer `id` when available — more reliable.
+- Use `name` (path) when you only know the hierarchy.
+- Always check `success` in responses.
+- Keep tokens secure and rotate regularly.
