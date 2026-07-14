@@ -65,7 +65,9 @@ has 'quartz_rx' => sub {
 };
 
 has 'local_url' => sub {
-   state $url = 'http://' . &get_local_ip_address() . ':3000';
+   #state $url = 'http://' . &get_local_ip_address() . ':3000';
+   #state $url = 'http://' . hostname() . ':3000';
+   state $url = 'http://localhost:3000';
 };
 
 has 'last_warning_cache' => sub {
@@ -144,7 +146,7 @@ sub startup {
               ;    # checkpoint after ~1 MB WAL
             $sqlite->db->query('PRAGMA cache_size = -20000;')
               ;    # 20 MB page cache
-            $sqlite->db->query('PRAGMA foreign_keys = ON;'); # keep your setting
+             # $sqlite->db->query('PRAGMA foreign_keys = ON;'); # keep your setting
          };
 
          #$sql->db;
@@ -1253,50 +1255,53 @@ sub request {
 }
 
 # cluster related subroutines
-
 sub _cluster_info {
    my ( $self, $user, $d ) = @_;
    my $cluster_id = $d->{id} || $self->path2id( $user, $d->{name} );
-
    return unless $cluster_id;
+
    my $org_id = $user->org_id;
 
    my $sql = <<~"SQL";
-      select c.*, js.state as jobstate, cal.name as cal_name
-      from cluster c 
-      join job_states js on c.state_id = js.id
-      left join cal on c.cal_id = cal.id
-      where c.id = $cluster_id
-      and c.org_id = $org_id
+      SELECT 
+         c.*,
+         js.state as jobstate,
+         cal.name as cal_name,
+         (SELECT group_concat(needs_cluster_id) 
+          FROM cluster_needs 
+          WHERE cluster_id = c.id AND needs_any_mode = 0) as needs_ids_str,
+         (SELECT group_concat(needs_cluster_id) 
+          FROM cluster_needs 
+          WHERE cluster_id = c.id AND needs_any_mode = 1) as needs_any_ids_str
+      FROM cluster c
+      JOIN job_states js ON c.state_id = js.id
+      LEFT JOIN cal ON c.cal_id = cal.id
+      WHERE c.id = ? 
+        AND c.org_id = ?
    SQL
 
-   my $cluster = $self->sqlite->db->query($sql)->hash;
+   my $cluster = $self->sqlite->db->query($sql, $cluster_id, $org_id)->hash;
 
-   my $needs_ids = $self->sqlite->db->query(
-"SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 0",
-      $cluster->{id}
-   )->hashes->to_array;
-   my $needs_any_ids = $self->sqlite->db->query(
-"SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 1",
-      $cluster->{id}
-   )->hashes->to_array;
+   return unless $cluster && $cluster->{id};
 
-   $cluster->{needs_ids} = [ map { $_->{needs_cluster_id} } @$needs_ids ];
-   $cluster->{needs_any_ids} =
-     [ map { $_->{needs_cluster_id} } @$needs_any_ids ];
-   $cluster->{next_start} =
-     $self->_cal_next_start( $user, { id => $cluster->{cal_id} } )
-     if $cluster->{cal_id};
+   # Parse needs
+   $cluster->{needs_ids} = $cluster->{needs_ids_str} 
+      ? [ split(',', $cluster->{needs_ids_str} || '') ] 
+      : [];
 
-#my $needs_ids = $self->sqlite->db->query( "SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 0", $d->{id} )->hashes->to_array;
-#my $needs_any_ids = $self->sqlite->db->query( "SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 1", $d->{id} )->hashes->to_array;
-#$cluster->{needs_ids} = map { $_->{id} } @$needs_ids;
-#$cluster->{needs_any_ids} = map { $_->{id} } @$needs_any_ids;
-#$cluster->{jobs} = $self->_find_jobs( $user, { cluster_id => $cluster->{id} } );
+   $cluster->{needs_any_ids} = $cluster->{needs_any_ids_str} 
+      ? [ split(',', $cluster->{needs_any_ids_str} || '') ] 
+      : [];
 
-#$cluster->{needs}  = $self->_read_cluster_needs( $user, { id => $cluster->{id} } );
-#$cluster->{next_start} = $self->_cal_next_start( $user, { id => $cluster->{cal_id} } ) if $cluster->{cal_id};
-#my $cluster = $self->sqlite->db->select( 'cluster', ['*'], { id => $cluster_id, org_id => $user->org_id } )->hash;
+   # Compute next_start (reuse existing method)
+   if ($cluster->{cal_id}) {
+      $cluster->{next_start} = $self->_cal_next_start( $user, { id => $cluster->{cal_id} } );
+   }
+
+   # Clean up
+   delete $cluster->{needs_ids_str};
+   delete $cluster->{needs_any_ids_str};
+
    return $cluster;
 }
 
@@ -1314,11 +1319,6 @@ sub _read_cluster {
    return { success => 0, message => 'cluster not found' }
      unless $cluster->{id};
 
-#my $needs_ids = $self->sqlite->db->query( "SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 0", $cluster->{id} )->hashes->to_array;
-#my $needs_any_ids = $self->sqlite->db->query( "SELECT needs_cluster_id FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 1", $cluster->{id} )->hashes->to_array;
-
-#$cluster->{needs_ids} = [ map { $_->{needs_cluster_id} } @$needs_ids ];
-#$cluster->{needs_any_ids} = [ map { $_->{needs_cluster_id} } @$needs_any_ids ];
    $cluster->{jobs} =
      $self->_find_jobs( $user, { cluster_id => $cluster->{id} } );
 
@@ -1402,12 +1402,12 @@ sub _set_cluster_state {
          }
       }
 
-      $update_hash->{ended} = time;
+      $update_hash->{ended}           = time;
+      $update_hash->{handler_context} = undef;
 
       # Update cluster with any pending changes
       $self->sqlite->db->update( 'cluster', $update_hash,
-         { id => $cluster_id } )
-        if scalar keys %$update_hash;
+         { id => $cluster_id } );
 
       # Complete parent if possible
       if ( $cluster->{parent_id}
@@ -1465,10 +1465,9 @@ sub _set_cluster_state {
             my $context = encode_json(
                {
                   fail => {
-                     original_cluster_id   => $cluster->{id},
-                     original_cluster_name => $cluster->{name},
-                     triggered_at          => time(),
-                     reason                => 'failed'
+                     origin_cluster_id   => $cluster->{id},
+                     origin_cluster_name => $cluster->{name},
+                     triggered_at        => time(),
                   }
                }
             );
@@ -1568,7 +1567,6 @@ sub _broadcast_any {
      $type eq 'cal'
      ? '_read_cal'
      : $type eq 'cluster' ? '_cluster_info'
-
      #: $type eq 'cluster' ? '_read_cluster'
      : ( '_' . $type . '_info' );
    for my $id ( @{$ids} ) {
@@ -1583,6 +1581,33 @@ sub _broadcast_any {
       }
    }
    $self->_broadcast( $user, $payload );
+}
+
+sub handle_max_runtime {
+   my ( $self, $user, $d ) = @_;
+
+   my $handler = $self->sqlite->db->select( 'cluster', ['id'],
+     { id => $d->{max_runtime_cluster_id} } )->hash;
+
+   return { success => 0, message => 'max runtime handler not found' } unless $handler->{id};
+
+   my $context = {
+     max_runtime => {
+       origin_job_id     => $d->{job_id},
+       origin_cluster_id => $d->{cluster_id},
+       elapsed_seconds   => $d->{elapsed_seconds},
+       max_runtime_seconds => $d->{max_runtime_seconds},
+       max_runtime_cluster_id => $d->{max_runtime_cluster_id},
+    }
+  };
+
+  $self->_start_cluster( $user, 
+    { 
+      id => $handler->{id},
+      origin => 'max_runtime_handler',
+      handler_context => $context,
+    } 
+  );
 }
 
 sub start_cluster {
@@ -1608,7 +1633,7 @@ sub _start_cluster {
    }
 
    # === ON OVERDUE HANDLER ===
-   if ( $cluster->{on_overdue_id} ) {
+   if ( $cluster->{on_overdue_id} && !$isUserStart ) {
       unless ( $cluster->{state_id} == $ready
          || $cluster->{state_id} == $complete
          || $cluster->{state_id} == $ice )
@@ -1621,11 +1646,10 @@ sub _start_cluster {
             my $context = encode_json(
                {
                   overdue => {
-                     original_cluster_id   => $cluster->{id},
-                     original_cluster_name => $cluster->{name},
+                     origin_cluster_id   => $cluster->{id},
+                     origin_cluster_name => $cluster->{name},
                      triggered_at          => time(),
                      current_state         => $cluster->{jobstate},
-                     reason                => 'overdue'
                   }
                }
             );
@@ -1640,6 +1664,24 @@ sub _start_cluster {
             );
          }
 
+      # Safely advance next_start so the cluster moves out of overdue
+      if ( $cluster->{cal_id} ) {
+         my $crons = $self->sqlite->db->select( 'cron', ['id'], 
+            { cal_id => $cluster->{cal_id} } );
+
+         while ( my $cron = $crons->hash ) {
+            my $next = $self->_cron_next_start( $user, { id => $cron->{id} } );
+            if ( defined $next && $next > time() ) {
+               $self->sqlite->db->update(
+                  'cron',
+                  { next_start => $next },
+                  { id => $cron->{id} }
+               );
+            }
+         }
+      }
+
+         $self->_broadcast_cluster( $user, [$cluster_id] );
          return { success => 0, skipped => 1, message => 'cluster overdue' };
       }
    }
@@ -1807,218 +1849,6 @@ sub _start_cluster {
    }
 }
 
-sub _start_cluster2 {
-   my ( $self, $user, $d ) = @_;
-
-   my $ready    = $self->job_states->{ready};
-   my $waiting  = $self->job_states->{waiting};
-   my $complete = $self->job_states->{complete};
-   my $ice      = $self->job_states->{ice};
-
-   my $cluster    = $self->read_cluster( $user, $d );
-   my $cluster_id = $cluster->{id};
-   return { success => 0, message => 'cluster not found' } unless $cluster_id;
-
-   my $isUserStart = ( $d->{origin} && $d->{origin} eq 'user' );
-
-   if ( $cluster->{id} == $user->root_cluster_id ) {
-      return { success => 0, message => 'root cluster cannot be started' };
-   }
-
-   # === ON OVERDUE HANDLER ===
-   if ( $cluster->{on_overdue_id} && !$isUserStart ) {
-
-      #if ( $cluster->{on_overdue_id} ) {
-
-      unless ( $cluster->{state_id} == $ready
-         || $cluster->{state_id} == $complete
-         || $cluster->{state_id} == $ice )
-      {
-
-         my $handler = $self->sqlite->db->select( 'cluster', ['id'],
-            { id => $cluster->{on_overdue_id} } )->hash;
-
-         if ( $handler->{id} ) {
-            $self->_start_cluster(
-               $user,
-               {
-                  id                => $handler->{id},
-                  origin            => 'on_overdue',
-                  origin_cluster_id => $cluster_id
-               }
-            );
-         }
-         return { success => 0, skipped => 1, message => 'cluster overdue' };
-      }
-   }
-
-   # Early state checks
-   if ( $cluster->{state_id} == $self->job_states->{hold} ) {
-      return { success => 0, skipped => 1, message => 'cluster on hold' };
-   }
-
-   if ( $cluster->{state_id} == $self->job_states->{ice} ) {
-      $self->_set_cluster_state( $user,
-         { id => $cluster_id, state => 'ice_complete' } );
-      return { success => 0, skipped => 1, message => 'cluster on ice' };
-   }
-
-   # Already running / looping
-   if (
-      scalar(
-         grep { $cluster->{state_id} == $self->job_states->{$_} }
-           qw(running looping)
-      )
-     )
-   {
-      return { success => 0, message => 'cluster already running' };
-   }
-
-   # Dependencies
-   unless ( $self->_cluster_needs_met( $user, { id => $cluster->{id} } ) ) {
-      return { success => 0, waiting => 1, message => 'dependency not met.' };
-   }
-
-   # Reset loop counter (unless continuing a loop)
-   unless ( $d->{origin} && $d->{origin} eq 'loop' ) {
-      $self->sqlite->db->update(
-         'cluster',
-         { loop_count => 0 },
-         { id         => $cluster_id }
-      );
-   }
-
-   $self->_reset_cluster( $user, { id => $cluster_id } ) unless $d->{noreset};
-   if ( $d->{origin} eq 'on_fail' ) {
-      $self->sqlite->db->update(
-         'cluster',
-         { failed_cluster_id => $d->{origin_cluster_id} },
-         { id                => $cluster_id }
-      );
-   }
-   elsif ( $d->{origin} eq 'on_overdue' ) {
-      $self->sqlite->db->update(
-         'cluster',
-         { overdue_cluster_id => $d->{origin_cluster_id} },
-         { id                 => $cluster_id }
-      );
-   }
-   $self->_set_cluster_state( $user,
-      { state => 'running', id => $cluster_id } );
-
-   # start clusters in cluster
-   my $clusters_started   = 0;
-   my $clusters_completed = 0;
-   my $clusters_failed    = 0;
-   my $clusters_waiting   = 0;
-   my $clusters_skipped   = 0;
-
-   my $clusters = $self->sqlite->db->select(
-      'cluster',
-      ['id'],
-      {
-         org_id     => $user->org_id,
-         parent_id  => $cluster_id,
-         auto_start => { '!=', 0 },
-         state_id   => { '=',  [ $ready, $waiting ] }
-      },
-      { -desc => 'id' }
-   )->hashes;
-
-   # propogate origin for on_fail and on_overdue sub clusters
-   my $origin =
-     $d->{origin} =~ /^(on_fail|on_overdue)$/ ? $d->{origin} : 'auto';
-
-   foreach my $c ( @{ $clusters->to_array } ) {
-      my $rv = $self->_start_cluster( $user,
-         { id => $c->{id}, origin => $origin, noreset => 1 } );
-      if ( $rv->{started} ) {
-         $clusters_started++;
-      }
-      elsif ( $rv->{waiting} ) {
-         $clusters_waiting++;
-      }
-      elsif ( $rv->{skipped} ) {
-         $clusters_skipped++;
-      }
-      elsif ( $rv->{completed} ) {
-         $clusters_completed++;
-      }
-      elsif ( $rv->{failed} ) {
-         $clusters_failed++;
-      }
-   }
-
-   # start jobs in cluster
-   my $jobs_started = 0;
-   my $jobs_failed  = 0;
-   my $jobs_waiting = 0;
-   my $jobs_skipped = 0;
-   my $job_error;
-
-   my $results = $self->sqlite->db->select(
-      'job',
-      ['id'],
-      {
-         cluster_id => $cluster_id,
-         state_id   => { '=', [ $ready, $waiting ] }
-      },
-      { -desc => 'id' }
-   )->hashes;
-
-   foreach my $j ( @{ $results->to_array } ) {
-      my $rv = $self->_start_job( $user, { origin => 'start', %$j } );
-      if ( $rv->{success} ) {
-         $jobs_started++;
-      }
-      elsif ( $rv->{waiting} ) {
-         $jobs_waiting++;
-      }
-
-      elsif ( $rv->{skipped} ) {
-         $jobs_skipped++;
-      }
-      else {
-         $jobs_failed++;
-         $job_error = $rv->{message};
-      }
-   }
-
-   if ( $jobs_failed || $clusters_failed ) {
-      $self->_set_cluster_state( $user,
-         { state => 'failed', id => $cluster_id } );
-      return {
-         success => 0,
-         failed  => 1,
-         message => "cluster $cluster_id failed"
-      };
-   }
-   elsif ( $jobs_waiting || $clusters_waiting ) {
-      $self->_set_cluster_state( $user,
-         { state => 'waiting', id => $cluster_id } );
-      my $message = "cluster started.";
-      $message .= " $clusters_waiting clusters waiting." if $clusters_waiting;
-      $message .= " $jobs_waiting jobs waiting."         if $jobs_waiting;
-      return { success => 1, waiting => 1, message => $message };
-   }
-   elsif ( $self->_cluster_is_complete( $user, { id => $cluster_id } ) ) {
-      $self->_set_cluster_state( $user,
-         { state => 'complete', id => $cluster_id } );
-      return {
-         success   => 1,
-         completed => 1,
-         message   => "cluster $cluster_id complete"
-      };
-   }
-   else {
-      return {
-         success => 1,
-         started => 1,
-         message => "cluster $cluster_id started"
-      };
-   }
-}
-
 sub _reset_cluster {
    my ( $self, $user, $d ) = @_;
    my $cluster_info = $self->read_cluster( $user, $d );
@@ -2039,11 +1869,12 @@ sub _reset_cluster {
    }
 
    # reset handler context
-   $self->sqlite->db->update(
-      'cluster',
-      { handler_context => undef },
-      { id              => $cluster_id }
-   );
+   # reset in _set_cluster_state state = complete
+   #$self->sqlite->db->update(
+   #   'cluster',
+   #   { handler_context => undef },
+   #   { id              => $cluster_id }
+   #);
 
    my $hold = $self->job_states->{hold};
    my $ice  = $self->job_states->{ice};
@@ -2193,46 +2024,6 @@ sub update_cluster {
       }
       else {
          $update_hash->{json} = $d->{json};
-      }
-   }
-
-   # === handler_context validation ===
-   if ( exists $d->{handler_context} ) {
-      if ( defined $d->{handler_context} ) {
-         my $ctx;
-         eval { $ctx = decode_json( encode_json( $d->{handler_context} ) ); }; # normalize
-
-         if ( $@ || ref($ctx) ne 'HASH' ) {
-            return {
-               success => 0,
-               message => "handler_context must be a valid JSON object"
-            };
-         }
-
-         # Size limit (4KB)
-         my $json_str = encode_json($ctx);
-         if ( length($json_str) > 4096 ) {
-            return {
-               success => 0,
-               message => "handler_context too large (max 4KB)"
-            };
-         }
-
-         # Whitelist top-level keys
-         my %allowed = map { $_ => 1 } qw(max_runtime overdue fail custom);
-         foreach my $key ( keys %$ctx ) {
-            if ( !$allowed{$key} ) {
-               return {
-                  success => 0,
-                  message => "Disallowed handler_context key: $key"
-               };
-            }
-         }
-
-         $update_hash->{handler_context} = $json_str;
-      }
-      else {
-         $update_hash->{handler_context} = undef;    # allow clearing
       }
    }
 
@@ -2438,39 +2229,6 @@ sub create_cluster {
       else {
          $insert_hash->{json} = $d->{json};
       }
-   }
-
-   # === handler_context validation ===
-   if ( exists $d->{handler_context} && defined $d->{handler_context} ) {
-      my $ctx;
-      eval { $ctx = decode_json( encode_json( $d->{handler_context} ) ); };
-
-      if ( $@ || ref($ctx) ne 'HASH' ) {
-         return {
-            success => 0,
-            message => "handler_context must be a valid JSON object"
-         };
-      }
-
-      my $json_str = encode_json($ctx);
-      if ( length($json_str) > 4096 ) {
-         return {
-            success => 0,
-            message => "handler_context too large (max 4KB)"
-         };
-      }
-
-      my %allowed = map { $_ => 1 } qw(max_runtime overdue fail custom);
-      foreach my $key ( keys %$ctx ) {
-         if ( !$allowed{$key} ) {
-            return {
-               success => 0,
-               message => "Disallowed handler_context key: $key"
-            };
-         }
-      }
-
-      $insert_hash->{handler_context} = $json_str;
    }
 
    my $id;
@@ -3757,8 +3515,7 @@ sub _create_job {
    my $insert_hash = { cluster_id => $parent_id, name => $d->{name} };
    $insert_hash->{delay} = $d->{delay} if $d->{delay} && $d->{delay} <= 86400;
 
-   my @fields =
-     qw(retrys loops delay state_id description started ended);
+   my @fields = qw(retrys loops delay state_id description started ended);
 
    for (@fields) {
       $insert_hash->{$_} = $d->{$_} if $d->{$_};
@@ -4063,7 +3820,7 @@ sub _set_job_state {
       $update_hash->{ended} = time;
       $self->_reset_job_stats( $user, { id => $job_id } );
 
-      # removed 7-11-2026 -- see no reason
+      # removed 7-11-2026 -- see no point
       # unless $d->{state} eq 'zombie';
       $self->_set_cluster_state( $user,
          { state => 'failed', id => $job->{cluster_id} } );
@@ -4149,7 +3906,6 @@ sub _set_job_state {
                   origin            => 'auto',
                   origin_job_id     => $job_id,
                   origin_cluster_id => $cluster->{id},
-                  force             => 1,
                }
             );
          }
@@ -5112,7 +4868,8 @@ sub _start_job {
    # === Fetch cluster for handler info ===
    my $cluster = $self->sqlite->db->select(
       'cluster',
-      [ 'on_fail_id', 'on_overdue_id', 'handler_context' ],
+      [ 'handler_context' ],
+      #[ 'on_fail_id', 'on_overdue_id', 'handler_context' ],
       { id => $job->{cluster_id} }
    )->hash;
 
@@ -6012,7 +5769,7 @@ sub _create_cron_object {
          # start all clusters connected to this calendar
          my $cluster_ids = $self->_cal_cluster_ids( $user, { id => $cal_id } );
          for my $cluster_id (@$cluster_ids) {
-            my $rv = $self->_start_cluster( $user,
+           my $rv = $self->_start_cluster( $user,
                { id => $cluster_id, origin => 'cron' } );
          }
 
@@ -6276,14 +6033,14 @@ sub _cal_next_start {
    return unless $cal_id;
 
    my $sql = <<~"SQL";
-      select min(next_start) as next_start
+      select min(next_start) as ns
       from cron
       where cal_id = $cal_id
       and next_start is not null
       and next_start >= unixepoch('now');
    SQL
 
-   my $next_start = $self->sqlite->db->query($sql)->hash->{next_start};
+   my $next_start = $self->sqlite->db->query($sql)->hash->{ns};
    return $next_start;
 }
 
@@ -6678,7 +6435,21 @@ sub routing {
          [ {}, { name => 'n', id => 'i', cluster_id => 'i' } ],
          1
       ],
-
+      'handle_max_runtime' => [
+         'handle_max_runtime',
+         1,
+         [
+            {
+               job_id                 => 'i',
+               cluster_id             => 'i',
+               elapsed_seconds        => 'i',
+               max_runtime_seconds    => 'i',
+               max_runtime_cluster_id => 'i',
+            },
+            {},
+         ],
+         1
+      ],
       'update_job_config' => [
          'update_job_config',
          1,
@@ -6840,12 +6611,10 @@ sub routing {
          'start_cluster',
          1,
          [
-            {},    # no strictly required fields (validated in the method)
+            {},
             {
-               id              => 'i?',
-               name            => 'n?',    # path support (CLI style)
-               origin          => 's',
-               handler_context => 'j'
+               id   => 'i',
+               name => 'n',
             }
          ],
          1

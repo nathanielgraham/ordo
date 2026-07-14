@@ -76,7 +76,7 @@ export function formatRelativeTime(agoSeconds) {
 export function formatTplus(epoch) {
   if (!epoch || isNaN(epoch)) return "—";
   const diff = Math.floor(Date.now() / 1000) - epoch;
-  if (diff <= 0) return "T+0";
+  if (diff <= 0) return "T+00:00:00";
 
   // Show days if more than 24 hours
   if (diff >= 86400) {
@@ -101,7 +101,7 @@ export function formatTminus(epoch) {
   const now = Math.floor(Date.now() / 1000);
   const diff = epoch - now;
 
-  if (diff <= 0) return "Overdue";
+  if (diff <= 0) return "T-00:00:00";
 
   // Show days if more than 24 hours
   if (diff >= 86400) {

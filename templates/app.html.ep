@@ -3,27 +3,62 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Ordo — Modern job scheduler with hierarchical workflows, real-time monitoring, and self-healing automation" />
+  <meta name="description" content="Ordo — Modern job scheduler..." />
   <title>Ordo — Job Scheduler</title>
-
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="stylesheet" href="/css/app.css?v=<%= time %>" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-  
+
+  <!-- === OFFLINE / ONLINE SWITCH === -->
+  <!-- Set offlineMode = true when you want offline version -->
+  <% my $offlineMode = 1; %>
+
+  <!-- Font Awesome -->
+  <% if ($offlineMode) { %>
+    <link rel="stylesheet" href="/lib/fontawesome/css/all.min.css" />
+  <% } else { %>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <% } %>
+
+  <!-- Google Fonts (Jost) - harder to bundle, optional fallback -->
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@600;700;800&display=swap" rel="stylesheet" />
-  
-  <!-- External Libraries -->
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
-  
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
-  <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
-  <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
-  
-  <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+
+  <!-- Marked -->
+  <% if ($offlineMode) { %>
+    <script src="/lib/marked/marked.min.js"></script>
+  <% } else { %>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <% } %>
+
+  <!-- Highlight.js -->
+  <% if ($offlineMode) { %>
+    <script src="/lib/highlight/highlight.min.js"></script>
+    <link rel="stylesheet" href="/lib/highlight/styles/atom-one-dark.min.css" />
+  <% } else { %>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
+  <% } %>
+
+  <!-- Cytoscape + Dagre -->
+  <% if ($offlineMode) { %>
+    <script src="/lib/cytoscape/cytoscape.min.js"></script>
+    <script src="/lib/cytoscape/dagre.min.js"></script>
+    <script src="/lib/cytoscape/cytoscape-dagre.js"></script>
+  <% } else { %>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+    <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+    <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+  <% } %>
+
+  <!-- Tom Select -->
+  <% if ($offlineMode) { %>
+    <link href="/lib/tom-select/tom-select.css" rel="stylesheet" />
+    <script src="/lib/tom-select/tom-select.complete.min.js"></script>
+  <% } else { %>
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+  <% } %>
 </head>
+
 <body>
   <!-- Main Flex Container -->
   <div class="app-wrapper">

@@ -352,6 +352,31 @@ q{perl -e 'use strict; open my $fh, ">>", "/tmp/perl-report.log" or die; print $
                     required    => 0,
                     description => 'Server ID'
                 },
+                retrys => {
+                    type => 'integer',
+                    required    => 0,
+                    description => 'Number of retrys on failure',
+                },
+                loops => { 
+                    type => 'integer',
+                    required    => 0,
+                    description => 'Number of loops before job completes',
+                },
+                delay => {
+                    type => 'integer',
+                    required    => 0,
+                    description => 'Delay in seconds before job starts',
+                },
+                max_runtime_seconds => {
+                    type => 'integer',
+                    required    => 0,
+                    description => 'start max_runtime_cluster_id after this many seconds elapse',
+                },
+                max_runtime_cluster_id => {
+                    type => 'integer',
+                    required    => 0,
+                    description => 'cluster id to start after max_runtime_seconds elapse',
+                },
             },
             anyOf =>
               [ { required => ['server'] }, { required => ['server_id'] } ],
