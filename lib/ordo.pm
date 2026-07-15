@@ -1651,9 +1651,7 @@ sub _start_cluster {
       return { success => 0, skipped => 1, message => 'cluster on ice' };
    }
 
-   # === ON OVERDUE HANDLER ===
-   if ( $cluster->{on_overdue_id} && !$startable && !$is_user_start ) {
-
+   if ( !$startable && !$is_user_start ) {
       # Mark as overdue
       if ( !$cluster->{overdue_since} ) {
          $self->sqlite->db->update(
@@ -1662,6 +1660,10 @@ sub _start_cluster {
             { id            => $cluster_id }
          );
       }
+   }
+
+   # === ON OVERDUE HANDLER ===
+   if ( $cluster->{on_overdue_id} && !$startable && !$is_user_start ) {
 
       my $handler = $self->sqlite->db->select( 'cluster', ['id'],
          { id => $cluster->{on_overdue_id} } )->hash;

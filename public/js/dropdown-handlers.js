@@ -179,7 +179,7 @@ function handleTreeActionClick(e, actionItem, row, action) {
       break;
     case "run":
       sendCommand("run", id, type);
-      showToast(`Starting ${type}...`, "info");
+      //showToast(`Starting ${type}...`, "info");
       break;
     case "kill":
       openConfirmModal(

@@ -66,14 +66,14 @@ function generateRowContent(
     const lines = item.needs_ids.map(
       (id) => `${resolveDepName(id, appState.monitorData.tree, isCluster)}`,
     );
-    depsTooltipLines.push(`Needs: ${lines.join("\n")}`);
+    depsTooltipLines.push(`Needs All: ${lines.join(" ")}`);
   }
   if (item.needs_any_ids?.length) {
     depsCount += item.needs_any_ids.length;
     const lines = item.needs_any_ids.map(
       (id) => `${resolveDepName(id, appState.monitorData.tree, isCluster)}`,
     );
-    depsTooltipLines.push(`Needs Any: ${lines.join("\n")}`);
+    depsTooltipLines.push(`Needs Any: ${lines.join(" ")}`);
   }
   if (item.on_fail_id) {
     depsCount += 1;
@@ -89,6 +89,15 @@ function generateRowContent(
     depsTooltipLines.push(`On Overdue: ${path}`);
     //depsTooltipLines.push(`On_Fail: ${node.name} \n`);
   }
+  if (item.max_runtime_cluster_id) {
+    depsCount += 1;
+    const node = findClusterById(appState.monitorData.tree, item.max_runtime_cluster_id);
+    const path = node ? getFullPath(node) : `ID:${item.max_runtime_cluster_id} (missing)`;
+    depsTooltipLines.push(`Max Runtime: ${path}`);
+    //depsTooltipLines.push(`On_Fail: ${node.name} \n`);
+  }
+
+
 
   const depsDisplay = depsCount > 0 ? depsCount : "—";
   const depsTitle = depsTooltipLines.length
@@ -568,7 +577,7 @@ export function updateClusterRow(row, item) {
     if (Array.isArray(item.needs_ids) && item.needs_ids.length) {
       count += item.needs_ids.length;
       tooltipLines.push(
-        `Needs: ${item.needs_ids
+        `Needs All: ${item.needs_ids
           .map(
             (id) => `${resolveDepName(id, appState.monitorData.tree, true)}`,
           )
@@ -689,11 +698,11 @@ export function updateJobRow(row, item) {
     if (Array.isArray(item.needs_ids) && item.needs_ids.length) {
       count += item.needs_ids.length;
       tooltipLines.push(
-        `Needs: ${item.needs_ids
+        `Needs All: ${item.needs_ids
           .map(
             (id) => `${resolveDepName(id, appState.monitorData.tree, false)}`,
           )
-          .join("\n")}`,
+          .join(" ")}`,
       );
     }
     if (Array.isArray(item.needs_any_ids) && item.needs_any_ids.length) {
@@ -703,18 +712,18 @@ export function updateJobRow(row, item) {
           .map(
             (id) => `${resolveDepName(id, appState.monitorData.tree, false)}`,
           )
-          .join("\n")}`,
+          .join(" ")}`,
       );
     }
 
-/*
-    if (item.on_fail_id) {
+    if (item.max_runtime_cluster_id) {
       count += 1;
+      const node = findClusterById(appState.monitorData.tree, item.max_runtime_cluster_id);
+      const path = node ? getFullPath(node) : `ID:${item.max_runtime_cluster_id} (missing)`;
       tooltipLines.push(
-        `On Fail: ${resolveDepName(item.on_fail_id, appState.monitorData.tree, false)}\n`,
+        `Max Runtime: ${path}`,
       );
     }
-*/
 
     const tooltipText = tooltipLines.join("\n");
     const html = count > 0 ? String(count) : "—";
