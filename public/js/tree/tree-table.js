@@ -928,7 +928,7 @@ export function updateLiveTimings() {
       const updateTime = Number(row.dataset.updateTime);
       if (isNaN(updateTime) || updateTime <= 0) return;
       const server = appState.serversData.find(
-        (s) => Number(s.update_time) === updateTime,
+        (s) => Number(s.updated_at) === updateTime,
       );
       if (server) updateFreshnessCell(row, server, now);
     });

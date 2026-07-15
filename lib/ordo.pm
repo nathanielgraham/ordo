@@ -4565,7 +4565,7 @@ sub update_sysinfo {
          my $update = {
             map  { $_, $pid->{$_} }
             grep { exists $pid->{$_} }
-              (qw(pctcpu pid start priority rss pctmem ppid fname))
+              (qw(pctcpu pid priority rss pctmem ppid fname))
          };
          $update->{last_update} = time;
          $self->sqlite->db->update( 'job', $update, { id => $job->{id} } );

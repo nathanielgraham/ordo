@@ -303,7 +303,7 @@ export function showToast(message, type = "info") {
 
 export function updateFreshnessCell(row, server, now) {
   const updateTime =
-    server.update_time != null ? Number(server.update_time) : null;
+    server.updated_at != null ? Number(server.updated_at) : null;
   const updatedAgo =
     updateTime != null && !isNaN(updateTime) ? now - updateTime : Infinity;
 
@@ -424,7 +424,7 @@ export function renderServersTable() {
 function createServerRow(server, now) {
   const tr = document.createElement("tr");
   tr.dataset.serverId = String(server.id);
-  tr.dataset.updateTime = server.update_time || "";
+  tr.dataset.updateTime = server.updated_at || "";
 
   tr.innerHTML = `
     <td>${escapeHtml(server.name || "—")}</td>
@@ -1182,8 +1182,8 @@ export function updateServerRow(row, server, now) {
   const cells = row.cells;
   if (!cells || cells.length < 10) return;
 
-  if (server.update_time != null) {
-    row.dataset.updateTime = server.update_time;
+  if (server.updated_at != null) {
+    row.dataset.updateTime = server.updated_at;
   }
 
   // 0: Name
