@@ -10,6 +10,7 @@ import { initModals, attachCalendarsTreeListeners } from "./ui-handlers.js";
 const ENABLE_DEV_AUTO_LOGIN = true;   // ← Toggle this
 
 if (ENABLE_DEV_AUTO_LOGIN) {
+  //const devToken = "32fe37296c7dab97e8c6fba000877622abd3e308";
   const devToken = "15c8bfdbe8634255f8257ef73a8f0bf7daae1d8c";
   
   // Set the cookie

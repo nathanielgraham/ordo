@@ -552,6 +552,7 @@ export function updateOrgAndTeam(data) {
     id: data.id,
     name: data.name,
     description: data.description,
+    root_cluster_id: data.root_cluster_id,
     tier: (data.tier || "free").toLowerCase(),
     api_calls_this_month: Number(data.api_calls_this_month || 0),
     monthly_call_limit: Number(data.monthly_call_limit || 1000),
@@ -2232,6 +2233,85 @@ export function getOverdueClustersListHTML(max = 5) {
   const overdue = [];
 
   appState.clustersMap.forEach((cluster) => {
+    const overdueSince = Number(cluster.overdue_since || 0);
+    if (overdueSince <= 0) return;
+
+    const overdueSeconds = now - overdueSince;
+    let overdueBy = "";
+
+    if (overdueSeconds > 3600) {
+      overdueBy = `${Math.floor(overdueSeconds / 3600)}h ${Math.floor((overdueSeconds % 3600) / 60)}m`;
+    } else if (overdueSeconds > 60) {
+      overdueBy = `${Math.floor(overdueSeconds / 60)}m ${overdueSeconds % 60}s`;
+    } else {
+      overdueBy = `${overdueSeconds}s`;
+    }
+
+    overdue.push({
+      id: cluster.id,
+      name: cluster.name || "Unnamed",
+      overdueSince: overdueSince,
+      overdueBy: overdueBy,
+    });
+  });
+
+  // Sort by longest overdue first
+  overdue.sort((a, b) => b.overdueSince - a.overdueSince);
+
+  const topOverdue = overdue.slice(0, max);
+  const countEl = document.getElementById("dash-overdue-count");
+  if (countEl) countEl.textContent = topOverdue.length;
+
+  if (topOverdue.length === 0) {
+    return `<div class="empty-state">No overdue clusters</div>`;
+  }
+
+  return topOverdue
+    .map(
+      (item) => `
+    <div class="mini-item overdue-item" title="Overdue since ${new Date(item.overdueSince * 1000).toLocaleString()}">
+      <div class="mini-item-name">
+        <span class="mini-path">📁 ${item.name}</span>
+      </div>
+      <div class="mini-item-time overdue-time">
+        ${item.overdueBy}
+      </div>
+    </div>
+  `
+    )
+    .join("");
+}
+
+export function collectNextScheduledClusters(limit = 6) {
+  const now = Math.floor(Date.now() / 1000);
+  const upcoming = [];
+
+  appState.clustersMap.forEach((cluster) => {
+    const next = Number(cluster.next_start);
+    if (!next || isNaN(next)) return;
+
+    const state = String(cluster.jobstate || "").toLowerCase().trim();
+
+    // Allow future schedules even if currently overdue
+    if (next > now && !["hold"].includes(state)) {
+      upcoming.push({
+        id: cluster.id,
+        name: cluster.name || "Unnamed",
+        next_start: next,
+        state: state,
+      });
+    }
+  });
+
+  upcoming.sort((a, b) => a.next_start - b.next_start);
+  return upcoming.slice(0, limit);
+}
+
+export function getOverdueClustersListHTML2(max = 5) {
+  const now = Math.floor(Date.now() / 1000);
+  const overdue = [];
+
+  appState.clustersMap.forEach((cluster) => {
     const next = Number(cluster.next_start);
     if (!next || next > now) return;
 
@@ -2298,7 +2378,7 @@ export function updateNextScheduledClusters() {
     .join("");
 }
 
-export function collectNextScheduledClusters(limit = 6) {
+export function collectNextScheduledClusters2(limit = 6) {
   const now = Math.floor(Date.now() / 1000);
   const upcoming = [];
 

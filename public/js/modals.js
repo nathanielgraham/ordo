@@ -349,7 +349,7 @@ print "Started cloned cluster $clone_id\\n";
   }
 
   // Max Runtime Handler
-  const rootId = appState.accountData?.root_cluster_id || 1;
+  const rootId = Number(appState.orgData.root_cluster_id);
   const clusterOptions = Array.from(appState.clustersMap.values())
     .filter((c) => {
       const cid = Number(c.id);
@@ -453,7 +453,8 @@ export function openClusterModal(
   }
 
   // Options (exclude root and self)
-  const rootId = appState.accountData?.root_cluster_id || 1;
+console.log("orgData", appState.orgData);
+  const rootId = Number(appState.orgData.root_cluster_id);
   const currentId = Number(itemId);
 
   const clusterOptions = Array.from(appState.clustersMap.values())
@@ -490,104 +491,6 @@ export function openClusterModal(
     document
       .getElementById("cluster-needs")
       .tomselect?.setValue((item.needs_ids || []).map(String));
-    document
-      .getElementById("cluster-needs-any")
-      .tomselect?.setValue((item.needs_any_ids || []).map(String));
-
-    if (item.on_fail_id) {
-      document
-        .getElementById("cluster-on-fail")
-        .tomselect?.setValue([String(item.on_fail_id)]);
-    }
-
-    if (item.on_overdue_id) {
-      document
-        .getElementById("cluster-on-overdue")
-        .tomselect?.setValue([String(item.on_overdue_id)]);
-    }
-  }
-
-  modal.classList.add("active");
-  document.getElementById("cluster-name").focus();
-}
-
-export function openClusterModal2(
-  mode = "create",
-  itemId = null,
-  parentId = null,
-  parentName = null,
-) {
-  const modal = document.getElementById("cluster-modal");
-  if (!modal) return;
-
-  let item = null;
-  if (mode === "edit" && itemId) {
-    item =
-      appState.clustersMap.get(Number(itemId)) ||
-      findClusterById(appState.monitorData.tree, itemId);
-  }
-
-  const isEdit = mode === "edit";
-  modal.dataset.editId = isEdit ? String(itemId) : "";
-  modal.dataset.parentId = parentId || "";
-
-  document.getElementById("cluster-modal-title").textContent = isEdit
-    ? "Edit Cluster"
-    : "New Cluster";
-
-  document.getElementById("cluster-context").textContent = isEdit
-    ? `Editing: ${item?.name || "—"}`
-    : parentName
-      ? `In cluster: ${parentName}`
-      : "In root";
-
-  // Basic fields
-  document.getElementById("cluster-name").value = item?.name || "";
-  document.getElementById("cluster-loops").value = item?.loops ?? 0;
-  //document.getElementById("cluster-clonable").checked = !!item?.clonable;
-
-  // === OPTIONS FOR SELECTS (exclude root and self) ===
-  const rootId = appState.accountData?.root_cluster_id || 1;
-  const currentId = Number(itemId);
-
-  const clusterOptions = Array.from(appState.clustersMap.values())
-    .filter((c) => {
-      const cid = Number(c.id);
-      return cid !== rootId && cid !== currentId;
-    })
-    .map((c) => ({
-      value: String(c.id),
-      text: c.name || `Cluster ${c.id}`,
-    }));
-
-  // Initialize TomSelects
-  initModalTomSelect("cluster-needs", {
-    maxItems: null,
-    options: clusterOptions,
-  });
-  initModalTomSelect("cluster-needs-any", {
-    maxItems: null,
-    options: clusterOptions,
-  });
-
-  // On Fail Handler
-  initModalTomSelect("cluster-on-fail", {
-    maxItems: 1,
-    options: clusterOptions,
-  });
-
-  // On Overdue Handler
-  initModalTomSelect("cluster-on-overdue", {
-    maxItems: 1,
-    options: clusterOptions,
-  });
-
-  // Restore values on edit
-  if (isEdit && item) {
-    document
-      .getElementById("cluster-needs")
-      .tomselect?.setValue((item.needs_ids || []).map(String));
-
     document
       .getElementById("cluster-needs-any")
       .tomselect?.setValue((item.needs_any_ids || []).map(String));

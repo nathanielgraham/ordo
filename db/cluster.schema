@@ -24,6 +24,7 @@ CREATE TABLE cluster (
     clone_cluster_id   INTEGER REFERENCES cluster(id) ON DELETE CASCADE,
     loops              INTEGER NOT NULL DEFAULT 0,
     loop_count         INTEGER NOT NULL DEFAULT 0,
+    overdue_since      INTEGER,
     creation_time      INTEGER DEFAULT (strftime('%s', 'now'))
 );
 

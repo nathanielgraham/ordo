@@ -82,6 +82,14 @@ function generateRowContent(
     depsTooltipLines.push(`On Fail: ${path}`);
     //depsTooltipLines.push(`On_Fail: ${node.name} \n`);
   }
+  if (item.on_overdue_id) {
+    depsCount += 1;
+    const node = findClusterById(appState.monitorData.tree, item.on_overdue_id);
+    const path = node ? getFullPath(node) : `ID:${item.on_overdue_id} (missing)`;
+    depsTooltipLines.push(`On Overdue: ${path}`);
+    //depsTooltipLines.push(`On_Fail: ${node.name} \n`);
+  }
+
   const depsDisplay = depsCount > 0 ? depsCount : "—";
   const depsTitle = depsTooltipLines.length
     ? depsTooltipLines.join("\n")
@@ -580,7 +588,13 @@ export function updateClusterRow(row, item) {
     if (item.on_fail_id) {
       count += 1;
       tooltipLines.push(
-        `On Fail: ${resolveDepName(item.on_fail_id, appState.monitorData.tree, true)}\n`,
+        `On Fail: ${resolveDepName(item.on_fail_id, appState.monitorData.tree, true)}`,
+      );
+    }
+    if (item.on_overdue_id) {
+      count += 1;
+      tooltipLines.push(
+        `On Overdue: ${resolveDepName(item.on_overdue_id, appState.monitorData.tree, true)}`,
       );
     }
 
