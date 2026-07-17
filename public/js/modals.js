@@ -100,6 +100,313 @@ export function openJobModal(
 ) {
   const modal = document.getElementById("job-modal");
   if (!modal) return;
+  let item = null;
+  const numericId = Number(itemId);
+  if (mode === "edit" && numericId) {
+    item =
+      appState.jobsMap.get(numericId) ||
+      findJobById(appState.monitorData.tree, numericId);
+  }
+  const isEdit = mode === "edit" && item !== null;
+  const currentClusterId = item?.cluster_id || parentId;
+  modal.dataset.editId = isEdit ? String(numericId) : "";
+  modal.dataset.parentId = parentId || "";
+  // Title & Context
+  document.getElementById("job-modal-title").textContent = isEdit
+    ? "Edit Job"
+    : "New Job";
+  document.getElementById("job-context").textContent = isEdit
+    ? `Editing: ${item?.name || "—"}`
+    : parentName
+      ? `In cluster: ${parentName}`
+      : "In root";
+  // Basic fields
+  document.getElementById("job-name").value = isEdit ? item?.name || "" : "";
+  document.getElementById("job-script").value = isEdit
+    ? item?.script || ""
+    : "";
+  document.getElementById("job-loops").value = isEdit
+    ? (item?.loops ?? 0)
+    : "0";
+  document.getElementById("job-retrys").value = isEdit
+    ? (item?.retrys ?? 0)
+    : "0";
+  document.getElementById("job-delay").value = isEdit
+    ? (item?.delay ?? 0)
+    : "0";
+
+  // ==================== SCRIPT TEXTAREA + CLEAR BUTTON + TEMPLATE DROPDOWN ====================
+  const scriptTextarea = document.getElementById("job-script");
+  const clearBtn = document.getElementById("clear-script-btn");
+  const templateSelect = document.getElementById("script-template");
+  if (scriptTextarea) scriptTextarea.focus();
+  function updateClearButton() {
+    if (clearBtn) {
+      clearBtn.style.display = scriptTextarea.value.trim() ? "block" : "none";
+    }
+  }
+  if (scriptTextarea) {
+    scriptTextarea.addEventListener("input", updateClearButton);
+    updateClearButton();
+  }
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      scriptTextarea.value = "";
+      scriptTextarea.focus();
+      updateClearButton();
+    });
+  }
+
+  // Template dropdown
+  if (templateSelect) {
+    if (templateSelect.tomselect) templateSelect.tomselect.destroy();
+    const isEditMode = mode === "edit";
+    new TomSelect(templateSelect, {
+      maxItems: 1,
+      placeholder: isEditMode
+        ? "Replace with Template..."
+        : "Insert Template...",
+      dropdownParent: "body",
+      maxOptions: 20,
+      controlInput: "<input>",
+      onChange: function (value) {
+        if (!value || !scriptTextarea) return;
+        switch (value) {
+          case "shell":
+            scriptTextarea.value = `#!/bin/sh
+# ==================== ORDO ENVIRONMENT VARIABLES ====================
+# ORDO_JOB_ID, ORDO_CLUSTER_ID, ORDO_SERVER_ID, ORDO_EMAIL, ORDO_TEAM
+# ORDO_TOKEN, ORDO_API, ORDO_JSON + handler vars
+
+echo "Starting job $ORDO_JOB_ID in cluster $ORDO_CLUSTER_ID"
+
+# Example API call (token in body):
+# curl -s "$ORDO_API" \\
+#   -H "Content-Type: application/json" \\
+#   -d '{
+#     "command": "read_cluster",
+#     "id": "'"$ORDO_CLUSTER_ID"'",
+#     "token": "'"$ORDO_TOKEN"'"
+#   }'
+`;
+            break;
+          case "python":
+            scriptTextarea.value = `#!/usr/bin/env python3
+import os
+import requests
+
+# ==================== ORDO ENVIRONMENT VARIABLES ====================
+print("=== ORDO Environment ===")
+for key in sorted(k for k in os.environ if k.startswith("ORDO_")):
+    print(f"{key}={os.environ[key]}")
+
+api = os.getenv("ORDO_API")
+token = os.getenv("ORDO_TOKEN")
+
+# Example API call (token in body)
+if api and token:
+    payload = {
+        "command": "read_cluster",
+        "id": os.getenv("ORDO_CLUSTER_ID"),
+        "token": token
+    }
+    resp = requests.post(api, json=payload)
+    print("API Response:", resp.json())
+`;
+            break;
+          case "perl":
+            scriptTextarea.value = `#!/usr/bin/perl
+use strict;
+use warnings;
+
+# ==================== ORDO ENVIRONMENT VARIABLES ====================
+foreach my $key (sort grep { /^ORDO_/ } keys %ENV) {
+    print "$key=$ENV{$key}\\n";
+}
+`;
+            break;
+
+          // === Utility Templates ===
+          case "stats":
+            scriptTextarea.value = `#!/bin/sh
+# === Update Stats ===
+# This is a simple wrapper that calls the full update_stats.pl script.
+# It collects real-time server metrics (CPU, memory, disk, load average, etc.)
+# and process-level stats for the server it runs on.
+#
+# Recommended: Run this frequently (every 30-60 seconds) in a dedicated "Monitoring" cluster.
+update_stats.pl
+`;
+            break;
+
+          case "on-fail":
+            scriptTextarea.value = `#!/usr/bin/perl
+use strict;
+use warnings;
+
+# ==================== ON FAIL HANDLER ====================
+# Purpose: Runs when a cluster fails. Use this to send alerts,
+#          start fallback workflows, or perform cleanup.
+
+print "=== On Fail Handler ===\\n";
+print "Failed cluster: $ENV{ORDO_FAILED_CLUSTER_ID}\\n";
+
+# Example: Send alert
+# system(\\"email_team.pl\\", \\"Cluster $ENV{ORDO_FAILED_CLUSTER_ID} has failed!\\");
+`;
+            break;
+
+          case "on-overdue":
+            scriptTextarea.value = `#!/usr/bin/env perl
+use strict;
+use warnings;
+use LWP::UserAgent;
+use JSON::MaybeXS;
+
+# ==================== ON OVERDUE HANDLER ====================
+# Purpose: Runs when a calendar tries to start a cluster that is not ready (overdue).
+#          Most common use: automatically clone and start a fresh copy of the overdue cluster.
+
+my $overdue_id = $ENV{ORDO_OVERDUE_CLUSTER_ID} or die "ORDO_OVERDUE_CLUSTER_ID not set\\n";
+my $api_url = $ENV{ORDO_API} or die "ORDO_API not set\\n";
+my $token   = $ENV{ORDO_TOKEN} or die "ORDO_TOKEN not set\\n";
+
+my $ua = LWP::UserAgent->new(timeout => 15);
+
+sub post {
+  my ($cmd, $payload) = @_;
+  my $res = $ua->post($api_url, Content_Type => 'application/json',
+    Content => encode_json({ command => $cmd, id => $payload, token => $token }));
+  die "$cmd failed: " . $res->status_line unless $res->is_success;
+  return decode_json($res->decoded_content);
+}
+
+my $clone_data = post("clone_cluster", $overdue_id);
+my $clone_id = $clone_data->{clone_id} or die "No clone_id returned";
+
+print "Cloned $overdue_id -> $clone_id\\n";
+post("start_cluster", $clone_id);
+print "Started cloned cluster $clone_id\\n";
+`;
+            break;
+
+          case "max-runtime":
+            scriptTextarea.value = `#!/usr/bin/perl
+use strict;
+use warnings;
+use LWP::UserAgent;
+use JSON::MaybeXS;
+
+# ==================== MAX RUNTIME HANDLER ====================
+# Purpose: Runs when a cluster exceeds its configured maximum runtime.
+#          Most common use: kill the long-running job and/or send an alert.
+
+print "=== Max Runtime Handler ===\\n";
+print "Cluster: $ENV{ORDO_MAX_RUNTIME_CLUSTER_ID}\\n";
+print "Job: $ENV{ORDO_MAX_RUNTIME_JOB_ID}\\n";
+
+my $api_url = $ENV{ORDO_API} or die "ORDO_API not set\\n";
+my $token   = $ENV{ORDO_TOKEN} or die "ORDO_TOKEN not set\\n";
+
+my $ua = LWP::UserAgent->new(timeout => 15);
+
+sub post {
+  my ($cmd, $payload) = @_;
+  my $res = $ua->post($api_url, Content_Type => 'application/json',
+    Content => encode_json({ command => $cmd, id => $payload, token => $token }));
+  die "$cmd failed: " . $res->status_line unless $res->is_success;
+  return decode_json($res->decoded_content);
+}
+
+my $job_info = post("read_job", $ENV{ORDO_MAX_RUNTIME_JOB_ID});
+my $pid = $job_info->{pid} or die "Could not find PID for job";
+
+print "Killing job $ENV{ORDO_MAX_RUNTIME_JOB_ID} (PID: $pid)\\n";
+kill(9, $pid) or warn "Failed to kill PID $pid: $!";
+`;
+            break;
+
+          default:
+            console.warn("Unknown template:", value);
+        }
+        scriptTextarea.focus();
+        updateClearButton();
+        scriptTextarea.scrollTop = 0;
+      },
+    });
+  }
+
+  // ==================== SERVER ====================
+  initModalTomSelect("job-server", {
+    maxItems: 1,
+    options: appState.serversData.map((s) => ({
+      value: s.name,
+      text: s.name,
+    })),
+  }).setValue(item?.server_name ? [item.server_name] : []);
+
+  // ==================== DEPENDENCIES (same cluster only) ====================
+  const jobOptions = Array.from(appState.jobsMap.values())
+    .filter(
+      (j) =>
+        Number(j.cluster_id) === Number(currentClusterId) &&
+        Number(j.id) !== numericId,
+    )
+    .map((j) => ({
+      value: String(j.id),
+      text: j.name || `Job ${j.id}`,
+    }));
+  initModalTomSelect("job-needs", {
+    maxItems: null,
+    options: jobOptions,
+  }).setValue((item?.needs_ids || []).map(String));
+  initModalTomSelect("job-needs-any", {
+    maxItems: null,
+    options: jobOptions,
+  }).setValue((item?.needs_any_ids || []).map(String));
+
+  // Max Runtime
+  const maxRuntimeInput = document.getElementById("job-max-runtime");
+  if (maxRuntimeInput) {
+    maxRuntimeInput.value =
+      isEdit && item?.max_runtime_seconds ? item.max_runtime_seconds : "";
+  }
+
+  // Max Runtime Handler
+  const rootId = Number(appState.orgData.root_cluster_id);
+  const clusterOptions = Array.from(appState.clustersMap.values())
+    .filter((c) => {
+      const cid = Number(c.id);
+      return cid !== rootId && cid !== numericId; // exclude root and self
+    })
+    .map((c) => ({
+      value: String(c.id),
+      text: c.name || `Cluster ${c.id}`,
+    }));
+
+  initModalTomSelect("job-max-runtime-handler", {
+    maxItems: 1,
+    options: clusterOptions,
+  });
+
+  if (isEdit && item?.max_runtime_cluster_id) {
+    document
+      .getElementById("job-max-runtime-handler")
+      .tomselect?.setValue([String(item.max_runtime_cluster_id)]);
+  }
+
+  modal.classList.add("active");
+  document.getElementById("job-name").focus();
+}
+
+export function openJobModal2(
+  mode = "create",
+  itemId = null,
+  parentId = null,
+  parentName = null,
+) {
+  const modal = document.getElementById("job-modal");
+  if (!modal) return;
 
   let item = null;
   const numericId = Number(itemId);
@@ -452,8 +759,131 @@ export function openClusterModal(
     autoStartCheckbox.checked = item ? !!item.auto_start : true;
   }
 
+  // ==================== CALENDAR (TomSelect) ====================
+  const calendarOptions = (appState.calendarsData || []).map(cal => ({
+    value: String(cal.id),
+    text: cal.name || `Calendar ${cal.id}`
+  }));
+
+  const calTom = initModalTomSelect("cluster-calendar", {
+    maxItems: 1,
+    options: calendarOptions,
+    placeholder: "No Calendar (Manual / Triggered Only)"
+  });
+
+  if (isEdit && item?.cal_id) {
+    calTom.setValue([String(item.cal_id)]);
+  } else {
+    calTom.setValue([]);
+  }
+
+  // ==================== OTHER TOMSELECTS ====================
+  const rootId = Number(appState.orgData?.root_cluster_id || appState.accountData?.root_cluster_id);
+  const currentId = Number(itemId);
+
+  const clusterOptions = Array.from(appState.clustersMap.values())
+    .filter((c) => {
+      const cid = Number(c.id);
+      return cid !== rootId && cid !== currentId;
+    })
+    .map((c) => ({
+      value: String(c.id),
+      text: c.name || `Cluster ${c.id}`,
+    }));
+
+  initModalTomSelect("cluster-needs", {
+    maxItems: null,
+    options: clusterOptions,
+  });
+
+  initModalTomSelect("cluster-needs-any", {
+    maxItems: null,
+    options: clusterOptions,
+  });
+
+  initModalTomSelect("cluster-on-fail", {
+    maxItems: 1,
+    options: clusterOptions,
+  });
+
+  initModalTomSelect("cluster-on-overdue", {
+    maxItems: 1,
+    options: clusterOptions,
+  });
+
+  // Restore values for edit mode
+  if (isEdit && item) {
+    document.getElementById("cluster-needs").tomselect?.setValue((item.needs_ids || []).map(String));
+    document.getElementById("cluster-needs-any").tomselect?.setValue((item.needs_any_ids || []).map(String));
+
+    if (item.on_fail_id) {
+      document.getElementById("cluster-on-fail").tomselect?.setValue([String(item.on_fail_id)]);
+    }
+    if (item.on_overdue_id) {
+      document.getElementById("cluster-on-overdue").tomselect?.setValue([String(item.on_overdue_id)]);
+    }
+  }
+
+  modal.classList.add("active");
+  document.getElementById("cluster-name").focus();
+}
+
+export function openClusterModal2(
+  mode = "create",
+  itemId = null,
+  parentId = null,
+  parentName = null,
+) {
+  const modal = document.getElementById("cluster-modal");
+  if (!modal) return;
+
+  let item = null;
+  if (mode === "edit" && itemId) {
+    item =
+      appState.clustersMap.get(Number(itemId)) ||
+      findClusterById(appState.monitorData.tree, itemId);
+  }
+
+  const isEdit = mode === "edit";
+  modal.dataset.editId = isEdit ? String(itemId) : "";
+  modal.dataset.parentId = parentId || "";
+
+  document.getElementById("cluster-modal-title").textContent = isEdit
+    ? "Edit Cluster"
+    : "New Cluster";
+
+  document.getElementById("cluster-context").textContent = isEdit
+    ? `Editing: ${item?.name || "—"}`
+    : parentName
+      ? `In cluster: ${parentName}`
+      : "In root";
+
+  // Basic fields
+  document.getElementById("cluster-name").value = item?.name || "";
+  document.getElementById("cluster-loops").value = item?.loops ?? 0;
+
+  // Auto Start (default true)
+  const autoStartCheckbox = document.getElementById("cluster-auto-start");
+  if (autoStartCheckbox) {
+    autoStartCheckbox.checked = item ? !!item.auto_start : true;
+  }
+
+  // === CALENDAR SELECT ===
+  const calSelect = document.getElementById("cluster-calendar");
+  calSelect.innerHTML = `<option value="">No Calendar (Manual / Triggered Only)</option>`;
+
+  (appState.calendarsData || []).forEach(cal => {
+    const opt = document.createElement("option");
+    opt.value = String(cal.id);
+    opt.textContent = cal.name || `Calendar ${cal.id}`;
+    calSelect.appendChild(opt);
+  });
+
+  if (isEdit && item?.cal_id) {
+    calSelect.value = String(item.cal_id);
+  }
+
   // Options (exclude root and self)
-console.log("orgData", appState.orgData);
   const rootId = Number(appState.orgData.root_cluster_id);
   const currentId = Number(itemId);
 
@@ -554,50 +984,6 @@ export function openAttachCalendarModal(
   });
 
   select.tomselect = ts; // Store reference
-
-  document.getElementById("attach-calendar-modal").classList.add("active");
-}
-
-export function openAttachCalendarModal2(
-  clusterId,
-  clusterName,
-  currentCalName = "",
-  currentCalId = null,
-) {
-  appState.currentAttachClusterId = clusterId;
-
-  const clusterNameEl = document.getElementById("attach-cluster-name");
-  if (clusterNameEl)
-    clusterNameEl.textContent = clusterName || `Cluster #${clusterId}`;
-
-  const select = document.getElementById("calendar-select");
-  if (!select)
-    return console.error("[Attach Calendar] #calendar-select not found");
-
-  if (select.tomselect) select.tomselect.destroy();
-  select.innerHTML = "";
-
-  new TomSelect(select, {
-    maxItems: 1,
-    plugins: ["remove_button"],
-    placeholder: "Select calendar or type to search...",
-    options: appState.calendarsData.map((cal) => ({
-      value: String(cal.id),
-      text: cal.name || `Calendar ${cal.id}`,
-    })),
-    create: false,
-    sortField: "text",
-    clearButtonTitle: "Detach calendar / None",
-    onInitialize: function () {
-      if (currentCalId != null) this.setValue(String(currentCalId));
-    },
-    render: {
-      item: (data, escape) => `
-        <div class="item bg-gray-800 text-cyan-200 border border-cyan-800 rounded px-2 py-1 flex items-center justify-between shadow-sm">
-          ${escape(data.text)}
-        </div>`,
-    },
-  });
 
   document.getElementById("attach-calendar-modal").classList.add("active");
 }
@@ -1022,6 +1408,7 @@ export function saveJob() {
 }
 
 // ==================== SAVE CLUSTER ====================
+// ==================== SAVE CLUSTER ====================
 export function saveCluster() {
   const modal = document.getElementById("cluster-modal");
   const isEdit = !!modal.dataset.editId;
@@ -1031,49 +1418,57 @@ export function saveCluster() {
     command: isEdit ? "update_cluster" : "create_cluster",
     name: (document.getElementById("cluster-name").value || "").trim(),
     loops: parseInt(document.getElementById("cluster-loops").value) || 0,
-    //auto_start: document.getElementById("cluster-auto-start").checked ? 1 : 0
+    auto_start: document.getElementById("cluster-auto-start").checked ? 1 : 0,
   };
 
-  // Auto Start (default 1)
-  const autoStartEl = document.getElementById("cluster-auto-start");
-  payload.auto_start = autoStartEl && autoStartEl.checked ? 1 : 0;
-
-  // Read current TomSelect values
-  payload.needs_ids =
-    document
-      .getElementById("cluster-needs")
-      .tomselect?.getValue()
-      .map(Number) || [];
-
-  payload.needs_any_ids =
-    document
-      .getElementById("cluster-needs-any")
-      .tomselect?.getValue()
-      .map(Number) || [];
-
-  // On Fail Handler
-  const onFailValue = document
-    .getElementById("cluster-on-fail")
-    .tomselect?.getValue();
-  if (onFailValue && onFailValue.length > 0) {
-    payload.on_fail_id = Number(onFailValue);
-  }
-
-  // On Overdue Handler
-  const onOverdueValue = document
-    .getElementById("cluster-on-overdue")
-    .tomselect?.getValue();
-  if (onOverdueValue && onOverdueValue.length > 0) {
-    payload.on_overdue_id = Number(onOverdueValue); // ← use _id to match routing
-  }
-
-  // ==================== PARENT / RENAME HANDLING ====================
-  if (!isEdit) {
-    let parentId = modal.dataset.parentId;
-    if (parentId) payload.parent_id = Number(parentId);
+  // Calendar
+  const calEl = document.getElementById("cluster-calendar");
+  if (calEl?.tomselect) {
+    const raw = calEl.tomselect.getValue();
+    const hasValue = raw && (Array.isArray(raw) ? raw.length > 0 : String(raw).trim() !== "");
+    payload.cal_id = hasValue ? Number(Array.isArray(raw) ? raw[0] : raw) : "";
   } else {
-    payload.id = id;
+    payload.cal_id = "";
+  }
 
+  // On Fail
+  const onFailEl = document.getElementById("cluster-on-fail");
+  if (onFailEl?.tomselect) {
+    const raw = onFailEl.tomselect.getValue();
+    const hasValue = raw && (Array.isArray(raw) ? raw.length > 0 : String(raw).trim() !== "");
+    payload.on_fail_id = hasValue ? Number(Array.isArray(raw) ? raw[0] : raw) : "";
+  } else {
+    payload.on_fail_id = "";
+  }
+
+  // On Overdue
+  const onOverdueEl = document.getElementById("cluster-on-overdue");
+  if (onOverdueEl?.tomselect) {
+    const raw = onOverdueEl.tomselect.getValue();
+    const hasValue = raw && (Array.isArray(raw) ? raw.length > 0 : String(raw).trim() !== "");
+    payload.on_overdue_id = hasValue ? Number(Array.isArray(raw) ? raw[0] : raw) : "";
+  } else {
+    payload.on_overdue_id = "";
+  }
+
+  // === NEEDS + NEEDS ANY (multi-select) ===
+  const needsEl = document.getElementById("cluster-needs");
+  if (needsEl?.tomselect) {
+    const values = needsEl.tomselect.getValue();
+    payload.needs_ids = Array.isArray(values) ? values.map(Number).filter(Boolean) : [];
+  }
+
+  const needsAnyEl = document.getElementById("cluster-needs-any");
+  if (needsAnyEl?.tomselect) {
+    const values = needsAnyEl.tomselect.getValue();
+    payload.needs_any_ids = Array.isArray(values) ? values.map(Number).filter(Boolean) : [];
+  }
+
+  // ==================== PARENT / RENAME ====================
+  if (!isEdit && modal.dataset.parentId) {
+    payload.parent_id = Number(modal.dataset.parentId);
+  } else if (isEdit) {
+    payload.id = id;
     const newName = payload.name;
     if (newName) {
       payload.newname = newName;
@@ -1081,7 +1476,6 @@ export function saveCluster() {
     }
   }
 
-  // Validation
   if (!payload.name && !isEdit) {
     showToast("Cluster name is required", "danger");
     return;
@@ -1089,11 +1483,145 @@ export function saveCluster() {
 
   console.log("[saveCluster] Final payload:", payload);
   sendWS(payload);
-
   modal.classList.remove("active");
 }
 
-// ==================== SAVE CLUSTER ====================
+
+export function saveCluster4() {
+  const modal = document.getElementById("cluster-modal");
+  const isEdit = !!modal.dataset.editId;
+  const id = isEdit ? Number(modal.dataset.editId) : null;
+
+  const payload = {
+    command: isEdit ? "update_cluster" : "create_cluster",
+    name: (document.getElementById("cluster-name").value || "").trim(),
+    loops: parseInt(document.getElementById("cluster-loops").value) || 0,
+    auto_start: document.getElementById("cluster-auto-start").checked ? 1 : 0,
+  };
+
+  // Calendar - use "" to clear
+  const calEl = document.getElementById("cluster-calendar");
+  if (calEl && calEl.tomselect) {
+    const raw = calEl.tomselect.getValue();
+    const hasValue = raw && (Array.isArray(raw) ? raw.length > 0 : String(raw).trim() !== "");
+    payload.cal_id = hasValue ? Number(Array.isArray(raw) ? raw[0] : raw) : "";
+  } else {
+    payload.cal_id = "";
+  }
+
+  // On Fail - use "" to clear
+  const onFailEl = document.getElementById("cluster-on-fail");
+  if (onFailEl && onFailEl.tomselect) {
+    const raw = onFailEl.tomselect.getValue();
+    const hasValue = raw && (Array.isArray(raw) ? raw.length > 0 : String(raw).trim() !== "");
+    payload.on_fail_id = hasValue ? Number(Array.isArray(raw) ? raw[0] : raw) : "";
+  } else {
+    payload.on_fail_id = "";
+  }
+
+  // On Overdue - use "" to clear
+  const onOverdueEl = document.getElementById("cluster-on-overdue");
+  if (onOverdueEl && onOverdueEl.tomselect) {
+    const raw = onOverdueEl.tomselect.getValue();
+    const hasValue = raw && (Array.isArray(raw) ? raw.length > 0 : String(raw).trim() !== "");
+    payload.on_overdue_id = hasValue ? Number(Array.isArray(raw) ? raw[0] : raw) : "";
+  } else {
+    payload.on_overdue_id = "";
+  }
+
+  // ==================== PARENT / RENAME ====================
+  if (!isEdit && modal.dataset.parentId) {
+    payload.parent_id = Number(modal.dataset.parentId);
+  } else if (isEdit) {
+    payload.id = id;
+    const newName = payload.name;
+    if (newName) {
+      payload.newname = newName;
+      delete payload.name;
+    }
+  }
+
+  if (!payload.name && !isEdit) {
+    showToast("Cluster name is required", "danger");
+    return;
+  }
+
+  console.log("[saveCluster] Final payload:", payload);
+  sendWS(payload);
+  modal.classList.remove("active");
+}
+
+export function saveCluster3() {
+  const modal = document.getElementById("cluster-modal");
+  const isEdit = !!modal.dataset.editId;
+  const id = isEdit ? Number(modal.dataset.editId) : null;
+
+  const payload = {
+    command: isEdit ? "update_cluster" : "create_cluster",
+    name: (document.getElementById("cluster-name").value || "").trim(),
+    loops: parseInt(document.getElementById("cluster-loops").value) || 0,
+    auto_start: document.getElementById("cluster-auto-start").checked ? 1 : 0,
+  };
+
+  // === CALENDAR (force clear when x is clicked) ===
+  const calEl = document.getElementById("cluster-calendar");
+  let calId = null;
+
+  if (calEl && calEl.tomselect) {
+    const ts = calEl.tomselect;
+    const raw = ts.getValue();
+
+    if (raw && (Array.isArray(raw) ? raw.length > 0 : String(raw).trim() !== "")) {
+      calId = Number(Array.isArray(raw) ? raw[0] : raw);
+    } else {
+      calId = "";   // explicit empty string for detach
+    }
+  } else {
+    calId = "";
+  }
+
+  payload.cal_id = calId;
+
+  // On Fail
+  const onFailEl = document.getElementById("cluster-on-fail");
+  if (onFailEl && onFailEl.tomselect) {
+    const val = onFailEl.tomselect.getValue();
+    if (val && (Array.isArray(val) ? val.length > 0 : String(val).trim() !== "")) {
+      payload.on_fail_id = Number(Array.isArray(val) ? val[0] : val);
+    }
+  }
+
+  // On Overdue
+  const onOverdueEl = document.getElementById("cluster-on-overdue");
+  if (onOverdueEl && onOverdueEl.tomselect) {
+    const val = onOverdueEl.tomselect.getValue();
+    if (val && (Array.isArray(val) ? val.length > 0 : String(val).trim() !== "")) {
+      payload.on_overdue_id = Number(Array.isArray(val) ? val[0] : val);
+    }
+  }
+
+  // Parent / Rename
+  if (!isEdit && modal.dataset.parentId) {
+    payload.parent_id = Number(modal.dataset.parentId);
+  } else if (isEdit) {
+    payload.id = id;
+    const newName = payload.name;
+    if (newName) {
+      payload.newname = newName;
+      delete payload.name;
+    }
+  }
+
+  if (!payload.name && !isEdit) {
+    showToast("Cluster name is required", "danger");
+    return;
+  }
+
+  console.log("[saveCluster] Final payload:", payload);
+  sendWS(payload);
+  modal.classList.remove("active");
+}
+
 
 export function saveCalendar() {
   const modal = document.getElementById("calendar-modal");

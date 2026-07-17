@@ -91,9 +91,10 @@ function generateRowContent(
   }
   if (item.max_runtime_cluster_id) {
     depsCount += 1;
-    const node = findClusterById(appState.monitorData.tree, item.max_runtime_cluster_id);
-    const path = node ? getFullPath(node) : `ID:${item.max_runtime_cluster_id} (missing)`;
-    depsTooltipLines.push(`Max Runtime: ${path}`);
+    const seconds = Number(item.max_runtime_seconds);
+    //const node = findClusterById(appState.monitorData.tree, item.max_runtime_cluster_id);
+    //const path = node ? getFullPath(node) : `ID:${item.max_runtime_cluster_id} (missing)`;
+    depsTooltipLines.push(`Max Runtime: ${seconds}`);
     //depsTooltipLines.push(`On_Fail: ${node.name} \n`);
   }
 
@@ -193,7 +194,6 @@ function generateRowContent(
             ${divider}
             ${menuItem("New Cluster", false, "new-cluster")}
             ${menuItem("New Job", false, "new-job")}
-            ${menuItem("Attach Calendar", false, "attach-calendar")}
             ${divider}
             ${menuItem("Run", runDisabled, "run")}
             ${menuItem("Kill", killDisabled, "kill")}
@@ -201,8 +201,8 @@ function generateRowContent(
             ${menuItem("Release", releaseDisabled, "release")}
             ${menuItem("Ice", iceDisabled, "ice")}
             ${menuItem("Melt", meltDisabled, "melt")}
-            ${menuItem("Complete", false, "complete")}
             ${divider}
+            ${menuItem("Complete", false, "complete")}
             ${menuItem("Reset", false, "reset")}
             ${divider}
             ${menuItem("Delete", false, "delete")}
@@ -718,10 +718,11 @@ export function updateJobRow(row, item) {
 
     if (item.max_runtime_cluster_id) {
       count += 1;
-      const node = findClusterById(appState.monitorData.tree, item.max_runtime_cluster_id);
-      const path = node ? getFullPath(node) : `ID:${item.max_runtime_cluster_id} (missing)`;
+      //const node = findClusterById(appState.monitorData.tree, item.max_runtime_cluster_id);
+      //const path = node ? getFullPath(node) : `ID:${item.max_runtime_cluster_id} (missing)`;
+      const seconds = Number(item.max_runtime_seconds);
       tooltipLines.push(
-        `Max Runtime: ${path}`,
+        `Max Runtime: ${seconds}`,
       );
     }
 

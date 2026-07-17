@@ -12,8 +12,86 @@ import { startLiveTimings, stopLiveTimings } from "./tree/tree-table.js";
 import { checkLoginAndConnect } from "./websocket.js";
 
 // ==================== CORE ACTIVATION ====================
-
 export function activateTab(tabId = null) {
+  let targetTab = tabId;
+  const hash = window.location.hash.replace("#", "").trim();
+
+  if (!targetTab) {
+    targetTab = hash
+      ? hash.split("/")[0]
+      : document.body.classList.contains("is-logged-in")
+        ? "dashboard"
+        : "docs";
+  }
+
+  console.log(`[ACTIVATE TAB] → "${targetTab}" (hash: ${hash})`);
+
+  // Visual nav + content switch
+  document
+    .querySelectorAll(".nav-tab")
+    .forEach((l) => l.classList.toggle("active", l.dataset.tab === targetTab));
+
+  // Special handling for live tabs
+  if (["monitor", "servers", "calendars"].includes(targetTab)) {
+    startLiveTimings();
+  } else {
+    stopLiveTimings();
+  }
+
+  // ==================== DASHBOARD ====================
+  if (targetTab === "dashboard") {
+    renderDashboard();           // This now safely starts the timer internally
+  } else {
+    stopDashboardLiveTimer();
+  }
+
+  // Settings
+  if (targetTab === "settings") {
+    const loading = document.getElementById("settings-loading");
+    const content = document.getElementById("settings-content");
+    if (loading) loading.style.display = "none";
+    if (content) content.style.display = "block";
+
+    const isLoggedIn = document.body.classList.contains("is-logged-in");
+    if (isLoggedIn) {
+      // refreshSettings();
+    }
+  }
+
+  // Docs
+  else if (targetTab === "docs") {
+    const slug = hash.split("/")[1];
+    const file = slug
+      ? slug.endsWith(".md")
+        ? slug
+        : `${slug}.md`
+      : "overview.md";
+    setTimeout(() => loadDoc(file), 100);
+  }
+
+  // Content switch
+  document
+    .querySelectorAll(".tab-content")
+    .forEach((el) => el.classList.remove("active"));
+
+  const content = document.getElementById(targetTab);
+  if (content) content.classList.add("active");
+
+  // Subtab support
+  const parts = hash.split("/");
+  const subTab = parts[1];
+  if (targetTab === "settings" && subTab) {
+    setTimeout(() => {
+      const subtabEl = document.querySelector(`[data-tab="${subTab}"]`);
+      if (subtabEl) {
+        subtabEl.click();
+        console.log(`[Subtab] Activated: ${subTab}`);
+      }
+    }, 100);
+  }
+}
+
+export function activateTab2(tabId = null) {
   let targetTab = tabId;
   const hash = window.location.hash.replace("#", "").trim();
 

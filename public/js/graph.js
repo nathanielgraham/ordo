@@ -98,6 +98,121 @@ function buildGraphElements(rootNode) {
     const pid = `${prefix}${item.id}`;
 
     if (nodeMap.has(pid)) {
+      if (viaHandler) {
+        nodeMap.get(pid).classes.push('handler-target');
+      }
+      return pid;
+    }
+
+    const nodeEl = {
+      data: {
+        id: pid,
+        label: isCluster ? `${item.name || 'Cluster'}/` : (item.name || 'Job'),
+        is_cluster: isCluster,
+        originalId: Number(item.id)
+      },
+      classes: [
+        isCluster ? 'cluster-node' : 'job-node',
+        viaHandler ? 'handler-target' : ''
+      ]
+    };
+
+    if (parentPrefix) nodeEl.data.parent = parentPrefix;
+    elements.push(nodeEl);
+    nodeMap.set(pid, nodeEl);
+    return pid;
+  };
+
+  // Strict typed lookup - prefers correct type
+  const findTyped = (id, preferCluster) => {
+    const numId = Number(id);
+    if (!numId) return null;
+
+    if (preferCluster) {
+      return findClusterById(rootNode, numId) ||
+             appState.clustersMap?.get(numId) ||
+             findJobById(rootNode, numId);   // fallback
+    } else {
+      return findJobById(rootNode, numId) ||
+             appState.jobsMap?.get(numId) ||
+             findClusterById(rootNode, numId); // fallback
+    }
+  };
+
+  const traverse = (node, parentPrefix = null) => {
+    if (!node) return;
+    const isCluster = !!node.is_cluster || node.children?.length > 0;
+    const myPrefix = addNode(node, parentPrefix);
+
+    // Children
+    if (isCluster) {
+      [...(node.children || []), ...(node.jobs || [])].forEach(child => {
+        traverse(child, myPrefix);
+      });
+    }
+
+    // Normal Dependencies (same type only)
+    ['needs_ids', 'needs_any_ids'].forEach(key => {
+      if (!Array.isArray(node[key])) return;
+      node[key].forEach(depId => {
+        const dep = findTyped(depId, isCluster);   // same type as source
+        if (dep) {
+          const depPrefix = addNode(dep);
+          elements.push({
+            data: { id: `e${myPrefix}-${depPrefix}`, source: myPrefix, target: depPrefix },
+            classes: [key === 'needs_ids' ? 'needs' : 'needs-any']
+          });
+        }
+      });
+    });
+
+    // === ON FAIL HANDLER ===
+    if (node.on_fail_id) {
+      const fail = findTyped(node.on_fail_id, true) ||   // prefer cluster for handlers
+                   findClusterById(rootNode, node.on_fail_id) ||
+                   findJobById(rootNode, node.on_fail_id);
+
+      if (fail) {
+        const failPrefix = addNode(fail, null, true);
+        elements.push({
+          data: { id: `of${myPrefix}-${failPrefix}`, source: myPrefix, target: failPrefix },
+          classes: ['on-fail']
+        });
+      }
+    }
+
+    // === ON OVERDUE HANDLER ===
+    if (node.on_overdue_id) {
+      const overdue = findTyped(node.on_overdue_id, true) ||   // prefer cluster
+                      findClusterById(rootNode, node.on_overdue_id) ||
+                      findJobById(rootNode, node.on_overdue_id);
+
+      if (overdue) {
+        const overduePrefix = addNode(overdue, null, true);
+        elements.push({
+          data: { id: `oo${myPrefix}-${overduePrefix}`, source: myPrefix, target: overduePrefix },
+          classes: ['on-overdue']
+        });
+      }
+    }
+  };
+
+  traverse(rootNode);
+  console.log(`[Graph] Built ${elements.length} elements for ${rootNode.name}`);
+  return elements;
+}
+
+function buildGraphElements3(rootNode) {
+  const elements = [];
+  const nodeMap = new Map();
+
+  const addNode = (item, parentPrefix = null, viaHandler = false) => {
+    if (!item?.id) return null;
+    const isCluster = !!item.is_cluster || item.children?.length > 0;
+    const prefix = isCluster ? 'c' : 'j';
+    const pid = `${prefix}${item.id}`;
+
+    if (nodeMap.has(pid)) {
       if (viaHandler) nodeMap.get(pid).classes.push('handler-target');
       return pid;
     }

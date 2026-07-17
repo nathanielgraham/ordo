@@ -2105,22 +2105,6 @@ function debugDumpTreeContext() {
   console.groupEnd();
 }
 
-// ==================== DASHBOARD MAIN RENDER ====================
-export function renderDashboard() {
-  document.getElementById("dash-running-list").innerHTML =
-    getLongestRunningJobsHTML(5);
-  document.getElementById("dash-failed-list").innerHTML =
-    getRecentlyFailedListHTML(5);
-  document.getElementById("dash-overdue-list").innerHTML =
-    getOverdueClustersListHTML();
-
-  updateNextScheduledClusters(); // ← important
-  renderRecentActivityTable();
-
-  // Do NOT call updateKPIBar here — it's handled live by broadcasts
-  startDashboardLiveTimer();
-}
-
 // ==================== CARD FUNCTIONS (Maps-only) ====================
 
 export function getLongestRunningJobsHTML(max = 5) {
@@ -2408,86 +2392,19 @@ export function collectNextScheduledClusters2(limit = 6) {
   return upcoming.slice(0, limit);
 }
 
-// Only updates live timings — nothing else
+// ==================== DASHBOARD TIMERS & RENDER ====================
+
 let dashboardLiveTimer = null;
-let dashboardTimingCache = null;
 
 export function startDashboardLiveTimer() {
-  if (dashboardLiveTimer) return;
+  if (dashboardLiveTimer) {
+    clearInterval(dashboardLiveTimer);
+  }
 
-  console.log("[DashboardTimer] Starting with cache setup");
-
-  refreshDashboardTimingCache();
+  console.log("[DashboardTimer] Starting live updates (cache-free)");
 
   dashboardLiveTimer = setInterval(updateDashboardLiveTimings, 1000);
   updateDashboardLiveTimings(); // immediate update
-}
-
-function refreshDashboardTimingCache() {
-  dashboardTimingCache = {
-    countdowns: document.querySelectorAll(
-      ".countdown, [data-nextstart], [data-next-start]",
-    ),
-    runtimes: document.querySelectorAll(".runtime, [data-started]"),
-    recentTimes: document.querySelectorAll(
-      "#dash-recent-body td[data-timestamp]",
-    ),
-    failedTimes: document.querySelectorAll(".failed-time, [data-ended]"),
-  };
-
-  console.log(
-    `[DashboardTimer] Cache refreshed: ${dashboardTimingCache.countdowns.length} countdowns, ${dashboardTimingCache.runtimes.length} runtimes`,
-  );
-}
-
-export function updateDashboardLiveTimings() {
-  if (!document.getElementById("dashboard")?.classList.contains("active"))
-    return;
-
-  const now = Math.floor(Date.now() / 1000);
-
-  // Live countdowns (T-minus) - Next Scheduled
-  dashboardTimingCache.countdowns.forEach((el) => {
-    const next = parseInt(el.dataset.nextStart || el.dataset.nextstart || 0);
-    if (next > 0) {
-      el.textContent = formatTminus(next) || "—";
-    }
-  });
-
-  // Running job timers (T-plus)
-  dashboardTimingCache.runtimes.forEach((el) => {
-    const started = parseInt(el.dataset.started || 0);
-    if (started > 0) {
-      el.textContent = formatTplus(started) || "—";
-    }
-  });
-
-  // Recent activity "ago" times
-  dashboardTimingCache.recentTimes.forEach((td) => {
-    const ts = parseInt(td.dataset.timestamp || 0);
-    if (ts > 0) td.textContent = formatRelativeTime(now - ts);
-  });
-
-  // Recently failed times
-  dashboardTimingCache.failedTimes.forEach((el) => {
-    const endedTs = parseInt(el.dataset.ended || 0);
-    if (endedTs > 0) el.textContent = formatRelativeTime(now - endedTs);
-  });
-
-  // Overdue Clusters - Always check and refresh when needed
-  const overdueList = document.getElementById("dash-overdue-list");
-  if (overdueList) {
-    let hasOverdue = false;
-    appState.clustersMap.forEach((cluster) => {
-      const next = Number(cluster.next_start);
-      if (next && next <= now) hasOverdue = true;
-    });
-
-    // Refresh if there are overdue items OR if the list currently has content
-    if (hasOverdue || overdueList.children.length > 0) {
-      overdueList.innerHTML = getOverdueClustersListHTML();
-    }
-  }
 }
 
 export function stopDashboardLiveTimer() {
@@ -2495,7 +2412,86 @@ export function stopDashboardLiveTimer() {
     clearInterval(dashboardLiveTimer);
     dashboardLiveTimer = null;
   }
-  dashboardTimingCache = null;
+}
+
+export function updateDashboardLiveTimings() {
+  if (!document.getElementById("dashboard")?.classList.contains("active")) {
+    return;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+
+  // Next Scheduled countdowns (T-minus)
+  document.querySelectorAll(".countdown, [data-next-start], [data-nextstart]").forEach((el) => {
+    const next = parseInt(el.dataset.nextStart || el.dataset.nextstart || 0);
+    if (next > 0) {
+      el.textContent = formatTminus(next) || "—";
+    }
+  });
+
+  // Running job timers (T-plus)
+  document.querySelectorAll(".runtime, [data-started]").forEach((el) => {
+    const started = parseInt(el.dataset.started || 0);
+    if (started > 0) {
+      el.textContent = formatTplus(started) || "just started";
+    }
+  });
+
+  // Recently failed / activity "ago" times
+  document.querySelectorAll(".failed-time, [data-ended]").forEach((el) => {
+    const ts = parseInt(el.dataset.ended || 0);
+    if (ts > 0) {
+      el.textContent = formatRelativeTime(now - ts);
+    }
+  });
+
+  // Overdue list — rebuild only when necessary
+  const overdueList = document.getElementById("dash-overdue-list");
+  if (overdueList) {
+    const hasOverdue = Array.from(appState.clustersMap.values()).some(
+      (c) => Number(c.overdue_since || 0) > 0
+    );
+    if (hasOverdue || overdueList.children.length > 0) {
+      overdueList.innerHTML = getOverdueClustersListHTML();
+    }
+  }
+}
+
+// ==================== MAIN DASHBOARD RENDER ====================
+
+export function renderDashboard() {
+  console.log("[renderDashboard] Full render");
+
+  // Rebuild all list cards
+  const runningList = document.getElementById("dash-running-list");
+  if (runningList) runningList.innerHTML = getLongestRunningJobsHTML(5);
+
+  const failedList = document.getElementById("dash-failed-list");
+  if (failedList) failedList.innerHTML = getRecentlyFailedListHTML(5);
+
+  const overdueList = document.getElementById("dash-overdue-list");
+  if (overdueList) overdueList.innerHTML = getOverdueClustersListHTML();
+
+  updateNextScheduledClusters();
+  renderRecentActivityTable();
+
+  // Start live timers
+  startDashboardLiveTimer();
+}
+
+// ==================== REFRESH HELPERS ====================
+
+let dashboardRefreshTimeout = null;
+
+export function refreshDashboardCards(reason = "") {
+  if (!document.getElementById("dashboard")?.classList.contains("active")) return;
+
+  console.log(`[refreshDashboardCards] Triggered by: ${reason}`);
+
+  clearTimeout(dashboardRefreshTimeout);
+  dashboardRefreshTimeout = setTimeout(() => {
+    renderDashboard();   // full safe rebuild + restart timer
+  }, 300);
 }
 
 export function updateDashboardLiveCards() {
@@ -2540,22 +2536,6 @@ export function refreshDashboard() {
   updateNextScheduledClusters();
   renderRecentActivityTable();
   updateDashboardLiveTimings();
-}
-
-// ==================== DASHBOARD REFRESH ====================
-let dashboardRefreshTimeout = null;
-
-export function refreshDashboardCards(reason = "") {
-  if (!document.getElementById("dashboard")?.classList.contains("active"))
-    return;
-
-  console.log(`[refreshDashboardCards] Queued by: ${reason}`);
-
-  // Debounce the actual refresh
-  clearTimeout(dashboardRefreshTimeout);
-  dashboardRefreshTimeout = setTimeout(() => {
-    refreshDashboardCardsInternal();
-  }, 350);
 }
 
 function refreshDashboardCardsInternal() {

@@ -73,11 +73,30 @@ $ENV{ORDO_CLUSTER_ID} = $cluster_id;
 $ENV{ORDO_TOKEN}      = $token;
 $ENV{ORDO_API}        = $api;
 $ENV{ORDO_DELAY}      = $delay;
-# $ENV{ORDO_JSON}       = encode_json( $job->{json} || {} ) if $job->{json};
+$ENV{ORDO_JSON}       = encode_json( $job->{json} || {} ) if $job->{json};
 
 # Unified Handler Context
 if ( $job->{handler_context} && ref( $job->{handler_context} ) eq 'HASH' ) {
    $ENV{ORDO_HANDLER_CONTEXT} = encode_json( $job->{handler_context} );
+   $ENV{ORDO_FAILED_CLUSTER_ID} =
+     $job->{handler_context}->{fail}->{origin_cluster_id} || undef;
+   $ENV{ORDO_FAILED_CLUSTER_NAME} =
+     $job->{handler_context}->{fail}->{origin_cluster_name} || undef;
+   $ENV{ORDO_MAX_RUNTIME_JOB_ID} =
+     $job->{handler_context}->{max_runtime}->{origin_job_id} || undef;
+   $ENV{ORDO_MAX_RUNTIME_CLUSTER_ID} =
+     $job->{handler_context}->{max_runtime}->{origin_cluster_id} || undef;
+   $ENV{ORDO_MAX_RUNTIME_SECONDS} =
+     $job->{handler_context}->{max_runtime}->{max_runtime_seconds} || undef;
+   $ENV{ORDO_OVERDUE_CLUSTER_ID} =
+     $job->{handler_context}->{overdue}->{origin_cluster_id} || undef;
+   $ENV{ORDO_OVERDUE_CLUSTER_NAME} =
+     $job->{handler_context}->{overdue}->{origin_cluster_name} || undef;
+}
+
+for my $key ( keys %ENV ) {
+   next              unless $key =~ /ORDO/;
+   delete $ENV{$key} unless defined $ENV{$key};
 }
 
 &add_to_path("$ENV{HOME}/ordo_node/bin");
@@ -181,24 +200,10 @@ if ( $child_pid > 0 ) {
 
             if ( $job->{max_runtime_cluster_id} ) {
 
-=pod
-               my $context = encode_json(
-                  {
-                     max_runtime => {
-                        job_id          => $id,
-                        cluster_id      => $cluster_id,
-                        elapsed_seconds => $elapsed,
-                        max_allowed     => $job->{max_runtime_seconds},
-                        triggered_at    => time()
-                     }
-                  }
-               );
-=cut
-
                my $res = &post(
                   {
                      command                => 'handle_max_runtime',
-                     job_id                 => $id, 
+                     job_id                 => $id,
                      cluster_id             => $cluster_id,
                      token                  => $token,
                      elapsed_seconds        => $elapsed,

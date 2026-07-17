@@ -270,7 +270,6 @@ select:focus {
 .ordo-table thead th {
   text-align: left;
   white-space: nowrap;
-  position: sticky;
   top: 0;
   background: #0f0f1f;
   color: var(--glow-cyan);

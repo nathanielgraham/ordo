@@ -1,66 +1,57 @@
+// public/js/dropdown-handlers.js
 import { appState } from "./state.js";
 import {
-  openAttachCalendarModal,
   openClusterModal,
   openJobModal,
   openConfirmModal,
   openCalendarModal,
-  openCronsModal,
   openCronModal,
   openServerModal,
 } from "./modals.js";
 import { openDependencyGraph } from "./graph.js";
 import { sendCommand, sendWS } from "./websocket.js";
 import { showToast } from "./ui-handlers.js";
-import { findClusterById, findServerById } from "./utils.js";
+import { findServerById } from "./utils.js";
 
 let cleanupAutoUpdate = null;
 
-// ==================== OPEN / CLOSE ====================
-
+// ==================== DROPDOWN OPEN/CLOSE ====================
 document.addEventListener("click", (e) => {
   const trigger = e.target.closest(".dropdown-trigger button");
   if (!trigger) return;
-
   e.stopPropagation();
 
   const dropdown = trigger.closest(".dropdown");
   if (!dropdown) return;
 
-  const isActive = dropdown.classList.contains("active");
-
+  const wasActive = dropdown.classList.contains("active");
   closeAllDropdowns();
 
-  if (!isActive) {
+  if (!wasActive) {
     dropdown.classList.add("active");
     positionMenu(dropdown);
   }
 });
 
-// Global outside click close
+// Close on outside click
 document.addEventListener("click", (e) => {
-  if (e.target.closest(".dropdown-trigger button")) return;
-  if (e.target.closest(".dropdown-menu")) return;
-
-  closeAllDropdowns();
+  if (!e.target.closest(".dropdown")) {
+    closeAllDropdowns();
+  }
 });
 
-// Escape key — closes ALL dropdowns AND ALL modals
+// Escape key support
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
-    // Close all dropdowns
     closeAllDropdowns();
 
-    // Close all active modals
+    // Close modals too
     document.querySelectorAll(".app-modal.active").forEach((modal) => {
       modal.classList.remove("active");
-
-      // Special cleanup
       if (modal.id === "log-history-modal") {
-        const logBody = modal.querySelector(".modal-body");
-        if (logBody) logBody.innerHTML = "";
+        const body = modal.querySelector(".modal-body");
+        if (body) body.innerHTML = "";
       }
-
       if (modal.id === "graph-modal" && window.cy) {
         window.cy.destroy();
         window.cy = null;
@@ -69,69 +60,52 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-
-// ==================== POSITIONING LOGIC ====================
-// ==================== POSITIONING LOGIC ====================
+// ==================== POSITIONING ====================
 function positionMenu(dropdown) {
   const trigger = dropdown.querySelector("button");
   const menu = dropdown.querySelector(".dropdown-menu");
   if (!trigger || !menu) return;
 
   const rect = trigger.getBoundingClientRect();
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
 
-  const spaceAbove = rect.top;
-  const spaceBelow = viewportHeight - rect.bottom;
+  const showBelow = (vh - rect.bottom) > rect.top * 0.9;
 
-  // Vertical positioning (prefer bottom)
-  const showBelow = spaceBelow > spaceAbove * 0.9;
-
-  // === Dynamic Width (in rem) ===
+  // Measure natural width
   menu.style.visibility = "hidden";
   menu.style.display = "block";
   const naturalWidth = menu.scrollWidth;
   menu.style.visibility = "visible";
 
-  // Convert to rem (assuming 1rem = 16px base)
-  const finalWidthPx = Math.max(180, Math.min(naturalWidth, 230));
-  const finalWidthRem = (finalWidthPx / 16).toFixed(2);
+  const widthPx = Math.max(180, Math.min(naturalWidth, 230));
+  const widthRem = (widthPx / 16).toFixed(2);
 
-  // === Horizontal positioning ===
-  let leftPos = rect.left;
-  //const rightMarginRem = 1.25; // 20px
+  let left = rect.left;
+  if (left + widthPx > vw - 8) left = vw - widthPx - 8;
 
-  if (leftPos + finalWidthPx > viewportWidth - 5) {
-    leftPos = viewportWidth - finalWidthPx - 5;
-  }
-
-  // Apply positioning using rem where possible
   menu.style.position = "fixed";
-  menu.style.left = `${leftPos}px`;           // left needs px for precision
-  menu.style.width = `${finalWidthRem}rem`;
-  menu.style.overflowY = "auto";
+  menu.style.left = `${left}px`;
+  menu.style.width = `${widthRem}rem`;
   menu.style.zIndex = "10000";
+  menu.style.overflowY = "auto";
 
   if (showBelow) {
-    menu.style.top = `${rect.bottom + 6}px`;   // small gap in px for precision
+    menu.style.top = `${rect.bottom + 6}px`;
     menu.style.bottom = "auto";
-    menu.style.maxHeight = `${Math.min(spaceBelow * 0.88, viewportHeight * 0.72)}px`;
+    menu.style.maxHeight = `${Math.min((vh - rect.bottom) * 0.88, vh * 0.72)}px`;
   } else {
-    menu.style.bottom = `${viewportHeight - rect.top + 6}px`;
+    menu.style.bottom = `${vh - rect.top + 6}px`;
     menu.style.top = "auto";
-    menu.style.maxHeight = `${Math.min(spaceAbove * 0.88, viewportHeight * 0.72)}px`;
+    menu.style.maxHeight = `${Math.min(rect.top * 0.88, vh * 0.72)}px`;
   }
-
-  dropdown.classList.add("active");
 }
 
 export function closeAllDropdowns() {
   document.querySelectorAll(".dropdown.active").forEach((d) => {
     d.classList.remove("active");
-
     const menu = d.querySelector(".dropdown-menu");
     if (menu) menu.style.display = "none";
-
     if (cleanupAutoUpdate) {
       cleanupAutoUpdate();
       cleanupAutoUpdate = null;
@@ -139,143 +113,98 @@ export function closeAllDropdowns() {
   });
 }
 
-// ==================== ACTION HANDLERS ====================
-
+// ==================== TREE ACTIONS ====================
 function handleTreeActionClick(e, actionItem, row, action) {
   const isCluster = row.classList.contains("ordo-cluster-row");
-  const type = isCluster ? "cluster" : "job";
   const id = Number(row.dataset.id);
-  const name =
-    row
-      .querySelector("td:first-child")
-      ?.textContent.trim()
-      .replace(/\/$/, "") || "";
+  const name = row.querySelector("td:first-child")?.textContent.trim().replace(/\/$/, "") || "";
 
   switch (action) {
-    case "attach-calendar":
-      const node = findClusterById(appState.monitorData.tree, id);
-      if (!node) return showToast("Cluster not found", "error");
-      openAttachCalendarModal(
-        id,
-        name,
-        node.cal_name || "",
-        node.cal_id || null,
-      );
-      break;
     case "edit-cluster":
       openClusterModal("edit", id);
       break;
+
     case "edit-job":
       openJobModal("edit", id);
       break;
+
     case "view-graph":
       openDependencyGraph(id, name);
       break;
+
     case "new-cluster":
       openClusterModal("create", null, id, name);
       break;
+
     case "new-job":
       openJobModal("create", null, id, name);
       break;
+
     case "run":
-      sendCommand("run", id, type);
-      //showToast(`Starting ${type}...`, "info");
+      sendCommand("run", id, isCluster ? "cluster" : "job");
       break;
+
     case "kill":
       openConfirmModal(
         "Confirm Kill",
-        `Are you sure you want to kill ${name || "this " + type}?`,
-        () => sendCommand("kill", id, type),
-        () => showToast("Kill cancelled", "info"),
+        `Kill ${name || "this item"}?`,
+        () => sendCommand("kill", id, isCluster ? "cluster" : "job")
       );
       break;
+
     case "hold":
-      sendCommand("hold", id, type);
-      showToast(`Holding ${type}...`, "info");
+      sendCommand("hold", id, isCluster ? "cluster" : "job");
+      showToast(`Holding ${isCluster ? "cluster" : "job"}...`, "info");
       break;
+
     case "release":
-      sendCommand("release", id, type);
-      showToast(`Releasing ${type}...`, "info");
+      sendCommand("release", id, isCluster ? "cluster" : "job");
+      showToast(`Releasing ${isCluster ? "cluster" : "job"}...`, "info");
       break;
+
     case "ice":
-      sendCommand("ice", id, type);
-      showToast(`Icing ${type}...`, "info");
-      break;
     case "melt":
-      sendCommand("melt", id, type);
-      showToast(`Melting ${type}...`, "info");
-      break;
     case "complete":
-      sendCommand("complete", id, type);
-      showToast(`Completing ${type}...`, "info");
-      break;
     case "reset":
-      sendCommand("reset", id, type);
-      showToast(`Resetting ${type}...`, "info");
+      sendCommand(action, id, isCluster ? "cluster" : "job");
+      showToast(`${action.charAt(0).toUpperCase() + action.slice(1)}ing...`, "info");
       break;
+
     case "delete":
       openConfirmModal(
-        "Confirm Deletion",
-        `Are you sure you want to delete ${name || "this " + type}?`,
-        () => sendCommand("delete", id, type),
-        () => showToast("Deletion cancelled", "info"),
+        "Confirm Delete",
+        `Delete ${name || "this item"}?`,
+        () => sendCommand("delete", id, isCluster ? "cluster" : "job")
       );
       break;
 
     case "view-log":
-      if (isCluster) {
-        console.warn("View Log called on a cluster — not supported");
-        break;
-      }
-
-      const jobId = id;
-      if (!jobId) {
-        showToast("No job ID found", "danger");
-        break;
-      }
-
-      const modal = document.getElementById("log-modal");
-      if (modal) {
-        modal.dataset.jobId = jobId;
-        modal.classList.add("active");
-      }
-
-      if (appState.ws?.readyState === WebSocket.OPEN) {
-          const rl = JSON.stringify({
-            command: "read_log",
-            id: jobId,
-          });
-        console.log("READLOG", rl);
-        appState.ws.send(
-	  rl
-        );
-      } else {
-        showToast("Not connected to server", "danger");
-      }
+      if (!isCluster) sendWS({ command: "read_log", id });
       break;
 
     default:
       console.warn("Unhandled tree action:", action);
   }
+
   closeAllDropdowns();
 }
 
+// ==================== SERVER ACTIONS ====================
 function handleServerActionClick(e, actionItem, row, action) {
-  e.preventDefault();
   const serverId = Number(actionItem.dataset.id);
-  if (isNaN(serverId) || serverId <= 0)
-    return showToast("Invalid server ID", "danger");
+  if (!serverId) return showToast("Invalid server ID", "danger");
+
   const server = findServerById(serverId);
+
   switch (action) {
     case "edit-server":
       openServerModal("edit", server);
       break;
     case "delete-server":
       openConfirmModal(
-        "Confirm Delete Server",
-        `Are you sure you want to delete server "${server?.name || "this server"}"?`,
-        () => sendWS({ command: "delete_monitor", id: serverId }),
-        () => showToast("Delete cancelled", "info"),
+        "Delete Server",
+        `Delete "${server?.name || "this server"}"?`,
+        () => sendWS({ command: "delete_monitor", id: serverId })
       );
       break;
     default:
@@ -284,6 +213,7 @@ function handleServerActionClick(e, actionItem, row, action) {
   closeAllDropdowns();
 }
 
+// ==================== CALENDAR ACTIONS ====================
 function handleCalendarsActionClick(e, actionItem, row, action) {
   e.preventDefault();
   const isCalendarRow = row.classList.contains("ordo-calendar-row");
@@ -342,28 +272,29 @@ function handleCalendarsActionClick(e, actionItem, row, action) {
   closeAllDropdowns();
 }
 
-// Delegated action handler
+// ==================== MAIN DELEGATOR ====================
 export function handleActionClick(e) {
   const actionItem = e.target.closest(".dropdown-item[data-action]");
   if (!actionItem) return;
   e.preventDefault();
-  const action = actionItem.dataset.action;
+
   const row = actionItem.closest("tr");
   if (!row) return;
 
-  let handler = null;
-  if (row.closest("#tree-body")) handler = handleTreeActionClick;
-  else if (row.closest("#calendars-table, #calendars-body, #calendars-content"))
-    handler = handleCalendarsActionClick;
-  else if (row.closest("#servers-table, #servers-body, #servers-content"))
-    handler = handleServerActionClick;
+  const action = actionItem.dataset.action;
 
-  if (handler) handler(e, actionItem, row, action);
+  if (row.closest("#tree-body")) {
+    handleTreeActionClick(e, actionItem, row, action);
+  } else if (row.closest("#servers-table, #servers-body")) {
+    handleServerActionClick(e, actionItem, row, action);
+  } else if (row.closest("#calendars-table, #calendars-body")) {
+    handleCalendarsActionClick(e, actionItem, row, action);
+  }
 }
 
 export function attachGlobalListeners() {
   if (document.body.dataset.globalListenersAttached === "true") return;
   document.body.dataset.globalListenersAttached = "true";
-
   document.addEventListener("click", handleActionClick);
 }
+
