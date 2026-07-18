@@ -309,6 +309,7 @@ function buildSingleRow(
 // ==================== INSERT FUNCTIONS (with tree sync) ====================
 
 export function insertCluster(item, parentId = null) {
+console.log(`[insertCluster] cluster=${item.id} parentId=${parentId} rootId=${appState.orgData?.root_cluster_id}`);
   const tbody = document.getElementById("tree-body");
   if (!tbody) return;
 
@@ -329,33 +330,34 @@ export function insertCluster(item, parentId = null) {
   buildSingleRow(newRow, item, depth, parentId);
 
   // === CORRECT INSERTION: After ALL siblings AND their entire job subtrees ===
-  if (parentId) {
-    const parentRow = document.getElementById(`row-cluster-${parentId}`);
-    if (parentRow) {
-      let insertionPoint = parentRow;
-      let current = parentRow.nextElementSibling;
+// === INSERT AT BOTTOM OF PARENT'S SUBTREE ===
+if (parentId) {
+  const parentRow = document.getElementById(`row-cluster-${parentId}`);
+  if (parentRow) {
+    let insertionPoint = parentRow;
 
-      while (current) {
-        const currentDepth = Number(current.dataset.depth || 0);
-        if (currentDepth <= depth) {
-          // Left the subtree of the parent
-          break;
-        }
-        insertionPoint = current;
-        current = current.nextElementSibling;
+    // Walk to the end of this parent's subtree
+    let current = parentRow.nextElementSibling;
+    while (current) {
+      const currentDepth = Number(current.dataset.depth || 0);
+      if (currentDepth <= Number(parentRow.dataset.depth || 0)) {
+        break; // left the subtree
       }
-
-      insertionPoint.after(newRow);
-      console.log(`[insertCluster] ✅ Inserted cluster ${item.id} after full subtree of parent ${parentId}`);
-    } else {
-      tbody.appendChild(newRow);
+      insertionPoint = current;
+      current = current.nextElementSibling;
     }
+    insertionPoint.after(newRow);
+    console.log(`[insertCluster] Inserted cluster ${item.id} at BOTTOM of parent ${parentId}`);
   } else {
-    // Root level
     tbody.appendChild(newRow);
   }
+} else {
+  tbody.appendChild(newRow); // root level at bottom
+}
+
 
   // Tree state sync
+/*
   if (appState.monitorData?.tree) {
     let treeCluster = findClusterById(appState.monitorData.tree, item.id);
     if (!treeCluster) {
@@ -371,6 +373,32 @@ export function insertCluster(item, parentId = null) {
       }
     }
   }
+*/
+
+// Tree state sync
+if (appState.monitorData?.tree) {
+  let treeCluster = findClusterById(appState.monitorData.tree, item.id);
+  if (!treeCluster) {
+    const newCluster = { ...item, is_cluster: true, children: [] };
+
+    const rootId = appState.orgData?.root_cluster_id || 
+                   appState.accountData?.root_cluster_id;
+
+    if (!parentId || Number(parentId) === Number(rootId)) {
+      appState.monitorData.tree.push(newCluster);
+    } else {
+      const parent = findClusterById(appState.monitorData.tree, parentId);
+      if (parent) {
+        if (!parent.children) parent.children = [];
+        parent.children.push(newCluster);
+      } else {
+        console.warn(`[insertCluster] Parent ${parentId} not found — appending to root`, item);
+        appState.monitorData.tree.push(newCluster);
+      }
+    }
+  }
+}
+
 
   // Apply collapse state if needed
   if (appState.collapsedClusters.has(String(item.id))) {
@@ -379,13 +407,13 @@ export function insertCluster(item, parentId = null) {
   }
 }
 
-export function insertCluster2(item, parentId = null) {
+export function insertJob(item, parentId = null) {
   const tbody = document.getElementById("tree-body");
   if (!tbody) return;
 
-  const rowId = `row-cluster-${item.id}`;
+  const rowId = `row-job-${item.id}`;
   if (document.getElementById(rowId)) {
-    updateClusterRow(document.getElementById(rowId), item);
+    updateJobRow(document.getElementById(rowId), item);
     return;
   }
 
@@ -395,62 +423,66 @@ export function insertCluster2(item, parentId = null) {
   let depth = 0;
   if (parentId) {
     const parentRow = document.getElementById(`row-cluster-${parentId}`);
-    if (parentRow) depth = Number(parentRow.dataset.depth || 0) + 1;
+    if (parentRow) {
+      depth = Number(parentRow.dataset.depth || 0) + 1;
+    }
   }
 
   buildSingleRow(newRow, item, depth, parentId);
 
-  // === CORRECT INSERTION LOGIC ===
-  // Insert after ALL sibling clusters AND after all their jobs
+  // === INSERT AFTER ALL JOBS BUT BEFORE SUB-CLUSTERS ===
   if (parentId) {
-    const parentRow = document.getElementById(`row-cluster-${parentId}`);
-    if (parentRow) {
-      let insertionPoint = parentRow;
+    let parentRow = document.getElementById(`row-cluster-${parentId}`);
 
-      let current = parentRow.nextElementSibling;
-      while (current) {
-        const isSameParent = current.dataset.parent === String(parentId);
-        if (!isSameParent) break;   // left this subtree
-
-        insertionPoint = current;
-        current = current.nextElementSibling;
-      }
-
-      insertionPoint.after(newRow);
-    } else {
-      tbody.appendChild(newRow);
+    // If parent cluster row not found yet, wait a tiny bit and retry once
+    if (!parentRow) {
+      console.warn(`[insertJob] Parent cluster ${parentId} not in DOM yet for job ${item.id} — retrying`);
+      setTimeout(() => {
+        const retryParent = document.getElementById(`row-cluster-${parentId}`);
+        if (retryParent) {
+          insertJob(item, parentId); // recursive retry (safe because we check existence)
+        } else {
+          tbody.appendChild(newRow); // final fallback
+        }
+      }, 10);
+      return;
     }
+
+    let insertionPoint = parentRow;
+    let current = parentRow.nextElementSibling;
+
+    while (current) {
+      const isSubCluster = current.classList.contains("ordo-cluster-row");
+      const rowParent = current.dataset.parent;
+
+      if (isSubCluster || (rowParent && String(rowParent) !== String(parentId))) {
+        break;
+      }
+      insertionPoint = current;
+      current = current.nextElementSibling;
+    }
+
+    insertionPoint.after(newRow);
   } else {
     tbody.appendChild(newRow);
   }
 
   // Tree state sync
   if (appState.monitorData?.tree) {
-    let treeCluster = findClusterById(appState.monitorData.tree, item.id);
-    if (!treeCluster) {
-      const newCluster = { ...item, is_cluster: true, children: [] };
-      if (!parentId || parentId === 1) {
-        appState.monitorData.tree.push(newCluster);
-      } else {
-        const parent = findClusterById(appState.monitorData.tree, parentId);
-        if (parent) {
-          if (!parent.children) parent.children = [];
-          parent.children.push(newCluster);
-        }
+    const jobInTree = findJobById(appState.monitorData.tree, item.id);
+    if (!jobInTree) {
+      const parent = findClusterById(appState.monitorData.tree, parentId);
+      if (parent) {
+        if (!parent.jobs) parent.jobs = [];
+        parent.jobs.push({ ...item, is_cluster: false });
       }
     }
   }
 
-  // Apply collapse if needed
-  if (appState.collapsedClusters.has(String(item.id))) {
-    newRow.classList.add("collapsed");
-    toggleSubtree(item.id, true);
-  }
-
-  console.log(`[insertCluster] ✅ Inserted new cluster ${item.id} at the END of siblings under parent ${parentId}`);
+  console.log(`[insertJob] Inserted job ${item.id} in parent ${parentId}`);
 }
 
-export function insertJob(item, parentId = null) {
+export function insertJob2(item, parentId = null) {
   const tbody = document.getElementById("tree-body");
   if (!tbody) return;
 

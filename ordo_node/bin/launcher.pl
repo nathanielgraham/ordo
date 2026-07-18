@@ -9,6 +9,7 @@ use FindBin qw($Bin);
 use Cwd 'abs_path';
 use POSIX qw(:sys_wait_h setsid);
 use Sys::Hostname;
+use Data::Dumper;
 
 my $hex        = pop @ARGV or die "missing hex argument";
 my $json       = pack( 'H*', $hex );

@@ -68,6 +68,7 @@ has 'local_url' => sub {
 
    #state $url = 'http://' . &get_local_ip_address() . ':3000';
    state $url = 'http://' . hostname() . ':3000';
+
    #state $url = 'http://localhost:3000';
 };
 
@@ -1692,7 +1693,11 @@ sub _start_cluster {
             );
          }
       }
-      return { success => 0, skipped => 1, message => 'cluster cannot be started' };
+      return {
+         success => 0,
+         skipped => 1,
+         message => 'cluster cannot be started'
+      };
    }
 
    # Early state checks
@@ -2069,6 +2074,7 @@ sub update_cluster {
            unless $self->_set_cluster_cal_id( $user,
             { cluster_id => $cluster_id, cal_id => $new_cal_id } );
       }
+
       #$tx->commit;
    };
 
@@ -2096,11 +2102,14 @@ sub delete_cluster {
      $self->find_cluster( $user, { id => $cluster->{id} } )->{clusters};
 
    # de-duped list of calendar ids
-   my @cal_ids = keys %{{ map { $_->{cal_id} => 1 } grep { defined $_->{cal_id} } @$clusters }};
+   my @cal_ids =
+     keys
+     %{ { map { $_->{cal_id} => 1 } grep { defined $_->{cal_id} } @$clusters }
+     };
    my $delete_count = 0;
    foreach my $c ( reverse @{$clusters} ) {
 
-      # undef calendar 
+      # undef calendar
       #$self->_set_cluster_cal_id( $user,
       #   { cluster_id => $c->{id}, cal_id => undef } );
 
@@ -2134,7 +2143,7 @@ sub delete_cluster {
 
    if ($delete_count) {
       $self->_broadcast_cluster( $user, [ map { $_->{id} } @{$clusters} ] );
-      $self->_broadcast_cal( $user, [ @cal_ids ] );
+      $self->_broadcast_cal( $user, [@cal_ids] );
       return { success => 1, deleted => $delete_count };
    }
    else {
@@ -3388,9 +3397,11 @@ sub _create_job {
       }
    }
 
-   #$insert_hash->{on_fail_id} = $on_fail_id if $on_fail_id;
-
-   if ( $d->{script} ) {
+   # allow base64 encoded script
+   if ( $d->{script_b64} ) {
+      $insert_hash->{script} = decode_base64( $d->{script_b64} );
+   }
+   elsif ( $d->{script} ) {
       $insert_hash->{script} = $d->{script};
    }
 
@@ -3989,7 +4000,7 @@ sub update_job_config {
       $needs_any_ids = $self->_resolve_job_ids( $user, $d->{needs_any} );
    }
 
-   my @fields = qw(retrys loops delay description script);
+   my @fields = qw(retrys loops delay description);
    my $update_hash =
      { map { $_ => $d->{$_} } grep { exists $d->{$_} } @fields };
 
@@ -4006,6 +4017,14 @@ sub update_job_config {
 
    $update_hash->{max_runtime_seconds}    = $max_sec;
    $update_hash->{max_runtime_cluster_id} = $max_id;
+
+   # allow base64 encoded script
+   if ( $d->{script_b64} ) {
+      $update_hash->{script} = decode_base64( $d->{script_b64} );
+   }
+   elsif ( $d->{script} ) {
+      $update_hash->{script} = $d->{script};
+   }
 
    if ( $needs_ids || $needs_any_ids ) {
       $self->_write_job_needs(
@@ -4051,7 +4070,7 @@ sub update_job_config {
 
    $self->_broadcast_job( $user, [ $job->{id} ] ) if scalar keys %$update_hash;
 
-   return { success => 1, message => 'jobb updated' };
+   return { success => 1, message => 'job updated' };
 }
 
 sub _resolve_job_ids {
@@ -6239,9 +6258,9 @@ sub routing {
 
       # Stripe
       'create_checkout_session' =>
-        [ 'create_checkout_session', 1, [ { plan => 'p' }, {} ], 1 ],
+        [ 'create_checkout_session', 1, [ { plan => 'p' }, {} ], 0 ],
       'create_customer_portal' =>
-        [ 'create_customer_portal', 1, [ {}, {} ], 1 ],
+        [ 'create_customer_portal', 1, [ {}, {} ], 0 ],
 
       # Docs
       'get_documentation' => [
@@ -6281,7 +6300,7 @@ sub routing {
          'create_job',
          1,
          [
-            { name => 'n', script => 'c', server => 'srv' },
+            { name => 'n', script_b64 => 'c', server => 'srv' },
             {
                parent_id              => 'i',
                needs                  => 'a:s',
@@ -6334,7 +6353,7 @@ sub routing {
                name                   => 'n',
                newname                => 'n',
                description            => 'd',
-               script                 => 'c',
+               script_b64             => 'c',
                server                 => 'srv',
                server_id              => 'i?',
                needs                  => 'a:s',

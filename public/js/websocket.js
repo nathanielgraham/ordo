@@ -22,6 +22,7 @@ import {
   getLongestRunningJobsHTML,
   getRecentlyFailedListHTML,
   handleCommandReply,
+  showLimitToast,
 } from "./ui-handlers.js";
 
 export function checkLoginAndConnect() {
@@ -140,7 +141,12 @@ export function connectWS(token) {
 
       // ====================== TOASTS ======================
       if (data.command_reply && data.message) {
-        showToast(data.message, data.success ? "success" : "danger");
+        if (data.success) {
+          showToast(data.message, data.success ? "success" : "danger");
+        }
+        else {
+          showLimitToast(data.message);   // use the debounced version
+        }
       }
     } catch (err) {
       console.error("Parse error:", err);

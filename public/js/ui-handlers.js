@@ -1,14 +1,3 @@
-// ==================== DEBUG GUARD - MUST BE LINE 1-15 ====================
-console.log("[ui-handlers] >>> FILE START EXECUTING <<<");
-
-if (window.__uiHandlersLoaded) {
-  console.log("[ui-handlers] ⚠️ Duplicate load blocked");
-} else {
-  window.__uiHandlersLoaded = true;
-  console.log("[ui-handlers] ✅ FIRST AND ONLY INITIALIZATION");
-}
-// =====================================================================
-
 import { openConfirmModal } from "./modals.js";
 import { sendWS, checkLoginAndConnect } from "./websocket.js";
 import {
@@ -19,8 +8,6 @@ import {
 import { renderJobsTable } from "./tree/tree-table.js";
 import { openCronsModal } from "./modals.js";
 import {
-  //updateRow,
-  //insertRow,
   insertJob,
   insertCluster,
   updateJobRow,
@@ -29,6 +16,8 @@ import {
   removeClusterRow,
   updateLiveTimings,
 } from "./tree/tree-table.js";
+
+import { activateTab } from "./tabs.js";
 
 import {
   formatDate,
@@ -110,9 +99,30 @@ export function initModalTomSelect(selectId, config = {}) {
   return ts;
 }
 
+// Global debounce for usage limit toasts
+let lastLimitToastTime = 0;
+
+export function showLimitToast(message) {
+  const now = Date.now();
+  if (now - lastLimitToastTime < 1000) return; // 2 second debounce
+
+  lastLimitToastTime = now;
+  showToast(message || "Monthly API limit reached. Please upgrade your plan.", "danger");
+}
+
 // ====================== CENTRAL COMMAND REPLY ROUTER ======================
 export function handleCommandReply(data) {
   if (!data || !data.command_reply) return;
+
+  if (!data.success &&  data.persistent && data.limit_type) {
+    activateTab("settings");
+    const billingSubtab = document.querySelector('[data-tab="billing"]');
+    if (billingSubtab) {
+      billingSubtab.click();
+    }
+    showLimitToast(data.message || "Monthly API limit reached. Please upgrade your plan.", "danger");
+    return;
+  }
 
   switch (data.command_reply) {
     case "login_user":
@@ -668,8 +678,12 @@ function renderTeamMembers(members) {
 // ==================== ACTIONS ====================
 
 export function refreshSettings() {
-  sendWS({ command: "read_user" });
-  sendWS({ command: "read_org" });
+  //const isLoggedIn = document.body.classList.contains("is-logged-in");
+  const isLoggedIn = !!(appState.accountData?.id || appState.token);
+  if (isLoggedIn) {
+    sendWS({ command: "read_user" });
+    sendWS({ command: "read_org" });
+  }
 }
 
 export async function saveAccount() {

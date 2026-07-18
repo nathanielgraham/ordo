@@ -120,11 +120,29 @@ export function openJobModal(
     : parentName
       ? `In cluster: ${parentName}`
       : "In root";
-  // Basic fields
+
+  // ==================== BASIC FIELDS ====================
   document.getElementById("job-name").value = isEdit ? item?.name || "" : "";
-  document.getElementById("job-script").value = isEdit
-    ? item?.script || ""
-    : "";
+  
+  // Load script - prefer base64, fallback to legacy plain text
+  const scriptTextarea = document.getElementById("job-script");
+  if (isEdit && item) {
+    let scriptText = "";
+    if (item.script_b64) {
+      try {
+        scriptText = decodeURIComponent(escape(atob(item.script_b64)));
+      } catch (e) {
+        console.warn("[openJobModal] Base64 decode failed, using raw script", e);
+        scriptText = item.script || "";
+      }
+    } else if (item.script) {
+      scriptText = item.script;
+    }
+    scriptTextarea.value = scriptText;
+  } else {
+    scriptTextarea.value = "";
+  }
+
   document.getElementById("job-loops").value = isEdit
     ? (item?.loops ?? 0)
     : "0";
@@ -136,19 +154,22 @@ export function openJobModal(
     : "0";
 
   // ==================== SCRIPT TEXTAREA + CLEAR BUTTON + TEMPLATE DROPDOWN ====================
-  const scriptTextarea = document.getElementById("job-script");
   const clearBtn = document.getElementById("clear-script-btn");
   const templateSelect = document.getElementById("script-template");
+
   if (scriptTextarea) scriptTextarea.focus();
+
   function updateClearButton() {
     if (clearBtn) {
       clearBtn.style.display = scriptTextarea.value.trim() ? "block" : "none";
     }
   }
+
   if (scriptTextarea) {
     scriptTextarea.addEventListener("input", updateClearButton);
     updateClearButton();
   }
+
   if (clearBtn) {
     clearBtn.addEventListener("click", () => {
       scriptTextarea.value = "";
@@ -1302,6 +1323,88 @@ export function saveJob() {
   const isEdit = !!modal.dataset.editId;
   const id = isEdit ? Number(modal.dataset.editId) : null;
 
+  const rawScript = document.getElementById("job-script").value || "";
+
+  const payload = {
+    command: isEdit ? "update_job_config" : "create_job",
+    name: (document.getElementById("job-name").value || "").trim(),
+    server: (document.getElementById("job-server").tomselect?.getValue() || "").trim(),
+    retrys: parseInt(document.getElementById("job-retrys").value) || 0,
+    loops: parseInt(document.getElementById("job-loops").value) || 0,
+    delay: parseInt(document.getElementById("job-delay").value) || 0,
+    script_b64: btoa(unescape(encodeURIComponent(rawScript))),   // ← NEW
+  };
+
+  // Read TomSelect values
+  payload.needs_ids =
+    document.getElementById("job-needs").tomselect?.getValue().map(Number) || [];
+  payload.needs_any_ids =
+    document.getElementById("job-needs-any").tomselect?.getValue().map(Number) || [];
+
+  // ==================== MAX RUNTIME HANDLER ====================
+  const maxRuntimeEl = document.getElementById("job-max-runtime");
+  const maxSeconds = maxRuntimeEl ? parseInt(maxRuntimeEl.value) || 0 : 0;
+
+  const maxHandlerEl = document.getElementById("job-max-runtime-handler");
+  let maxClusterId = null;
+  if (maxHandlerEl && maxHandlerEl.tomselect) {
+    const val = maxHandlerEl.tomselect.getValue();
+    if (val && String(val).trim() !== "" && String(val) !== "null") {
+      maxClusterId = Number(val);
+    }
+  }
+
+  // Validation: one but not both
+  if ((maxSeconds > 0 && !maxClusterId) || (maxClusterId && maxSeconds === 0)) {
+    showToast(
+      "Max Runtime requires both seconds AND a handler (or neither)",
+      "danger",
+    );
+    return;
+  }
+
+  if (maxSeconds > 0 && maxClusterId) {
+    payload.max_runtime_seconds = maxSeconds;
+    payload.max_runtime_cluster_id = maxClusterId;
+  } else {
+    payload.max_runtime_seconds = 0;
+    payload.max_runtime_cluster_id = null;
+  }
+
+  console.log("[saveJob] Max Runtime →", {
+    max_runtime_seconds: maxSeconds,
+    max_runtime_cluster_id: maxClusterId,
+  });
+
+  // ==================== PARENT / RENAME HANDLING ====================
+  if (!isEdit) {
+    let parentId = modal.dataset.parentId;
+    if (parentId) payload.parent_id = Number(parentId);
+  } else {
+    payload.id = id;
+    const newName = payload.name;
+    if (newName) {
+      payload.newname = newName;
+      delete payload.name;
+    }
+  }
+
+  // Validation
+  if (!payload.name && !isEdit) {
+    showToast("Job name is required", "danger");
+    return;
+  }
+
+  console.log("[saveJob] Final payload:", payload);
+  sendWS(payload);
+  modal.classList.remove("active");
+}
+
+export function saveJob3() {
+  const modal = document.getElementById("job-modal");
+  const isEdit = !!modal.dataset.editId;
+  const id = isEdit ? Number(modal.dataset.editId) : null;
+
   const payload = {
     command: isEdit ? "update_job_config" : "create_job",
     name: (document.getElementById("job-name").value || "").trim(),
@@ -1360,25 +1463,6 @@ export function saveJob() {
     max_runtime_cluster_id: maxClusterId,
   });
 
-  /*
-  const maxRuntimeVal = parseInt(document.getElementById("job-max-runtime").value) || 0;
-  const maxRuntimeHandlerVal = document
-    .getElementById("job-max-runtime-handler")
-    .tomselect?.getValue();
-
-  if (maxRuntimeVal > 0) {
-    payload.max_runtime_seconds = maxRuntimeVal;
-    if (maxRuntimeHandlerVal && maxRuntimeHandlerVal.length > 0) {
-      payload.max_runtime_cluster_id = Number(maxRuntimeHandlerVal);
-    }
-  } else if (maxRuntimeHandlerVal && maxRuntimeHandlerVal.length > 0) {
-    // If handler is set but no seconds, show error
-    payload.max_runtime_cluster_id = null;   // explicitly clear
-    showToast("Max Runtime (seconds) is required when using a handler", "danger");
-    return;
-  }
-*/
-
   // ==================== PARENT / RENAME HANDLING ====================
   if (!isEdit) {
     let parentId = modal.dataset.parentId;
@@ -1407,7 +1491,6 @@ export function saveJob() {
   //showToast(isEdit ? "Job updated" : "Job created", "success");
 }
 
-// ==================== SAVE CLUSTER ====================
 // ==================== SAVE CLUSTER ====================
 export function saveCluster() {
   const modal = document.getElementById("cluster-modal");
