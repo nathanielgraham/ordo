@@ -20,7 +20,7 @@ Ordo is designed to give organizations maximum flexibility and control. Whether 
 - 30 Team Members
 
 **Important Note on Stats Polling:**  
-Stats polling is **completely optional**. The core scheduling, dependencies, job execution, and self-healing features work perfectly well **without any monitoring**.
+Stats polling is **completely optional**. The core scheduling, dependencies, job execution, self-healing, handlers, and cloning features work perfectly well **without any monitoring**.
 
 Stats polling provides real-time visibility into running jobs and server health (CPU, memory, disk usage, etc.). Use it only if it fits your operational needs and budget.
 

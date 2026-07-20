@@ -216,12 +216,26 @@ function handleTabClick(e) {
 // Subtab click (e.g. Billing inside Settings)
 function handleSubtabClick(e) {
   const subtabId = e.currentTarget.dataset.tab;
-  const currentMainTab = window.location.hash.replace("#", "").split("/")[0];
+  
+  // Remove active from all subtabs and contents
+  document.querySelectorAll('.internal-tab').forEach(tab => {
+    tab.classList.remove('active');
+  });
+  document.querySelectorAll('.internal-tab-content').forEach(content => {
+    content.classList.remove('active');
+  });
 
-  if (currentMainTab === "settings") {
-    window.location.hash = `settings/${subtabId}`;
+  // Activate clicked tab button
+  e.currentTarget.classList.add('active');
+
+  // Activate corresponding content
+  const targetContent = document.getElementById(`tab-${subtabId}`);
+  if (targetContent) {
+    targetContent.classList.add('active');
   }
-  // Let your existing subtab logic run
+
+  // Update URL hash
+  window.location.hash = `settings/${subtabId}`;
 }
 
 /*

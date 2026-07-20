@@ -433,9 +433,10 @@ select:focus {
   display: flex;
   gap: 1rem;
   justify-content: center;
+/*
   margin-bottom: 1rem;
-  border-bottom: 1px solid #444;
   padding-bottom: 0.5rem;
+*/
 }
 .internal-tab {
   padding: 0.75rem 1.25rem;
@@ -448,10 +449,14 @@ select:focus {
   transition: all 0.25s ease;
   position: relative;
 }
+
+/*
 .internal-tab:hover {
   color: #fff;
   background: rgba(0, 255, 255, 0.1);
 }
+*/
+
 .internal-tab.active {
   color: var(--glow-cyan);
 }
@@ -781,7 +786,6 @@ progress::-webkit-progress-value {
   transition: opacity 0.3s ease;
   opacity: 0;
 }
-.navbar,
 .topnav {
   background: var(--bg-primary);
   border-bottom: 1px solid #333;
@@ -829,9 +833,12 @@ progress::-webkit-progress-value {
   border-radius: 0.5rem 0.5rem 0 0;
 }
 
+/*
 .tab-content.active {
   padding: clamp(0.6rem, 0.8vw, 1rem);
 }
+*/
+
 .menu-label {
   font-size: 1.3rem;
   color: #0ff;
@@ -945,11 +952,10 @@ progress::-webkit-progress-value {
   min-height: 100vh;
   overflow: hidden;
 }
-.navbar,
 .topnav {
   position: sticky;
   top: 0;
-  z-index: 3000;
+  z-index: 1000;
   flex-shrink: 1;
 }
 .main-content,
@@ -960,35 +966,19 @@ progress::-webkit-progress-value {
   overflow: hidden;
   min-height: 0;
 }
-.content-center,
-.docs-content,
-.docs-main-content,
-.table-container {
+
+.content-center {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   height: auto;
 }
+
 .docs-grid {
   flex: 1 1 auto;
   min-height: 0;
 }
-
-/*
-.docs-sidebar {
-  flex: 1 1 25rem;
-  flex-shrink: 1;
-  align-self: stretch;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 1rem;
-  border: 1px solid #444;
-  margin-left: 1rem;
-  scrollbar-gutter: stable;
-  background: #1a1a1a;
-}
-*/
 
 .docs-sidebar {
   flex: 0 0 16.25rem;        /* ~260px */
@@ -1293,6 +1283,8 @@ progress::-webkit-progress-value {
 .ts-dropdown {
   background: #1a1a1a !important;
   color: #e0e0e0 !important;
+  max-height: 10rem;
+  overflow-y: auto;
 }
 .ts-control {
   border: 1px solid #555 !important;
@@ -1321,7 +1313,7 @@ progress::-webkit-progress-value {
   z-index: 99999 !important;
 }
 .ts-dropdown .option {
-  padding: 0.55rem 1rem !important;
+  padding: 0.3rem 0.3rem !important;
   color: #e0e0e0 !important;
 }
 .ts-dropdown .option.active,
@@ -1745,37 +1737,17 @@ tr:hover .fa-cog {
   background: #ef5350;
   color: #fff;
 }
+/*
 .stats-td.has-tooltip {
   position: relative;
-  cursor: help;
 }
+*/
 .stats-td {
   font-weight: 700;
   vertical-align: middle;
   text-align: center;
 }
-.deps-td.has-tooltip:hover::after,
-.stats-td.has-tooltip:hover::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #1e2937;
-  color: #e0f2fe;
-  padding: 0.65rem 0.95rem;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  white-space: pre;
-  /*max-width: 340px; */
-  min-width: 2.4rem;
-  z-index: 50;
-  box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.85);
-  border: 1px solid #67e8f9;
-  margin-bottom: 12px;
-  line-height: 1.5;
-  pointer-events: none;
-}
+
 .ordo-table,
 table {
   border-collapse: collapse;
@@ -1869,11 +1841,13 @@ tr.hidden {
 .ordo-cron-row .fa-clock {
   color: #67e8f9;
 }
-#monitor .deps-td.has-tooltip,
-.ordo-table .deps-td.has-tooltip {
+/*
+.ordo-table .has-tooltip {
   position: relative;
-  z-index: 50;
+  z-index: 9999;
 }
+*/
+
 /*
 #monitor .deps-td.has-tooltip:hover::after,
 .ordo-table .deps-td.has-tooltip:hover::after {
@@ -2325,4 +2299,117 @@ html,
 
 #script-template .ts-control {
   min-width: 22rem !important;
+}
+
+/* ==================== STICKY HEADERS FOR ALL TABLES + SETTINGS ==================== */
+
+/* Monitor tab - main table */
+#monitor .content-center {
+  overflow-y: hidden !important;
+}
+
+#monitor .table-container {
+  overflow-y: auto !important;
+  max-height: 100%;
+  position: relative;
+}
+
+/* Servers & Calendars tables */
+#servers .table-container,
+#calendars .table-container,
+.table-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto !important;
+  overflow-x: auto;
+  position: relative;
+  width: 100%;
+}
+
+/* Sticky headers for ALL ordo tables */
+.ordo-table thead,
+#servers-table thead,
+#calendars-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #0f172a;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
+}
+
+.ordo-table th,
+#servers-table th,
+#calendars-table th {
+  position: sticky;
+  top: 0;
+  z-index: 101;
+  background: #0f172a;
+}
+
+/* ==================== SETTINGS - STICKY TABS & SCROLL ==================== */
+
+#settings .settings-wrapper {
+  height: auto !important;
+  flex: 1 1 auto !important;
+  overflow-y: auto !important;
+}
+
+#settings .internal-tabs {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 999 !important;
+  background: #0a0a0a !important;
+  padding: 0.5rem 0 0.85rem !important;
+}
+
+/* Hide all internal tab contents by default */
+.internal-tab-content {
+  display: none !important;
+}
+
+.internal-tab-content.active {
+  display: block !important;
+}
+
+/* 1. Boost the parent cell/row when hovered */
+/*
+.ordo-table tr:hover,
+.stats-td.has-tooltip,
+.deps-td.has-tooltip {
+  position: relative;
+  z-index: 9000 !important;
+}
+*/
+
+/* 2. Tooltip styling */
+/*
+.deps-td.has-tooltip:hover::after,
+.stats-td.has-tooltip:hover::after {
+*/
+
+.ordo-table .has-tooltip {
+  position: relative;
+  z-index: 5000;
+  white-space: pre;
+}
+
+.ordo-table .has-tooltip:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e2937;
+  color: #e0f2fe;
+  padding: 0.65rem 0.95rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  white-space: pre;
+  min-width: auto;
+  max-width: auto;
+  border: 1px solid #67e8f9;
+  margin-bottom: -0.7rem;
+  line-height: 1.5;
+  pointer-events: none;
 }

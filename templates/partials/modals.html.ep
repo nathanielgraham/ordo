@@ -422,14 +422,29 @@
           </p>
         </div>
       </div>
-      <!--
+
+      <!-- Max Runtime -->
       <div class="form-group">
-        <label class="label" for="job-on-fail">On Fail Cluster</label>
-        <select id="job-on-fail">
+        <label class="label" for="job-max-runtime">Max Runtime (seconds)</label>
+        <input
+          class="input"
+          type="number"
+          id="job-max-runtime"
+          min="0"
+          placeholder="e.g. 7200 (2 hours)"
+        />
+      </div>
+
+      <!-- Max Runtime Handler -->
+      <div class="form-group">
+        <label class="label" for="job-max-runtime-handler"
+          >Max Runtime Handler</label
+        >
+        <select id="job-max-runtime-handler">
           <option value="">None</option>
         </select>
       </div>
--->
+
       <div class="form-row">
         <div class="form-group">
           <label class="label"
@@ -450,30 +465,6 @@
         <div class="form-group">
           <label class="label">Delay (seconds)</label>
           <input class="input" type="number" id="job-delay" min="0" value="1" />
-        </div>
-
-        <!-- Max Runtime -->
-        <div class="form-group">
-          <label class="label" for="job-max-runtime"
-            >Max Runtime (seconds)</label
-          >
-          <input
-            class="input"
-            type="number"
-            id="job-max-runtime"
-            min="0"
-            placeholder="e.g. 7200 (2 hours)"
-          />
-        </div>
-
-        <!-- Max Runtime Handler -->
-        <div class="form-group">
-          <label class="label" for="job-max-runtime-handler"
-            >Max Runtime Handler</label
-          >
-          <select id="job-max-runtime-handler">
-            <option value="">None</option>
-          </select>
         </div>
       </div>
     </section>
@@ -694,6 +685,26 @@
             <polygon points="52,7 46,3 46,11" fill="#fb923c" />
           </svg>
           <span><strong>On Overdue</strong> — run if parent is overdue</span>
+        </div>
+
+        <!-- Max Runtime -->
+        <div class="legend-item">
+          <svg width="60" height="14" class="legend-svg">
+            <line
+              x1="4"
+              y1="7"
+              x2="52"
+              y2="7"
+              stroke="#a855f7"
+              stroke-width="3.5"
+              stroke-dasharray="6,4"
+            />
+            <polygon points="52,7 46,3 46,11" fill="#a855f7" />
+          </svg>
+          <span
+            ><strong>Max Runtime</strong> — run if parent exceeds time
+            limit</span
+          >
         </div>
       </div>
     </section>

@@ -363,6 +363,8 @@ kill(9, $pid) or warn "Failed to kill PID $pid: $!";
     options: appState.serversData.map((s) => ({
       value: s.name,
       text: s.name,
+      dropdownParent: 'body',
+      openDirection: 'auto',
     })),
   }).setValue(item?.server_name ? [item.server_name] : []);
 
@@ -380,10 +382,14 @@ kill(9, $pid) or warn "Failed to kill PID $pid: $!";
   initModalTomSelect("job-needs", {
     maxItems: null,
     options: jobOptions,
+    dropdownParent: 'body',
+    openDirection: 'auto',
   }).setValue((item?.needs_ids || []).map(String));
   initModalTomSelect("job-needs-any", {
     maxItems: null,
     options: jobOptions,
+    dropdownParent: 'body',
+    openDirection: 'auto',
   }).setValue((item?.needs_any_ids || []).map(String));
 
   // Max Runtime
@@ -408,6 +414,8 @@ kill(9, $pid) or warn "Failed to kill PID $pid: $!";
   initModalTomSelect("job-max-runtime-handler", {
     maxItems: 1,
     options: clusterOptions,
+    dropdownParent: 'body',
+    openDirection: 'auto',
   });
 
   if (isEdit && item?.max_runtime_cluster_id) {
@@ -415,291 +423,6 @@ kill(9, $pid) or warn "Failed to kill PID $pid: $!";
       .getElementById("job-max-runtime-handler")
       .tomselect?.setValue([String(item.max_runtime_cluster_id)]);
   }
-
-  modal.classList.add("active");
-  document.getElementById("job-name").focus();
-}
-
-export function openJobModal2(
-  mode = "create",
-  itemId = null,
-  parentId = null,
-  parentName = null,
-) {
-  const modal = document.getElementById("job-modal");
-  if (!modal) return;
-
-  let item = null;
-  const numericId = Number(itemId);
-  if (mode === "edit" && numericId) {
-    item =
-      appState.jobsMap.get(numericId) ||
-      findJobById(appState.monitorData.tree, numericId);
-  }
-
-  const isEdit = mode === "edit" && item !== null;
-  const currentClusterId = item?.cluster_id || parentId;
-
-  modal.dataset.editId = isEdit ? String(numericId) : "";
-  modal.dataset.parentId = parentId || "";
-
-  // Title & Context
-  document.getElementById("job-modal-title").textContent = isEdit
-    ? "Edit Job"
-    : "New Job";
-
-  document.getElementById("job-context").textContent = isEdit
-    ? `Editing: ${item?.name || "—"}`
-    : parentName
-      ? `In cluster: ${parentName}`
-      : "In root";
-
-  // Basic fields
-  document.getElementById("job-name").value = isEdit ? item?.name || "" : "";
-  document.getElementById("job-script").value = isEdit
-    ? item?.script || ""
-    : "";
-  document.getElementById("job-loops").value = isEdit
-    ? (item?.loops ?? 0)
-    : "0";
-  document.getElementById("job-retrys").value = isEdit
-    ? (item?.retrys ?? 0)
-    : "0";
-  document.getElementById("job-delay").value = isEdit
-    ? (item?.delay ?? 0)
-    : "0";
-
-  // ==================== SCRIPT TEXTAREA + CLEAR BUTTON + TEMPLATE DROPDOWN ====================
-  const scriptTextarea = document.getElementById("job-script");
-  const clearBtn = document.getElementById("clear-script-btn");
-  const templateSelect = document.getElementById("script-template");
-
-  if (scriptTextarea) scriptTextarea.focus();
-
-  function updateClearButton() {
-    if (clearBtn) {
-      clearBtn.style.display = scriptTextarea.value.trim() ? "block" : "none";
-    }
-  }
-
-  if (scriptTextarea) {
-    scriptTextarea.addEventListener("input", updateClearButton);
-    updateClearButton();
-  }
-
-  if (clearBtn) {
-    clearBtn.addEventListener("click", () => {
-      scriptTextarea.value = "";
-      scriptTextarea.focus();
-      updateClearButton();
-    });
-  }
-
-  // Template dropdown
-  if (templateSelect) {
-    if (templateSelect.tomselect) templateSelect.tomselect.destroy();
-
-    const isEditMode = mode === "edit";
-
-    new TomSelect(templateSelect, {
-      maxItems: 1,
-      placeholder: isEditMode
-        ? "Replace with Template..."
-        : "Insert Template...",
-      //width: '100%',                    // ensure full width
-      dropdownParent: "body", // better positioning
-      maxOptions: 20,
-      controlInput: "<input>", // force full width
-      //onInitialize: function() {
-      //  this.control.style.minWidth = '340px';
-      //},
-
-      onChange: function (value) {
-        if (!value || !scriptTextarea) return;
-
-        switch (value) {
-          case "shell":
-            scriptTextarea.value = `#!/bin/sh
-echo "Starting task at $(date)"
-# Your shell commands here...
-echo "Task completed at $(date)"
-`;
-            break;
-
-          case "python":
-            scriptTextarea.value = `#!/usr/bin/env python3
-import datetime
-print("Started at:", datetime.datetime.now())
-# Your Python code here...
-print("Python script finished successfully")
-`;
-            break;
-
-          case "perl":
-            scriptTextarea.value = `#!/usr/bin/env perl
-use strict;
-use warnings;
-print "Started at: " . localtime() . "\\n";
-# Your Perl code here...
-print "Perl script finished.\\n";
-`;
-            break;
-
-          // === Utility Templates ===
-          case "stats":
-            scriptTextarea.value = `#!/bin/sh
-
-# === Update Stats ===
-# This is a simple wrapper that calls the full update_stats.pl script.
-# It collect real-time server metrics (CPU, memory, disk, load average, etc.)
-# and process-level stats (CPU %, memory %, PID, runtime) for the server it runs on.
-# 
-# Recommended: Run this frequently (every 30-60 seconds) in a dedicated "Monitoring" cluster.
-
-update_stats.pl
-`;
-            break;
-
-          case "on-fail-alert":
-            scriptTextarea.value = `#!/usr/bin/env perl
-use strict;
-use warnings;
-
-# === On Fail Alert Template ===
-# This job is typically used in an On Fail Handler cluster.
-# It receives ORDO_FAILED_CLUSTER_ID.
-
-my $failed_id = $ENV{ORDO_FAILED_CLUSTER_ID} || "unknown";
-
-print "=== JOB FAILURE ALERT ===\\n";
-print "Failed cluster ID: $failed_id\\n";
-print "Time: " . localtime() . "\\n";
-
-# Customize your alert here (email, Slack, PagerDuty, etc.)
-# Example:
-# system("echo 'Job failed in cluster $failed_id' | mail -s 'Ordo Alert' admin@example.com");
-`;
-            break;
-
-          case "clone-overdue":
-            scriptTextarea.value = `#!/usr/bin/env perl
-use strict;
-use warnings;
-use LWP::UserAgent;
-use JSON::MaybeXS;
-
-# === Clone Overdue Cluster ===
-# This job is typically used in an On Overdue Handler.
-# It automatically clones and starts the overdue cluster.
-
-my $overdue_id = $ENV{ORDO_OVERDUE_CLUSTER_ID} 
-  or die "ORDO_OVERDUE_CLUSTER_ID not set\\n";
-
-my $api_url = $ENV{ORDO_API} or die "ORDO_API not set\\n";
-my $token   = $ENV{ORDO_TOKEN} or die "ORDO_TOKEN not set\\n";
-
-my $ua = LWP::UserAgent->new;
-
-sub post {
-  my ($cmd, $payload) = @_;
-  my $res = $ua->post(
-    $api_url,
-    Content_Type => 'application/json',
-    Content      => encode_json({
-      command => $cmd,
-      id      => $payload,
-      token   => $token,
-    })
-  );
-  die "$cmd failed: " . $res->status_line unless $res->is_success;
-  return decode_json($res->decoded_content);
-}
-
-# Clone
-my $clone_data = post("clone_cluster", $overdue_id);
-my $clone_id = $clone_data->{clone_id} or die "No clone_id returned";
-
-print "Cloned $overdue_id -> $clone_id\\n";
-
-# Start clone
-post("start_cluster", $clone_id);
-
-print "Started cloned cluster $clone_id\\n";
-`;
-            break;
-
-          default:
-            console.warn("Unknown template:", value);
-        }
-        scriptTextarea.focus();
-        updateClearButton();
-        scriptTextarea.scrollTop = 0;
-      },
-    });
-  }
-
-  // ==================== SERVER ====================
-  initModalTomSelect("job-server", {
-    maxItems: 1,
-    options: appState.serversData.map((s) => ({
-      value: s.name,
-      text: s.name,
-    })),
-  }).setValue(item?.server_name ? [item.server_name] : []);
-
-  // ==================== DEPENDENCIES (same cluster only) ====================
-  const jobOptions = Array.from(appState.jobsMap.values())
-    .filter(
-      (j) =>
-        Number(j.cluster_id) === Number(currentClusterId) &&
-        Number(j.id) !== numericId,
-    )
-    .map((j) => ({
-      value: String(j.id),
-      text: j.name || `Job ${j.id}`,
-    }));
-
-  initModalTomSelect("job-needs", {
-    maxItems: null,
-    options: jobOptions,
-  }).setValue((item?.needs_ids || []).map(String));
-
-  initModalTomSelect("job-needs-any", {
-    maxItems: null,
-    options: jobOptions,
-  }).setValue((item?.needs_any_ids || []).map(String));
-
-  // Max Runtime
-  const maxRuntimeInput = document.getElementById("job-max-runtime");
-  if (maxRuntimeInput) {
-    maxRuntimeInput.value =
-      isEdit && item?.max_runtime_seconds ? item.max_runtime_seconds : "";
-  }
-
-  // Max Runtime Handler
-  const rootId = Number(appState.orgData.root_cluster_id);
-  const clusterOptions = Array.from(appState.clustersMap.values())
-    .filter((c) => {
-      const cid = Number(c.id);
-      return cid !== rootId && cid !== numericId; // exclude root and self
-    })
-    .map((c) => ({
-      value: String(c.id),
-      text: c.name || `Cluster ${c.id}`,
-    }));
-
-  initModalTomSelect("job-max-runtime-handler", {
-    maxItems: 1,
-    options: clusterOptions,
-  });
-
-  if (isEdit && item?.max_runtime_cluster_id) {
-    document
-      .getElementById("job-max-runtime-handler")
-      .tomselect?.setValue([String(item.max_runtime_cluster_id)]);
-  }
-
-  // ==================== ON_FAIL REMOVED FOR JOBS ====================
 
   modal.classList.add("active");
   document.getElementById("job-name").focus();
@@ -789,7 +512,9 @@ export function openClusterModal(
   const calTom = initModalTomSelect("cluster-calendar", {
     maxItems: 1,
     options: calendarOptions,
-    placeholder: "No Calendar (Manual / Triggered Only)"
+    placeholder: "No Calendar (Manual / Triggered Only)",
+    dropdownParent: 'body',
+    openDirection: 'auto',
   });
 
   if (isEdit && item?.cal_id) {
@@ -815,21 +540,29 @@ export function openClusterModal(
   initModalTomSelect("cluster-needs", {
     maxItems: null,
     options: clusterOptions,
+      dropdownParent: 'body',
+      openDirection: 'auto',
   });
 
   initModalTomSelect("cluster-needs-any", {
     maxItems: null,
     options: clusterOptions,
+      dropdownParent: 'body',
+      openDirection: 'auto',
   });
 
   initModalTomSelect("cluster-on-fail", {
     maxItems: 1,
     options: clusterOptions,
+      dropdownParent: 'body',
+      openDirection: 'auto',
   });
 
   initModalTomSelect("cluster-on-overdue", {
     maxItems: 1,
     options: clusterOptions,
+      dropdownParent: 'body',
+      openDirection: 'auto',
   });
 
   // Restore values for edit mode
@@ -921,20 +654,26 @@ export function openClusterModal2(
   initModalTomSelect("cluster-needs", {
     maxItems: null,
     options: clusterOptions,
+      dropdownParent: 'body',
+      openDirection: 'auto',
   });
   initModalTomSelect("cluster-needs-any", {
     maxItems: null,
     options: clusterOptions,
+      dropdownParent: 'body',
+      openDirection: 'auto',
   });
 
   initModalTomSelect("cluster-on-fail", {
     maxItems: 1,
     options: clusterOptions,
+      openDirection: 'auto',
   });
 
   initModalTomSelect("cluster-on-overdue", {
     maxItems: 1,
     options: clusterOptions,
+      openDirection: 'auto',
   });
 
   // Restore values
@@ -1173,6 +912,8 @@ export function openCalendarModal(mode = "create", calId = null) {
     maxItems: 1,
     placeholder: "Type to search or select timezone...",
     options: tzOptions,
+      dropdownParent: 'body',
+      openDirection: 'auto',
   });
 
   // Restore values on edit

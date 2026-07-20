@@ -22,6 +22,7 @@ Grok will remember the connection for the rest of the conversation.
 - Start, stop, hold, kill, reset jobs and clusters
 - Sync servers and manage state
 - Check organization usage and rate limits
+- Use new handlers: **On Fail**, **On Overdue**, and **Max Runtime**
 
 ---
 
@@ -35,9 +36,9 @@ Grok will remember the connection for the rest of the conversation.
 **Prompt:**
 > Create a Python job called "memory-report" in the "health-checks" cluster on server "tigra" that runs every hour and logs memory and disk usage to /tmp.
 
-### Daily Backup (Every Night at 2 AM)
+### Daily Backup with Max Runtime Protection
 **Prompt:**
-> Create a job called "daily-backup" in the "backups" cluster on server "liono" that runs every night at 2 AM and performs a full backup.
+> Create a job called "daily-backup" in the "backups" cluster on server "liono" that runs every night at 2 AM with 3 retries on failure and a max runtime of 2 hours. If it exceeds the limit, trigger the "Backup Watchdog" handler cluster.
 
 ---
 
@@ -48,6 +49,7 @@ When asking Grok to create jobs, be specific about:
 - **Which server** it should run on
 - **Which cluster** to place it in
 - **When** you want it to run (schedule)
+- Any **handlers** (On Fail, On Overdue, Max Runtime)
 
 **Pro Tip**: Ask Grok to show you the script before creating the job.
 
@@ -57,22 +59,20 @@ When asking Grok to create jobs, be specific about:
 
 Connecting an AI gives it real power over your infrastructure. Follow these best practices:
 
-- **Only connect trusted models** — Currently **Grok** is the recommended model due to its strong truth-seeking design. 
-- **Use dedicated low-privilege accounts** on remote servers. Never use root. Create a specific user (e.g. `ordo`) with minimal permissions.
-- **Rotate tokens regularly** — Use the **Rotate** buttons in Settings for both Execution Token and API Token.
-- **Rotate immediately** if you no longer trust a connection.
+- **Only connect trusted models** — Currently **Grok** is the recommended model.
+- **Use dedicated low-privilege accounts** on remote servers. Never use root.
+- **Rotate tokens regularly** — Use the **Rotate** buttons in Settings.
 - **Never share your token** publicly or with untrusted models.
-
-**Important**: The security of your servers ultimately depends on responsible use. Only give access to models you fully trust.
 
 ---
 
-## Available Tools
+## Available Tools (Current)
 
 **Browsing** — `list_jobs`, `get_job_details`, `get_cluster_details`  
 **Creation** — `create_job`, `create_cluster`, `create_calendar`  
 **Management** — `manage_job`, `manage_cluster`, `update_job`, `update_cluster`  
-**Scheduling** — `list_calendars`, `create_calendar`, `add_cron`, `attach_calendar`, `detach_calendar`  
+**Cloning** — `clone_cluster`  
+**Scheduling** — `list_calendars`, `create_calendar`, `add_cron`  
 **Logs** — `read_log`, `find_logs`  
 **Servers** — `list_servers`, `sync`  
 **Info** — `read_user`, `read_org`, `get_documentation`
@@ -84,4 +84,5 @@ Connecting an AI gives it real power over your infrastructure. Follow these best
 ```bash
 curl -X POST https://ordoscheduler.com/mcp \
   -H "Content-Type: application/json" \
-  -d '{"token": "YOUR_TOKEN_HERE"}'
+  -d '{"token": "YOUR_TOKEN_HERE", "name": "read_org"}'
+```

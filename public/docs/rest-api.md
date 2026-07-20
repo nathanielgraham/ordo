@@ -1,6 +1,6 @@
 # REST API Reference
 
-Ordo provides a full REST API for scripting, automation, and meta-automation (e.g. watchdog jobs, custom handlers, etc.).
+Ordo provides a REST API for scripting, automation, and meta-automation (e.g. watchdog jobs, custom handlers, etc.).
 
 **Base URL**  
 `https://ordoscheduler.com/api`
@@ -38,13 +38,25 @@ Every response follows this structure:
 
 ### Practical Examples
 
-**1. Clone and start a cluster (common in On Overdue Handlers)**
+**1. Clone a cluster**
 ```
 curl -X POST https://your-ordo.com/api \
   -H "Content-Type: application/json" \
   -d '{
     "command": "clone_cluster",
     "id": 7,
+    "token": "your-token-here"
+  }'
+```
+
+**To start the clone**, follow up with:
+
+```
+curl -X POST https://your-ordo.com/api \
+  -H "Content-Type: application/json" \
+  -d '{
+    "command": "start_cluster",
+    "id": NEW_CLONE_ID,
     "token": "your-token-here"
   }'
 ```
@@ -86,12 +98,13 @@ curl -X POST https://your-ordo.com/api \
 
 - `find_cluster` — Get full hierarchy
 - `read_cluster` — Get details of one cluster
-- `clone_cluster` — Clone a cluster
+- `clone_cluster` — Clone a cluster (does **not** start it)
 - `start_cluster` — Run a cluster immediately
 - `start_job` — Run a single job
 - `read_log` — Get latest log of a job
 - `find_log` — Get log history for a job
-- `update_cluster` — Update cluster settings (e.g. on_fail_id, on_overdue_id)
+- `update_job_config` — Update job (needs, max runtime, etc.)
+- `update_cluster` — Update cluster (handlers, dependencies, etc.)
 - `sync` — Resync servers and handle zombies
 
 ---

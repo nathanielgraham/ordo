@@ -59,10 +59,6 @@ print STDOUT " HOSTNAME : $hostname\n";
 my $exec_mode =
   ( $command =~ /^#!/ ) ? "Shebang (temp file)" : "Shell wrapper (no shebang)";
 print STDOUT " EXEC MODE : $exec_mode\n";
-print STDOUT " SCRIPT :\n";
-my $script_display = $command;
-$script_display =~ s/^/ /gm;
-print STDOUT $script_display . "\n";
 print STDOUT "$log_bar\n\n";
 
 # ==================== ENVIRONMENT ====================

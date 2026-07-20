@@ -2,67 +2,79 @@
 
 This section explores special patterns and advanced usage of Ordo.
 
-## Self-Healing Workflows
+## Handlers (Self-Healing)
 
-One of Ordo’s most powerful capabilities is building **self-healing automation** using handlers.
+Handlers are one of Ordo’s most powerful features for building resilient automation.
 
-### On Fail & On Overdue Handlers
+### On Fail Handler
+Triggered when a cluster enters `failed` or `killed` state.  
+Common use: alerting, cleanup, or escalation.
 
-- **On Fail Handler** — Triggered when a cluster fails.
-- **On Overdue Handler** — Triggered when a cluster is still not ready at its next scheduled time. Common reasons include still `running` or `looping`, `failed`, `killed`, or `hold`.
+### On Overdue Handler
+Triggered when a calendar tries to start a cluster that is **not** in `ready`, `complete`, or `ice` state.  
+Common reasons: still `running`/`looping`, `failed`, `hold`, or `zombie`.
 
-**Setup:**
-1. Create a handler cluster (e.g. "Alert & Clone").
-2. In the main cluster’s edit modal, select the handler in the **On Fail Handler** or **On Overdue Handler** dropdown.
-3. In the handler cluster, add jobs for alerting, cloning, cleanup, etc.
+### Max Runtime Handler (Job-level)
+Set on individual jobs via `max_runtime_seconds` and `max_runtime_cluster_id`.  
+If the job exceeds the time limit, the specified handler cluster is automatically started.
 
-**Handler Environment Variables**
+**Setup (all handlers):**
+1. Create a dedicated handler cluster.
+2. In the source cluster/job edit modal, select the handler in the appropriate dropdown.
+3. (Optional) Set `auto_start = false` on handler clusters to prevent accidental execution.
 
-Handler jobs receive special variables:
-- `ORDO_OVERDUE_CLUSTER_ID`
-- `ORDO_FAILED_CLUSTER_ID`
+## Cloning
 
-Use these to make intelligent decisions (e.g. clone the original cluster).
+Cloning lets a cluster run in parallel if it’s still busy at the next scheduled time.
 
-### Cloning Strategy
+**Recommended Pattern:**
+- Create an **On Overdue Handler** cluster.
+- In that handler, add a job that calls `clone_cluster` using the `ORDO_OVERDUE_CLUSTER_ID` environment variable.
 
-Use an **On Overdue Handler** that calls `clone_cluster` for long-running jobs where missing a cycle would be worse than running two instances in parallel.
+**Clone Job Template** (available in job modal):
+```
+#!/bin/sh
+# Purpose: Clone and start the overdue cluster
+curl -X POST "$ORDO_API" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "command": "clone_cluster",
+    "id": '"$ORDO_OVERDUE_CLUSTER_ID"',
+    "auto_start": true,
+    "token": "'"$ORDO_TOKEN"'"
+  }'
+```
 
-**Example Clone Job Template** (available in the job modal):
-- "Clone Overdue Cluster" template automatically clones and starts the new instance.
+## Environment Variables
 
-## Max Runtime Watchdog Pattern
+All running jobs receive these `ORDO_*` variables:
 
-For jobs or clusters with strict time limits, use a **Watchdog** job:
+| Variable                        | Description |
+|---------------------------------|-----------|
+| `ORDO_JOB_ID`                   | Current job ID |
+| `ORDO_CLUSTER_ID`               | Parent cluster ID |
+| `ORDO_SERVER_ID`                | Server ID |
+| `ORDO_EMAIL`                    | Owner email |
+| `ORDO_TOKEN`                    | Execution token |
+| `ORDO_API`                      | API base URL |
+| `ORDO_JSON`                     | Custom JSON payload |
+| `ORDO_TEAM`                     | JSON array of team members |
+| `ORDO_OVERDUE_CLUSTER_ID`       | Set when triggered by On Overdue handler |
+| `ORDO_FAILED_CLUSTER_ID`        | Set when triggered by On Fail handler |
+| `ORDO_MAX_RUNTIME_CLUSTER_ID`   | Set on jobs with max runtime handler |
+| `ORDO_MAX_RUNTIME_JOB_ID`       | The job ID that exceeded max runtime |
 
-1. Create a watchdog job in the same cluster (or a dedicated Watchdogs cluster).
-2. Set a **Delay** equal to your max runtime + buffer (e.g. 7260 seconds for a 2-hour limit).
-3. Use the **Max Runtime Watchdog** template.
-4. Customize the action when the limit is exceeded (alert, kill, trigger handler, etc.).
-
-**Tip:** The watchdog checks completion status of all other jobs and sub-clusters (treating `ice` as complete).
+**Example Usage in a handler job:**
+```
+if [ -n "$ORDO_OVERDUE_CLUSTER_ID" ]; then
+    echo "Overdue cluster: $ORDO_OVERDUE_CLUSTER_ID"
+    # clone or alert logic here
+fi
+```
 
 ## Meta-Automation Using Environment Variables
 
-Your scripts can interact with Ordo using built-in `ORDO_*` variables.
-
-### Available Variables
-
-| Variable                    | Description |
-|-----------------------------|-----------|
-| `ORDO_JOB_ID`               | Current job ID |
-| `ORDO_CLUSTER_ID`           | Parent cluster ID |
-| `ORDO_SERVER_ID`            | Server ID |
-| `ORDO_EMAIL`                | Owner email |
-| `ORDO_TOKEN`                | Execution token |
-| `ORDO_API`                  | API base URL |
-| `ORDO_DELAY`                | Delay value set on this job (in seconds) |
-| `ORDO_JSON`                 | Custom JSON data attached to the job |
-| `ORDO_TEAM`                 | JSON array of team members |
-| `ORDO_OVERDUE_CLUSTER_ID`   | Source cluster if triggered by overdue handler |
-| `ORDO_FAILED_CLUSTER_ID`    | Source cluster if triggered by on_fail handler |
-
-### Practical Examples
+Your scripts can interact with Ordo using built-in `ORDO_*` variables (see table above).
 
 **Trigger Another Job**
 ```
@@ -71,15 +83,15 @@ curl -X POST "$ORDO_API" \
   -d '{
     "command": "start_job",
     "id": 123,
-    "token": "'$ORDO_TOKEN'"
+    "token": "'"$ORDO_TOKEN"'"
   }'
 ```
 
 **Smart Notification**
 ```
-if ($ENV{ORDO_OVERDUE_CLUSTER_ID}) {
-    system("email_team.pl", "Overdue alert for cluster $ENV{ORDO_OVERDUE_CLUSTER_ID}");
-}
+if [ -n "$ORDO_OVERDUE_CLUSTER_ID" ]; then
+    echo "Overdue alert for cluster $ORDO_OVERDUE_CLUSTER_ID"
+fi
 ```
 
 ## Advanced Monitoring Setup

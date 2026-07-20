@@ -28,31 +28,31 @@ Let's get your first workflow running in minutes.
 
 ## 4. Create the Jobs
 
-1. Now create these four jobs inside `Bord da Cake` and give each job a short name (`prep`, `mix`, `bake`, `finish`)
+1. Now create these four jobs inside `Bork da Cake` and give each job a short name (`prep`, `mix`, `bake`, `finish`)
 
-**Job 1 – Name: `prep`**  
-```bash
+**Job 1 – Name: `prep`**
+```
 #!/bin/sh
 echo "Bork bork! Pre-heat da oven! Grease-a da pan! Yah!"
 sleep 1
 ```
 
-**Job 2 – Name: `mix`**  
-```bash
+**Job 2 – Name: `mix`**
+```
 #!/bin/sh
 echo "Meesh da dry ingredients! Creem da buttah! Egg-a inna bowl! Ploosh da milk! Goo goo!"
 sleep 1
 ```
 
-**Job 3 – Name: `bake`**  
-```bash
+**Job 3 – Name: `bake`**
+```
 #!/bin/sh
 echo "Pour-a da batter! Into da oven you go! Bakey bakey till da toothpick come-a clean!"
 sleep 1
 ```
 
-**Job 4 – Name: `finish`**  
-```bash
+**Job 4 – Name: `finish`**
+```
 #!/bin/sh
 echo "Let-a da cake rest! Cool-a onna rack! Now froosty and servy! Bork bork bork!"
 sleep 1
@@ -74,7 +74,7 @@ In the job modal, set **Needs Jobs** so the steps run in order:
 1. Select **Run** from the `Bork da Cake` cluster menu.
 2. Watch the Swedish Chef work — jobs will light up in the correct order.
 
-## 7. View Logs 
+## 7. View Logs
 
 Right after running:
 - Select **view log** on any job to see its output.
@@ -85,12 +85,11 @@ Right after running:
 1. Go to the **Calendars** tab.
 2. Create a new calendar named `Daily Baking`.
 3. Add cron: `0 9 * * *` (every day at 9:00 AM).
-4. Go back to `Bork da Cake` → **Actions** → Attach calendar.
+4. Go back to `Bork da Cake` → **Edit** → select the calendar in the **Calendar** dropdown.
 
   Now the Chef will bake automatically every morning.
 
 **Congratulations!** You just built, ran, and scheduled your first automated workflow.
 
 ### Next Step ###
-[Core Concepts](#docs/core-concepts.md) — Learn the foundational ideas to help you use Ordo effectively.
-
+[Core Concepts](#docs/core-concepts.md) — Learn the foundational ideas (including handlers and cloning) to help you use Ordo effectively.

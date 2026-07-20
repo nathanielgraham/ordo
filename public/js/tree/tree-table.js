@@ -613,7 +613,7 @@ export function updateClusterRow(row, item) {
           .map(
             (id) => `${resolveDepName(id, appState.monitorData.tree, true)}`,
           )
-          .join("\n")}`,
+          .join(" ")}`,
       );
     }
     if (Array.isArray(item.needs_any_ids) && item.needs_any_ids.length) {
@@ -623,7 +623,7 @@ export function updateClusterRow(row, item) {
           .map(
             (id) => `${resolveDepName(id, appState.monitorData.tree, true)}`,
           )
-          .join("\n")}`,
+          .join(" ")}`,
       );
     }
     if (item.on_fail_id) {

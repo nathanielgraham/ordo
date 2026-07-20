@@ -524,7 +524,7 @@ $self->helper(
          $c->stash( user => $mcp_user );
 
          # Discovery
-         my $tool_name = $json->{tool} // $json->{method};
+         my $tool_name = $json->{name} // $json->{tool} // $json->{method};
 
          if ( !$tool_name ) {
             my @tool_list = map {
@@ -546,7 +546,7 @@ $self->helper(
          }
 
          # Execute tool
-         my $params = $json->{params} // $json->{arguments} // {};
+         my $params = $json->{params} // $json->{arguments} // $json->{parameters} // {};
          my $tool   = $tools->{$tool_name};
 
          my $result =
@@ -3022,6 +3022,8 @@ sub _clone_cluster {
    }
 
    my $cluster_id;
+   my @job_ids = ();
+
    eval {
       #my $tx = $self->sqlite->db->begin;
 
@@ -3055,6 +3057,7 @@ sub _clone_cluster {
 
          my $job_id = $self->sqlite->db->insert( 'job', $job )->last_insert_id;
          $self->_reset_job_stats( $user, { id => $job_id } );
+         push @job_ids, $job_id if $job_id;
       }
 
       # Clone child clusters
@@ -3079,6 +3082,8 @@ sub _clone_cluster {
       return;
    }
    else {
+      $self->_broadcast_cluster( $user, [$cluster_id] );
+      $self->_broadcast_job( $user, [@job_ids] ) if scalar @job_ids;
       return $cluster_id;
    }
 }
@@ -3425,7 +3430,7 @@ sub _create_job {
    };
 
    if ($@) {
-      return { success => 0, message => $@ };
+      return { success => 0, message => 'unable to insert job' };
    }
    $self->_write_job_needs(
       $user,
@@ -3834,9 +3839,9 @@ sub _set_job_state {
 
    $self->_broadcast_job( $user, [$job_id] );
 
-   if ( $self->_cluster_is_complete( $user, { id => $job->{cluster_id} } ) )
+   # if ( $self->_cluster_is_complete( $user, { id => $job->{cluster_id} } ) )
 
-#if ( $self->_cluster_is_complete( $user, { id => $job->{cluster_id} } ) && $cluster->{state_id} == $self->job_states->{running} )
+   if ( $self->_cluster_is_complete( $user, { id => $job->{cluster_id} } ) && $cluster->{state_id} == $self->job_states->{running} )
    {
       $self->_set_cluster_state( $user,
          { state => 'complete', id => $job->{cluster_id} } );
@@ -6300,7 +6305,7 @@ sub routing {
          'create_job',
          1,
          [
-            { name => 'n', script_b64 => 'c', server => 'srv' },
+            { name => 'n', script_b64 => 'c' },
             {
                parent_id              => 'i',
                needs                  => 'a:s',
@@ -6315,6 +6320,8 @@ sub routing {
                needs_any_ids          => 'a:i',
                max_runtime_seconds    => 'i?',
                max_runtime_cluster_id => 'i?',
+               server_id              => 'i',
+               server                 => 'srv',
 
                #on_fail       => 'p',
                #on_fail_id    => 'i',
