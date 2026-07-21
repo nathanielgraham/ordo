@@ -6,7 +6,7 @@ Jobs and Clusters are the core building blocks of Ordo. Mastering them is essent
 
 A **Job** is the smallest unit of work in Ordo. Each job:
 - Executes a script (shell, Perl, Python, etc.) on a chosen server
-- Can have dependencies, retries, loops, and delays
+- Can have dependencies, retries, loops, delays, and max runtime
 - Produces detailed logs stored in `~/ordo_node/logs/`
 
 ### Creating and Editing Jobs
@@ -16,8 +16,8 @@ A **Job** is the smallest unit of work in Ordo. Each job:
    - **Name** — Clear and descriptive
    - **Script** — The actual command or script (always start with a shebang)
    - **Server** — Where the job should run
-   - **Dependencies** — Needs, Needs Any, or On Fail
-   - **Delay**, **Retries**, and **Loops** (optional but powerful)
+   - **Dependencies** — Needs, Needs Any
+   - **Delay**, **Retries**, **Loops**, and **Max Runtime** (optional but powerful)
 
 **Pro Tip**: Use the **Insert Template** dropdown in the job modal for common patterns (Shell, Perl, Python, Update Stats, Email Team, etc.).
 
@@ -27,7 +27,7 @@ A **Cluster** is a container that can hold jobs and other clusters, forming a hi
 
 Clusters are powerful because you can:
 - Attach a **Calendar** to run the entire group on a schedule
-- Set **On Fail** behavior for the whole cluster
+- Set **On Fail** and **On Overdue** handlers
 - Enable **Cloning** to handle overdue executions
 
 Think of clusters as **folders** and jobs as **files** — with scheduling and dependency intelligence built in.
@@ -35,23 +35,27 @@ Think of clusters as **folders** and jobs as **files** — with scheduling and d
 ## Dependencies
 
 Ordo supports two types of dependencies:
-
-- **Needs** — "AND" logic. All referenced items must complete successfully.
+- **Needs All** — "AND" logic. All referenced items must complete successfully.
 - **Needs Any** — "OR" logic. Only one of the referenced items needs to complete.
 
-## On Fail Handling
+Dependencies can be set on both jobs and clusters.
 
-**On Fail** is a **cluster-level** feature only.
+## Handlers (Self-Healing)
 
-- You can assign an `On Fail` cluster to any cluster.
-- Individual jobs no longer support a direct `On Fail` setting.
+- **On Fail Handler**: Triggered when a cluster fails or is killed.
+- **On Overdue Handler**: Triggered when a cluster is still not ready at its next scheduled time.
+- **Max Runtime Handler** (job-level): Triggered if a job exceeds its time limit.
 
-If you need specific failure handling for a single job, wrap that job in its own small cluster and set the `On Fail` target on that cluster.
+All handlers point to another cluster.
+
+## Cloning
+
+If a cluster is still running at its next scheduled time, it can be **cloned** (run in parallel).  
+This is most commonly triggered via an **On Overdue Handler**.
 
 ## Actions Menu (...)
 
 Each job and cluster has an actions menu (...) with the following controls:
-
 - **Run** — Start the job or cluster immediately.
 - **Kill** — Stop a currently running job or cluster.
 - **Hold** — Pause execution. Downstream jobs will wait until you **Release** it.
@@ -64,48 +68,11 @@ Each job and cluster has an actions menu (...) with the following controls:
 
 ## Visual Dependency Graph
 
-Click **View Graph** on any cluster to see a live visual diagram of all dependencies (Needs, Needs Any, and On Fail). Extremely useful for understanding and debugging complex workflows.
+Click **View Graph** on any cluster to see a live visual diagram of all dependencies (Needs, Needs Any, and handlers). Useful for understanding and debugging complex workflows.
 
-![Dependency Graph Example](img/dependency-graph.png)
+## Best Practices
 
-*Visual dependency graph showing needs (red), needs_any (green dashed), and on_fail (orange) relationships.*
-
-## SSH Key Authentication 
-
-Ordo supports two ways to set up secure SSH access.
-
-#### Option 1: Automatic Setup
-
-1. In the **Add Server** modal, enter:
-   - Hostname / IP
-   - An existing username on the remote server
-   - The password for that user (used only once)
-2. Ordo will automatically copy its public key using `ssh-copy-id`.
-
-After successful setup, you can leave the password field blank.
-
-#### Option 2: Manual Setup
-
-Use this option if you prefer not to enter any password into Ordo.
-
-1. Add Ordo’s public SSH key to the user's authorized_keys file:
-
-```
-mkdir -p ~/.ssh
-cat >> ~/.ssh/authorized_keys << 'EOF'
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX ordo@scheduler
-EOF
-chmod 700 ~/.ssh
-chmod 600 ~/.ssh/authorized_keys
-```
-
-2. In Ordo, enter the username and leave the password field blank.
-
-**Best Practice**: Create a dedicated low-privilege user (e.g. `ordo`) on the remote server specifically for Ordo instead of using `root` or your personal account.
-
-## Script Best Practices
-
-- Always begin scripts with a proper **shebang** (`#!/bin/sh`, `#!/usr/bin/env perl`, `#!/usr/bin/env python3`, etc.)
-- Place reusable scripts in `~/ordo_node/scripts/` so they can be called by name only
-- All job output (stdout + stderr) is automatically captured in the job’s log file
-- Use the built-in templates in the job modal as starting points
+- Use descriptive names for both jobs and clusters.
+- Group related jobs into clusters.
+- Use handlers and cloning for robust automation.
+- Keep scripts in `~/ordo_node/scripts/` for reusability.

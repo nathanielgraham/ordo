@@ -51,8 +51,8 @@ Ordo supports full **Quartz 7-field cron** (and standard 5-field cron for compat
 
 ### Common Examples
 
-| Expression                | Meaning |
-|--------------------------|--------|
+| Expression               | Meaning |
+|--------------------------|---------|
 | `0 0 9 * * MON-FRI *`    | Every weekday at 9:00 AM |
 | `0 */15 * * * ? *`       | Every 15 minutes |
 | `0 0 0 L * ? *`          | Last day of every month |
@@ -69,8 +69,8 @@ These are very useful for temporary campaigns, maintenance windows, or phased ro
 ## Attaching a Calendar to a Cluster
 
 1. Go to **Jobs & Clusters** tab.
-2. Click **⋯** on the desired cluster → **Attach Calendar**.
-3. Select the calendar.
+2. Click the cluster you want to schedule → **Edit**.
+3. In the **Calendar** dropdown, select the calendar.
 
 Once attached, the **Next Run** column will show live countdowns.
 
@@ -89,4 +89,3 @@ If connected to Grok via MCP, you can simply ask:
 - “Add a cron to the Backup calendar that runs every 4 hours”
 
 Grok will create the calendar and proper Quartz expressions for you.
-

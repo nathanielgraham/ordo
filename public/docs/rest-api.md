@@ -67,7 +67,7 @@ curl -X POST https://your-ordo.com/api \
   -H "Content-Type: application/json" \
   -d '{
     "command": "find_cluster",
-    "id": 7,
+    "name": "/root",
     "token": "your-token-here"
   }'
 ```

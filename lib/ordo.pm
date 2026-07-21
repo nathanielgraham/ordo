@@ -1651,7 +1651,8 @@ sub _start_cluster {
       return { success => 0, skipped => 1, message => 'cluster on ice' };
    }
 
-   my $startable = $self->_cluster_is_startable( $user, { id => $cluster_id } );
+   my $needs_met = $self->_cluster_needs_met( $user, { id => $cluster_id } );
+   my $startable = $self->_cluster_is_startable( $user, { id => $cluster_id } ) && $needs_met;
    my $is_user_start = ( $d->{origin} && $d->{origin} eq 'user' );
 
    if ( !$startable && !$is_user_start ) {
@@ -1717,7 +1718,8 @@ sub _start_cluster {
    }
 
    # Dependencies
-   unless ( $self->_cluster_needs_met( $user, { id => $cluster->{id} } ) ) {
+   # unless ( $self->_cluster_needs_met( $user, { id => $cluster->{id} } ) ) {
+   unless ( $needs_met ) {
       return { success => 0, waiting => 1, message => 'dependency not met.' };
    }
 

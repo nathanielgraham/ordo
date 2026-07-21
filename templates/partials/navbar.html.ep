@@ -2,15 +2,13 @@
 <nav class="topnav" role="navigation">
   <!-- Logo Row -->
   <div class="nav-logo-row">
-
-<div class="nav-brand">
-  <a href="/" class="brand-link">
-    <span class="nav-logo-text">
-      ( ordo imperat ) 
-    </span>
-  </a>
-</div>
-
+    <a href="/" class="brand-link">
+      <span class="nav-logo-text">
+        <img src="/img/laurel-left.png" alt="" class="laurel left" />
+        ordo regnat
+        <img src="/img/laurel-right.png" alt="" class="laurel right" />
+      </span>
+    </a>
   </div>
 
   <!-- Tabs Row -->

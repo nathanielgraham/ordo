@@ -5,6 +5,17 @@ While modern AI has become extraordinarily good at thinking, planning, and reaso
 
 **Ordo** is the bridge — a modern, hierarchical job scheduler with native MCP support. This allows Grok to directly explore, create, schedule, monitor, debug, and **heal** jobs running on **your** servers.
 
+## Ordo + Grok in Action
+
+You can say things like:
+
+- “Create a new calendar called **US Holidays** that runs at midnight on every major US holiday and then attach it to the **Send Greeting Card** cluster.”
+- “Create a monitoring job called **Check Disk Space** that checks disk usage on all servers every 15 minutes, put it in the **Infrastructure Monitoring** cluster, and alert the team if anything exceeds 90%.”
+- “Create a daily backup job with a 2-hour max runtime. If it exceeds the limit, trigger the Backup Watchdog handler.”
+- “Analyze the logs of the job **Deployment v2.3** that failed yesterday and tell me what went wrong.”
+
+Grok will generate **and test** the code on **your servers**, create the necessary calendars, set up dependencies and handlers, and even help debug issues.
+
 ## Standout Features
 
 - **Natural Language Automation**  
@@ -28,28 +39,11 @@ While modern AI has become extraordinarily good at thinking, planning, and reaso
 - **Self-Healing Automation**  
   Automatic retries, failure routing, hold/ice/release controls, and escalation chains.
 
----
-
-## Ordo + Grok in Action
-
-You can say things like:
-
-- “Create a new calendar called **US Holidays** that runs at midnight on every major US holiday and then attach it to the **Send Greeting Card** cluster.”
-- “Create a monitoring job called **Check Disk Space** that checks disk usage on all servers every 15 minutes, put it in the **Infrastructure Monitoring** cluster, and alert the team if anything exceeds 90%.”
-- “Create a daily backup job with a 2-hour max runtime. If it exceeds the limit, trigger the Backup Watchdog handler.”
-- “Analyze the logs of the job **Deployment v2.3** that failed yesterday and tell me what went wrong.”
-
-Grok will generate **and test** the code on **your servers**, create the necessary calendars, set up dependencies and handlers, and even help debug issues.
-
----
-
 ## Ordo Works With or Without AI
 
 **Ordo is a fully functional, powerful job scheduler on its own.** You can use it perfectly well without any AI integration.
 
 However, when connected to Grok via MCP, it becomes something much more powerful — an **AI-native automation platform** where Grok can directly create, schedule, monitor, heal, and debug real work on your infrastructure.
-
----
 
 ## Who Ordo Is For
 

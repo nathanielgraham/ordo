@@ -7,12 +7,12 @@ This section explores special patterns and advanced usage of Ordo.
 Handlers are one of Ordo’s most powerful features for building resilient automation.
 
 ### On Fail Handler
-Triggered when a cluster enters `failed` or `killed` state.  
+Triggered when a cluster enters a `failed` state.  
 Common use: alerting, cleanup, or escalation.
 
 ### On Overdue Handler
-Triggered when a calendar tries to start a cluster that is **not** in `ready`, `complete`, or `ice` state.  
-Common reasons: still `running`/`looping`, `failed`, `hold`, or `zombie`.
+Triggered when a calendar tries to start a cluster that cannot be started for some reason.  
+This typically happens when the previous cycle is still running or the cluster is on hold.
 
 ### Max Runtime Handler (Job-level)
 Set on individual jobs via `max_runtime_seconds` and `max_runtime_cluster_id`.  
@@ -25,7 +25,7 @@ If the job exceeds the time limit, the specified handler cluster is automaticall
 
 ## Cloning
 
-Cloning lets a cluster run in parallel if it’s still busy at the next scheduled time.
+Cloning creates an identical copy of a cluster that can be run in parallel if the original is still busy at the next scheduled time.
 
 **Recommended Pattern:**
 - Create an **On Overdue Handler** cluster.
@@ -34,13 +34,12 @@ Cloning lets a cluster run in parallel if it’s still busy at the next schedule
 **Clone Job Template** (available in job modal):
 ```
 #!/bin/sh
-# Purpose: Clone and start the overdue cluster
+# Purpose: Clone the overdue cluster
 curl -X POST "$ORDO_API" \
   -H "Content-Type: application/json" \
   -d '{
     "command": "clone_cluster",
     "id": '"$ORDO_OVERDUE_CLUSTER_ID"',
-    "auto_start": true,
     "token": "'"$ORDO_TOKEN"'"
   }'
 ```

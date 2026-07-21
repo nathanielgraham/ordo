@@ -20,7 +20,7 @@ Dependencies can be set on both jobs and clusters.
 
 Handlers let you automatically respond to problems.
 
-- **On Fail Handler**: Triggered when a cluster fails or is killed.
+- **On Fail Handler**: Triggered when a cluster fails.
 - **On Overdue Handler**: Triggered when a cluster is still not ready at its next scheduled time.
 - **Max Runtime Handler** (job-level): Triggered if a job exceeds its `max_runtime_seconds` limit.
 
@@ -33,7 +33,7 @@ This is most commonly triggered via an **On Overdue Handler**.
 
 ## 5. Calendars & Scheduling
 
-Calendars use Quartz Cron expressions.  
+A **Calendar** is a collection of one or more Quartz Cron expressions.  
 **To attach a calendar**: edit the target cluster and select it in the **Calendar** dropdown.
 
 The entire cluster follows the attached calendar's schedule.

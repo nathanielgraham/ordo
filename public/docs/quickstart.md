@@ -16,10 +16,6 @@ Let's get your first workflow running in minutes.
 3. Enter hostname, SSH port (usually 22), and credentials.
 4. Save.
 
-![Servers Tab](img/servers-tab.png)
-
-*Servers tab showing a newly added server with live monitoring data.*
-
 ## 3. Create a Cluster
 
 1. Go to the **Jobs & Clusters** tab.
@@ -92,4 +88,4 @@ Right after running:
 **Congratulations!** You just built, ran, and scheduled your first automated workflow.
 
 ### Next Step ###
-[Core Concepts](#docs/core-concepts.md) — Learn the foundational ideas (including handlers and cloning) to help you use Ordo effectively.
+[Core Concepts](#docs/core-concepts) — Learn the foundational ideas to help you use Ordo effectively.
