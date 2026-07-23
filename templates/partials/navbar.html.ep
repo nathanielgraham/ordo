@@ -29,7 +29,9 @@
     <div class="nav-tabs public-tabs" data-group="public" hidden>
       <div class="tab-group">
         <a href="#" class="nav-tab" data-tab="docs">docs</a>
+        <% if ($c->is_saas) { %>
         <a href="#" class="nav-tab" data-tab="pricing">pricing</a>
+        <% } %>
         <a href="#" class="nav-tab" id="logged-out-login-tab">sign up</a>
       </div>
     </div>

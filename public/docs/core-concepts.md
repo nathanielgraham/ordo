@@ -16,7 +16,7 @@ Think of clusters as **folders** and jobs as **files** — except these folders 
 
 Dependencies can be set on both jobs and clusters.
 
-## 3. Handlers (Self-Healing)
+## 3. Handlers
 
 Handlers let you automatically respond to problems.
 

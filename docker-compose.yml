@@ -1,0 +1,14 @@
+services:
+  ordo:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+      - ./db:/app/db   # add this for SQLite
+    restart: unless-stopped
+    # remove read_only for now or make db writable
+    # read_only: true
+    security_opt:
+      - no-new-privileges:true

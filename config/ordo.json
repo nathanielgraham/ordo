@@ -1,4 +1,5 @@
 {
+  "deploy_mode": "saas",  
   "stripe": {
     "secret_key": "sk_test_51TlZnZGvzOQN3WVWXe5rlLQLer6BjNVhIlZu2BLk4J5Gscxf7V1SRrz2eKGMlXXs67EJ0WGfr0GYKYrJF3sgxqet00zedYTNQy",
     "publishable_key": "pk_test_51TlZnZGvzOQN3WVWA1cdTHa3D6tczNm9C5jyiHzqTWvWDG8F2RGwi69QU4fZ4oTC7ewiS4sCG9NuD1H4UNSy4s3I001PpK1F7U",

@@ -823,7 +823,9 @@ progress::-webkit-progress-value {
 }
 .nav-tab {
   position: relative;
-  font-family: "Jost", sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /*font-family: "Jost", sans-serif; */
   font-size: 1.3rem;
   text-transform: lowercase;
   letter-spacing: 1.6px;

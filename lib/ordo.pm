@@ -88,6 +88,11 @@ sub startup {
       }
    );
 
+   my $deploy_mode = $config->{deploy_mode} || 'saas';
+   $self->helper(deploy_mode => sub { $deploy_mode });
+   $self->helper(is_saas => sub { $deploy_mode eq 'saas' });
+   $self->helper(is_selfhosted => sub { $deploy_mode eq 'selfhosted' });
+
    $self->secrets( config => $config );
 
    $ENV{EMAIL_SENDER_SMTP_USER} = $self->config->{smtp_user};
@@ -100,6 +105,17 @@ sub startup {
          return $stripe;
       }
    );
+
+   #$self->helper(
+   #   stripe => sub {
+   #     my $c = shift;
+   #     if (!$c->is_saaS) {
+   #       return { error => 'Billing not available in this deployment mode' };
+   #     }
+   #     state $stripe = ordo::Stripe->new( config => $self->config );
+   #     return $stripe;
+   #   }
+   #);
 
    # Add this to your main app class
    has 'last_warning_cache' => sub {

@@ -7,10 +7,10 @@ import { attachGlobalListeners } from "./dropdown-handlers.js";
 import { initModals, attachCalendarsTreeListeners } from "./ui-handlers.js";
 
 // ==================== DEVELOPMENT AUTO-LOGIN (DIRECT COOKIE) ====================
-const ENABLE_DEV_AUTO_LOGIN = false;   // ← Toggle this
+const ENABLE_DEV_AUTO_LOGIN = true;
 
 if (ENABLE_DEV_AUTO_LOGIN) {
-  //const devToken = "32fe37296c7dab97e8c6fba000877622abd3e308";
+  //const devToken = "ffc2dd160045bfae137fa972d59e38340222c1c4";
   const devToken = "15c8bfdbe8634255f8257ef73a8f0bf7daae1d8c";
   
   // Set the cookie

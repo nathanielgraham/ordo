@@ -5,15 +5,17 @@
       <i class="fas fa-spinner fa-spin fa-3x"></i>
       <p class="mt-medium">Loading settings...</p>
     </div>
-    
+
     <div id="settings-content">
       <!-- Internal Tabs -->
       <div class="internal-tabs">
         <button class="internal-tab active" data-tab="account">Account</button>
         <button class="internal-tab" data-tab="team">Members</button>
+        <% if ($c->is_saas) { %>
         <button class="internal-tab" data-tab="billing">Billing</button>
+        <% } %>
       </div>
-      
+
       <!-- Scrollable Content Area -->
       <div class="settings-content-area">
         <!-- Account Tab -->
@@ -28,16 +30,29 @@
               <div class="label-bold">Level</div>
               <div id="account-level"></div>
               <div class="label-bold">Name</div>
-              <input class="input" type="text" id="edit-name" placeholder="Your name" />
+              <input
+                class="input"
+                type="text"
+                id="edit-name"
+                placeholder="Your name"
+              />
               <div class="label-bold">Remote Address</div>
               <div id="account-remote"></div>
               <div class="label-bold">Token (API)</div>
               <div class="token-row flex items-center gap-3">
-                <input class="input flex-1" type="text" id="account-token" readonly />
+                <input
+                  class="input flex-1"
+                  type="text"
+                  id="account-token"
+                  readonly
+                />
                 <button class="btn btn-ghost neon-ghost" id="copy-token">
                   <i class="fas fa-copy"></i> Copy
                 </button>
-                <button class="btn btn-ghost neon-red-ghost" id="regenerate-token">
+                <button
+                  class="btn btn-ghost neon-red-ghost"
+                  id="regenerate-token"
+                >
                   <i class="fas fa-redo"></i> Rotate
                 </button>
               </div>
@@ -50,29 +65,49 @@
                 <div class="label-bold">Org ID</div>
                 <div id="org-id"></div>
                 <div class="label-bold">Organization Name</div>
-                <input class="input" type="text" id="edit-org-name" placeholder="Organization name" />
+                <input
+                  class="input"
+                  type="text"
+                  id="edit-org-name"
+                  placeholder="Organization name"
+                />
                 <div class="label-bold">Description</div>
-                <textarea class="textarea" id="edit-org-desc" rows="3" placeholder="Organization description"></textarea>
+                <textarea
+                  class="textarea"
+                  id="edit-org-desc"
+                  rows="3"
+                  placeholder="Organization description"
+                ></textarea>
                 <!-- Execution Token -->
                 <div class="label-bold">Execution Token</div>
                 <div class="token-row flex items-center gap-3">
-                  <input class="input flex-1" type="text" id="execution-token" readonly />
-                  <button class="btn btn-ghost neon-red-ghost" id="rotate-exec-token">
+                  <input
+                    class="input flex-1"
+                    type="text"
+                    id="execution-token"
+                    readonly
+                  />
+                  <button
+                    class="btn btn-ghost neon-red-ghost"
+                    id="rotate-exec-token"
+                  >
                     <i class="fas fa-redo"></i> Rotate
                   </button>
                 </div>
               </div>
               <p class="help-text small mt-small text-orange">
-                <strong>Warning:</strong> Rotating this token may disrupt currently running jobs. 
-                It is safest to rotate when no jobs are active.
+                <strong>Warning:</strong> Rotating this token may disrupt
+                currently running jobs. It is safest to rotate when no jobs are
+                active.
               </p>
             </div>
             <!-- Danger Zone -->
             <div class="danger-zone">
               <h4><i class="fas fa-skull-crossbones"></i> Danger Zone</h4>
               <p>
-                <strong>Warning:</strong> This action is permanent and cannot be undone. 
-                Your account, all jobs, clusters, calendars, and data will be permanently deleted.
+                <strong>Warning:</strong> This action is permanent and cannot be
+                undone. Your account, all jobs, clusters, calendars, and data
+                will be permanently deleted.
               </p>
               <button id="delete-my-account" class="btn btn-danger w-full">
                 <i class="fas fa-trash"></i> Delete My Account
@@ -85,7 +120,6 @@
             </div>
           </div>
         </div>
-
         <!-- Members Tab -->
         <div id="tab-team" class="internal-tab-content">
           <div class="card-simple">
@@ -107,7 +141,11 @@
                 <tbody id="team-body"></tbody>
               </table>
             </div>
-            <div id="no-team" class="empty-state text-center py-large" style="display: none">
+            <div
+              id="no-team"
+              class="empty-state text-center py-large"
+              style="display: none"
+            >
               <i class="fas fa-users-slash fa-5x has-text-grey"></i>
               <p class="has-text-grey-light mt-medium">
                 No team members yet.<br />Invite someone to collaborate.
@@ -115,8 +153,7 @@
             </div>
           </div>
         </div>
-
-        <!-- Billing Tab -->
+        <!-- Billing Tab (SaaS only) -->
         <div id="tab-billing" class="internal-tab-content">
           <div class="card-simple">
             <div class="flex justify-between items-start mb-large">
@@ -139,7 +176,12 @@
               <p id="account-tier" class="text-cyan font-bold"></p>
               <div class="label-bold">API Calls This Month</div>
               <div>
-                <progress id="api-progress" class="progress w-full" value="0" max="100"></progress>
+                <progress
+                  id="api-progress"
+                  class="progress w-full"
+                  value="0"
+                  max="100"
+                ></progress>
                 <p id="api-usage-text" class="text-grey"></p>
               </div>
               <div class="label-bold">Next Reset Date</div>

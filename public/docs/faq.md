@@ -39,4 +39,4 @@ See [Jobs & Clusters](#docs/jobs-and-clusters) for more details.
 **A:** Email **ordosched@proton.me**
 
 **Q: Is Ordo open source?**  
-**A:** Some core components are open source. The full web UI and advanced features are currently proprietary.
+**A:** Some core components are open source. See [Cron::Toolkit](https://metacpan.org/pod/Cron::Toolkit) on CPAN. The full web UI and advanced features are currently proprietary.

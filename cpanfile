@@ -1,0 +1,22 @@
+requires 'Mojolicious';
+requires 'Mojo::SQLite';
+requires 'Net::OpenSSH';
+requires 'EV';
+requires 'Cron::Toolkit';
+requires 'UUID::Tiny';
+requires 'Email::Valid';
+requires 'JSON';
+requires 'Mojo::JWT';
+requires 'Email::MIME';
+requires 'Email::Sender::Simple';
+requires 'Email::Sender::Transport::SMTP';
+requires 'Minion';
+requires 'Minion::Backend::SQLite';
+requires 'JSON Digest::SHA';
+requires 'DateTime';
+requires 'MIME::Base64'
+requires 'IO::Socket::INET'; 
+requires 'Encode'; 
+requires 'Mojolicious::Plugin::JSONConfig';
+requires 'IO::Pty';
+requires 'Filter::Crypto';

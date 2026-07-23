@@ -8,30 +8,24 @@
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="stylesheet" href="/css/app.css?v=<%= time %>" />
 
-  <!-- === OFFLINE / ONLINE SWITCH === -->
-  <!-- Set offlineMode = true when you want offline version -->
-  <% my $offlineMode = 1; %>
+  <% my $isSelfHosted = $c->is_selfhosted; %>
 
   <!-- Font Awesome -->
-  <% if ($offlineMode) { %>
+  <% if ($isSelfHosted) { %>
     <link rel="stylesheet" href="/lib/fontawesome/css/all.min.css" />
   <% } else { %>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <% } %>
 
-  <!-- Google Fonts (Jost) - harder to bundle, optional fallback -->
-  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
-
   <!-- Marked -->
-  <% if ($offlineMode) { %>
+  <% if ($isSelfHosted) { %>
     <script src="/lib/marked/marked.min.js"></script>
   <% } else { %>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <% } %>
 
   <!-- Highlight.js -->
-  <% if ($offlineMode) { %>
+  <% if ($isSelfHosted) { %>
     <script src="/lib/highlight/highlight.min.js"></script>
     <link rel="stylesheet" href="/lib/highlight/styles/atom-one-dark.min.css" />
   <% } else { %>
@@ -40,7 +34,7 @@
   <% } %>
 
   <!-- Cytoscape + Dagre -->
-  <% if ($offlineMode) { %>
+  <% if ($isSelfHosted) { %>
     <script src="/lib/cytoscape/cytoscape.min.js"></script>
     <script src="/lib/cytoscape/dagre.min.js"></script>
     <script src="/lib/cytoscape/cytoscape-dagre.js"></script>
@@ -51,7 +45,7 @@
   <% } %>
 
   <!-- Tom Select -->
-  <% if ($offlineMode) { %>
+  <% if ($isSelfHosted) { %>
     <link href="/lib/tom-select/tom-select.css" rel="stylesheet" />
     <script src="/lib/tom-select/tom-select.complete.min.js"></script>
   <% } else { %>
@@ -59,14 +53,11 @@
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
   <% } %>
 </head>
-
 <body>
   <!-- Main Flex Container -->
   <div class="app-wrapper">
-
     <!-- Navbar -->
     <%= include 'partials/navbar' %>
-
     <!-- Main Content Area -->
     <main class="main-content">
       <%= include 'partials/docs' %>
@@ -79,7 +70,6 @@
     </main>
     <%= include 'partials/footer' %>
   </div>
-
   <%= include 'partials/modals' %>
   <script type="module" src="/js/app.js?v=<%= time %>"></script>
 </body>
