@@ -9,7 +9,6 @@ CREATE TABLE job_states (
 
 CREATE UNIQUE INDEX job_states_idx1 ON job_states (state);
 
-INSERT INTO job_states (state) VALUES('pruned');
 INSERT INTO job_states (state) VALUES('ready');
 INSERT INTO job_states (state) VALUES('starting');
 INSERT INTO job_states (state) VALUES('stopping');

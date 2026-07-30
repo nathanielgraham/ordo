@@ -19,16 +19,9 @@ Ordo is designed to give organizations maximum flexibility and control. Whether 
 - Up to **10 servers**
 - 30 Team Members
 
-**Important Note on Stats Polling:**  
-Stats polling is **completely optional**. The core scheduling, dependencies, job execution, self-healing, handlers, and cloning features work perfectly well **without any monitoring**.
-
-Stats polling provides real-time visibility into running jobs and server health (CPU, memory, disk usage, etc.). Use it only if it fits your operational needs and budget.
-
 **Recommended Polling Intervals (if using stats polling):**
 - **30–60 seconds** — Good balance for most Pro SaaS users
 - **2–5 minutes** — For cost-sensitive or large fleets
-
----
 
 ### 1. Managed Private VPS
 
@@ -46,8 +39,6 @@ We provision and manage a **dedicated VPS instance** of Ordo exclusively for you
 **Note on Polling:**  
 Higher frequency polling (e.g. every 10 seconds) is fully supported here, as it does not consume shared SaaS API quota. You can also choose larger VPS sizes (more CPU, memory, and bandwidth) to comfortably support aggressive polling if needed.
 
----
-
 ### 2. Self-Hosted
 
 Run Ordo completely on **your own infrastructure**.
@@ -60,7 +51,7 @@ Run Ordo completely on **your own infrastructure**.
 
 **Best for:** Organizations with strict data sovereignty or compliance requirements.
 
----
+**[Full Self-Hosted Setup Guide](#docs/self-hosted)**
 
 ### 3. Enterprise
 

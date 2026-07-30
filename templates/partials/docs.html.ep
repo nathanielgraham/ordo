@@ -72,6 +72,11 @@
               >
             </li>
             <li>
+              <a href="#" data-file="self-hosted.md" class="menu-link"
+                >Self-Hosted Setup</a
+              >
+            </li>
+            <li>
               <a href="#" data-file="faq.md" class="menu-link"
                 >FAQ</a
               >

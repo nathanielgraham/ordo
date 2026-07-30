@@ -1,14 +1,46 @@
 services:
   ordo:
     build: .
+    image: ordo-selfhosted:latest
     ports:
       - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      ORDO_DEPLOY_MODE: ${ORDO_DEPLOY_MODE:-selfhosted}
+      ORDO_LICENSE_KEY: ${ORDO_LICENSE_KEY:-}
+      ORDO_SMTP_HOST: ${ORDO_SMTP_HOST:-}
+      ORDO_SMTP_PORT: ${ORDO_SMTP_PORT:-587}
+      ORDO_SMTP_USER: ${ORDO_SMTP_USER:-}
+      ORDO_SMTP_PASS: ${ORDO_SMTP_PASS:-}
+      ORDO_SMTP_FROM: ${ORDO_SMTP_FROM:-Ordo Scheduler <ordosched@proton.me>}
+      ORDO_SMTP_SSL: ${ORDO_SMTP_SSL:-starttls}
+      MOJO_MODE: production
     volumes:
       - ./config:/app/config
+      - ./db:/app/db
       - ./data:/app/data
-      - ./db:/app/db   # add this for SQLite
     restart: unless-stopped
-    # remove read_only for now or make db writable
-    # read_only: true
-    security_opt:
-      - no-new-privileges:true
+
+  minion:
+    image: ordo-selfhosted:latest
+    command: ["perl", "script/minion_worker.pl"]
+    env_file:
+      - .env
+    environment:
+      ORDO_DEPLOY_MODE: ${ORDO_DEPLOY_MODE:-selfhosted}
+      ORDO_LICENSE_KEY: ${ORDO_LICENSE_KEY:-}
+      ORDO_SMTP_HOST: ${ORDO_SMTP_HOST:-}
+      ORDO_SMTP_PORT: ${ORDO_SMTP_PORT:-587}
+      ORDO_SMTP_USER: ${ORDO_SMTP_USER:-}
+      ORDO_SMTP_PASS: ${ORDO_SMTP_PASS:-}
+      ORDO_SMTP_FROM: ${ORDO_SMTP_FROM:-Ordo Scheduler <ordosched@proton.me>}
+      ORDO_SMTP_SSL: ${ORDO_SMTP_SSL:-starttls}
+      MOJO_MODE: production
+    volumes:
+      - ./config:/app/config
+      - ./db:/app/db
+      - ./data:/app/data
+    depends_on:
+      - ordo
+    restart: unless-stopped

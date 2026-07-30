@@ -1,0 +1,4 @@
+{$ORDO_DOMAIN:localhost} {
+	reverse_proxy ordo:3000
+	encode gzip
+}

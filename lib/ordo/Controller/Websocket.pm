@@ -50,9 +50,10 @@ sub default {
          # Register for broadcasts on successful login
          if ($cmd eq 'login_user' && $response->{success}) {
             my $org_id = $user->org_id;
+            my $email = $user->email;
             if ($org_id) {
                push @{$self->app->clients_by_org->{$org_id} //= []}, $tx;
-               $self->app->log->debug("WS client registered for org $org_id");
+               $self->app->log->info("WS registered for: $email");
             }
             $self->inactivity_timeout(0);
          }

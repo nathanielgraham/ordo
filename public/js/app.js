@@ -7,10 +7,9 @@ import { attachGlobalListeners } from "./dropdown-handlers.js";
 import { initModals, attachCalendarsTreeListeners } from "./ui-handlers.js";
 
 // ==================== DEVELOPMENT AUTO-LOGIN (DIRECT COOKIE) ====================
-const ENABLE_DEV_AUTO_LOGIN = true;
+const ENABLE_DEV_AUTO_LOGIN = false;
 
 if (ENABLE_DEV_AUTO_LOGIN) {
-  //const devToken = "ffc2dd160045bfae137fa972d59e38340222c1c4";
   const devToken = "15c8bfdbe8634255f8257ef73a8f0bf7daae1d8c";
   
   // Set the cookie
@@ -19,8 +18,6 @@ if (ENABLE_DEV_AUTO_LOGIN) {
   console.log("%c[DEV] Auto-login cookie set with token: " + devToken, 
               "color: #0f0; font-weight: bold");
   
-  // Optional: also set it in localStorage if your app uses it
-  // localStorage.setItem("ordo_token", devToken);
 }
 
 // ==================== MAIN INITIALIZATION ====================

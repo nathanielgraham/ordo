@@ -76,7 +76,8 @@ export function formatRelativeTime(agoSeconds) {
 export function formatTplus(epoch) {
   if (!epoch || isNaN(epoch)) return "—";
   const diff = Math.floor(Date.now() / 1000) - epoch;
-  if (diff <= 0) return "T+00:00:00";
+  if (diff < 0) return "—";
+  //if (diff <= 0) return "T+00:00:00";
 
   // Show days if more than 24 hours
   if (diff >= 86400) {
@@ -101,7 +102,8 @@ export function formatTminus(epoch) {
   const now = Math.floor(Date.now() / 1000);
   const diff = epoch - now;
 
-  if (diff <= 0) return "T-00:00:00";
+  if (diff < 0) return "—";
+  //if (diff < 0) return "T-00:00:00";
 
   // Show days if more than 24 hours
   if (diff >= 86400) {
@@ -126,7 +128,7 @@ export function formatDuration(start, end) {
   if (!start) return "—";
   const endTime = end || Math.floor(Date.now() / 1000);
   const diff = endTime - start;
-  if (diff <= 0) return "—";
+  if (diff < 0) return "—";
   const h = Math.floor(diff / 3600).toString().padStart(2, "0");
   const m = Math.floor((diff % 3600) / 60).toString().padStart(2, "0");
   const s = (diff % 60).toString().padStart(2, "0");

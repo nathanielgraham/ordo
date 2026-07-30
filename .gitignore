@@ -1,5 +1,42 @@
-db/*.db
-db/*shm
-db/*wal
-prompts
-todo
+# Git / editor
+.git
+.gitignore
+.howto.swp
+*.swp
+*~
+
+# Secrets — never bake into the image
+.env
+.env.*
+ordo-license-private.pem
+ordo-license-public.pem
+
+# Runtime data (use volumes instead)
+db/*
+data/*
+!db/.gitkeep
+!data/.gitkeep
+config/*
+!config/.gitkeep
+deploy/saas/db/*
+deploy/private/db/*
+
+# Release artifacts
+*.tar.gz
+*.tar.gz.sha256
+ordo-selfhosted-*/
+
+# Host-only helpers (not required at runtime in the container)
+tools/
+share.sh
+howto
+install.sh
+docker-compose.yml
+README.md
+
+# Logs / junk
+**/logs
+**/*.log
+*.pem
+
+

@@ -8,15 +8,15 @@ use Data::Dumper;
 has 'config';
 has ua => sub { Mojo::UserAgent->new };
 
-sub stripe_url {
-    my $self = shift;
-    return 'https://api.stripe.com/v1';
-}
+#sub stripe_url {
+#    my $self = shift;
+#    return 'https://api.stripe.com/v1';
+#}
 
 sub headers {
     my $self = shift;
     return {
-        Authorization => 'Bearer ' . $self->config->{stripe}{secret_key},
+        Authorization => 'Bearer ' . $ENV{STRIPE_SECRET_KEY},
         'Content-Type' => 'application/x-www-form-urlencoded',
     };
 }
@@ -40,23 +40,17 @@ sub create_checkout_session {
         'metadata[org_id]'  => $args{org_id} // '',
     };
 
-    print "=== STRIPE REQUEST ===\n";
-    print Dumper($form);
-
     my $tx = $self->ua->post(
-        $self->stripe_url . '/checkout/sessions' => 
+        $self->config->{stripe_url} . '/checkout/sessions' => 
         $self->headers => 
         form => $form
     );
 
     my $res = $tx->result;
 
-    print "=== STRIPE RESPONSE ===\n";
     if ($res->error) {
-        print "Error: " . Dumper($res->error);
+        die $res->error;
     }
-    print "Status: " . $res->code . "\n";
-    print $res->body . "\n";
 
     return decode_json($res->body) if $res->is_success;
 
@@ -73,7 +67,7 @@ sub create_customer_portal {
     };
 
     my $tx = $self->ua->post(
-        $self->stripe_url . '/billing_portal/sessions' =>
+        $self->config->{stripe_url} . '/billing_portal/sessions' =>
         $self->headers =>
         form => $form
     );
@@ -89,7 +83,8 @@ sub create_customer_portal {
 sub verify_webhook {
     my ($self, $payload, $sig_header) = @_;
 
-    my $secret = $self->config->{stripe}{webhook_secret}
+    #my $secret = $self->config->{stripe}{webhook_secret}
+    my $secret = $ENV{STRIPE_WEBHOOK_SECRET}
         or die "Missing webhook_secret in config";
 
     # Using Stripe's official way (requires Crypt::JWT or similar, or simple timestamp check)

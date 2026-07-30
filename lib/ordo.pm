@@ -26,6 +26,7 @@ use Time::Local qw(timelocal);
 use ordo::MCP::Tools;
 use Encode 'decode';
 use Mojolicious::Plugin::JSONConfig;
+use ordo::License;
 use Data::Dumper;
 
 $SIG{CHLD} = sub {
@@ -64,14 +65,6 @@ has 'quartz_rx' => sub {
   }ix
 };
 
-has 'local_url' => sub {
-
-   #state $url = 'http://' . &get_local_ip_address() . ':3000';
-   state $url = 'http://' . hostname() . ':3000';
-
-   #state $url = 'http://localhost:3000';
-};
-
 has 'last_warning_cache' => sub {
    state $cache = {};
    return $cache;
@@ -82,21 +75,24 @@ sub startup {
 
    my $self = shift;
 
-   my $config = $self->plugin(
+   state $config = $self->plugin(
       JSONConfig => {
          file => 'config/ordo.json'
       }
    );
 
-   my $deploy_mode = $config->{deploy_mode} || 'saas';
-   $self->helper(deploy_mode => sub { $deploy_mode });
-   $self->helper(is_saas => sub { $deploy_mode eq 'saas' });
-   $self->helper(is_selfhosted => sub { $deploy_mode eq 'selfhosted' });
+   $self->helper( config => sub { return $config } );
 
-   $self->secrets( config => $config );
+   my $deploy_mode = $self->config->{deploy_mode} || 'saas';
 
-   $ENV{EMAIL_SENDER_SMTP_USER} = $self->config->{smtp_user};
-   $ENV{EMAIL_SENDER_SMTP_PASS} = $self->config->{smtp_pass};
+   if ( $deploy_mode eq 'selfhosted' ) {
+      ordo::License::require_valid_license();
+   }
+
+   $self->helper( deploy_mode   => sub { $deploy_mode } );
+   $self->helper( is_saas       => sub { $deploy_mode eq 'saas' } );
+   $self->helper( is_private    => sub { $deploy_mode eq 'private' } );
+   $self->helper( is_selfhosted => sub { $deploy_mode eq 'selfhosted' } );
 
    # Load Stripe helper
    $self->helper(
@@ -134,8 +130,9 @@ sub startup {
    # Helpers
 
    $self->helper(
-      jwt =>
-        sub { Mojo::JWT->new( secret => shift->config->{secrets}->[0] || die ) }
+      jwt => sub { Mojo::JWT->new( secret => $ENV{ORDO_SECRET} || die ) }
+
+      #sub { Mojo::JWT->new( secret => shift->config->{secrets}->[0] || die ) }
    );
 
    #$self->helper(
@@ -218,108 +215,70 @@ sub startup {
       }
    );
 
-=pod
-$self->helper(
-   send_email => sub {
-      my ($c, $to, $subject, $html_body, $plain_text) = @_;
-
-      $plain_text //= $html_body;
-
-      require Email::MIME;
-      require Email::Sender::Simple;
-      require Email::Sender::Transport::SMTP;
-
-      my $transport = Email::Sender::Transport::SMTP->new({
-         host          => 'smtp.gmail.com',
-         port          => 587,
-         ssl           => 'starttls',
-         sasl_username => $ENV{EMAIL_SENDER_SMTP_USER},
-         sasl_password => $ENV{EMAIL_SENDER_SMTP_PASS},
-      });
-
-      my $email = Email::MIME->create(
-         header_str => [
-            From    => 'Ordo Scheduler <ordosched@proton.me>',
-            To      => $to,
-            Subject => $subject,
-         ],
-         parts => [
-            # HTML version FIRST (preferred by modern clients)
-            Email::MIME->create(
-               attributes => {
-                  content_type => 'text/html',
-                  encoding     => 'quoted-printable',
-                  charset      => 'UTF-8',
-               },
-               body => $html_body,
-            ),
-            # Plain text fallback
-            Email::MIME->create(
-               attributes => {
-                  content_type => 'text/plain',
-                  encoding     => 'quoted-printable',
-                  charset      => 'UTF-8',
-               },
-               body => $plain_text,
-            ),
-         ],
-      );
-
-      eval {
-         Email::Sender::Simple->send($email, { transport => $transport });
-         $c->log->info("Email sent successfully to $to");
-      } or do {
-         $c->log->error("Failed to send email to $to: $@");
-      };
-   }
-);
-=cut
-
    $self->helper(
       send_email => sub {
          my ( $c, $to, $subject, $html_body, $plain_text ) = @_;
-
          $plain_text //= $html_body;
 
          require Email::MIME;
          require Email::Sender::Simple;
-         require Email::Sender::Transport::Sendmail;
 
-         my $transport = Email::Sender::Transport::Sendmail->new();
+         my $from = $ENV{ORDO_SMTP_FROM}
+           // 'Ordo Scheduler <ordosched@proton.me>';
+
+         my $transport;
+         if ( my $host = $ENV{ORDO_SMTP_HOST} ) {
+            require Email::Sender::Transport::SMTP;
+            $transport = Email::Sender::Transport::SMTP->new(
+               {
+                  host          => $host,
+                  port          => $ENV{ORDO_SMTP_PORT} // 587,
+                  ssl           => $ENV{ORDO_SMTP_SSL}  // 'starttls',
+                  sasl_username => $ENV{ORDO_SMTP_USER},
+                  sasl_password => $ENV{ORDO_SMTP_PASS},
+               }
+            );
+         }
+         else {
+            require Email::Sender::Transport::Sendmail;
+            $transport = Email::Sender::Transport::Sendmail->new();
+         }
 
          my $email = Email::MIME->create(
             header_str => [
-               From    => 'Ordo Scheduler <ordosched@proton.me>',
+               From    => $from,
                To      => $to,
                Subject => $subject,
             ],
-            parts => [
+            attributes => { content_type => 'multipart/alternative' },
+            parts      => [
 
-               # HTML version first (preferred by modern clients)
-               Email::MIME->create(
-                  attributes => {
-                     content_type => 'text/html',
-                     encoding     => 'quoted-printable',
-                     charset      => 'UTF-8',
-                  },
-                  body => $html_body,
-               ),
-
-               # Plain text fallback
+               # Plain text first (fallback)
                Email::MIME->create(
                   attributes => {
                      content_type => 'text/plain',
                      encoding     => 'quoted-printable',
                      charset      => 'UTF-8',
                   },
-                  body => $plain_text,
+                  body_str => $plain_text,
+               ),
+
+               # HTML last (preferred by most clients)
+               Email::MIME->create(
+                  attributes => {
+                     content_type => 'text/html',
+                     encoding     => 'quoted-printable',
+                     charset      => 'UTF-8',
+                  },
+                  body_str => $html_body,
                ),
             ],
          );
 
          eval {
             Email::Sender::Simple->send( $email, { transport => $transport } );
-            $c->log->info("Email sent successfully to $to");
+            $c->log->info("Email sent to $to");
+            1;
          } or do {
             $c->log->error("Failed to send email to $to: $@");
          };
@@ -460,7 +419,7 @@ $self->helper(
             return 1;
          }
          else {
-            #$c->redirect_to('/login');
+            $c->redirect_to('/login');
             return undef;
          }
       }
@@ -562,8 +521,9 @@ $self->helper(
          }
 
          # Execute tool
-         my $params = $json->{params} // $json->{arguments} // $json->{parameters} // {};
-         my $tool   = $tools->{$tool_name};
+         my $params = $json->{params} // $json->{arguments}
+           // $json->{parameters} // {};
+         my $tool = $tools->{$tool_name};
 
          my $result =
              $tool
@@ -1116,10 +1076,6 @@ sub throttle_exceeded {
       $user->request_count->{$minute} = 1;
    }
 
-   print "RCRL: "
-     . $user->request_count->{$minute} . " "
-     . $user->rate_limit_org_per_minute . " "
-     . $user->rate_limit_user_per_minute . "\n";
    return 1
      if $user->request_count->{$minute} > $user->rate_limit_user_per_minute;
    return 0;
@@ -1668,7 +1624,8 @@ sub _start_cluster {
    }
 
    my $needs_met = $self->_cluster_needs_met( $user, { id => $cluster_id } );
-   my $startable = $self->_cluster_is_startable( $user, { id => $cluster_id } ) && $needs_met;
+   my $startable =
+     $self->_cluster_is_startable( $user, { id => $cluster_id } ) && $needs_met;
    my $is_user_start = ( $d->{origin} && $d->{origin} eq 'user' );
 
    if ( !$startable && !$is_user_start ) {
@@ -1735,7 +1692,7 @@ sub _start_cluster {
 
    # Dependencies
    # unless ( $self->_cluster_needs_met( $user, { id => $cluster->{id} } ) ) {
-   unless ( $needs_met ) {
+   unless ($needs_met) {
       return { success => 0, waiting => 1, message => 'dependency not met.' };
    }
 
@@ -1897,15 +1854,7 @@ sub _reset_cluster {
    #   return;
    #}
 
-   return unless $self->_cluster_is_startable( $user, { id => $cluster_id } );
-
-   # reset handler context
-   # reset in _set_cluster_state state = complete
-   #$self->sqlite->db->update(
-   #   'cluster',
-   #   { handler_context => undef },
-   #   { id              => $cluster_id }
-   #);
+   return if $self->_cluster_is_running( $user, { id => $cluster_id } );
 
    my $hold = $self->job_states->{hold};
    my $ice  = $self->job_states->{ice};
@@ -2506,7 +2455,9 @@ sub register_user {
       }
    )->encode;
 
-   my $url = $self->local_url . $self->url_for('confirm')->query( jwt => $jwt );
+   my $url =
+       $self->config->{public_url}
+     . $self->url_for('confirm')->query( jwt => $jwt );
 
    # Choose email template
    my ( $html_body, $plain_text ) =
@@ -3442,6 +3393,9 @@ sub _create_job {
         unless $res->{id};
       $insert_hash->{server_id} = $res->{id};
    }
+
+   $insert_hash->{state_id} = $self->job_states->{ready};
+
    my $id;
    eval {
       $id = $self->sqlite->db->insert( 'job', $insert_hash )->last_insert_id;
@@ -3601,6 +3555,16 @@ sub _cluster_is_startable {
 
    my $cluster_id = $d->{id};
 
+   my $cluster = $self->sqlite->db->select(
+      'cluster',
+      ['state_id'],
+      {
+         id => $cluster_id,
+      },
+   )->hash;
+
+   return 0 if $cluster->{state_id} == $self->job_states->{hold};
+
    my @startable = map { $self->job_states->{$_} }
      qw(ice hold complete ready waiting failed killed zombie);
 
@@ -3625,6 +3589,26 @@ sub _cluster_is_startable {
 
    my $startable = $jb->hash || $cl->hash ? 0 : 1;
    return $startable;
+}
+
+# returns true if cluster is running
+sub _cluster_is_running {
+   my ( $self, $user, $d ) = @_;
+   my $cluster_id = $d->{id};
+   return 0 unless $cluster_id;
+
+   my $cluster = $self->sqlite->db->select(
+      'cluster',
+      ['state_id'],
+      {
+         id => $cluster_id,
+      },
+   )->hash;
+
+   return 1
+     if scalar( grep { $cluster->{state_id} == $self->job_states->{$_} }
+        qw(running starting looping retrying) );
+   return 0;
 }
 
 # returns true if cluster is complete
@@ -3660,6 +3644,7 @@ sub _cluster_is_complete {
 
 sub _set_job_state {
    my ( $self, $user, $d ) = @_;
+
    my $job = $self->_job_info( $user, $d );
    return unless $job && $job->{id};
 
@@ -3859,7 +3844,8 @@ sub _set_job_state {
 
    # if ( $self->_cluster_is_complete( $user, { id => $job->{cluster_id} } ) )
 
-   if ( $self->_cluster_is_complete( $user, { id => $job->{cluster_id} } ) && $cluster->{state_id} == $self->job_states->{running} )
+   if (  $self->_cluster_is_complete( $user, { id => $job->{cluster_id} } )
+      && $cluster->{state_id} == $self->job_states->{running} )
    {
       $self->_set_cluster_state( $user,
          { state => 'complete', id => $job->{cluster_id} } );
@@ -3899,42 +3885,36 @@ sub _update_job_log {
       };
       my $rows = $self->sqlite->db->insert( 'job_log', $insert_hash )->rows;
 
-      # Auto-cleanup: delete oldest log if > 12
-      if ($rows) {
-         my $count = $self->sqlite->db->query(
-            "SELECT count(*) as count FROM job_log WHERE job_id = ?",
-            $d->{job_id} )->hash->{count};
+      # Auto-cleanup: delete oldest log if > 20
+      my $count = $self->sqlite->db->query(
+         "SELECT count(*) as count FROM job_log WHERE job_id = ?",
+         $d->{job_id} )->hash->{count};
 
-         # delete oldest if oldest < yesterday and count > 12
+      # delete oldest if oldest < yesterday and count > 12
 
-         if ( $count > 12 ) {
-            my $oldest = $self->sqlite->db->select(
-               'job_log', ['*'],
-               { job_id   => $d->{job_id} },
-               { order_by => 'id', limit => 1 }
-            )->hash;
+      if ( $count >= 20 ) {
+         my $oldest = $self->sqlite->db->select(
+            'job_log', ['*'],
+            { job_id   => $d->{job_id} },
+            { order_by => 'id', limit => 1 }
+         )->hash;
 
-            if ( $oldest->{started} < ( time - 86400 ) ) {
-               my $delete_file =
+         my $delete_file =
 "$log_dir/out.$oldest->{job_id}.$oldest->{ppid}.$oldest->{log_id}.log";
-               $self->sqlite->db->delete( 'job_log', { id => $oldest->{id} } );
+         $self->sqlite->db->delete( 'job_log', { id => $oldest->{id} } );
 
-               # Cross-platform log file deletion (Perl unlink via SSH)
-               my $ssh = $self->ssh_connection->{ $d->{server_id} };
-               unless ( $ssh && $ssh->check_master ) {
-                  $self->_connect_ssh( $user, { id => $d->{server_id} } );
-                  $ssh = $self->ssh_connection->{ $d->{server_id} };
-               }
+         # Cross-platform log file deletion (Perl unlink via SSH)
+         my $ssh = $self->ssh_connection->{ $d->{server_id} };
+         unless ( $ssh && $ssh->check_master ) {
+            $self->_connect_ssh( $user, { id => $d->{server_id} } );
+            $ssh = $self->ssh_connection->{ $d->{server_id} };
+         }
 
-               if ($ssh) {
-                  my $remote_log = $ssh->capture(
-                     "perl -e 'unlink \"$delete_file\" if -f \"$delete_file\"'"
-                  );
-                  if ($@) {
-                     $self->log->warn(
-                        "Failed to delete remote log $delete_file: $@");
-                  }
-               }
+         if ($ssh) {
+            my $remote_log = $ssh->capture(
+               "perl -e 'unlink \"$delete_file\" if -f \"$delete_file\"'");
+            if ($@) {
+               $self->log->warn("Failed to delete remote log $delete_file: $@");
             }
          }
       }
@@ -3999,7 +3979,7 @@ sub update_job_state {
    # Step 4: Broadcast state/runtime update
    $self->_broadcast_job( $user, [$job_id] );
 
-   return { success => 0 };
+   return { success => 1, message => 'hodedo' };
 }
 
 sub update_job_config {
@@ -4410,6 +4390,7 @@ sub _ping {
    my ( $self, $host ) = @_;
    return unless $host;
    my $output = `ping -c 1 $host 2>&1`;
+   return unless $output;
    if (
       $output =~ /min\/avg\/max\/(mdev|stddev) = ([\d.]+)\/([\d.]+)\/([\d.]+)/ )
    {
@@ -4767,12 +4748,14 @@ sub _start_job {
 
    # check connection
    my $ssh = $self->ssh_connection->{ $job->{server_id} };
-   unless ( $ssh && $ssh->check_master ) {
+   if ( $ssh && !$ssh->check_master ) {
+      delete $self->ssh_connection->{ $job->{server_id} };
+      $ssh = undef;
+   }
+   unless ($ssh) {
       $self->_connect_ssh( $user, { id => $job->{server_id} } );
       $ssh = $self->ssh_connection->{ $job->{server_id} };
    }
-
-   # second try
    unless ( $ssh && $ssh->check_master ) {
       $self->_set_job_state( $user, { id => $job->{id}, state => 'failed' } );
       return { success => 0, message => 'server unreachable' };
@@ -4816,7 +4799,7 @@ sub _start_job {
       cluster_id => $job->{cluster_id},
       server_id  => $job->{server_id},
       script     => $job->{script},
-      api        => $self->local_url . '/api',
+      api        => $self->config->{api_url},
 
       # Unified handler context
       handler_context => ( keys %$handler_ctx ? $handler_ctx : undef ),
@@ -4989,13 +4972,50 @@ sub ssh_copy {
 
 sub _ssh_copy {
    my ( $self, $user, $d ) = @_;
+   return 1 unless $d->{password} && $d->{user} && $d->{host};
+
+   my $port = $d->{port} || 22;
+   my $home = $ENV{HOME} // '/home/ordo';
+   my $pub =
+       -f "$home/.ssh/id_ed25519.pub" ? "$home/.ssh/id_ed25519.pub"
+     : -f "$home/.ssh/id_rsa.pub"     ? "$home/.ssh/id_rsa.pub"
+     :                                  "$home/.ssh/id_ed25519.pub";
+
+   return 1 unless -f $pub;
+
+   # sshpass reads password from env (avoids shell metacharacter issues)
+   local $ENV{SSHPASS} = $d->{password};
+
+   my @cmd = (
+      'sshpass',
+      '-e',
+      'ssh-copy-id',
+      '-f',
+      '-i',
+      $pub,
+      '-p',
+      $port,
+      '-o',
+      'StrictHostKeyChecking=accept-new',
+      sprintf( '%s@%s', $d->{user}, $d->{host} ),
+   );
+
+   my $rc   = system(@cmd);
+   my $exit = $rc == -1 ? 1 : ( $rc >> 8 );
+
+   if ($exit) {
+      warn "_ssh_copy failed (exit $exit) for $d->{user}\@$d->{host}\n";
+      return $exit;    # non-zero = failure
+   }
+   return 0;           # zero = success
+}
+
+sub _ssh_copy2 {
+   my ( $self, $user, $d ) = @_;
 
    #my $s = $self->_server_info( $user, $d );
    return 0 unless $d->{password} && $d->{user} && $d->{host};
    my $port = $d->{port} || 22;
-
-   #my $password = $d->{password} || $s->{password} || '';
-   #return 0 unless $password;
 
    # copy public ssh key to remote host
    my $copy_key =
@@ -5107,35 +5127,103 @@ sub _disconnect_ssh {
    return { success => 1 };
 }
 
-sub _new_connection {
+sub _new_connection3 {
    my ( $self, $user, $d ) = @_;
-
    return unless $d->{user} && $d->{host};
 
    my $port = $d->{port} || 22;
+   my $home = $ENV{HOME} // ( getpwuid($<) )[7] // '/home/ordo';
+   my $key =
+       -f "$home/.ssh/id_ed25519" ? "$home/.ssh/id_ed25519"
+     : -f "$home/.ssh/id_rsa"     ? "$home/.ssh/id_rsa"
+     :                              undef;
 
    my %option = (
       user        => $d->{user},
       port        => $port,
       batch_mode  => 1,
-      timeout     => 3,
-      master_opts => [ -o => "ControlMaster=auto" ],
+      timeout     => 5,
+      master_opts => [
+         -o => 'StrictHostKeyChecking=accept-new',
+         ( $key ? ( -i => $key, -o => 'IdentitiesOnly=yes' ) : () ),
+      ],
    );
-
    $option{password} = $d->{password} if $d->{password};
+
    my $ssh = Net::OpenSSH->new( $d->{host}, %option );
+   if ( $ssh->error || !$ssh->check_master ) {
+      warn "_new_connection SSH error: ",
+        ( $ssh->error // 'check_master failed' ), "\n";
+      return;
+   }
 
-   return if $ssh->error || !$ssh->check_master;
-
-   # set up ssh keys
    if ( $d->{password} ) {
-      my $key_update = {
-         password => $d->{password},
-         user     => $d->{user},
-         host     => $d->{host},
-         port     => $port,
-      };
-      my $exit_code = $self->_ssh_copy( $user, $key_update );
+      my $exit_code = $self->_ssh_copy(
+         $user,
+         {
+            password => $d->{password},
+            user     => $d->{user},
+            host     => $d->{host},
+            port     => $port,
+         }
+      );
+      return if $exit_code;
+
+      # Reconnect with key only
+      delete $option{password};
+      $ssh = Net::OpenSSH->new( $d->{host}, %option );
+      if ( $ssh->error || !$ssh->check_master ) {
+         warn "_new_connection post-copy SSH error: ",
+           ( $ssh->error // 'check_master failed' ), "\n";
+         return;
+      }
+   }
+
+   my $insert_hash =
+     { map { $_ => $d->{$_} } grep { exists $d->{$_} } (qw(name user host)) };
+   $insert_hash->{org_id} = $user->org_id;
+
+   my $id;
+   eval {
+      $id = $self->sqlite->db->insert( 'server', $insert_hash )->last_insert_id;
+   };
+   return unless $id;
+
+   $self->ssh_connection->{$id} = $ssh;
+   return $id;
+}
+
+sub _new_connection {
+   my ( $self, $user, $d ) = @_;
+   return unless $d->{user} && $d->{host};
+
+   my $port   = $d->{port} || 22;
+   my %option = (
+      user        => $d->{user},
+      port        => $port,
+      batch_mode  => 1,
+      timeout     => 5,
+      master_opts => [ -o => 'StrictHostKeyChecking=accept-new' ],
+   );
+   $option{password} = $d->{password} if $d->{password};
+
+   my $ssh = Net::OpenSSH->new( $d->{host}, %option );
+   if ( $ssh->error || !$ssh->check_master ) {
+      warn "_new_connection SSH error: ",
+        ( $ssh->error // 'check_master failed' ), "\n";
+      return;
+   }
+
+   if ( $d->{password} ) {
+      my $exit_code = $self->_ssh_copy(
+         $user,
+         {
+            password => $d->{password},
+            user     => $d->{user},
+            host     => $d->{host},
+            port     => $port,
+         }
+      );
       return if $exit_code;
    }
 
@@ -5147,49 +5235,45 @@ sub _new_connection {
    eval {
       $id = $self->sqlite->db->insert( 'server', $insert_hash )->last_insert_id;
    };
+   return unless $id;
 
-   if ($id) {
-      $self->ssh_connection->{$id} = $ssh;
-      return $id;
-   }
-   else {
-      return;
-   }
+   $self->ssh_connection->{$id} = $ssh;
+   return $id;
 }
 
 # refresh ssh connection
 sub _connect_ssh {
    my ( $self, $user, $d ) = @_;
-   my $token = $user->token;
-   my $s     = $self->_server_info( $user, $d );
+   my $s = $self->_server_info( $user, $d );
+   return
+     unless $s && $s->{id} && $s->{user} && $s->{host};
 
-   return unless $s && $s->{id} && $s->{user} && $s->{host};
-   my $port    = $s->{port} || 22;
-   my $old_ssh = $self->ssh_connection->{ $s->{id} };
-   if ( $old_ssh && ref $old_ssh ) {
-      $old_ssh->disconnect(0);
-      undef $old_ssh;
-      undef $self->ssh_connection->{ $s->{id} };
+   my $port = $s->{port} || 22;
+
+   if ( my $old = $self->ssh_connection->{ $s->{id} } ) {
+      eval { $old->disconnect(0) };
+      delete $self->ssh_connection->{ $s->{id} };
    }
 
+   my $key    = $s->{key_path} || $s->{identity};    # whatever you store
    my %option = (
-      user       => $s->{user},
-      port       => $port,
-      batch_mode => 1,
-      timeout    => 3,
-
-      #kill_ssh_on_timeout => 1,
-      #master_opts => [-o => "ControlPersist=10m" ],
-      master_opts => [ -o => "ControlMaster=auto" ],
+      user        => $s->{user},
+      port        => $port,
+      batch_mode  => 1,
+      timeout     => 15,
+      master_opts => [
+         -o => 'StrictHostKeyChecking=accept-new',
+         ( $key ? ( -i => $key, -o => 'IdentitiesOnly=yes' ) : () ),
+      ],
    );
+   $option{password} = $s->{password} if $s->{password};
 
    my $ssh = Net::OpenSSH->new( $s->{host}, %option );
+   if ( !$ssh || $ssh->error || !$ssh->check_master ) {
+      return;    # caller treats as unreachable
+   }
 
-   return if $ssh->error || !$ssh->check_master;
-
-   # add connection
    $self->ssh_connection->{ $s->{id} } = $ssh;
-
    return 1;
 }
 
@@ -5664,6 +5748,7 @@ sub _create_cron_object {
       sub {
          my ( $watcher, $now ) = @_;
          my $next = $self->_cron_next_start( $user, $d ) || 0;
+
          $self->sqlite->db->update(
             'cron',
             { next_start => $next },
@@ -6193,10 +6278,14 @@ sub create_checkout_session {
    eval {
       $session = $self->app->stripe->create_checkout_session(
          customer_email => $user->{email},
-         price_id       => $self->app->config->{stripe}{pro_price_id},
-         org_id         => $user->org_id,
-         success_url => 'http://localhost:3000/app#settings/billing?success=1',
-         cancel_url  => 'http://localhost:3000/app#settings/billing',
+         price_id       => $ENV{STRIPE_PRO_PRICE_ID},
+
+         #price_id       => $self->app->config->{stripe}{pro_price_id},
+         org_id      => $user->org_id,
+         success_url => $self->app->config->{public_url}
+           . '/app#settings/billing?success=1',
+         cancel_url => $self->app->config->{public_url}
+           . '/app#settings/billing',
       );
    };
    return {
@@ -6222,7 +6311,10 @@ sub create_customer_portal {
    eval {
       $portal = $self->app->stripe->create_customer_portal(
          customer_id => $user->{stripe_customer_id},
-         return_url  => 'http://localhost:3000/app#settings/billing',
+         return_url  => $self->app->config->{public_url}
+           . '/app#settings/billing',
+
+         #return_url  => 'http://localhost:3000/app#settings/billing',
       );
    };
 

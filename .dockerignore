@@ -1,0 +1,48 @@
+# Git
+.git
+.gitignore
+.env
+
+# Documentation / development
+*.md
+docs/
+tools/
+README*
+LICENSE*
+howto
+
+# Local config & data (should be mounted, not baked in)
+db/*.db
+db/*.db-wal
+db/*.db-shm
+data/
+log/
+logs/
+tmp/
+*.log
+*.pem
+
+# Host artifacts
+.env
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Editor / OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Build / test artifacts
+blib/
+_build/
+*.bak
+*.old
+*.tmp
+
+# Local Perl modules (if any)
+local/
