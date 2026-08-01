@@ -5,7 +5,7 @@ While modern AI has become extraordinarily good at thinking, planning, and reaso
 
 **Ordo** is the bridge — a modern, hierarchical job scheduler with native MCP support. This allows Grok to directly explore, create, schedule, monitor, debug, and **heal** jobs running on **your** servers.
 
-## Ordo + Grok in Action
+## What You Can Do
 
 You can say things like:
 
@@ -22,13 +22,13 @@ Grok will generate **and test** the code on **your servers**, create the necessa
   Ask Grok in plain English to create scripts, build schedules, setup dependencies, and debug failures.
 
 - **Hierarchical Workflows**  
-  Organize jobs into nested clusters with powerful dependency logic (`needs`, `needs_any`).
+  Organize jobs into nested clusters with powerful dependency logic.
 
-- **Self-Healing with Handlers**  
-  **On Fail**, **On Overdue**, and **Max Runtime** handlers let you automatically alert, clone, escalate, or recover from problems.
+- **Automatically Respond to Problems**  
+  `On Fail`, `On Overdue`, and `Max Runtime` handlers let you automatically alert, clone, escalate, or recover from problems.
 
 - **Cloning**  
-  Automatically run parallel instances when a long-running cluster misses its next scheduled window.
+  Automatically run parallel instances when long-running clusters miss their next scheduled window.
 
 - **Advanced Scheduling**  
   Full Quartz cron support plus flexible calendars with `Begin` and `Expire` dates.

@@ -39,8 +39,7 @@ RUN cpanm --notest \
     IO::Pty \
     Crypt::JWT \
     Email::Sender \
-    Authen::SASL \
-    Filter::Crypto
+    Authen::SASL 
 
 # App dirs + non-root user
 RUN useradd --create-home --shell /bin/bash --uid 1000 ordo \

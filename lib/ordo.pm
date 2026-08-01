@@ -833,6 +833,9 @@ sub _preload_documents {
       'advanced-topics'  => 'Self-healing workflows, meta-automation...',
       'faq'              => 'Frequently asked questions about Ordo...',
       'private-deployments' => 'Deployment options...',
+      'rest-api' => 'REST API...',
+      'stats-polling' => 'Fetch statistics about jobs and servers...',
+      'cli' => 'Terminal CLI for ordo...',
    );
 
    my %full_docs;
