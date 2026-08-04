@@ -14,12 +14,10 @@ ordo-license-public.pem
 # Runtime data (use volumes instead)
 db/*
 data/*
+config/*
 !db/.gitkeep
 !data/.gitkeep
-config/*
 !config/.gitkeep
-deploy/saas/db/*
-deploy/private/db/*
 
 # Release artifacts
 *.tar.gz
@@ -31,7 +29,6 @@ tools/
 share.sh
 howto
 install.sh
-docker-compose.yml
 README.md
 
 # Logs / junk

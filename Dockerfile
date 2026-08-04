@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sshpass \
     sqlite3 \
     postfix \
+    gnupg \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Perl dependencies

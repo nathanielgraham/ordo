@@ -1,0 +1,62 @@
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      ORDO_DOMAIN: ${ORDO_DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - ordo
+
+  ordo:
+    image: ordo:1.0.0
+    build: ../..          # enable only when building on this machine
+    expose:
+      - "3000"
+    ports:
+      - "3000:3000"       # uncomment for local debug only
+    env_file: .env
+    environment:
+      HOME: /home/ordo
+      ORDO_DEPLOY_MODE: private
+      MOJO_MODE: production
+      MOJO_REVERSE_PROXY: "1"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config:/app/config
+      - ./db:/app/db
+      - ./data:/app/data
+      - ordo_ssh:/home/ordo/.ssh
+    restart: unless-stopped
+
+  minion:
+    image: ordo:1.0.0
+    command: ["perl", "script/minion_worker.pl"]
+    env_file: .env
+    environment:
+      HOME: /home/ordo
+      ORDO_DEPLOY_MODE: private
+      MOJO_MODE: production
+      MOJO_REVERSE_PROXY: "1"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config:/app/config
+      - ./db:/app/db
+      - ./data:/app/data
+      - ordo_ssh:/home/ordo/.ssh
+    depends_on:
+      - ordo
+    restart: unless-stopped
+
+volumes:
+  ordo_ssh:
+  caddy_data:
+  caddy_config:
