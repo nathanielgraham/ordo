@@ -8,6 +8,8 @@ use FindBin qw($Bin);
 use Cwd 'abs_path';
 use POSIX qw(:sys_wait_h setsid);
 use Sys::Hostname;
+use lib "$Bin/../modules";
+use OrdoAgent qw(ordo_post);
 
 my $hex = pop @ARGV or die "missing hex argument";
 my $json = pack( 'H*', $hex );
@@ -237,21 +239,11 @@ else {
 # ==================== HELPERS ====================
 sub post {
     my ($data) = @_;
-    my $http = HTTP::Tiny->new( timeout => 10 );
-    my $res  = $http->post(
-        $api,
-        {
-            headers => { 'Content-Type' => 'application/json' },
-            content => encode_json($data),
-        }
+    ordo_post(
+        $api, $data,
+        soft_fail => 1,
+        on_error  => sub { print STDOUT "$_[0]\n" },
     );
-    unless ( $res->{success} ) {
-        print STDOUT "ORDO API post failed: $res->{status} $res->{reason}\n";
-        if ( defined $res->{content} && length $res->{content} ) {
-            print STDOUT "Response: $res->{content}\n";
-        }
-    }
-    return $res;
 }
 
 sub add_to_path {
