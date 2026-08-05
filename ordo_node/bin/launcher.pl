@@ -1,19 +1,18 @@
 #!/usr/bin/perl
 use warnings;
 use strict;
-use File::Spec;
 use File::Temp qw(tempfile);
-use LWP::UserAgent;
 use JSON::PP;
+use HTTP::Tiny;
 use FindBin qw($Bin);
 use Cwd 'abs_path';
 use POSIX qw(:sys_wait_h setsid);
 use Sys::Hostname;
-use Data::Dumper;
 
-my $hex        = pop @ARGV or die "missing hex argument";
-my $json       = pack( 'H*', $hex );
-my $job        = decode_json($json) or die "Failed to decode job JSON";
+my $hex = pop @ARGV or die "missing hex argument";
+my $json = pack( 'H*', $hex );
+my $job = decode_json($json) or die "Failed to decode job JSON";
+
 my $api        = $job->{api};
 my $id         = $job->{id};
 my $cluster_id = $job->{cluster_id};
@@ -29,36 +28,39 @@ my $hostname = hostname() || 'unknown';
 
 # ==================== DAEMONIZE ====================
 sub daemonize {
-   my $pid = fork();
-   die "Fork failed: $!" unless defined $pid;
-   exit(0)                            if $pid != 0;
-   die "Can't create new session: $!" if setsid() < 0;
-   $pid = fork();
-   die "Fork failed: $!" unless defined $pid;
-   exit(0) if $pid != 0;
-   chdir("/") or die "Can't chdir to /: $!";
+    my $pid = fork();
+    die "Fork failed: $!" unless defined $pid;
+    exit(0) if $pid != 0;
+    die "Can't create new session: $!" if setsid() < 0;
+    $pid = fork();
+    die "Fork failed: $!" unless defined $pid;
+    exit(0) if $pid != 0;
+    chdir("/") or die "Can't chdir to /: $!";
 }
+
 daemonize();
 
 my $ppid                  = $$;
 my $start_time            = time;
 my $max_runtime_triggered = 0;
-
 my $out_log = abs_path("$Bin/../logs/out.$id.$ppid.$start_time.log");
+
 $| = 1;
-open STDOUT, '>', $out_log or die "Cannot open log: $!";
-open STDERR, '>&STDOUT' or die "Cannot redirect STDERR: $!";
+open STDOUT, '>',  $out_log or die "Cannot open log: $!";
+open STDERR, '>&', STDOUT   or die "Cannot redirect STDERR: $!";
 close STDIN;
 
 # ==================== LOG HEADER ====================
 print STDOUT "$log_bar\n";
-print STDOUT " LOG FILE : $out_log\n";
+print STDOUT " LOG FILE   : $out_log\n";
 print STDOUT " START TIME : " . scalar( localtime($start_time) ) . "\n";
-print STDOUT " JOB ID : $id\n";
-print STDOUT " HOSTNAME : $hostname\n";
+print STDOUT " JOB ID     : $id\n";
+print STDOUT " HOSTNAME   : $hostname\n";
 my $exec_mode =
-  ( $command =~ /^#!/ ) ? "Shebang (temp file)" : "Shell wrapper (no shebang)";
-print STDOUT " EXEC MODE : $exec_mode\n";
+  ( $command =~ /^#!/ )
+  ? "Shebang (temp file)"
+  : "Shell wrapper (no shebang)";
+print STDOUT " EXEC MODE  : $exec_mode\n";
 print STDOUT "$log_bar\n\n";
 
 # ==================== ENVIRONMENT ====================
@@ -70,183 +72,190 @@ $ENV{ORDO_CLUSTER_ID} = $cluster_id;
 $ENV{ORDO_TOKEN}      = $token;
 $ENV{ORDO_API}        = $api;
 $ENV{ORDO_DELAY}      = $delay;
-$ENV{ORDO_JSON}       = encode_json( $job->{json} || {} ) if $job->{json};
+$ENV{ORDO_JSON} = encode_json( $job->{json} || {} ) if $job->{json};
 
-# Unified Handler Context
 if ( $job->{handler_context} && ref( $job->{handler_context} ) eq 'HASH' ) {
-   $ENV{ORDO_HANDLER_CONTEXT} = encode_json( $job->{handler_context} );
-   $ENV{ORDO_FAILED_CLUSTER_ID} =
-     $job->{handler_context}->{fail}->{origin_cluster_id} || undef;
-   $ENV{ORDO_FAILED_CLUSTER_NAME} =
-     $job->{handler_context}->{fail}->{origin_cluster_name} || undef;
-   $ENV{ORDO_MAX_RUNTIME_JOB_ID} =
-     $job->{handler_context}->{max_runtime}->{origin_job_id} || undef;
-   $ENV{ORDO_MAX_RUNTIME_CLUSTER_ID} =
-     $job->{handler_context}->{max_runtime}->{origin_cluster_id} || undef;
-   $ENV{ORDO_MAX_RUNTIME_SECONDS} =
-     $job->{handler_context}->{max_runtime}->{max_runtime_seconds} || undef;
-   $ENV{ORDO_OVERDUE_CLUSTER_ID} =
-     $job->{handler_context}->{overdue}->{origin_cluster_id} || undef;
-   $ENV{ORDO_OVERDUE_CLUSTER_NAME} =
-     $job->{handler_context}->{overdue}->{origin_cluster_name} || undef;
+    $ENV{ORDO_HANDLER_CONTEXT} = encode_json( $job->{handler_context} );
+    $ENV{ORDO_FAILED_CLUSTER_ID} =
+      $job->{handler_context}->{fail}->{origin_cluster_id};
+    $ENV{ORDO_FAILED_CLUSTER_NAME} =
+      $job->{handler_context}->{fail}->{origin_cluster_name};
+    $ENV{ORDO_MAX_RUNTIME_JOB_ID} =
+      $job->{handler_context}->{max_runtime}->{origin_job_id};
+    $ENV{ORDO_MAX_RUNTIME_CLUSTER_ID} =
+      $job->{handler_context}->{max_runtime}->{origin_cluster_id};
+    $ENV{ORDO_MAX_RUNTIME_SECONDS} =
+      $job->{handler_context}->{max_runtime}->{max_runtime_seconds};
+    $ENV{ORDO_OVERDUE_CLUSTER_ID} =
+      $job->{handler_context}->{overdue}->{origin_cluster_id};
+    $ENV{ORDO_OVERDUE_CLUSTER_NAME} =
+      $job->{handler_context}->{overdue}->{origin_cluster_name};
 }
 
 for my $key ( keys %ENV ) {
-   next              unless $key =~ /ORDO/;
-   delete $ENV{$key} unless defined $ENV{$key};
+    next unless $key =~ /ORDO/;
+    delete $ENV{$key} unless defined $ENV{$key};
 }
 
-&add_to_path("$ENV{HOME}/ordo_node/bin");
-&add_to_path("$ENV{HOME}/ordo_node/scripts");
+add_to_path("$ENV{HOME}/ordo_node/bin");
+add_to_path("$ENV{HOME}/ordo_node/scripts");
 
 if ( $delay && $delay <= 86400 ) {
-   &post(
-      {
-         command => 'update_job_state',
-         token   => $token,
-         id      => $id,
-         log_id  => $start_time,
-         state   => 'sleeping',
-         ppid    => $ppid
-      }
-   );
-   sleep $delay;
+    post(
+        {
+            command => 'update_job_state',
+            token   => $token,
+            id      => $id,
+            log_id  => $start_time,
+            state   => 'sleeping',
+            ppid    => $ppid
+        }
+    );
+    sleep $delay;
 }
 
 my $start_state =
-  $origin eq 'retry' ? 'retrying' : $origin eq 'loop' ? 'looping' : 'running';
+    $origin eq 'retry' ? 'retrying'
+  : $origin eq 'loop'  ? 'looping'
+  :                      'running';
 
 # ==================== SMART EXECUTION ====================
 my $child_pid;
 if ( $command =~ /^#!/ ) {
-   my ( $fh, $tempfile ) = tempfile(
-      "ordo_job_${id}_XXXXXX",
-      DIR    => "/tmp",
-      SUFFIX => '.sh',
-      UNLINK => 1
-   );
-   print $fh $command;
-   close $fh;
-   chmod 0700, $tempfile;
-   $child_pid = fork();
-   if ( $child_pid == 0 ) {
-      exec($tempfile) or die "Failed to exec $tempfile: $!";
-   }
+    my ( $fh, $tempfile ) = tempfile(
+        "ordo_job_${id}_XXXXXX",
+        DIR    => "/tmp",
+        SUFFIX => '.sh',
+        UNLINK => 1
+    );
+    print $fh $command;
+    close $fh;
+    chmod 0700, $tempfile;
+    $child_pid = fork();
+    if ( $child_pid == 0 ) {
+        exec($tempfile) or die "Failed to exec $tempfile: $!";
+    }
 }
 else {
-   $child_pid = fork();
-   if ( $child_pid == 0 ) {
-      exec( '/bin/sh', '-c', $command ) or die "Exec failed: $!";
-   }
+    $child_pid = fork();
+    if ( $child_pid == 0 ) {
+        exec( '/bin/sh', '-c', $command ) or die "Exec failed: $!";
+    }
 }
 
 # ==================== INITIAL STATE ====================
-&post(
-   {
-      command => 'update_job_state',
-      token   => $token,
-      id      => $id,
-      started => time,
-      state   => $start_state,
-      pid     => $child_pid,
-      ppid    => $ppid,
-      log_id  => $start_time
-   }
+post(
+    {
+        command => 'update_job_state',
+        token   => $token,
+        id      => $id,
+        started => time,
+        state   => $start_state,
+        pid     => $child_pid,
+        ppid    => $ppid,
+        log_id  => $start_time
+    }
 );
 
 # ==================== PARENT SUPERVISOR ====================
 if ( $child_pid > 0 ) {
-   $0 = "supervisor_$child_pid";
-   while (1) {
-      my $exited = waitpid( $child_pid, WNOHANG );
-      if ( $exited == $child_pid ) {
-         my $exit_code = $? >> 8;
-         my $signal    = $? & 127;
-         my $state = $signal ? 'killed' : $exit_code ? 'failed' : 'complete';
-         &post(
-            {
-               command   => 'update_job_state',
-               token     => $token,
-               id        => $id,
-               ended     => time,
-               ppid      => $$,
-               log_id    => $start_time,
-               state     => $state,
-               signal    => $signal,
-               exit_code => $exit_code
-            }
-         );
-         my $ended = scalar localtime(time);
-         print STDOUT "\n$log_bar\n";
-         print STDOUT " END TIME : $ended\n";
-         print STDOUT " SIGNAL : $signal\n";
-         print STDOUT " EXIT CODE : $exit_code\n";
-         print STDOUT "$log_bar\n";
-         exit 0;
-      }
+    $0 = "supervisor_$child_pid";
+    while (1) {
+        my $exited = waitpid( $child_pid, WNOHANG );
+        if ( $exited == $child_pid ) {
+            my $exit_code = $? >> 8;
+            my $signal    = $? & 127;
+            my $state = $signal ? 'killed' : $exit_code ? 'failed' : 'complete';
+            post(
+                {
+                    command   => 'update_job_state',
+                    token     => $token,
+                    id        => $id,
+                    ended     => time,
+                    ppid      => $$,
+                    log_id    => $start_time,
+                    state     => $state,
+                    signal    => $signal,
+                    exit_code => $exit_code
+                }
+            );
+            my $ended = scalar localtime(time);
+            print STDOUT "\n$log_bar\n";
+            print STDOUT " END TIME  : $ended\n";
+            print STDOUT " SIGNAL    : $signal\n";
+            print STDOUT " EXIT CODE : $exit_code\n";
+            print STDOUT "$log_bar\n";
+            exit 0;
+        }
 
-      # === Max Runtime Enforcement ===
-      if (  $job->{max_runtime_seconds}
-         && $job->{max_runtime_seconds} > 0
-         && !$max_runtime_triggered )
-      {
-         my $elapsed = time() - $start_time;
-         if ( $elapsed > $job->{max_runtime_seconds} ) {
-            print STDOUT
+        # === Max Runtime Enforcement ===
+        if (  $job->{max_runtime_seconds}
+            && $job->{max_runtime_seconds} > 0
+            && !$max_runtime_triggered )
+        {
+            my $elapsed = time() - $start_time;
+            if ( $elapsed > $job->{max_runtime_seconds} ) {
+                print STDOUT
 "MAX RUNTIME EXCEEDED ($elapsed seconds > $job->{max_runtime_seconds} seconds)\n";
-
-            if ( $job->{max_runtime_cluster_id} ) {
-
-               my $res = &post(
-                  {
-                     command                => 'handle_max_runtime',
-                     job_id                 => $id,
-                     cluster_id             => $cluster_id,
-                     token                  => $token,
-                     elapsed_seconds        => $elapsed,
-                     max_runtime_cluster_id => $job->{max_runtime_cluster_id},
-                     max_runtime_seconds    => $job->{max_runtime_seconds},
-                  }
-               );
-
-               print STDOUT
+                if ( $job->{max_runtime_cluster_id} ) {
+                    post(
+                        {
+                            command               => 'handle_max_runtime',
+                            job_id                => $id,
+                            cluster_id            => $cluster_id,
+                            token                 => $token,
+                            elapsed_seconds       => $elapsed,
+                            max_runtime_cluster_id =>
+                              $job->{max_runtime_cluster_id},
+                            max_runtime_seconds => $job->{max_runtime_seconds},
+                        }
+                    );
+                    print STDOUT
 "Triggered max_runtime handler cluster $job->{max_runtime_cluster_id}\n";
-               $max_runtime_triggered = 1;
+                    $max_runtime_triggered = 1;
+                }
             }
-         }
-      }
-
-      sleep 1;
-   }
+        }
+        sleep 1;
+    }
 }
 else {
-   &post(
-      {
-         command => 'update_job_state',
-         token   => $token,
-         id      => $id,
-         state   => 'failed',
-         pid     => $$,
-         ppid    => $ppid,
-         log_id  => $start_time
-      }
-   );
-   die "Fork failed: $!";
+    post(
+        {
+            command => 'update_job_state',
+            token   => $token,
+            id      => $id,
+            state   => 'failed',
+            pid     => $$,
+            ppid    => $ppid,
+            log_id  => $start_time
+        }
+    );
+    die "Fork failed: $!";
 }
 
 # ==================== HELPERS ====================
 sub post {
-   my $data = shift;
-   my $ua   = LWP::UserAgent->new( timeout => 10 );
-   $ua->post(
-      $api,
-      Content_Type => 'application/json',
-      Content      => encode_json($data)
-   );
+    my ($data) = @_;
+    my $http = HTTP::Tiny->new( timeout => 10 );
+    my $res  = $http->post(
+        $api,
+        {
+            headers => { 'Content-Type' => 'application/json' },
+            content => encode_json($data),
+        }
+    );
+    unless ( $res->{success} ) {
+        print STDOUT "ORDO API post failed: $res->{status} $res->{reason}\n";
+        if ( defined $res->{content} && length $res->{content} ) {
+            print STDOUT "Response: $res->{content}\n";
+        }
+    }
+    return $res;
 }
 
 sub add_to_path {
-   my $new_path = shift;
-   my $sep      = $^O =~ /MSWin32/i ? ';' : ':';
-   $ENV{PATH} = $new_path . $sep . ( $ENV{PATH} || '' );
+    my $new_path = shift;
+    my $sep = $^O =~ /MSWin32/i ? ';' : ':';
+    $ENV{PATH} = $new_path . $sep . ( $ENV{PATH} || '' );
 }
