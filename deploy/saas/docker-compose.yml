@@ -33,7 +33,8 @@ services:
       - ./config:/app/config
       - ./db:/app/db
       - ./data:/app/data
-      - ordo_ssh:/home/ordo/.ssh
+      - ./ssh:/home/ordo/.ssh   
+      # - ordo_ssh:/home/ordo/.ssh
     restart: unless-stopped
 
   minion:
@@ -51,12 +52,13 @@ services:
       - ./config:/app/config
       - ./db:/app/db
       - ./data:/app/data
-      - ordo_ssh:/home/ordo/.ssh
+      - ./ssh:/home/ordo/.ssh   
+      # - ordo_ssh:/home/ordo/.ssh
     depends_on:
       - ordo
     restart: unless-stopped
 
 volumes:
-  ordo_ssh:
+  # ordo_ssh:
   caddy_data:
   caddy_config:
