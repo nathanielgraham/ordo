@@ -40,6 +40,7 @@ RUN cpanm --notest \
     IO::Pty \
     Crypt::JWT \
     Email::Sender \
+    LWP::UserAgent \
     Authen::SASL 
 
 # App dirs + non-root user
