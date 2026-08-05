@@ -32,7 +32,6 @@ install.sh
 README.md
 
 # Logs / junk
-**/logs
 **/*.log
 *.pem
 
