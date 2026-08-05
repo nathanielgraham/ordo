@@ -220,11 +220,47 @@ sub startup {
          my ( $c, $to, $subject, $html_body, $plain_text ) = @_;
          $plain_text //= $html_body;
 
-         require Email::MIME;
-         require Email::Sender::Simple;
+         my $from = $ENV{EMAIL_FROM} // $ENV{ORDO_SMTP_FROM}
+           // 'Ordo <support@ordoscheduler.com>';
 
-         my $from = $ENV{ORDO_SMTP_FROM}
-           // 'Ordo Scheduler <ordosched@proton.me>';
+         # ---------- Resend (preferred when key is set) ----------
+         if ( my $api_key = $ENV{RESEND_API_KEY} ) {
+            my $ua      = Mojo::UserAgent->new( request_timeout => 15 );
+            my $payload = {
+               from    => $from,
+               to      => [$to],
+               subject => $subject,
+               html    => $html_body,
+               text    => $plain_text,
+            };
+            $payload->{reply_to} = $ENV{EMAIL_REPLY_TO}
+              if $ENV{EMAIL_REPLY_TO};
+
+            my $tx = $ua->post(
+               'https://api.resend.com/emails',
+               {
+                  Authorization  => "Bearer $api_key",
+                  'Content-Type' => 'application/json',
+               },
+               json => $payload,
+            );
+
+            if ( my $err = $tx->error ) {
+               my $msg = $err->{message} // 'unknown';
+               if ( $tx->res && $tx->res->body ) {
+                  $msg .= ' — ' . $tx->res->body;
+               }
+               $c->log->error("Resend failed for $to: $msg");
+               die "Resend failed for $to: $msg";
+            }
+
+            my $id = eval { $tx->res->json->{id} } // '';
+            $c->log->info(
+               "Email sent via Resend to $to" . ( $id ? " (id=$id)" : '' ) );
+            return 1;
+         }
+
+         # ---------- Legacy SMTP / sendmail fallback ----------
 
          my $transport;
          if ( my $host = $ENV{ORDO_SMTP_HOST} ) {
@@ -252,8 +288,6 @@ sub startup {
             ],
             attributes => { content_type => 'multipart/alternative' },
             parts      => [
-
-               # Plain text first (fallback)
                Email::MIME->create(
                   attributes => {
                      content_type => 'text/plain',
@@ -262,8 +296,6 @@ sub startup {
                   },
                   body_str => $plain_text,
                ),
-
-               # HTML last (preferred by most clients)
                Email::MIME->create(
                   attributes => {
                      content_type => 'text/html',
@@ -277,10 +309,11 @@ sub startup {
 
          eval {
             Email::Sender::Simple->send( $email, { transport => $transport } );
-            $c->log->info("Email sent to $to");
+            $c->log->info("Email sent to $to (SMTP)");
             1;
          } or do {
             $c->log->error("Failed to send email to $to: $@");
+            die $@;
          };
       }
    );
@@ -833,9 +866,9 @@ sub _preload_documents {
       'advanced-topics'  => 'Self-healing workflows, meta-automation...',
       'faq'              => 'Frequently asked questions about Ordo...',
       'private-deployments' => 'Deployment options...',
-      'rest-api' => 'REST API...',
-      'stats-polling' => 'Fetch statistics about jobs and servers...',
-      'cli' => 'Terminal CLI for ordo...',
+      'rest-api'            => 'REST API...',
+      'stats-polling'       => 'Fetch statistics about jobs and servers...',
+      'cli'                 => 'Terminal CLI for ordo...',
    );
 
    my %full_docs;

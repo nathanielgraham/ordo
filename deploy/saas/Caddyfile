@@ -1,4 +1,4 @@
-{$ORDO_DOMAIN:localhost} {
-	reverse_proxy ordo:3000
+{$ORDO_DOMAIN}, www.{$ORDO_DOMAIN} {
 	encode gzip
+	reverse_proxy ordo:3000
 }
