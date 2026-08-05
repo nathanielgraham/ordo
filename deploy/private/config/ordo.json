@@ -1,6 +1,6 @@
 {
   "deploy_mode": "private",  
-  "public_url": "http://localhost:3000",
-  "api_url": "http://localhost:3000/api",
+  "public_url": "https://ordoscheduler.com",
+  "api_url": "https://ordoscheduler.com/api",
   "stripe_url": "https://api.stripe.com/v1"
 }
