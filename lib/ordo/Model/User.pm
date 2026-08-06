@@ -15,6 +15,8 @@ has 'rate_limit_user_per_minute' => ( is => 'rw', );
 
 has 'rate_limit_org_per_minute' => ( is => 'rw', );
 
+has 'stripe_customer_id ' => ( is => 'rw', );
+
 has 'token' => ( is => 'rw', );
 
 has 'execution_token' => ( 
