@@ -493,10 +493,6 @@ sub startup {
             );
          }
 
-         # Authenticate
-         #my $temp_user =
-         #  ordo::Model::User->new( remote_address => $c->tx->remote_address, );
-
          my $mcp_user = $self->_make_user( { token => $token } );
 
          #my $auth = $c->app->request(
@@ -518,16 +514,6 @@ sub startup {
                status => 401
             );
          }
-
-         #my $user = ordo::Model::User->new(
-         #   id              => $auth->{user_id} || $auth->{id},
-         #   level           => $auth->{level},
-         #   org_id          => $auth->{org_id},
-         #   token           => $auth->{token},
-         #   remote_address  => $c->tx->remote_address,
-         #   base_cluster_id => $auth->{base_cluster_id},
-         #   root_cluster_id => $auth->{root_cluster_id},
-         #);
 
          $c->stash( user => $mcp_user );
 
@@ -562,6 +548,9 @@ sub startup {
              $tool
            ? $tool->{handler}->( $c, $params )
            : { error => "Unknown tool: $tool_name", success => 0 };
+
+         $result->{tool} = $tool_name;           # explicit
+         $result->{command_reply} = $tool_name;  # alias for existing readers
 
          $c->render( json => $result );
       }
@@ -899,7 +888,6 @@ sub _preload_documents {
 
    for my $sec ( keys %summaries ) {
       my $file = $base->child("$sec.md");
-      print "FILE: $file\n";
       $full_docs{$sec} = -e $file
         ? decode( 'UTF-8', $file->slurp )
 
@@ -2347,7 +2335,6 @@ sub path2id {
      : $base_path          ? "/$base_path"
      :                       "/$root_path";
 
-   #print "FULL: $fullpath\n";
    my @parts    = grep { $_ } split( '/', $fullpath );
    my @ups      = grep { $parts[$_] eq '..' } ( 1 .. $#parts );
    my $up_count = scalar @ups;
@@ -4361,7 +4348,6 @@ sub _write_job_needs {
    # Insert AND deps (needs_any_mode = 0)
    for my $target_id (@$needs_all) {
       next unless $target_id =~ /^\d+$/;
-      print "$job_id, $target_id\n";
 
       $self->sqlite->db->query(
 'INSERT OR IGNORE INTO job_needs (job_id, needs_job_id, needs_any_mode) VALUES (?, ?, 0)',
@@ -5930,7 +5916,7 @@ sub create_cal {
 
    if ($id) {
       $self->_broadcast_cal( $user, [$id] );
-      return { success => 1 };
+      return { success => 1, id => $id };
    }
    else {
       return {
@@ -6334,19 +6320,14 @@ sub find_stats {
 sub create_checkout_session {
    my ( $self, $user, $d ) = @_;
 
-print Dumper($self->app->config);
-print "PRICE: $ENV{STRIPE_PRO_PRICE_ID} \n";
-
    my $session;
    eval {
       $session = $self->app->stripe->create_checkout_session(
          customer_email => $user->email,
          price_id       => $ENV{STRIPE_PRO_PRICE_ID},
-
-         #price_id       => $self->app->config->{stripe}{pro_price_id},
          org_id      => $user->org_id,
          success_url => $self->app->config->{public_url}
-           . '/app#settings/billing?success=1',
+           . '/app#settings/billing',
          cancel_url => $self->app->config->{public_url}
            . '/app#settings/billing',
       );
@@ -6363,10 +6344,6 @@ print "PRICE: $ENV{STRIPE_PRO_PRICE_ID} \n";
 
 sub create_customer_portal {
    my ( $self, $user, $d ) = @_;
-
-
-   print "CUSTOMER ID:  $user->{stripe_customer_id}\n"; ;
-   print Dumper( $user->{stripe_customer_id} );
 
    unless ( $user && $user->{stripe_customer_id} ) {
       return {
