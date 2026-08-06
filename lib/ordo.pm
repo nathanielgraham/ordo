@@ -606,6 +606,30 @@ sub startup {
                );
             }
          }
+         elsif ( $event->{type} eq 'customer.subscription.deleted' ) {
+            my $sub = $event->{data}{object};
+            $c->sqlite->db->update(
+               'org',
+               {
+                  tier                   => 'free',     # or your free tier name
+                  monthly_call_limit     => 1000,       # your free limit
+                  subscription_status    => 'canceled',
+                  stripe_subscription_id => undef,
+
+             # keep stripe_customer_id so portal still works if they resubscribe
+               },
+               { stripe_subscription_id => $sub->{id} }
+            );
+         }
+         elsif ( $event->{type} eq 'customer.subscription.updated' ) {
+            my $sub = $event->{data}{object};
+            $c->sqlite->db->update(
+               'org',
+               { subscription_status => $sub->{status} }
+               ,    # active, past_due, ...
+               { stripe_subscription_id => $sub->{id} }
+            );
+         }
 
          # Acknowledge receipt
          $c->render( text => 'ok', status => 200 );
@@ -6310,10 +6334,13 @@ sub find_stats {
 sub create_checkout_session {
    my ( $self, $user, $d ) = @_;
 
-   my $session = {};
+print Dumper($self->app->config);
+print "PRICE: $ENV{STRIPE_PRO_PRICE_ID} \n";
+
+   my $session;
    eval {
       $session = $self->app->stripe->create_checkout_session(
-         customer_email => $user->{email},
+         customer_email => $user->email,
          price_id       => $ENV{STRIPE_PRO_PRICE_ID},
 
          #price_id       => $self->app->config->{stripe}{pro_price_id},
@@ -6324,16 +6351,22 @@ sub create_checkout_session {
            . '/app#settings/billing',
       );
    };
-   return {
-      success => 0,
-      %$session, message => 'error creating checkout session'
-     }
-     unless $session->{url};
-   return { success => 1, %$session };
+
+   if ( $@ || !$session || !$session->{url} ) {
+      return {
+         success => 0,
+         message => "$@" || 'error creating checkout session'
+      };
+   }
+   return { success => 1, url => $session->{url}, id => $session->{id} };
 }
 
 sub create_customer_portal {
    my ( $self, $user, $d ) = @_;
+
+
+   print "CUSTOMER ID:  $user->{stripe_customer_id}\n"; ;
+   print Dumper( $user->{stripe_customer_id} );
 
    unless ( $user && $user->{stripe_customer_id} ) {
       return {
