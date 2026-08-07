@@ -76,7 +76,7 @@ In each job modal, set **Needs** so steps run in order:
 
 ## 7. View Logs
 
-- Job row -> **...** -> **View Log** for the latest output.
+- Job -> Actions -> **View Log** for the latest output.
 - **Log History** for past runs (timestamps, exit codes).
 
 Logs are stored on the **job’s server** under `~/ordo_node/logs/`.

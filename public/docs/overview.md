@@ -32,7 +32,7 @@ Grok will create the scripts and schedules on **your** servers, wire dependencie
   `On Fail`, `On Overdue`, and `Max Runtime` handlers can alert, clone, escalate, or recover.
 
 - **Cloning**  
-  If a cluster is still busy when the calendar fires, an On Overdue handler can clone it and run the copy in parallel.
+  Cloning creates an identical copy of a cluster that can be run in parallel if the original is still busy at the next scheduled time.
 
 - **Advanced Scheduling**  
   Full Quartz cron support plus flexible calendars with `Begin` and `Expire` dates.
@@ -51,8 +51,8 @@ However, when connected to Grok via MCP, it becomes something much more powerful
 
 ## Who Ordo Is For
 
-- Organizations that want reliable automation at a reasonable price
 - AI enthusiasts who want their agents to take real action
+- Organizations that want reliable automation at a reasonable price
 - Data engineers building reliable pipelines
 - DevOps and SRE teams
 

@@ -66,6 +66,17 @@ export function connectWS(token) {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   appState.ws = new WebSocket(`${proto}//${location.host}/websocket`);
 
+// right after: const ws = new WebSocket(...);  or wherever you assign it
+appState.ws.addEventListener("close", (ev) => {
+  console.warn("WS close", {
+    code: ev.code,
+    reason: ev.reason,
+    wasClean: ev.wasClean,
+    at: new Date().toISOString(),
+  });
+});
+appState.ws.addEventListener("error", (ev) => console.warn("WS error", ev));
+
   appState.ws.addEventListener("open", () => {
     console.log("WS connected");
     appState.ws.send(JSON.stringify({ command: "login_user", token }));
