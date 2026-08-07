@@ -13,18 +13,22 @@ Let's get your first workflow running in minutes.
 
 1. Go to the **Servers** tab.
 2. Click **+ Add Server**.
-3. Enter hostname, SSH port (usually 22), and credentials.
-4. Save.
+3. Enter **hostname**, **SSH user**, and **port** (usually 22).
+4. **If password login is enabled** on that user, you can enter the password once — Ordo installs its public key automatically, then uses key auth afterward.
+5. **If password login is disabled**, install Ordo’s public key on the remote account first, then add the server without a password.
+6. Save.
+
+See **[FAQ — SSH setup](#docs/faq)** 
 
 ## 3. Create a Cluster
 
 1. Go to the **Jobs & Clusters** tab.
-2. Click the **Actions** menu in the root cluster.
+2. Open the **Actions** menu on the root cluster.
 3. Select **New Cluster** and name it `Bork da Cake`.
 
 ## 4. Create the Jobs
 
-1. Now create these four jobs inside `Bork da Cake` and give each job a short name (`prep`, `mix`, `bake`, `finish`)
+Create these four jobs inside `Bork da Cake`. Use short names: `prep`, `mix`, `bake`, `finish`. Assign each job to the server you added.
 
 **Job 1 – Name: `prep`**
 ```
@@ -54,38 +58,42 @@ echo "Let-a da cake rest! Cool-a onna rack! Now froosty and servy! Bork bork bor
 sleep 1
 ```
 
-*Creating a job using the script template dropdown for quick setup.*
+Tip: use the **Insert Template** dropdown in the job modal for a quick shebang and starter script.
 
 ## 5. Set Dependencies
 
-In the job modal, set **Needs Jobs** so the steps run in order:
+In each job modal, set **Needs** so steps run in order:
+
 - `mix` needs `prep`
 - `bake` needs `mix`
 - `finish` needs `bake`
 
-*Setting up job dependencies (needs) in the modal.*
-
 ## 6. Run the Cluster
 
-1. Select **Run** from the `Bork da Cake` cluster menu.
-2. Watch the Swedish Chef work — jobs will light up in the correct order.
+1. Open the actions menu on `Bork da Cake`.
+2. Select **Run** (or **Start**).
+3. Watch jobs light up in order as dependencies complete.
 
 ## 7. View Logs
 
-Right after running:
-- Select **view log** on any job to see its output.
-- Use **Log History** to view all past runs with timestamps and exit codes.
+- Job row -> **...** -> **View Log** for the latest output.
+- **Log History** for past runs (timestamps, exit codes).
+
+Logs are stored on the **job’s server** under `~/ordo_node/logs/`.
 
 ## 8. Schedule the Cake
 
 1. Go to the **Calendars** tab.
-2. Create a new calendar named `Daily Baking`.
-3. Add cron: `0 9 * * *` (every day at 9:00 AM).
-4. Go back to `Bork da Cake` → **Edit** → select the calendar in the **Calendar** dropdown.
+2. Create a calendar named `Daily Baking`.
+3. Add a cron, e.g. `0 9 * * *` (every day at 09:00 — confirm timezone on the calendar).
+4. Edit `Bork da Cake` → choose that calendar in the **Calendar** field → save.
 
-  Now the Chef will bake automatically every morning.
+The cluster will start on that schedule when the calendar fires.
 
-**Congratulations!** You just built, ran, and scheduled your first automated workflow.
+**Congratulations!** You built, ran, and scheduled your first workflow.
 
-### Next Step ###
-[Core Concepts](#docs/core-concepts) — Learn the foundational ideas to help you use Ordo effectively.
+### Next steps
+
+- [Core Concepts](#docs/core-concepts) — clusters, dependencies, handlers  
+- [Connecting to AI](#docs/connecting-to-ai) — optional MCP / Grok setup  
+- [Advanced Topics](#docs/advanced-topics) — on_fail, on_overdue, max runtime, env vars  

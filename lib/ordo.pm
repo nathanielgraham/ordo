@@ -495,15 +495,6 @@ sub startup {
 
          my $mcp_user = $self->_make_user( { token => $token } );
 
-         #my $auth = $c->app->request(
-         #   $temp_user,
-         #   {
-         #      command => 'login_user',
-         #      token   => $token
-         #   }
-         #);
-
-         #unless ( $auth->{success} && ( $auth->{level} // 0 ) >= 1 ) {
          unless ( $mcp_user && ( $mcp_user->level // 0 ) >= 1 ) {
             return $c->render(
                json => {
@@ -551,6 +542,10 @@ sub startup {
 
          $result->{tool} = $tool_name;           # explicit
          $result->{command_reply} = $tool_name;  # alias for existing readers
+ 
+         # redact tokens
+         delete $result->{token};
+         delete $result->{execution_token};
 
          $c->render( json => $result );
       }
@@ -1652,19 +1647,20 @@ sub start_cluster {
 
 sub _start_cluster {
    my ( $self, $user, $d ) = @_;
-   my $ready      = $self->job_states->{ready};
-   my $waiting    = $self->job_states->{waiting};
-   my $complete   = $self->job_states->{complete};
-   my $ice        = $self->job_states->{ice};
-   my $cluster    = $self->read_cluster( $user, $d );
+
+   my $cluster = $self->read_cluster( $user, $d );
    my $cluster_id = $cluster->{id};
    return { success => 0, message => 'cluster not found' } unless $cluster_id;
 
-   if ( $cluster->{id} == $user->root_cluster_id ) {
+   if ( $cluster_id == $user->root_cluster_id ) {
       return { success => 0, message => 'root cluster cannot be started' };
    }
 
-   # Complete if cluster is on ice
+   my $is_user_start = ( $d->{origin} && $d->{origin} eq 'user' );
+   my $ready         = $self->job_states->{ready};
+   my $waiting       = $self->job_states->{waiting};
+
+   # Ice: terminal skip (not overdue)
    if ( $cluster->{state_id} == $self->job_states->{ice} ) {
       $self->_set_cluster_state( $user,
          { id => $cluster_id, state => 'ice_complete' } );
@@ -1672,86 +1668,93 @@ sub _start_cluster {
    }
 
    my $needs_met = $self->_cluster_needs_met( $user, { id => $cluster_id } );
-   my $startable =
-     $self->_cluster_is_startable( $user, { id => $cluster_id } ) && $needs_met;
-   my $is_user_start = ( $d->{origin} && $d->{origin} eq 'user' );
+   my $startable = $self->_cluster_is_startable( $user, { id => $cluster_id } );
 
-   if ( !$startable && !$is_user_start ) {
-
-      # Mark as overdue
-      if ( !$cluster->{overdue_since} ) {
-         $self->sqlite->db->update(
-            'cluster',
-            { overdue_since => time() },
-            { id            => $cluster_id }
-         );
-      }
-   }
-
-   # === ON OVERDUE HANDLER ===
-   if ( !$startable ) {
-      if ( $cluster->{on_overdue_id} && !$is_user_start ) {
-
-         my $handler = $self->sqlite->db->select( 'cluster', ['id'],
-            { id => $cluster->{on_overdue_id} } )->hash;
-
-         if ( $handler->{id} ) {
-            my $context = encode_json(
-               {
-                  overdue => {
-                     origin_cluster_id   => $cluster->{id},
-                     origin_cluster_name => $cluster->{name} || '',
-                  }
-               }
-            );
-
-            $self->_start_cluster(
-               $user,
-               {
-                  id              => $handler->{id},
-                  origin          => 'overdue',
-                  handler_context => $context,
-               }
-            );
-         }
-      }
+   # --- Option A: unmet deps → wait (never overdue) ---
+   if ( !$needs_met && !$is_user_start ) {
+      $self->_set_cluster_state( $user,
+         { id => $cluster_id, state => 'waiting' } );
       return {
          success => 0,
-         skipped => 1,
-         message => 'cluster cannot be started'
+         waiting => 1,
+         message => 'dependency not met',
       };
    }
 
-   # Early state checks
+   # Safety: if we are startable but flag stuck, end episode
+   # (normal clear is in _set_cluster_state on ready/waiting)
+   if ( $startable && $cluster->{overdue_since} ) {
+      $self->sqlite->db->update(
+         'cluster',
+         { overdue_since => undef },
+         { id => $cluster_id },
+      );
+      $cluster->{overdue_since} = undef;
+   }
+
+   # --- Option A: not startable (busy / hold) → overdue once per episode ---
+   if ( !$startable ) {
+      if ( !$is_user_start && $cluster->{on_overdue_id} ) {
+         my $newly_overdue = !$cluster->{overdue_since};
+
+         if ($newly_overdue) {
+            $self->sqlite->db->update(
+               'cluster',
+               { overdue_since => time() },
+               { id => $cluster_id },
+            );
+            $cluster->{overdue_since} = time();
+
+            my $handler = $self->sqlite->db->select(
+               'cluster',
+               ['id'],
+               { id => $cluster->{on_overdue_id} },
+            )->hash;
+
+            # Only start handler if it can actually run
+            if ( $handler->{id}
+               && $self->_cluster_is_startable(
+                  $user, { id => $handler->{id} } ) )
+            {
+               my $context = encode_json(
+                  {
+                     overdue => {
+                        origin_cluster_id   => $cluster->{id},
+                        origin_cluster_name => $cluster->{name} || '',
+                     }
+                  }
+               );
+               $self->_start_cluster(
+                  $user,
+                  {
+                     id              => $handler->{id},
+                     origin          => 'overdue',
+                     handler_context => $context,
+                  }
+               );
+            }
+         }
+      }
+
+      return {
+         success => 0,
+         skipped => 1,
+         message => 'cluster cannot be started',
+      };
+   }
+
+   # Explicit hold message for edge cases (normally !$startable already)
    if ( $cluster->{state_id} == $self->job_states->{hold} ) {
       return { success => 0, skipped => 1, message => 'cluster on hold' };
    }
 
-   # Already running / looping
-   if (
-      scalar(
-         grep { $cluster->{state_id} == $self->job_states->{$_} }
-           qw(running looping)
-      )
-     )
-   {
-      return { success => 0, message => 'cluster already running' };
-   }
-
-   # Dependencies
-   # unless ( $self->_cluster_needs_met( $user, { id => $cluster->{id} } ) ) {
-   unless ($needs_met) {
-      return { success => 0, waiting => 1, message => 'dependency not met.' };
-   }
-
-   # RUNNING
-
+   # ========== normal start continues below ==========
    # Reset loop counter (unless continuing a loop)
    unless ( $d->{origin} && $d->{origin} eq 'loop' ) {
       $self->sqlite->db->update(
          'cluster',
          { loop_count => 0 },
-         { id         => $cluster_id }
+         { id => $cluster_id },
       );
    }
 
@@ -1761,7 +1764,7 @@ sub _start_cluster {
       $self->sqlite->db->update(
          'cluster',
          { handler_context => $d->{handler_context} },
-         { id              => $cluster_id }
+         { id => $cluster_id },
       );
    }
 
@@ -1887,7 +1890,6 @@ sub _reset_cluster {
    my ( $self, $user, $d ) = @_;
    my $cluster_info = $self->read_cluster( $user, $d );
    my $cluster_id   = $cluster_info->{id};
-
    return unless $cluster_id;
 
    #my $servers = $self->sqlite->db->query(
@@ -3661,6 +3663,38 @@ sub _cluster_is_running {
 # returns true if cluster is complete
 sub _cluster_is_complete {
    my ( $self, $user, $d ) = @_;
+   my $cluster_id = $d->{id} or return 0;
+   my $complete   = $self->job_states->{complete};
+   my $ice        = $self->job_states->{ice};
+
+   my $open_job = $self->sqlite->db->select(
+      'job',
+      ['id'],
+      {
+         cluster_id => $cluster_id,
+         state_id   => { '!=', [ -and => ( $complete, $ice ) ] },
+      },
+      { limit => 1 },
+   )->hash;
+   return 0 if $open_job;
+
+   my $open_child = $self->sqlite->db->select(
+      'cluster',
+      ['id'],
+      {
+         parent_id  => $cluster_id,
+         auto_start => 1,
+         state_id   => { '!=', [ -and => ( $complete, $ice ) ] },
+      },
+      { limit => 1 },
+   )->hash;
+   return 0 if $open_child;
+
+   return 1;
+}
+
+sub _cluster_is_complete2 {
+   my ( $self, $user, $d ) = @_;
 
    my $cluster_id = $d->{id};
 
@@ -5126,7 +5160,7 @@ sub create_monitor {
    $self->_start_monitor( $user, { id => $id } ) or die "start failed";
    $self->_broadcast_server( $user, [$id] );
 
-   return { success => 1 };
+   return { success => 1, id => $id };
 }
 
 sub read_monitor {

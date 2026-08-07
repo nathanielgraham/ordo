@@ -11,8 +11,8 @@ Triggered when a cluster enters a `failed` state.
 Common use: alerting, cleanup, or escalation.
 
 ### On Overdue Handler
-Triggered when a calendar tries to start a cluster that cannot be started for some reason.  
-This typically happens when the previous cycle is still running or the cluster is on hold.
+Triggered when a cron start is attempted 
+  but the cluster **cannot be started** because it is still busy or on hold.
 
 ### Max Runtime Handler (Job-level)
 Set on individual jobs via `max_runtime_seconds` and `max_runtime_cluster_id`.  
@@ -40,7 +40,7 @@ curl -X POST "$ORDO_API" \
   -d '{
     "command": "clone_cluster",
     "id": '"$ORDO_OVERDUE_CLUSTER_ID"',
-    "token": "'"$ORDO_TOKEN"'"
+    "token": '"$ORDO_TOKEN"'
   }'
 ```
 
@@ -82,7 +82,7 @@ curl -X POST "$ORDO_API" \
   -d '{
     "command": "start_job",
     "id": 123,
-    "token": "'"$ORDO_TOKEN"'"
+    "token": '"$ORDO_TOKEN"'
   }'
 ```
 

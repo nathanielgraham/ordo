@@ -1,4 +1,5 @@
 # Welcome to Ordo
+
 **Where AI stops chatting... and starts doing.**
 
 While modern AI has become extraordinarily good at thinking, planning, and reasoning, it has historically been limited by its inability to *execute* real work on your infrastructure.
@@ -9,12 +10,15 @@ While modern AI has become extraordinarily good at thinking, planning, and reaso
 
 You can say things like:
 
-- “Create a new calendar called **US Holidays** that runs at midnight on every major US holiday and then attach it to the **Send Greeting Card** cluster.”
-- “Create a monitoring job called **Check Disk Space** that checks disk usage on all servers every 15 minutes, put it in the **Infrastructure Monitoring** cluster, and alert the team if anything exceeds 90%.”
-- “Create a daily backup job with a 2-hour max runtime. If it exceeds the limit, trigger the Backup Watchdog handler.”
-- “Analyze the logs of the job **Deployment v2.3** that failed yesterday and tell me what went wrong.”
+- “Create a calendar called `US holidays` that runs at midnight on every major US holiday and attach it to my Send Greeting Card cluster.”
 
-Grok will generate **and test** the code on **your servers**, create the necessary calendars, set up dependencies and handlers, and even help debug issues.
+- “Every 15 minutes, check disk space on my servers. Put that in Infrastructure Monitoring and email the team if anything is over 90% full.”
+
+- “Set up a daily backup with a 2-hour time limit. If it runs longer than that, kick off the Backup Watchdog.”
+
+- “The Deployment v2.3 job failed yesterday — look at the logs and tell me what went wrong.”
+
+Grok can create the scripts and schedules on **your** servers, wire dependencies and handlers, and help you debug when something breaks.
 
 ## Standout Features
 
@@ -24,11 +28,11 @@ Grok will generate **and test** the code on **your servers**, create the necessa
 - **Hierarchical Workflows**  
   Organize jobs into nested clusters with powerful dependency logic.
 
-- **Automatically Respond to Problems**  
-  `On Fail`, `On Overdue`, and `Max Runtime` handlers let you automatically alert, clone, escalate, or recover from problems.
+- **Respond when things go wrong**  
+  On Fail, On Overdue, and Max Runtime handlers can alert, clone, escalate, or recover.
 
-- **Cloning**  
-  Automatically run parallel instances when long-running clusters miss their next scheduled window.
+- **Clone when a run overlaps the next schedule**  
+  If a cluster is still busy when the calendar fires, an On Overdue handler can start a parallel clone.
 
 - **Advanced Scheduling**  
   Full Quartz cron support plus flexible calendars with `Begin` and `Expire` dates.
