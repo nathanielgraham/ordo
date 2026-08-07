@@ -46,6 +46,24 @@ export function checkLoginAndConnect() {
   }
 }
 
+let wsHeartbeatId = null;
+
+function startWsHeartbeat() {
+  stopWsHeartbeat();
+  wsHeartbeatId = setInterval(() => {
+    if (appState.ws?.readyState === WebSocket.OPEN) {
+      appState.ws.send(JSON.stringify({ command: "ping" }));
+    }
+  }, 30000);
+}
+
+function stopWsHeartbeat() {
+  if (wsHeartbeatId != null) {
+    clearInterval(wsHeartbeatId);
+    wsHeartbeatId = null;
+  }
+}
+
 export function connectWS(token) {
   console.log("[WS Init] connectWS called");
 
@@ -68,6 +86,7 @@ export function connectWS(token) {
 
   appState.ws.addEventListener("open", () => {
     console.log("WS connected");
+    startWsHeartbeat();
     appState.ws.send(JSON.stringify({ command: "login_user", token }));
   });
 
@@ -153,23 +172,12 @@ export function connectWS(token) {
     }
   };
 
-appState.ws.addEventListener("close", (ev) => {
-  console.log("WS closed");
-  showToast("Disconnected", "danger");
-  console.warn("WS close", {
-    code: ev.code,
-    reason: ev.reason,
-    wasClean: ev.wasClean,
-    at: new Date().toISOString(),
-  });
-  setTimeout(checkLoginAndConnect, 5000);
-});
-
-  //appState.ws.onclose = (ev) => {
-  //  console.log("WS closed");
-  //  showToast("Disconnected", "danger");
-  //  setTimeout(checkLoginAndConnect, 5000);
-  //};
+  appState.ws.onclose = (ev) => {
+    console.log("WS closed");
+    stopWsHeartbeat();
+    showToast("Disconnected", "danger");
+    setTimeout(checkLoginAndConnect, 1000);
+  };
 }
 
 export function sendWS(payload) {

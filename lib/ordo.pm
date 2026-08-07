@@ -6446,6 +6446,11 @@ sub _get_doc_content {
         // "Document not found: $section.md" );
 }
 
+sub ping {
+   my ( $self, $user, $d ) = @_;
+   return { success => 1 };
+}
+
 # command routing
 
 sub routing {
@@ -6464,6 +6469,7 @@ sub routing {
 
       # Stats
       'find_stats' => [ 'find_stats', 1, [ {}, { since => 'i' } ], 1 ],
+      'ping' => [ 'ping', 1, [ {}, {} ], 1 ],
 
       # Org related
       'update_org' =>
