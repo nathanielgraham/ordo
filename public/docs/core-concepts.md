@@ -11,8 +11,8 @@ Think of clusters as **folders** and jobs as **files** — except these folders 
 
 ## 2. Dependencies
 
-- **Needs All** (`needs_ids`): "AND" logic. All referenced items must complete successfully.
-- **Needs Any** (`needs_any_ids`): "OR" logic. Only one referenced item needs to complete.
+- **Needs All**: "AND" logic. All referenced items must complete successfully.
+- **Needs Any**: "OR" logic. Only one referenced item needs to complete.
 
 Dependencies can be set on both jobs and clusters.
 
