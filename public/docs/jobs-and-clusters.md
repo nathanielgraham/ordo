@@ -11,13 +11,13 @@ A **Job** is the smallest unit of work in Ordo. Each job:
 
 ### Creating and Editing Jobs
 
-1. Click the **⋯** (Actions) menu on any cluster → **New Job**
+1. Click the `Actions` menu on any cluster -> **New Job**
 2. Fill in the fields:
-   - **Name** — Clear and descriptive
-   - **Script** — The actual command or script (always start with a shebang)
-   - **Server** — Where the job should run
-   - **Dependencies** — Needs, Needs Any
-   - **Delay**, **Retries**, **Loops**, and **Max Runtime** (optional but powerful)
+   - **Name**: Clear and descriptive
+   - **Script**: The actual command or script (always start with a shebang)
+   - **Server**: Where the job should run
+   - **Dependencies**: Needs, Needs Any
+   - **Delay**, **Retries**, **Loops**, and **Max Runtime**
 
 **Pro Tip**: Use the **Insert Template** dropdown in the job modal for common patterns (Shell, Perl, Python, Update Stats, Email Team, etc.).
 
@@ -30,19 +30,19 @@ Clusters are powerful because you can:
 - Set **On Fail** and **On Overdue** handlers
 - Enable **Cloning** to handle overdue executions
 
-Think of clusters as **folders** and jobs as **files** — with scheduling and dependency intelligence built in.
+Think of clusters as **folders** and jobs as **files**, with scheduling and dependency intelligence built in.
 
 ## Dependencies
 
 Ordo supports two types of dependencies:
-- **Needs All** — "AND" logic. All referenced items must complete successfully.
-- **Needs Any** — "OR" logic. Only one of the referenced items needs to complete.
+- **Needs All**: "AND" logic. All referenced items must complete successfully.
+- **Needs Any**: "OR" logic. Only one of the referenced items needs to complete.
 
 Dependencies can be set on both jobs and clusters.
 
-## Handlers (Self-Healing)
+## Handlers
 
-- **On Fail Handler**: Triggered when a cluster fails or is killed.
+- **On Fail Handler**: Triggered when a cluster fails.
 - **On Overdue Handler**: Triggered when a cluster is still not ready at its next scheduled time.
 - **Max Runtime Handler** (job-level): Triggered if a job exceeds its time limit.
 
@@ -56,15 +56,15 @@ This is most commonly triggered via an **On Overdue Handler**.
 ## Actions Menu (...)
 
 Each job and cluster has an actions menu (...) with the following controls:
-- **Run** — Start the job or cluster immediately.
-- **Kill** — Stop a currently running job or cluster.
-- **Hold** — Pause execution. Downstream jobs will wait until you **Release** it.
-- **Release** — Resume a held job or cluster.
-- **Ice** — Skip job or cluster without breaking the dependency chain.
-- **Melt** — Return an iced job/cluster to normal operation.
-- **Reset** — Clear current state and return the job to `ready`.
-- **Complete** — Manually mark a job as successfully completed.
-- **Delete** — Permanently remove the job or cluster.
+- **Run** - Start the job or cluster immediately.
+- **Kill** - Stop a currently running job or cluster.
+- **Hold** - Pause execution. Downstream jobs will wait until you **Release** it.
+- **Release** - Resume a held job or cluster.
+- **Ice** - Skip job or cluster without breaking the dependency chain.
+- **Melt** - Return an iced job/cluster to normal operation.
+- **Reset** - Clear current state and return the job to `ready`.
+- **Complete** - Manually mark a job as successfully completed.
+- **Delete** - Permanently remove the job or cluster.
 
 ## Visual Dependency Graph
 

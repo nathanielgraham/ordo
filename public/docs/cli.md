@@ -1,6 +1,6 @@
 # Ordo Command-Line Interface (CLI)
 
-The official terminal client for Ordo — giving you full control from the command line.
+The official terminal client for Ordo - giving you full control from the command line.
 
 ## Status Note
 
@@ -80,12 +80,12 @@ ordo:root>
 ```
 ## Key Commands
 
-- `ls` — List jobs/clusters in current path
-- `cd <path>` — Navigate between clusters
-- `job create ...` — Create new job
-- `cluster run <name>` — Execute a cluster
-- `sync` — Resync servers and handle zombies
-- `help` — Show all commands
+- `ls` - List jobs/clusters in current path
+- `cd <path>` - Navigate between clusters
+- `job create ...` - Create new job
+- `cluster run <name>` - Execute a cluster
+- `sync` - Resync servers and handle zombies
+- `help` - Show all commands
 
 Type `help <command>` inside the shell for detailed usage.
 

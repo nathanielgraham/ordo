@@ -14,11 +14,9 @@ Let's get your first workflow running in minutes.
 1. Go to the **Servers** tab.
 2. Click **+ Add Server**.
 3. Enter **hostname**, **SSH user**, and **port** (usually 22).
-4. **If password login is enabled** on that user, you can enter the password once — Ordo installs its public key automatically, then uses key auth afterward.
-5. **If password login is disabled**, install Ordo’s public key on the remote account first, then add the server without a password.
-6. Save.
-
-See **[FAQ — SSH setup](#docs/faq)** 
+4. **If password login is enabled**, you can enter the password once. Ordo installs its public key automatically, then uses key auth afterward.
+5. **If password login is disabled**, install Ordo’s public key on the remote account first, then add the server without a password. See **[FAQ](#docs/faq)** for details.
+6. Save. 
 
 ## 3. Create a Cluster
 
@@ -72,7 +70,7 @@ In each job modal, set **Needs** so steps run in order:
 
 1. Open the actions menu on `Bork da Cake`.
 2. Select **Run** (or **Start**).
-3. Watch jobs light up in order as dependencies complete.
+3. Watch the Swedish Chef work! Jobs light up in order as dependencies complete.
 
 ## 7. View Logs
 
@@ -85,10 +83,10 @@ Logs are stored on the **job’s server** under `~/ordo_node/logs/`.
 
 1. Go to the **Calendars** tab.
 2. Create a calendar named `Daily Baking`.
-3. Add a cron, e.g. `0 9 * * *` (every day at 09:00 — confirm timezone on the calendar).
-4. Edit `Bork da Cake` → choose that calendar in the **Calendar** field → save.
+3. Add a cron, e.g. `0 9 * * *` (every day at 9 AM - confirm timezone on the calendar).
+4. Edit `Bork da Cake` -> choose that calendar in the **Calendar** field -> save.
 
-The cluster will start on that schedule when the calendar fires.
+Now the Swedish Chef will bake a cake every morning at 9 AM!
 
 **Congratulations!** You built, ran, and scheduled your first workflow.
 

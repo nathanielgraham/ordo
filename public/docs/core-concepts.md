@@ -7,7 +7,7 @@ Ordo is a **hierarchical job scheduler** designed for both humans and AI agents.
 - **Job**: The smallest unit of work. Executes a script on a chosen server.
 - **Cluster**: A container that can hold jobs and other clusters, forming a tree structure.
 
-Think of clusters as **folders** and jobs as **files** — except these folders have powerful scheduling, dependency, failure-handling, and self-healing capabilities.
+Think of clusters as **folders** and jobs as **files**, except these folders have powerful scheduling, dependency, failure-handling, and self-healing capabilities.
 
 ## 2. Dependencies
 
@@ -40,16 +40,16 @@ The entire cluster follows the attached calendar's schedule.
 
 ## 6. Job States
 
-- `ready` — Waiting to run
-- `waiting` — Blocked by dependencies
-- `running` — Currently executing
-- `complete` — Finished successfully
-- `failed` — Finished with error
-- `sleeping` — Waiting due to Delay setting
-- `retrying` — Actively retrying after failure
-- `looping` — In a repeating loop
-- `zombie` — Scheduler lost track of the process (use **Resync Servers**)
-- `killed` — Manually stopped
+- `ready` - Waiting to run
+- `waiting` - Blocked by dependencies
+- `running` - Currently executing
+- `complete` - Finished successfully
+- `failed` - Finished with error
+- `sleeping` - Waiting due to Delay setting
+- `retrying` - Actively retrying after failure
+- `looping` - In a repeating loop
+- `zombie` - Scheduler lost track of the process (use **Resync Servers**)
+- `killed` - Manually stopped
 
 ## 7. Environment Variables
 

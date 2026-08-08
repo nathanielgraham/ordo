@@ -1,63 +1,58 @@
 # Welcome to Ordo
 
-**Where AI stops chatting... and starts doing.**
+**Job scheduling for teams done with cron spaghetti.**
 
-While modern AI has become extraordinarily good at thinking, planning, and reasoning, it has historically been limited by its inability to *execute* real work on your infrastructure.
-
-**Ordo** is the bridge — a modern, hierarchical job scheduler with native MCP support. This allows Grok to directly explore, create, schedule, monitor, debug, and **repair** jobs running on **your** servers.
-
-## What You Can Do
-
-You can say things like:
-
-- “Create a calendar called `US holidays` that runs at midnight on every major US holiday and then attach it to the Send Greeting Card cluster.”
-
-- “Create a job that checks disk space on all my servers every 15 minutes. Put it in `Infrastructure Monitoring` and email the team if anything exceeds 90%.”
-
-- “Set up a daily backup with a 2-hour time limit. If it runs longer than that, start the Backup Watchdog.”
-
-- “The Deployment v2.3 job failed yesterday — look at the logs and tell me what went wrong.”
-
-Grok will create the scripts and schedules on **your** servers, wire dependencies and handlers, and help you debug when something breaks.
-
-## Standout Features
-
-- **Natural Language Automation**  
-  Ask Grok in plain English to create scripts, build schedules, setup dependencies, and debug failures.
-
-- **Hierarchical Workflows**  
-  Organize jobs into nested clusters with powerful dependency logic.
-
-- **Respond when things go wrong**  
-  `On Fail`, `On Overdue`, and `Max Runtime` handlers can alert, clone, escalate, or recover.
-
-- **Cloning**  
-  Cloning creates an identical copy of a cluster that can be run in parallel if the original is still busy at the next scheduled time.
-
-- **Advanced Scheduling**  
-  Full Quartz cron support plus flexible calendars with `Begin` and `Expire` dates.
-
-- **Real-Time Observability**  
-  Beautiful live dashboard with T+/T- timers, interactive dependency graphs, and system metrics.
-
-- **Self-Healing Automation**  
-  Automatic retries, failure routing, hold/ice/release controls, and escalation chains.
-
-## Ordo Works With or Without AI
-
-**Ordo is a fully functional, powerful job scheduler on its own.** You can use it perfectly well without any AI integration.
-
-However, when connected to Grok via MCP, it becomes something much more powerful — an **AI-native automation platform** where Grok can directly create, schedule, monitor, repair, and debug real work on your infrastructure.
+Ordo runs scheduled work across servers with explicit dependencies and a defined path when something fails, misses its window, or runs too long. Think of it as cron with superpowers.
 
 ## Who Ordo Is For
 
-- AI enthusiasts who want their agents to take real action
-- Organizations that want reliable automation at a reasonable price
-- Data engineers building reliable pipelines
-- DevOps and SRE teams
+- Teams that have outgrown cron and need dependencies, recovery, and a single place to see what ran
+- DevOps and SRE teams running scheduled work across multiple servers
+- Small teams that want reliable automation without babysitting a heavy orchestrator
+- AI enthusiasts who want their agents to take real action (MCP)
+
+## What You Get
+
+- **Hierarchical workflows**  
+  Organize jobs into nested clusters with built-in dependency logic and failure handling. See the full chain on a dependency graph instead of reconstructing it from memory.
+
+- **Natural-language automation with AI**  
+  Describe the job, schedule, or recovery path in plain English. Grok can build it on your servers; you still get real jobs and clusters you can open, edit, and run with or without AI.
+
+- **Respond when things go wrong**  
+  `On Fail`, `On Overdue`, and `Max Runtime` handlers can alert, clone, escalate, or recover. The next step is defined before the incident becomes a scavenger hunt.
+
+- **Cloning**  
+  When the previous run is still busy at the next scheduled time, spin up an identical copy instead of skipping, colliding, or hoping.
+
+- **Advanced scheduling**  
+  Full Quartz cron plus calendars that can hold multiple cron expressions, for complex schedules that plain cron can’t express, e.g. the third Monday of February and month-end, with begin/expire windows.
+
+- **Real-time observability**  
+  Live dashboard, T+/T− timers, dependency graphs, and server metrics. See whether it ran, when, and what happened. Run history and logs live in one place, so “did it run?” isn’t a research project across hosts.
+
+- **Recovery controls**  
+  Retries, hold/ice/release, and escalation paths you own, without standing up an enterprise scheduling stack.
+
+## Natural-Language Automation (MCP)
+
+Ordo supports **Model Context Protocol**, so trusted AI agents like Grok can explore, create, schedule, monitor, debug, and repair jobs on your servers using natural language.
+
+You can say things like:
+
+- “Create a calendar for the third Monday of every month and month-end, and attach it to the finance close cluster.”
+- “Check disk space on all servers every 15 minutes. If anything’s over 90%, email the team.”
+- “Run a daily backup with a 2-hour limit. If it’s still going, start the Backup Watchdog.”
+- “Deployment v2.3 failed last night. Look at the logs and tell me what went wrong.”
+
+The agent can create scripts and schedules on **your** servers, wire dependencies and handlers, and help debug when something breaks.
+
+## Works With or Without AI
+
+Ordo is a full job scheduler on its own. MCP is optional power, not a requirement. The source of truth is always the jobs and clusters you can see.
 
 ## Ready to Begin?
 
-1. **Sign up for a free account** – No credit card required
-2. Read the [Quickstart](#docs/quickstart) guide
-3. **Start building!**
+1. **Sign up for a free account** — no credit card required  
+2. Read the [Quickstart](#docs/quickstart) guide  
+3. **Start building**

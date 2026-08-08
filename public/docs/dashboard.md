@@ -6,12 +6,12 @@ The **Dashboard** is your real-time command center for Ordo. It focuses on **job
 
 The Dashboard updates automatically and gives you a consolidated view of orchestration activity.
 
-### KPI Bar (Top)
+### Key Performance Indicators
 
 Shows high-level statistics for the current day:
-- **Success Rate** — Percentage of jobs that completed successfully
-- **Runs Today** — Total number of job executions
-- **Failed Runs Today** — Number of failed jobs
+- **Success Rate** - Percentage of jobs that completed successfully
+- **Runs Today** - Total number of job executions
+- **Failed Runs Today** - Number of failed jobs
 
 ### Live Cards
 
@@ -25,7 +25,7 @@ Most recent failed jobs with how long ago they failed.
 Upcoming jobs and clusters with live T- countdowns.
 
 **Overdue Clusters**  
-Clusters that missed their scheduled start time — high priority items.
+Clusters that missed their scheduled start time - high priority items.
 
 ### Recent Activity
 
@@ -39,7 +39,7 @@ For continuous monitoring, we recommend creating a dedicated "Monitoring" cluste
 
 ## Key Features & Tips
 
-- **Resync Servers** — Forces fresh data collection from all monitored servers. Useful when you suspect zombie processes or want updated stats.
+- **Resync Servers** - Forces fresh data collection from all monitored servers. Useful when you suspect zombie processes or want updated stats.
 - All timers (T+ and T-) update every second.
 - Use **Cloning** on long-running clusters to prevent them from becoming overdue.
 - The Dashboard is job-centric. Switch to the **Servers** tab for infrastructure-level visibility.

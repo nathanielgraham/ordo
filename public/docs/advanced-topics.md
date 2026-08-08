@@ -2,17 +2,14 @@
 
 This section explores special patterns and advanced usage of Ordo.
 
-## Handlers (Self-Healing)
-
-Handlers are one of Ordo’s most powerful features for building resilient automation.
+## Special Handlers
 
 ### On Fail Handler
 Triggered when a cluster enters a `failed` state.  
 Common use: alerting, cleanup, or escalation.
 
 ### On Overdue Handler
-Triggered when a cron start is attempted 
-  but the cluster **cannot be started** because it is still busy or on hold.
+Triggered when a cron start is attempted but the cluster **cannot be started** because it is still busy or on hold.
 
 ### Max Runtime Handler (Job-level)
 Set on individual jobs via `max_runtime_seconds` and `max_runtime_cluster_id`.  

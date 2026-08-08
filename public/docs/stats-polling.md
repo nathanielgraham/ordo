@@ -1,6 +1,6 @@
 # Stats Polling & Monitoring
 
-Stats polling is one of Ordo's most powerful optional features, providing real-time visibility into your jobs and servers.
+Stats polling provides real-time visibility into your jobs and servers.
 
 ### What is Stats Polling?
 
@@ -59,8 +59,8 @@ More frequent polling consumes significantly more API quota. For example, pollin
 
 | Scenario                       | Recommended Interval     | Notes |
 |--------------------------------|--------------------------|-------|
-| Most Pro users                 | **30 – 60 seconds**      | Best balance of freshness and cost |
-| Cost / bandwidth sensitive     | **2 – 5 minutes**        | Minimizes API usage |
+| Most Pro users                 | **30 - 60 seconds**      | Best balance of freshness and cost |
+| Cost / bandwidth sensitive     | **2 - 5 minutes**        | Minimizes API usage |
 | High-frequency monitoring      | 10 seconds or less       | Only recommended in Managed Private, Self-Hosted, or Enterprise deployments |
 
 ### Saving API Quota
@@ -76,7 +76,7 @@ To minimize unnecessary API usage when you are not actively monitoring:
 ### Best Practices
 
 - Start with **60-second** intervals and increase frequency only if needed.
-- Monitor your actual usage in **Settings → Billing**.
+- Monitor your actual usage in **Settings -> Billing**.
 - In **Managed Private**, **Self-Hosted**, and **Enterprise** deployments, you can safely poll much more frequently since it does not count against shared SaaS quota.
 
 ### Technical Note

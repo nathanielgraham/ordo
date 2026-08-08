@@ -8,7 +8,7 @@
 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFteavF5RjZ19R2m/el3nXhsBK7q8sQTxUxye5bNUY2l ordo@ordoscheduler.com
 ```
 
-### Option 1 — Automatic (password enabled)
+### Option 1 - Automatic (password enabled)
 
 If the remote user can log in with a **password** over SSH:
 
@@ -18,7 +18,7 @@ If the remote user can log in with a **password** over SSH:
 
 You can disable password authentication on the server afterward if you want key-only access. Ordo does not need the password again for normal job runs.
 
-### Option 2 — Manual (key only)
+### Option 2 - Manual (key only)
 
 If password login is disabled, or you prefer to provision keys yourself, install Ordo’s public key on the remote account:
 
@@ -50,7 +50,7 @@ Then in Ordo enter **host**, **SSH user**, and **port** only (no password).
 **A:** When you add a server, Ordo creates this directory on the remote host:
 ```
 ordo_node/
-├── bin/      # Core tools (launcher.pl, update_stats.pl, email_team.pl, …)
+├── bin/      # Core tools (launcher.pl, update_stats.pl, email_team.pl, ...)
 ├── scripts/  # Optional custom scripts on the server
 ├── logs/     # Job output
 └── modules/  # Perl helper modules
