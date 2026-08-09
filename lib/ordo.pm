@@ -2182,7 +2182,13 @@ sub _start_cluster {
    )->hashes;
 
    foreach my $j ( @{ $results->to_array } ) {
-      my $job_detail = $self->_job_info( $user, { id => $j->{id} } );
+      my $ji = $self->_job_info( $user, { id => $j->{id} } );
+      my $job_detail = {}; 
+      my @keep_fields = qw(id name jobstate state_id server_id server_name needs_any_ids needs_ids);
+      for my $field (@keep_fields) {
+        $job_detail->{$field} = $ji->{$field};
+      }
+
       push @{ $start_response->{jobs} }, $job_detail;
       my $rv =
         $self->_start_job( $user, { origin => 'start', id => $j->{id} } );
