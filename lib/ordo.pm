@@ -829,31 +829,6 @@ sub startup {
             return $msg;
          }
 
-         # ----- Explicit failure / skip cases from _start_cluster -----
-         if ( ( $raw->{message} // '' ) eq 'cluster not found' ) {
-            return "Cluster not found";
-         }
-         if ( ( $raw->{message} // '' ) eq 'root cluster cannot be started' ) {
-            return "Root cluster cannot be started";
-         }
-         if ( $raw->{skipped} && ( $raw->{message} // '' ) eq 'cluster on ice' )
-         {
-            return "Cluster is on ice – skipped";
-         }
-         if ( $raw->{skipped}
-            && ( $raw->{message} // '' ) eq 'cluster on hold' )
-         {
-            return "Cluster is on hold – skipped";
-         }
-         if ( $raw->{waiting} && ( $raw->{message} // '' ) =~ /dependency/i ) {
-            return "Cluster waiting – dependency not met";
-         }
-         if ( $raw->{skipped}
-            && ( $raw->{message} // '' ) eq 'cluster cannot be started' )
-         {
-            return "Cluster cannot be started (busy or on hold)";
-         }
-
          # Generic fallback
          return "Cluster action completed"
            . ( $raw->{id} || $raw->{cluster_id}
@@ -2031,7 +2006,7 @@ sub _start_cluster {
    }
 
    my $is_user_start = ( $d->{origin} && $d->{origin} eq 'user' );
-   my $ice         = $self->job_states->{ice};
+   my $ice           = $self->job_states->{ice};
    my $ready         = $self->job_states->{ready};
    my $waiting       = $self->job_states->{waiting};
 
@@ -2154,7 +2129,7 @@ sub _start_cluster {
       jobs         => [],
    };
 
-   my $clusters           = $self->sqlite->db->select(
+   my $clusters = $self->sqlite->db->select(
       'cluster',
       ['id'],
       {
@@ -2201,7 +2176,7 @@ sub _start_cluster {
       ['id'],
       {
          cluster_id => $cluster_id,
-         state_id   => { '=', [ $ready, $waiting ] }
+         state_id   => { '=', [ $ready, $waiting, $ice ] }
       },
       { -desc => 'id' }
    )->hashes;
@@ -2233,11 +2208,6 @@ sub _start_cluster {
          { state => 'failed', id => $cluster_id } );
       $start_response->{success} = 0;
    }
-
-   #elsif ( $jobs_waiting || $clusters_waiting ) {
-   #   $self->_set_cluster_state( $user,
-   #      { state => 'waiting', id => $cluster_id } );
-   #}
    elsif ( $self->_cluster_is_complete( $user, { id => $cluster_id } ) ) {
       $self->_set_cluster_state( $user,
          { state => 'complete', id => $cluster_id } );
