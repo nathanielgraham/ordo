@@ -755,15 +755,112 @@ sub startup {
          return "Job action completed"
            . ( $raw->{id} ? " (id=$raw->{id})" : '' );
       }
+
       if ( $tool_name eq 'manage_cluster' ) {
 
-         # Will become richer once start_cluster returns more detail
-         if ( ( $raw->{message} // '' ) =~ /started/i ) {
-            return $raw->{message};
+         # ----- Successful / normal start with rich payload -----
+         if ( exists $raw->{summary} && $raw->{cluster_id} ) {
+            my $name = $raw->{cluster_name} // '';
+            my $cid  = $raw->{cluster_id};
+
+            my $s            = $raw->{summary}    // {};
+            my $jobs_started = $s->{jobs_started} // 0;
+            my $jobs_waiting = $s->{jobs_waiting} // 0;
+            my $jobs_skipped = $s->{jobs_skipped} // 0;
+            my $jobs_failed  = $s->{jobs_failed}  // 0;
+
+            my $subs_started   = $s->{subclusters_started}   // 0;
+            my $subs_waiting   = $s->{subclusters_waiting}   // 0;
+            my $subs_skipped   = $s->{subclusters_skipped}   // 0;
+            my $subs_failed    = $s->{subclusters_failed}    // 0;
+            my $subs_completed = $s->{subclusters_completed} // 0;
+
+            my $msg = "Cluster";
+            $msg .= " \"$name\"" if $name;
+            $msg .= " (id=$cid) started";
+
+            my @parts;
+            push @parts,
+                "$jobs_started job"
+              . ( $jobs_started == 1 ? '' : 's' )
+              . " started"
+              if $jobs_started;
+            push @parts,
+                "$jobs_waiting job"
+              . ( $jobs_waiting == 1 ? '' : 's' )
+              . " waiting"
+              if $jobs_waiting;
+            push @parts,
+                "$jobs_skipped job"
+              . ( $jobs_skipped == 1 ? '' : 's' )
+              . " skipped"
+              if $jobs_skipped;
+            push @parts,
+              "$jobs_failed job" . ( $jobs_failed == 1 ? '' : 's' ) . " failed"
+              if $jobs_failed;
+
+            push @parts,
+                "$subs_started subcluster"
+              . ( $subs_started == 1 ? '' : 's' )
+              . " started"
+              if $subs_started;
+            push @parts,
+                "$subs_waiting subcluster"
+              . ( $subs_waiting == 1 ? '' : 's' )
+              . " waiting"
+              if $subs_waiting;
+            push @parts,
+                "$subs_skipped subcluster"
+              . ( $subs_skipped == 1 ? '' : 's' )
+              . " skipped"
+              if $subs_skipped;
+            push @parts,
+                "$subs_failed subcluster"
+              . ( $subs_failed == 1 ? '' : 's' )
+              . " failed"
+              if $subs_failed;
+            push @parts,
+                "$subs_completed subcluster"
+              . ( $subs_completed == 1 ? '' : 's' )
+              . " already complete"
+              if $subs_completed;
+
+            $msg .= " – " . join( ', ', @parts ) if @parts;
+            return $msg;
          }
+
+         # ----- Explicit failure / skip cases from _start_cluster -----
+         if ( ( $raw->{message} // '' ) eq 'cluster not found' ) {
+            return "Cluster not found";
+         }
+         if ( ( $raw->{message} // '' ) eq 'root cluster cannot be started' ) {
+            return "Root cluster cannot be started";
+         }
+         if ( $raw->{skipped} && ( $raw->{message} // '' ) eq 'cluster on ice' )
+         {
+            return "Cluster is on ice – skipped";
+         }
+         if ( $raw->{skipped}
+            && ( $raw->{message} // '' ) eq 'cluster on hold' )
+         {
+            return "Cluster is on hold – skipped";
+         }
+         if ( $raw->{waiting} && ( $raw->{message} // '' ) =~ /dependency/i ) {
+            return "Cluster waiting – dependency not met";
+         }
+         if ( $raw->{skipped}
+            && ( $raw->{message} // '' ) eq 'cluster cannot be started' )
+         {
+            return "Cluster cannot be started (busy or on hold)";
+         }
+
+         # Generic fallback
          return "Cluster action completed"
-           . ( $raw->{id} ? " (id=$raw->{id})" : '' );
+           . ( $raw->{id} || $raw->{cluster_id}
+            ? " (id=" . ( $raw->{id} // $raw->{cluster_id} ) . ")"
+            : '' );
       }
+
       if ( $tool_name eq 'clone_cluster' && $raw->{id} ) {
          return "Cloned cluster → new id=$raw->{id}";
       }
@@ -1934,6 +2031,7 @@ sub _start_cluster {
    }
 
    my $is_user_start = ( $d->{origin} && $d->{origin} eq 'user' );
+   my $ice         = $self->job_states->{ice};
    my $ready         = $self->job_states->{ready};
    my $waiting       = $self->job_states->{waiting};
 
@@ -2052,15 +2150,10 @@ sub _start_cluster {
       cluster_id   => $cluster->{id},
       cluster_name => $cluster->{name},
       started_at   => time,
+      summary      => {},
       jobs         => [],
    };
 
-   # start clusters in cluster
-   my $clusters_started   = 0;
-   my $clusters_completed = 0;
-   my $clusters_failed    = 0;
-   my $clusters_waiting   = 0;
-   my $clusters_skipped   = 0;
    my $clusters           = $self->sqlite->db->select(
       'cluster',
       ['id'],
@@ -2068,7 +2161,7 @@ sub _start_cluster {
          org_id     => $user->org_id,
          parent_id  => $cluster_id,
          auto_start => { '!=', 0 },
-         state_id   => { '=',  [ $ready, $waiting ] }
+         state_id   => { '=',  [ $ready, $waiting, $ice ] }
       },
       { -desc => 'id' }
    )->hashes;
@@ -2082,10 +2175,11 @@ sub _start_cluster {
          {
             id      => $c->{id},
             origin  => $origin,
-            noreset => 1
+            noreset => 1,
          }
       );
-      if ( $rv->{started} ) {
+
+      if ( $rv->{success} ) {
          $start_response->{summary}{subclusters_started}++;
       }
       elsif ( $rv->{waiting} ) {
@@ -2097,7 +2191,7 @@ sub _start_cluster {
       elsif ( $rv->{completed} ) {
          $start_response->{summary}{subclusters_completed}++;
       }
-      elsif ( $rv->{failed} ) {
+      elsif ( $rv->{success} == 0 ) {
          $start_response->{summary}{subclusters_failed}++;
       }
    }
@@ -2127,7 +2221,7 @@ sub _start_cluster {
       elsif ( $rv->{skipped} ) {
          $start_response->{summary}{jobs_skipped}++;
       }
-      else {
+      elsif ( $rv->{success} == 0 ) {
          $start_response->{summary}{jobs_failed}++;
       }
    }
