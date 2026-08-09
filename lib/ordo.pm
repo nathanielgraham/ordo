@@ -473,6 +473,7 @@ sub startup {
    );
 
    # ==================== MCP CONNECTOR ====================
+
    my $tools = ordo::MCP::Tools->get_tools();
 
    $r->any(
@@ -480,15 +481,25 @@ sub startup {
          my $c    = shift;
          my $json = $c->req->json // {};
 
-         # ---------- Auth ----------
-         my $token = $json->{token};
+         # ------------------------------------------------------------------
+         # Auth – prefer Authorization: Bearer, fall back to body token
+         # ------------------------------------------------------------------
+         my $token;
+         if ( my $auth = $c->req->headers->authorization ) {
+            ($token) = $auth =~ /^Bearer\s+(.+)$/i;
+         }
+         $token //= $json->{token};
+
          unless ($token) {
             return $c->render(
                json => {
-                  error   => 'Missing token in request body',
-                  success => 0,
-                  hint    =>
-'POST JSON like: {"token":"YOUR_TOKEN", "name":"get_documentation"}'
+                  jsonrpc => '2.0',
+                  id      => $json->{id},
+                  error   => {
+                     code    => -32001,
+                     message =>
+'Missing token. Send Authorization: Bearer <token> or "token" in body.',
+                  },
                },
                status => 401
             );
@@ -498,78 +509,194 @@ sub startup {
          unless ( $mcp_user && ( $mcp_user->level // 0 ) >= 1 ) {
             return $c->render(
                json => {
-                  error =>
-                    'Unauthorized - valid token with level >= 1 required',
-                  success => 0
+                  jsonrpc => '2.0',
+                  id      => $json->{id},
+                  error   => {
+                     code    => -32001,
+                     message =>
+                       'Unauthorized – valid token with level >= 1 required',
+                  },
                },
                status => 401
             );
          }
-
          $c->stash( user => $mcp_user );
 
-         # ---------- Discovery (no tool name supplied) ----------
-         my $tool_name = $json->{name} // $json->{tool} // $json->{method};
+         # ------------------------------------------------------------------
+         # Determine method (JSON-RPC or simple fallback)
+         # ------------------------------------------------------------------
+         my $method = $json->{method} // $json->{name} // $json->{tool};
+         my $id     = $json->{id};
 
-         if ( !$tool_name ) {
+         # ------------------------------------------------------------------
+         # initialize
+         # ------------------------------------------------------------------
+         if ( !$method || $method eq 'initialize' ) {
+            return $c->render(
+               json => {
+                  jsonrpc => '2.0',
+                  id      => $id,
+                  result  => {
+                     protocolVersion =>
+                       '2024-11-05',    # or whatever version you want to claim
+                     capabilities => {
+                        tools => {},
+                     },
+                     serverInfo => {
+                        name    => 'Ordo MCP',
+                        version => '0.2.0',      # bump as you like
+                     },
+                  },
+               }
+            );
+         }
+
+         # ------------------------------------------------------------------
+         # tools/list
+         # ------------------------------------------------------------------
+         if ( $method eq 'tools/list' || $method eq 'list_tools' ) {
             my @tool_list = map {
                {
                   name        => $_,
-                  description => $tools->{$_}{description} // 'No description',
-                  params      => $tools->{$_}{params}      // {},
-                  examples    => $tools->{$_}{examples}    // [],
+                  description => $tools->{$_}{description} // '',
+                  inputSchema => $tools->{$_}{inputSchema}
+                    // { type => 'object', properties => {} },
                }
             } sort keys %$tools;
 
             return $c->render(
                json => {
-                  success => 1,
-                  message => 'Available MCP tools for Ordo',
-
-                  # ---- Agent guidance (new) ----
-                  agent_guidance => {
-                     how_to_call => 'POST JSON to this endpoint with: '
-                       . '{"token":"...","name":"<tool_name>","params":{...}}. '
-                       . 'Both "name" and "tool" are accepted as the tool key.',
-                     first_steps => [
-'1. Call get_documentation (section "overview" or "quickstart")',
-                        '2. Call list_servers to see available server_ids',
-'3. Call list_jobs or list_calendars to understand current state',
-                        '4. Then create/update/start as needed'
-                     ],
-                     important_conventions => [
-'Day-of-week in cron: Monday=1 ... Sunday=7 (different from classic Quartz)',
-'parent_id on create_job = the cluster ID that owns the job',
-'Use needs_ids (AND) or needs_any_ids (OR) for dependencies',
-                        'Adding servers is only possible via the Web UI'
-                     ],
-                     recommended_first_tool => 'get_documentation'
+                  jsonrpc => '2.0',
+                  id      => $id,
+                  result  => {
+                     tools => \@tool_list,
                   },
-
-                  tools => \@tool_list
                }
             );
          }
 
-         # ---------- Execute tool ----------
-         my $params = $json->{params} // $json->{arguments}
-           // $json->{parameters} // {};
-         my $tool = $tools->{$tool_name};
+         # ------------------------------------------------------------------
+         # tools/call
+         # ------------------------------------------------------------------
+         if ( $method eq 'tools/call' ) {
+            my $params    = $json->{params} // {};
+            my $tool_name = $params->{name} // $params->{tool};
+            my $arguments = $params->{arguments} // $params->{params} // {};
 
-         my $result =
-             $tool
-           ? $tool->{handler}->( $c, $params )
-           : { error => "Unknown tool: $tool_name", success => 0 };
+            unless ($tool_name) {
+               return $c->render(
+                  json => {
+                     jsonrpc => '2.0',
+                     id      => $id,
+                     error   => {
+                        code    => -32602,
+                        message => 'tools/call requires params.name',
+                     },
+                  }
+               );
+            }
 
-         # Keep existing response shape for compatibility
-         $result->{tool}          = $tool_name;
-         $result->{command_reply} = $tool_name;
+            my $tool = $tools->{$tool_name};
+            unless ($tool) {
+               return $c->render(
+                  json => {
+                     jsonrpc => '2.0',
+                     id      => $id,
+                     error   => {
+                        code    => -32601,
+                        message => "Unknown tool: $tool_name",
+                     },
+                  }
+               );
+            }
 
-         # Redact any tokens that might have leaked
-         delete $result->{token};
-         delete $result->{execution_token};
+            # Execute handler
+            my $raw = $tool->{handler}->( $c, $arguments );
 
-         $c->render( json => $result );
+            # Normalize into MCP tool result
+            my $is_error = !( $raw->{success} // 1 );
+
+            # Build a clean text representation for agents
+            my $text;
+            if ($is_error) {
+               $text = $raw->{error} // $raw->{message} // 'Tool failed';
+            }
+            else {
+               # Prefer the most useful payload; fall back to whole structure
+               my %copy = %$raw;
+               delete $copy{success};
+               delete $copy{command_reply};
+               delete $copy{tool};
+               $text = Mojo::JSON::encode_json( \%copy );
+            }
+
+            return $c->render(
+               json => {
+                  jsonrpc => '2.0',
+                  id      => $id,
+                  result  => {
+                     content => [
+                        {
+                           type => 'text',
+                           text => $text,
+                        }
+                     ],
+                     isError => $is_error
+                     ? Mojo::JSON->true
+                     : Mojo::JSON->false,
+                  },
+               }
+            );
+         }
+
+   # ------------------------------------------------------------------
+   # Simple non-JSON-RPC fallback (name + params) – still useful for quick tests
+   # ------------------------------------------------------------------
+         if ( $method && $tools->{$method} ) {
+            my $arguments = $json->{params} // $json->{arguments}
+              // $json->{parameters} // {};
+            my $raw = $tools->{$method}{handler}->( $c, $arguments );
+
+            my $is_error = !( $raw->{success} // 1 );
+            my %copy     = %$raw;
+            delete $copy{success};
+            delete $copy{command_reply};
+            delete $copy{tool};
+
+            return $c->render(
+               json => {
+                  success       => $is_error ? 0 : 1,
+                  tool          => $method,
+                  command_reply => $method,
+                  isError       => $is_error ? 1 : 0,
+                  content       => [
+                     {
+                        type => 'text',
+                        text => $is_error
+                        ? ( $raw->{error} // $raw->{message} // 'Tool failed' )
+                        : Mojo::JSON::encode_json( \%copy ),
+                     }
+                  ],
+
+                  # Keep the original payload too for debugging
+                  result => \%copy,
+               }
+            );
+         }
+
+         # ------------------------------------------------------------------
+         # Unknown method
+         # ------------------------------------------------------------------
+         return $c->render(
+            json => {
+               jsonrpc => '2.0',
+               id      => $id,
+               error   => {
+                  code    => -32601,
+                  message => "Method not found: " . ( $method // '(none)' ),
+               },
+            }
+         );
       }
    );
 
