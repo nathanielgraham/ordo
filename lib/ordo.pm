@@ -473,7 +473,6 @@ sub startup {
    );
 
    # ==================== MCP CONNECTOR ====================
-
    my $tools = ordo::MCP::Tools->get_tools();
 
    $r->any(
@@ -523,7 +522,7 @@ sub startup {
          $c->stash( user => $mcp_user );
 
          # ------------------------------------------------------------------
-         # Determine method (JSON-RPC or simple fallback)
+         # Determine method
          # ------------------------------------------------------------------
          my $method = $json->{method} // $json->{name} // $json->{tool};
          my $id     = $json->{id};
@@ -537,14 +536,13 @@ sub startup {
                   jsonrpc => '2.0',
                   id      => $id,
                   result  => {
-                     protocolVersion =>
-                       '2024-11-05',    # or whatever version you want to claim
-                     capabilities => {
+                     protocolVersion => '2024-11-05',
+                     capabilities    => {
                         tools => {},
                      },
                      serverInfo => {
                         name    => 'Ordo MCP',
-                        version => '0.2.0',      # bump as you like
+                        version => '0.2.0',
                      },
                   },
                }
@@ -613,21 +611,37 @@ sub startup {
             # Execute handler
             my $raw = $tool->{handler}->( $c, $arguments );
 
-            # Normalize into MCP tool result
+            # Determine success / error
             my $is_error = !( $raw->{success} // 1 );
 
-            # Build a clean text representation for agents
-            my $text;
+            # Build content
+            my @content;
+
             if ($is_error) {
-               $text = $raw->{error} // $raw->{message} // 'Tool failed';
+               my $err_msg = $raw->{error} // $raw->{message} // 'Tool failed';
+               push @content, { type => 'text', text => $err_msg };
             }
             else {
-               # Prefer the most useful payload; fall back to whole structure
-               my %copy = %$raw;
-               delete $copy{success};
-               delete $copy{command_reply};
-               delete $copy{tool};
-               $text = Mojo::JSON::encode_json( \%copy );
+               # Always generate a clear summary from context
+               my $summary = _summary_from_context( $tool_name, $raw );
+
+               push @content,
+                 {
+                  type => 'text',
+                  text => $summary,
+                 };
+
+               # Structured payload as second text block
+               my %clean = %$raw;
+               delete $clean{success};
+               delete $clean{command_reply};
+               delete $clean{tool};
+
+               push @content,
+                 {
+                  type => 'text',
+                  text => Mojo::JSON::encode_json( \%clean ),
+                 };
             }
 
             return $c->render(
@@ -635,12 +649,7 @@ sub startup {
                   jsonrpc => '2.0',
                   id      => $id,
                   result  => {
-                     content => [
-                        {
-                           type => 'text',
-                           text => $text,
-                        }
-                     ],
+                     content => \@content,
                      isError => $is_error
                      ? Mojo::JSON->true
                      : Mojo::JSON->false,
@@ -649,19 +658,42 @@ sub startup {
             );
          }
 
-   # ------------------------------------------------------------------
-   # Simple non-JSON-RPC fallback (name + params) – still useful for quick tests
-   # ------------------------------------------------------------------
+         # ------------------------------------------------------------------
+         # Simple non-JSON-RPC fallback (still useful for quick tests)
+         # ------------------------------------------------------------------
          if ( $method && $tools->{$method} ) {
             my $arguments = $json->{params} // $json->{arguments}
               // $json->{parameters} // {};
             my $raw = $tools->{$method}{handler}->( $c, $arguments );
 
             my $is_error = !( $raw->{success} // 1 );
-            my %copy     = %$raw;
-            delete $copy{success};
-            delete $copy{command_reply};
-            delete $copy{tool};
+            my @content;
+
+            if ($is_error) {
+               push @content,
+                 {
+                  type => 'text',
+                  text => $raw->{error} // $raw->{message} // 'Tool failed',
+                 };
+            }
+            else {
+               push @content,
+                 {
+                  type => 'text',
+                  text => _summary_from_context( $method, $raw ),
+                 };
+
+               my %clean = %$raw;
+               delete $clean{success};
+               delete $clean{command_reply};
+               delete $clean{tool};
+
+               push @content,
+                 {
+                  type => 'text',
+                  text => Mojo::JSON::encode_json( \%clean ),
+                 };
+            }
 
             return $c->render(
                json => {
@@ -669,17 +701,7 @@ sub startup {
                   tool          => $method,
                   command_reply => $method,
                   isError       => $is_error ? 1 : 0,
-                  content       => [
-                     {
-                        type => 'text',
-                        text => $is_error
-                        ? ( $raw->{error} // $raw->{message} // 'Tool failed' )
-                        : Mojo::JSON::encode_json( \%copy ),
-                     }
-                  ],
-
-                  # Keep the original payload too for debugging
-                  result => \%copy,
+                  content       => \@content,
                }
             );
          }
@@ -693,12 +715,118 @@ sub startup {
                id      => $id,
                error   => {
                   code    => -32601,
-                  message => "Method not found: " . ( $method // '(none)' ),
+                  message => 'Method not found: ' . ( $method // '(none)' ),
                },
             }
          );
       }
    );
+
+   # =====================================================================
+   # Helper: generate a clear human summary from tool context
+   # =====================================================================
+   sub _summary_from_context {
+      my ( $tool_name, $raw ) = @_;
+
+      # ----- Create -----
+      if ( $tool_name eq 'create_cluster' && $raw->{id} ) {
+         return "Created cluster id=$raw->{id}"
+           . ( $raw->{name} ? " ($raw->{name})" : '' );
+      }
+      if ( $tool_name eq 'create_job' && $raw->{id} ) {
+         my $msg = "Created job id=$raw->{id}";
+         $msg .= " in cluster $raw->{cluster_id}" if $raw->{cluster_id};
+         $msg .= " ($raw->{name})"                if $raw->{name};
+         return $msg;
+      }
+      if ( $tool_name eq 'create_calendar' && $raw->{id} ) {
+         return "Created calendar id=$raw->{id}"
+           . ( $raw->{name} ? " ($raw->{name})" : '' );
+      }
+
+      # ----- Update / lifecycle -----
+      if ( $tool_name eq 'update_job' ) {
+         return "Updated job" . ( $raw->{id} ? " id=$raw->{id}" : '' );
+      }
+      if ( $tool_name eq 'update_cluster' ) {
+         return "Updated cluster" . ( $raw->{id} ? " id=$raw->{id}" : '' );
+      }
+      if ( $tool_name eq 'manage_job' ) {
+         return "Job action completed"
+           . ( $raw->{id} ? " (id=$raw->{id})" : '' );
+      }
+      if ( $tool_name eq 'manage_cluster' ) {
+
+         # Will become richer once start_cluster returns more detail
+         if ( ( $raw->{message} // '' ) =~ /started/i ) {
+            return $raw->{message};
+         }
+         return "Cluster action completed"
+           . ( $raw->{id} ? " (id=$raw->{id})" : '' );
+      }
+      if ( $tool_name eq 'clone_cluster' && $raw->{id} ) {
+         return "Cloned cluster → new id=$raw->{id}";
+      }
+
+      # ----- Lists -----
+      if ( $tool_name eq 'list_servers' && ref $raw->{servers} eq 'ARRAY' ) {
+         my $n = scalar @{ $raw->{servers} };
+         return "Listed $n server" . ( $n == 1 ? '' : 's' );
+      }
+      if ( $tool_name eq 'list_jobs' && ref $raw->{clusters} eq 'ARRAY' ) {
+         my $n = scalar @{ $raw->{clusters} };
+         return "Listed $n cluster" . ( $n == 1 ? '' : 's' );
+      }
+      if ( $tool_name eq 'list_calendars' ) {
+         my $n =
+           ref $raw->{calendars} eq 'ARRAY' ? scalar @{ $raw->{calendars} } : 0;
+         return "Listed $n calendar" . ( $n == 1 ? '' : 's' );
+      }
+
+      # ----- Details / logs -----
+      if ( $tool_name eq 'get_cluster_details' && $raw->{id} ) {
+         return
+             "Cluster $raw->{id}"
+           . ( $raw->{name} ? " ($raw->{name})" : '' ) . ' – '
+           . ( $raw->{jobstate} // 'unknown' );
+      }
+      if ( $tool_name eq 'get_job_details' && $raw->{id} ) {
+         return
+             "Job $raw->{id}"
+           . ( $raw->{name} ? " ($raw->{name})" : '' ) . ' – '
+           . ( $raw->{jobstate} // 'unknown' );
+      }
+      if ( $tool_name eq 'read_log' ) {
+         my $jid = $raw->{job_id} // $raw->{id} // '?';
+         return "Log for job $jid"
+           . ( $raw->{job_name} ? " ($raw->{job_name})" : '' );
+      }
+      if ( $tool_name eq 'find_logs' ) {
+         return 'Log history retrieved';
+      }
+
+      # ----- Docs / meta -----
+      if ( $tool_name eq 'get_documentation' ) {
+         return 'Documentation: ' . ( $raw->{section} // 'unknown' );
+      }
+      if ( $tool_name eq 'read_user' ) {
+         return 'Current user details';
+      }
+      if ( $tool_name eq 'read_org' ) {
+         return 'Organization details';
+      }
+      if ( $tool_name eq 'sync' ) {
+         return 'Sync completed';
+      }
+
+      # ----- Delete -----
+      if ( $tool_name eq 'delete_calendar' || $tool_name eq 'delete_cron' ) {
+         return 'Deleted successfully';
+      }
+
+      # Generic fallback
+      return "Tool $tool_name completed successfully";
+   }
 
    $r->websocket('/websocket')
      ->to( controller => 'websocket', action => 'default' );
@@ -1919,6 +2047,14 @@ sub _start_cluster {
    $self->_set_cluster_state( $user,
       { state => 'running', id => $cluster_id } );
 
+   my $start_response = {
+      success      => 1,
+      cluster_id   => $cluster->{id},
+      cluster_name => $cluster->{name},
+      started_at   => time,
+      jobs         => [],
+   };
+
    # start clusters in cluster
    my $clusters_started   = 0;
    my $clusters_completed = 0;
@@ -1950,28 +2086,22 @@ sub _start_cluster {
          }
       );
       if ( $rv->{started} ) {
-         $clusters_started++;
+         $start_response->{summary}{subclusters_started}++;
       }
       elsif ( $rv->{waiting} ) {
-         $clusters_waiting++;
+         $start_response->{summary}{subclusters_waiting}++;
       }
       elsif ( $rv->{skipped} ) {
-         $clusters_skipped++;
+         $start_response->{summary}{subclusters_skipped}++;
       }
       elsif ( $rv->{completed} ) {
-         $clusters_completed++;
+         $start_response->{summary}{subclusters_completed}++;
       }
       elsif ( $rv->{failed} ) {
-         $clusters_failed++;
+         $start_response->{summary}{subclusters_failed}++;
       }
    }
 
-   # start jobs in cluster
-   my $jobs_started = 0;
-   my $jobs_failed  = 0;
-   my $jobs_waiting = 0;
-   my $jobs_skipped = 0;
-   my $job_error;
    my $results = $self->sqlite->db->select(
       'job',
       ['id'],
@@ -1983,55 +2113,43 @@ sub _start_cluster {
    )->hashes;
 
    foreach my $j ( @{ $results->to_array } ) {
-      my $rv = $self->_start_job( $user, { origin => 'start', %$j } );
+      my $job_detail = $self->_job_info( $user, { id => $j->{id} } );
+      push @{ $start_response->{jobs} }, $job_detail;
+      my $rv =
+        $self->_start_job( $user, { origin => 'start', id => $j->{id} } );
+
       if ( $rv->{success} ) {
-         $jobs_started++;
+         $start_response->{summary}{jobs_started}++;
       }
       elsif ( $rv->{waiting} ) {
-         $jobs_waiting++;
+         $start_response->{summary}{jobs_waiting}++;
       }
       elsif ( $rv->{skipped} ) {
-         $jobs_skipped++;
+         $start_response->{summary}{jobs_skipped}++;
       }
       else {
-         $jobs_failed++;
-         $job_error = $rv->{message};
+         $start_response->{summary}{jobs_failed}++;
       }
    }
 
-   if ( $jobs_failed || $clusters_failed ) {
+   if (  $start_response->{summary}{jobs_failed}
+      || $start_response->{summary}{clusters_failed} )
+   {
       $self->_set_cluster_state( $user,
          { state => 'failed', id => $cluster_id } );
-      return {
-         success => 0,
-         failed  => 1,
-         message => "cluster $cluster_id failed"
-      };
+      $start_response->{success} = 0;
    }
-   elsif ( $jobs_waiting || $clusters_waiting ) {
-      $self->_set_cluster_state( $user,
-         { state => 'waiting', id => $cluster_id } );
-      my $message = "cluster started.";
-      $message .= " $clusters_waiting clusters waiting." if $clusters_waiting;
-      $message .= " $jobs_waiting jobs waiting."         if $jobs_waiting;
-      return { success => 1, waiting => 1, message => $message };
-   }
+
+   #elsif ( $jobs_waiting || $clusters_waiting ) {
+   #   $self->_set_cluster_state( $user,
+   #      { state => 'waiting', id => $cluster_id } );
+   #}
    elsif ( $self->_cluster_is_complete( $user, { id => $cluster_id } ) ) {
       $self->_set_cluster_state( $user,
          { state => 'complete', id => $cluster_id } );
-      return {
-         success   => 1,
-         completed => 1,
-         message   => "cluster $cluster_id complete"
-      };
    }
-   else {
-      return {
-         success => 1,
-         started => 1,
-         message => "cluster $cluster_id started"
-      };
-   }
+
+   return $start_response;
 }
 
 sub _reset_cluster {
