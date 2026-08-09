@@ -53,6 +53,6 @@ Ordo is a full job scheduler on its own. MCP is optional power, not a requiremen
 
 ## Ready to Begin?
 
-1. **Sign up for a free account** — no credit card required  
+1. **Sign up for a free account** - no credit card required  
 2. Read the [Quickstart](#docs/quickstart) guide  
 3. **Start building**

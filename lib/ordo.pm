@@ -472,84 +472,105 @@ sub startup {
       }
    );
 
-   # ==================== MCP CONNECTOR ====================
 
-   my $tools = ordo::MCP::Tools->get_tools();
+# ==================== MCP CONNECTOR ====================
+my $tools = ordo::MCP::Tools->get_tools();
 
-   $r->any(
-      '/mcp' => sub {
-         my $c = shift;
+$r->any(
+   '/mcp' => sub {
+      my $c = shift;
+      my $json = $c->req->json // {};
 
-         my $json  = $c->req->json // {};
-         my $token = $json->{token};
-
-         unless ($token) {
-            return $c->render(
-               json => {
-                  error   => 'Missing token in request body',
-                  success => 0
-               },
-               status => 401
-            );
-         }
-
-         my $mcp_user = $self->_make_user( { token => $token } );
-
-         unless ( $mcp_user && ( $mcp_user->level // 0 ) >= 1 ) {
-            return $c->render(
-               json => {
-                  error =>
-                    'Unauthorized - valid token with level >= 1 required',
-                  success => 0
-               },
-               status => 401
-            );
-         }
-
-         $c->stash( user => $mcp_user );
-
-         # Discovery
-         my $tool_name = $json->{name} // $json->{tool} // $json->{method};
-
-         if ( !$tool_name ) {
-            my @tool_list = map {
-               {
-                  name        => $_,
-                  description => $tools->{$_}{description} // 'No description',
-                  params      => $tools->{$_}{params}      // {},
-                  examples    => $tools->{$_}{examples}    // [],
-               }
-            } sort keys %$tools;
-
-            return $c->render(
-               json => {
-                  success => 1,
-                  message => 'Available MCP tools for Ordo',
-                  tools   => \@tool_list
-               }
-            );
-         }
-
-         # Execute tool
-         my $params = $json->{params} // $json->{arguments}
-           // $json->{parameters} // {};
-         my $tool = $tools->{$tool_name};
-
-         my $result =
-             $tool
-           ? $tool->{handler}->( $c, $params )
-           : { error => "Unknown tool: $tool_name", success => 0 };
-
-         $result->{tool} = $tool_name;           # explicit
-         $result->{command_reply} = $tool_name;  # alias for existing readers
- 
-         # redact tokens
-         delete $result->{token};
-         delete $result->{execution_token};
-
-         $c->render( json => $result );
+      # ---------- Auth ----------
+      my $token = $json->{token};
+      unless ($token) {
+         return $c->render(
+            json => {
+               error   => 'Missing token in request body',
+               success => 0,
+               hint    => 'POST JSON like: {"token":"YOUR_TOKEN", "name":"get_documentation"}'
+            },
+            status => 401
+         );
       }
-   );
+
+      my $mcp_user = $self->_make_user( { token => $token } );
+      unless ( $mcp_user && ( $mcp_user->level // 0 ) >= 1 ) {
+         return $c->render(
+            json => {
+               error   => 'Unauthorized - valid token with level >= 1 required',
+               success => 0
+            },
+            status => 401
+         );
+      }
+
+      $c->stash( user => $mcp_user );
+
+      # ---------- Discovery (no tool name supplied) ----------
+      my $tool_name = $json->{name} // $json->{tool} // $json->{method};
+
+      if ( !$tool_name ) {
+         my @tool_list = map {
+            {
+               name        => $_,
+               description => $tools->{$_}{description} // 'No description',
+               params      => $tools->{$_}{params}      // {},
+               examples    => $tools->{$_}{examples}    // [],
+            }
+         } sort keys %$tools;
+
+         return $c->render(
+            json => {
+               success => 1,
+               message => 'Available MCP tools for Ordo',
+
+               # ---- Agent guidance (new) ----
+               agent_guidance => {
+                  how_to_call =>
+                     'POST JSON to this endpoint with: '
+                   . '{"token":"...","name":"<tool_name>","params":{...}}. '
+                   . 'Both "name" and "tool" are accepted as the tool key.',
+                  first_steps => [
+                     '1. Call get_documentation (section "overview" or "quickstart")',
+                     '2. Call list_servers to see available server_ids',
+                     '3. Call list_jobs or list_calendars to understand current state',
+                     '4. Then create/update/start as needed'
+                  ],
+                  important_conventions => [
+                     'Day-of-week in cron: Monday=1 … Sunday=7 (different from classic Quartz)',
+                     'parent_id on create_job = the cluster ID that owns the job',
+                     'Use needs_ids (AND) or needs_any_ids (OR) for dependencies',
+                     'Adding servers is only possible via the Web UI'
+                  ],
+                  recommended_first_tool => 'get_documentation'
+               },
+
+               tools => \@tool_list
+            }
+         );
+      }
+
+      # ---------- Execute tool ----------
+      my $params = $json->{params} // $json->{arguments} // $json->{parameters} // {};
+      my $tool   = $tools->{$tool_name};
+
+      my $result =
+           $tool
+         ? $tool->{handler}->( $c, $params )
+         : { error => "Unknown tool: $tool_name", success => 0 };
+
+      # Keep existing response shape for compatibility
+      $result->{tool}          = $tool_name;
+      $result->{command_reply} = $tool_name;
+
+      # Redact any tokens that might have leaked
+      delete $result->{token};
+      delete $result->{execution_token};
+
+      $c->render( json => $result );
+   }
+);
 
    $r->websocket('/websocket')
      ->to( controller => 'websocket', action => 'default' );

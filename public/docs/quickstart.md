@@ -92,6 +92,6 @@ Now the Swedish Chef will bake a cake every morning at 9 AM!
 
 ### Next steps
 
-- [Core Concepts](#docs/core-concepts) — clusters, dependencies, handlers  
-- [Connecting to AI](#docs/connecting-to-ai) — optional MCP / Grok setup  
-- [Advanced Topics](#docs/advanced-topics) — on_fail, on_overdue, max runtime, env vars  
+- [Core Concepts](#docs/core-concepts) - clusters, dependencies, handlers  
+- [Connecting to AI](#docs/connecting-to-ai) - optional MCP / Grok setup  
+- [Advanced Topics](#docs/advanced-topics) - on_fail, on_overdue, max runtime, env vars  
