@@ -472,105 +472,106 @@ sub startup {
       }
    );
 
+   # ==================== MCP CONNECTOR ====================
+   my $tools = ordo::MCP::Tools->get_tools();
 
-# ==================== MCP CONNECTOR ====================
-my $tools = ordo::MCP::Tools->get_tools();
+   $r->any(
+      '/mcp' => sub {
+         my $c    = shift;
+         my $json = $c->req->json // {};
 
-$r->any(
-   '/mcp' => sub {
-      my $c = shift;
-      my $json = $c->req->json // {};
-
-      # ---------- Auth ----------
-      my $token = $json->{token};
-      unless ($token) {
-         return $c->render(
-            json => {
-               error   => 'Missing token in request body',
-               success => 0,
-               hint    => 'POST JSON like: {"token":"YOUR_TOKEN", "name":"get_documentation"}'
-            },
-            status => 401
-         );
-      }
-
-      my $mcp_user = $self->_make_user( { token => $token } );
-      unless ( $mcp_user && ( $mcp_user->level // 0 ) >= 1 ) {
-         return $c->render(
-            json => {
-               error   => 'Unauthorized - valid token with level >= 1 required',
-               success => 0
-            },
-            status => 401
-         );
-      }
-
-      $c->stash( user => $mcp_user );
-
-      # ---------- Discovery (no tool name supplied) ----------
-      my $tool_name = $json->{name} // $json->{tool} // $json->{method};
-
-      if ( !$tool_name ) {
-         my @tool_list = map {
-            {
-               name        => $_,
-               description => $tools->{$_}{description} // 'No description',
-               params      => $tools->{$_}{params}      // {},
-               examples    => $tools->{$_}{examples}    // [],
-            }
-         } sort keys %$tools;
-
-         return $c->render(
-            json => {
-               success => 1,
-               message => 'Available MCP tools for Ordo',
-
-               # ---- Agent guidance (new) ----
-               agent_guidance => {
-                  how_to_call =>
-                     'POST JSON to this endpoint with: '
-                   . '{"token":"...","name":"<tool_name>","params":{...}}. '
-                   . 'Both "name" and "tool" are accepted as the tool key.',
-                  first_steps => [
-                     '1. Call get_documentation (section "overview" or "quickstart")',
-                     '2. Call list_servers to see available server_ids',
-                     '3. Call list_jobs or list_calendars to understand current state',
-                     '4. Then create/update/start as needed'
-                  ],
-                  important_conventions => [
-                     'Day-of-week in cron: Monday=1 … Sunday=7 (different from classic Quartz)',
-                     'parent_id on create_job = the cluster ID that owns the job',
-                     'Use needs_ids (AND) or needs_any_ids (OR) for dependencies',
-                     'Adding servers is only possible via the Web UI'
-                  ],
-                  recommended_first_tool => 'get_documentation'
+         # ---------- Auth ----------
+         my $token = $json->{token};
+         unless ($token) {
+            return $c->render(
+               json => {
+                  error   => 'Missing token in request body',
+                  success => 0,
+                  hint    =>
+'POST JSON like: {"token":"YOUR_TOKEN", "name":"get_documentation"}'
                },
+               status => 401
+            );
+         }
 
-               tools => \@tool_list
-            }
-         );
+         my $mcp_user = $self->_make_user( { token => $token } );
+         unless ( $mcp_user && ( $mcp_user->level // 0 ) >= 1 ) {
+            return $c->render(
+               json => {
+                  error =>
+                    'Unauthorized - valid token with level >= 1 required',
+                  success => 0
+               },
+               status => 401
+            );
+         }
+
+         $c->stash( user => $mcp_user );
+
+         # ---------- Discovery (no tool name supplied) ----------
+         my $tool_name = $json->{name} // $json->{tool} // $json->{method};
+
+         if ( !$tool_name ) {
+            my @tool_list = map {
+               {
+                  name        => $_,
+                  description => $tools->{$_}{description} // 'No description',
+                  params      => $tools->{$_}{params}      // {},
+                  examples    => $tools->{$_}{examples}    // [],
+               }
+            } sort keys %$tools;
+
+            return $c->render(
+               json => {
+                  success => 1,
+                  message => 'Available MCP tools for Ordo',
+
+                  # ---- Agent guidance (new) ----
+                  agent_guidance => {
+                     how_to_call => 'POST JSON to this endpoint with: '
+                       . '{"token":"...","name":"<tool_name>","params":{...}}. '
+                       . 'Both "name" and "tool" are accepted as the tool key.',
+                     first_steps => [
+'1. Call get_documentation (section "overview" or "quickstart")',
+                        '2. Call list_servers to see available server_ids',
+'3. Call list_jobs or list_calendars to understand current state',
+                        '4. Then create/update/start as needed'
+                     ],
+                     important_conventions => [
+'Day-of-week in cron: Monday=1 ... Sunday=7 (different from classic Quartz)',
+'parent_id on create_job = the cluster ID that owns the job',
+'Use needs_ids (AND) or needs_any_ids (OR) for dependencies',
+                        'Adding servers is only possible via the Web UI'
+                     ],
+                     recommended_first_tool => 'get_documentation'
+                  },
+
+                  tools => \@tool_list
+               }
+            );
+         }
+
+         # ---------- Execute tool ----------
+         my $params = $json->{params} // $json->{arguments}
+           // $json->{parameters} // {};
+         my $tool = $tools->{$tool_name};
+
+         my $result =
+             $tool
+           ? $tool->{handler}->( $c, $params )
+           : { error => "Unknown tool: $tool_name", success => 0 };
+
+         # Keep existing response shape for compatibility
+         $result->{tool}          = $tool_name;
+         $result->{command_reply} = $tool_name;
+
+         # Redact any tokens that might have leaked
+         delete $result->{token};
+         delete $result->{execution_token};
+
+         $c->render( json => $result );
       }
-
-      # ---------- Execute tool ----------
-      my $params = $json->{params} // $json->{arguments} // $json->{parameters} // {};
-      my $tool   = $tools->{$tool_name};
-
-      my $result =
-           $tool
-         ? $tool->{handler}->( $c, $params )
-         : { error => "Unknown tool: $tool_name", success => 0 };
-
-      # Keep existing response shape for compatibility
-      $result->{tool}          = $tool_name;
-      $result->{command_reply} = $tool_name;
-
-      # Redact any tokens that might have leaked
-      delete $result->{token};
-      delete $result->{execution_token};
-
-      $c->render( json => $result );
-   }
-);
+   );
 
    $r->websocket('/websocket')
      ->to( controller => 'websocket', action => 'default' );
@@ -1669,7 +1670,7 @@ sub start_cluster {
 sub _start_cluster {
    my ( $self, $user, $d ) = @_;
 
-   my $cluster = $self->read_cluster( $user, $d );
+   my $cluster    = $self->read_cluster( $user, $d );
    my $cluster_id = $cluster->{id};
    return { success => 0, message => 'cluster not found' } unless $cluster_id;
 
@@ -1708,7 +1709,7 @@ sub _start_cluster {
       $self->sqlite->db->update(
          'cluster',
          { overdue_since => undef },
-         { id => $cluster_id },
+         { id            => $cluster_id },
       );
       $cluster->{overdue_since} = undef;
    }
@@ -1722,20 +1723,19 @@ sub _start_cluster {
             $self->sqlite->db->update(
                'cluster',
                { overdue_since => time() },
-               { id => $cluster_id },
+               { id            => $cluster_id },
             );
             $cluster->{overdue_since} = time();
 
-            my $handler = $self->sqlite->db->select(
-               'cluster',
-               ['id'],
+            my $handler =
+              $self->sqlite->db->select( 'cluster', ['id'],
                { id => $cluster->{on_overdue_id} },
-            )->hash;
+              )->hash;
 
             # Only start handler if it can actually run
             if ( $handler->{id}
-               && $self->_cluster_is_startable(
-                  $user, { id => $handler->{id} } ) )
+               && $self->_cluster_is_startable( $user,
+                  { id => $handler->{id} } ) )
             {
                my $context = encode_json(
                   {
@@ -1775,7 +1775,7 @@ sub _start_cluster {
       $self->sqlite->db->update(
          'cluster',
          { loop_count => 0 },
-         { id => $cluster_id },
+         { id         => $cluster_id },
       );
    }
 
@@ -1785,7 +1785,7 @@ sub _start_cluster {
       $self->sqlite->db->update(
          'cluster',
          { handler_context => $d->{handler_context} },
-         { id => $cluster_id },
+         { id              => $cluster_id },
       );
    }
 
@@ -1966,14 +1966,14 @@ sub _reset_cluster {
          { id => $cluster->{id}, all => $d->{all} } );
    }
 
-   return 1;
+   return $cluster_id;
 }
 
 sub reset_cluster {
    my ( $self, $user, $d ) = @_;
    my $rv = $self->_reset_cluster( $user, $d );
    return $rv
-     ? { success => 1 }
+     ? { success => 1, id      => $rv }
      : { success => 0, message => 'cluster is running' };
 }
 
@@ -2182,7 +2182,7 @@ sub delete_cluster {
    if ($delete_count) {
       $self->_broadcast_cluster( $user, [ map { $_->{id} } @{$clusters} ] );
       $self->_broadcast_cal( $user, [@cal_ids] );
-      return { success => 1, deleted => $delete_count };
+      return { success => 1, id => $cluster->{id}, deleted => $delete_count };
    }
    else {
       return { success => 0 };
@@ -2894,7 +2894,7 @@ sub delete_user {
    my $rows;
    $rows = $self->sqlite->db->delete( 'user', { id => $d->{id} } )->rows;
 
-   #return { success => 0, message => 'user not found' } unless $rows;
+   return { success => 0, message => 'user not found' } unless $rows;
    return { success => 1, message => 'Your account has been deleted' };
 }
 
@@ -3151,7 +3151,7 @@ sub kill_cluster {
       $self->kill_cluster( $user, { id => $child_cluster->{id} } );
    }
 
-   return { success => 1 };
+   return { success => 1, id => $cluster->{id}, action => 'kill' };
 }
 
 sub hold_cluster {
@@ -3200,7 +3200,7 @@ sub hold_cluster {
    #$self->_set_cluster_state( $user, { id => $child->{id}, state => 'hold' } );
    }
 
-   return { success => 1 };
+   return { success => 1, id => $cluster->{id} };
 }
 
 sub complete_cluster {
@@ -3261,7 +3261,7 @@ sub complete_cluster {
    #$self->_set_cluster_state( $user, { id => $child->{id}, state => 'hold' } );
    }
 
-   return { success => 1 };
+   return { success => 1, id => $cluster->{id} };
 }
 
 sub release_cluster {
@@ -3291,7 +3291,7 @@ sub release_cluster {
          }
       );
    }
-   return { success => 1 };
+   return { success => 1, id => $cluster->{id} };
 }
 
 sub ice_cluster {
@@ -3336,7 +3336,7 @@ sub ice_cluster {
    while ( my $child = $children->hash ) {
       $self->ice_cluster( $user, { id => $child->{id}, state => 'ice' } );
    }
-   return { success => 1 };
+   return { success => 1, id => $cluster->{id} };
 }
 
 sub melt_cluster {
@@ -3352,7 +3352,7 @@ sub melt_cluster {
    # release cluster
    $self->_reset_cluster( $user, { id => $cluster->{id}, all => 1 } );
 
-   return { success => 1 };
+   return { success => 1, id => $cluster->{id} };
 }
 
 sub create_job {
@@ -3550,7 +3550,7 @@ sub melt_job {
 
 #eval { $self->sqlite->db->update( 'job', { state_id => $self->job_states->{ready} }, { id => $job->{id} } ); };
    $self->_set_job_state( $user, { state => 'ready', id => $job->{id} } );
-   return { success => 1 };
+   return { success => 1, id => $job->{id} };
 
    #if ($@) {
    #   return { success => 0, message => $@ };
@@ -3576,7 +3576,7 @@ sub ice_job {
    }
 
    $self->_set_job_state( $user, { state => 'ice', id => $job->{id} } );
-   return { success => 1 };
+   return { success => 1, id => $job->{id}, action => 'ice' };
 }
 
 sub release_job {
@@ -3606,7 +3606,7 @@ sub release_job {
          }
       );
    }
-   return { success => 1 };
+   return { success => 1, id => $job->{id}, action => 'release' };
 }
 
 sub hold_job {
@@ -3616,7 +3616,7 @@ sub hold_job {
    return { success => 0, message => 'job is running' }
      if $job->{state_id} == $self->job_states->{running};
    $self->_set_job_state( $user, { id => $job->{id}, state => 'hold' } );
-   return { success => 1 };
+   return { success => 1, id => $job->{id}, action => 'hold' };
 }
 
 # returns true if cluster is startable
@@ -4688,7 +4688,7 @@ sub complete_job {
    return { success => 0, message => 'job not found' } unless $job->{id};
 
    $self->_set_job_state( $user, { id => $job->{id}, state => 'complete' } );
-   return { success => 1 };
+   return { success => 1, id => $job->{id} };
 }
 
 sub _cluster_needs_met {
@@ -4934,7 +4934,7 @@ sub _start_job {
       return { success => 0, message => $ssh->error };
    }
    else {
-      return { success => 1 };
+      return { success => 1, id => $job->{id}, action => 'start' };
    }
 }
 
@@ -5027,7 +5027,7 @@ sub kill_job {
    $self->_set_job_state( $user, { id => $job->{id}, state => 'stopping' } );
    my $rv      = $ssh->system("perl -e 'kill TERM, $pid_list'");
    my $success = $rv ? 1 : 0;
-   return { success => $success };
+   return { success => $success, id => $job->{id}, action => 'kill' };
 }
 
 sub nice_job {
@@ -6238,10 +6238,11 @@ sub _add_cron {
       $self->_broadcast_cal( $user, [ $cal_info->{id} ] );
    }
    else {
+
       return {
          success => 0,
          message =>
-           'invalid or an identical cron already exists in that calendar'
+"Cron expression already exists in this calendar (id=14) or is syntactically invalid. Check list_calendars or try a different expression."
       };
    }
 
@@ -6380,8 +6381,8 @@ sub create_checkout_session {
       $session = $self->app->stripe->create_checkout_session(
          customer_email => $user->email,
          price_id       => $ENV{STRIPE_PRO_PRICE_ID},
-         org_id      => $user->org_id,
-         success_url => $self->app->config->{public_url}
+         org_id         => $user->org_id,
+         success_url    => $self->app->config->{public_url}
            . '/app#settings/billing',
          cancel_url => $self->app->config->{public_url}
            . '/app#settings/billing',
@@ -6434,13 +6435,46 @@ sub create_customer_portal {
 
 sub get_documentation {
    my ( $self, $user, $d ) = @_;
-
    my $section = $d->{section} // 'overview';
    my $format  = $d->{format}  // 'markdown';
 
+   # Friendly aliases → canonical section names
+   my %aliases = (
+      'calendar'   => 'calendars-and-crons',
+      'calendars'  => 'calendars-and-crons',
+      'cron'       => 'calendars-and-crons',
+      'crons'      => 'calendars-and-crons',
+      'scheduling' => 'calendars-and-crons',
+      'schedule'   => 'calendars-and-crons',
+      'concepts'   => 'core-concepts',
+      'core'       => 'core-concepts',
+      'jobs'       => 'jobs-and-clusters',
+      'clusters'   => 'jobs-and-clusters',
+      'handlers'   => 'advanced-topics',       # or keep separate if you prefer
+      'ai'         => 'connecting-to-ai',
+      'mcp'        => 'connecting-to-ai',
+      'connecting' => 'connecting-to-ai',
+      'advanced'   => 'advanced-topics',
+      'stats'      => 'stats-polling',
+      'monitoring' => 'monitoring',
+   );
+
+   $section = $aliases{ lc $section } // $section;
+
    my $content = $self->_get_doc_content( $section, $format );
 
-   return { success => 0, message => 'doc not found' } unless $content;
+   # Real failure case
+   if ( !defined $content || $content =~ /^Document not found/ ) {
+      my @available = sort keys %{ $self->doc_cache->{full} // {} };
+      return {
+         success   => 0,
+         section   => $section,
+         message   => "Document not found: $section",
+         available => \@available,
+         hint      =>
+'Use one of the values in the "available" list (or try section "all").',
+      };
+   }
 
    return {
       success => 1,
@@ -6457,7 +6491,7 @@ sub _get_doc_content {
       return $section eq 'all'
         ? $self->doc_cache->{summaries}
         : ( $self->doc_cache->{summaries}{$section}
-           // $self->doc_cache->{summaries}{'overview'} );
+           // $self->doc_cache->{summaries}{overview} );
    }
 
    # Full markdown
@@ -6490,7 +6524,7 @@ sub routing {
 
       # Stats
       'find_stats' => [ 'find_stats', 1, [ {}, { since => 'i' } ], 1 ],
-      'ping' => [ 'ping', 1, [ {}, {} ], 1 ],
+      'ping'       => [ 'ping',       1, [ {}, {} ],               1 ],
 
       # Org related
       'update_org' =>
