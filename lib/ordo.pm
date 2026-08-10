@@ -831,9 +831,11 @@ sub startup {
 
          # Generic fallback
          return "Cluster action completed"
-           . ( $raw->{id} || $raw->{cluster_id}
+           . (
+            $raw->{id} || $raw->{cluster_id}
             ? " (id=" . ( $raw->{id} // $raw->{cluster_id} ) . ")"
-            : '' );
+            : ''
+           );
       }
 
       if ( $tool_name eq 'clone_cluster' && $raw->{id} ) {
@@ -1699,7 +1701,7 @@ sub _read_cluster {
 sub _set_cluster_state {
    my ( $self, $user, $d ) = @_;
 
-   my $LOOP = 0;
+   # my $LOOP = 0;
 
    # id state
    my $cluster =
@@ -1750,27 +1752,35 @@ sub _set_cluster_state {
            if $cluster->{parent_id};
       }
    }
-   elsif ( scalar( grep { $d->{state} eq $_ } (qw(complete ice_complete)) ) ) {
-      if ( $d->{state} eq 'complete' ) {
 
-         # Handle looping
-         if (  $cluster->{loops}
-            && $cluster->{loops} > $cluster->{loop_count} )
+   #elsif ( scalar( grep { $d->{state} eq $_ } (qw(complete ice_complete)) ) ) {
+   elsif ( $d->{state} eq 'complete'
+      && ( $cluster->{loops} // 0 ) > $cluster->{loop_count} )
+   {
+
+      my $loop_count = $cluster->{loop_count} || 0;
+      $loop_count++;
+      $self->sqlite->db->update(
+         'cluster',
          {
-            my $loop_count = $cluster->{loop_count} || 0;
-            $loop_count++;
-            $self->sqlite->db->update(
-               'cluster',
-               {
-                  loop_count => $loop_count,
-                  state_id   => $self->job_states->{looping}
-               },
-               { id => $cluster_id }
-            );
-            $LOOP = 1;
-         }
-      }
+            loop_count => $loop_count,
+            state_id   => $self->job_states->{looping}
+         },
+         { id => $cluster_id }
+      );
 
+      #$self->_reset_cluster( $user, { id => $cluster_id } );
+      $self->_start_cluster(
+         $user,
+         {
+            id        => $cluster_id,
+            origin    => 'loop',
+            origin_id => $cluster_id
+         }
+      );
+   }
+
+   elsif ( scalar( grep { $d->{state} eq $_ } (qw(complete ice_complete)) ) ) {
       $update_hash->{ended}           = time;
       $update_hash->{handler_context} = undef;
 
@@ -1869,18 +1879,6 @@ sub _set_cluster_state {
       $self->sqlite->db->update( 'cluster', $update_hash,
          { id => $cluster_id } );
       $self->_broadcast_cluster( $user, [$cluster_id] );
-   }
-
-   if ($LOOP) {
-      $self->_reset_cluster( $user, { id => $cluster_id } );
-      $self->_start_cluster(
-         $user,
-         {
-            id        => $cluster_id,
-            origin    => 'loop',
-            origin_id => $cluster_id
-         }
-      );
    }
 
    return 1;
@@ -2074,7 +2072,7 @@ sub _start_cluster {
                   }
                );
                $self->_start_cluster(
-                  $user,
+                  $user, 
                   {
                      id              => $handler->{id},
                      origin          => 'overdue',
@@ -2117,8 +2115,8 @@ sub _start_cluster {
       );
    }
 
-   $self->_set_cluster_state( $user,
-      { state => 'running', id => $cluster_id } );
+   #$self->_set_cluster_state( $user,
+   #   { state => 'running', id => $cluster_id } );
 
    my $start_response = {
       success      => 1,
@@ -2182,11 +2180,12 @@ sub _start_cluster {
    )->hashes;
 
    foreach my $j ( @{ $results->to_array } ) {
-      my $ji = $self->_job_info( $user, { id => $j->{id} } );
-      my $job_detail = {}; 
-      my @keep_fields = qw(id name jobstate state_id server_id server_name needs_any_ids needs_ids);
+      my $ji         = $self->_job_info( $user, { id => $j->{id} } );
+      my $job_detail = {};
+      my @keep_fields =
+        qw(id name jobstate state_id server_id server_name needs_any_ids needs_ids);
       for my $field (@keep_fields) {
-        $job_detail->{$field} = $ji->{$field};
+         $job_detail->{$field} = $ji->{$field};
       }
 
       push @{ $start_response->{jobs} }, $job_detail;
@@ -3992,7 +3991,7 @@ sub _cluster_is_running {
 
    return 1
      if scalar( grep { $cluster->{state_id} == $self->job_states->{$_} }
-        qw(running starting looping retrying) );
+        qw(running starting retrying) );
    return 0;
 }
 
@@ -4131,72 +4130,53 @@ sub _set_job_state {
       $update_hash->{ended} = time;
       $self->_reset_job_stats( $user, { id => $job_id } );
 
-      # removed 7-11-2026 -- see no point
-      # unless $d->{state} eq 'zombie';
-      $self->_set_cluster_state( $user,
-         { state => 'failed', id => $job->{cluster_id} } );
-
-      if ( $d->{state} eq 'failed' ) {
-print "RETRY: $job->{retrys},  $job->{retry_count}\n";
-         if ( $job->{retrys} && $job->{retrys} > $job->{retry_count} ) {
-            my $retry_count = $job->{retry_count} || 0;
-            $retry_count++;
-            $self->sqlite->db->update(
-               'job',
-               { retry_count => $retry_count },
-               { id          => $job_id }
-            );
-            $self->_set_job_state( $user,
-               { state => 'retrying', id => $job_id } );
-            my $rr = $self->_start_job( $user, { id => $job_id, origin => 'retry' } );
-         }
-
-         #if ( $job->{on_fail_id} ) {
-         #   my $cluster_alarm =
-         #     $self->sqlite->db->select( 'cluster', ['id'],
-         #      { id => $job->{on_fail_id} } )->hash;
-         #   if ( $cluster_alarm->{id} ) {
-         #      $self->_start_cluster(
-         #         $user,
-         #         {
-         #            id                => $cluster_alarm->{id},
-         #            origin            => 'fail',
-         #            origin_job_id     => $job_id,
-         #            origin_cluster_id => $cluster->{id},
-         #            force             => 1,
-         #         }
-         #      );
-         #   }
-         #}
-
+      if (  $d->{state} eq 'failed'
+         && $job->{retrys}
+         && $job->{retrys} > $job->{retry_count} )
+      {
+         my $retry_count = $job->{retry_count} || 0;
+         $retry_count++;
+         $self->sqlite->db->update(
+            'job',
+            { retry_count => $retry_count },
+            { id          => $job_id }
+         );
+         $self->_set_job_state( $user, { state => 'retrying', id => $job_id } );
+         $self->_start_job( $user, { id => $job_id, origin => 'retry' } );
+      }
+      else {
+         $self->_set_cluster_state( $user,
+            { state => 'failed', id => $job->{cluster_id} } );
       }
    }
+
+   elsif ( $d->{state} eq 'complete'
+      && ( $job->{loops} // 0 ) > $job->{loop_count} )
+   {
+
+      my $loop_count = $job->{loop_count} || 0;
+      $loop_count++;
+      $self->sqlite->db->update(
+         'job',
+         {
+            loop_count => $loop_count,
+            state_id   => $self->job_states->{looping}
+         },
+         { id => $job_id }
+      );
+      $self->_start_job( $user, { id => $job_id, origin => 'loop' } );
+   }
    elsif ( scalar( grep { $d->{state} eq $_ } (qw(complete ice_complete)) ) ) {
-      if ( $d->{state} eq 'complete' ) {
-         if ( $job->{loops} && $job->{loops} > $job->{loop_count} ) {
-            my $loop_count = $job->{loop_count} || 0;
-            $loop_count++;
-            $self->sqlite->db->update(
-               'job',
-               {
-                  loop_count => $loop_count,
-                  state_id   => $self->job_states->{looping}
-               },
-               { id => $job_id }
-            );
-            $self->_start_job( $user, { id => $job_id, origin => 'loop' } );
-         }
-         else {
-            $self->sqlite->db->update(
-               'job',
-               {
-                  loop_count => 0,
-                  state_id   => $self->job_states->{complete}
-               },
-               { id => $job_id }
-            );
-         }
-      }
+
+      # complete job so dependencies will trigger
+      $self->sqlite->db->update(
+         'job',
+         {
+            loop_count => 0,
+            state_id   => $self->job_states->{complete}
+         },
+         { id => $job_id }
+      ) if $d->{state} eq 'complete';
 
       # Trigger dependent jobs
       my $depends_sql = <<~"SQL";
@@ -4224,15 +4204,6 @@ print "RETRY: $job->{retrys},  $job->{retry_count}\n";
 
       $update_hash->{ended} = time;
       $self->_reset_job_stats( $user, { id => $job_id } );
-
-      # Note: moved to end so all jobs complete first
-      #$COMPLETE_CLUSTER = 1;
-
-      #if ( $self->_cluster_is_complete( $user, { id => $job->{cluster_id} } ) )
-      #{
-      #   $self->_set_cluster_state( $user,
-      #      { state => 'complete', id => $job->{cluster_id} } );
-      #}
    }
    elsif ( $d->{state} eq 'retrying' ) {
 
@@ -4269,14 +4240,6 @@ print "RETRY: $job->{retrys},  $job->{retry_count}\n";
          { state => 'complete', id => $job->{cluster_id} } );
    }
 
-   # $self->_broadcast_job( $user, [$job_id] );
-
-   #if ( $COMPLETE_CLUSTER )
-   #{
-   #   $self->_set_cluster_state( $user,
-   #      { state => 'complete', id => $job->{cluster_id} } );
-   #}
-
    return 1;
 }
 
@@ -4285,16 +4248,9 @@ sub _update_job_log {
 
    return unless $d->{job_id} && $d->{log_id} && $d->{ppid};
 
-   #return unless $d->{log_id} && $d->{ppid};
-
-   #my $job_id = $job->{id};
-   #my $log_id = $d->{log_id};
-   #my $ppid   = $d->{ppid};
-
    my $log_dir = "ordo_node/logs";    # adjust to your log path
-       #my $log_file = "$log_dir/out.$d->{job_id}.$d->{ppid}.$d->{log_id}.log";
 
-   if ( $d->{state} eq 'running' ) {
+   if ( grep { $d->{state} eq $_ } (qw(running looping retrying)) ) {
 
       # Insert new log entry
       my $insert_hash = {
@@ -4397,7 +4353,7 @@ sub update_job_state {
    # Step 4: Broadcast state/runtime update
    $self->_broadcast_job( $user, [$job_id] );
 
-   return { success => 1, message => 'hodedo' };
+   return { success => 1 };
 }
 
 sub update_job_config {
@@ -4540,7 +4496,7 @@ sub _resolve_cluster_ids {
    return \@need_ids;
 }
 
-sub _update_job {
+sub _update_job2 {
    my ( $self, $user, $d ) = @_;
 
    my $job = $self->_job_info( $user, $d );    #job info
@@ -5101,7 +5057,7 @@ sub _start_job {
    # === BLOCK START FOR THESE STATES ===
    my @blocked_states = qw(starting running hold);
    push @blocked_states, 'retrying' unless ( $d->{origin} // '' ) eq 'retry';
-   push @blocked_states, 'looping' unless ( $d->{origin} // '' ) eq 'loop';
+   push @blocked_states, 'looping'  unless ( $d->{origin} // '' ) eq 'loop';
 
    if ( scalar grep { $self->job_states->{$_} == $job->{state_id} }
       @blocked_states )
@@ -5112,21 +5068,6 @@ sub _start_job {
          message => 'job cannot be started',
       };
    }
-
-=pod
-   # Special case for looping state
-   if ( $job->{state_id} == $self->job_states->{looping} ) {
-      if ( !$d->{origin} || $d->{origin} ne 'loop' ) {
-         return {
-            success => 0,
-            skipped => 1,
-            message => $isUserStart
-            ? 'Job is currently looping. Use cluster clone for parallel execution.'
-            : 'job is looping'
-         };
-      }
-   }
-=cut
 
    # Skip ice
    if ( $job->{state_id} == $self->job_states->{ice} ) {
@@ -6575,26 +6516,6 @@ sub _add_cron {
    my $rv = $self->_create_cron_object( $user, { id => $id } );
    return $rv;
 }
-
-#sub _add_at {
-#   my ( $self, $user, $d ) = @_;
-
-# at name description start end cal cal_id
-
-#   return { success => 0, message => 'only future events may be scheduled' }
-#     if time > $d->{name};
-#   return { success => 0, message => 'event too far in the future' }
-#     if $d->{name} > 4102466400;    # max year 2100
-
-#   my ( $sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst ) =
-#     localtime( $d->{name} );
-
-#   $d->{name} = sprintf( "%d %d %d %d %d ? %d",
-#      $sec, $min, $hour, $mday, $mon + 1, $year += 1900 );
-
-#   my $rv = $self->_add_cron( $user, $d );
-#   return $rv;
-#}
 
 sub update_cal {
    my ( $self, $user, $d ) = @_;
