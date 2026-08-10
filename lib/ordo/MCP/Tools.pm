@@ -468,11 +468,17 @@ sub get_tools {
                { command => $cmd, id => $args->{id} } );
          },
       },
-
       manage_cluster => {
          description =>
            'Perform a lifecycle action on a cluster (and its jobs). '
-           . 'Most common: start (runs the whole workflow), kill, hold, reset, delete.',
+           . 'Most common: start (runs the whole workflow), kill, hold, reset, delete.'
+           . "\n\n"
+           . '**Important agent behavior – fire-and-forget:**' . "\n"
+           . 'When you start a cluster, treat it as fire-and-forget. '
+           . 'After a successful start, report what was started and stop. '
+           . 'Do **not** automatically poll for completion or status. '
+           . 'Only check status or logs if the user explicitly asks '
+           . '(e.g. “did it finish?”, “show me the logs”, “what failed?”).',
          inputSchema => {
             type       => 'object',
             properties => {
@@ -497,7 +503,6 @@ sub get_tools {
                { command => $cmd, id => $args->{id} } );
          },
       },
-
       clone_cluster => {
          description =>
 'Clone a cluster (identical copy). Most often used from an On Overdue handler '
