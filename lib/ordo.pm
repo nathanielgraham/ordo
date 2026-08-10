@@ -4151,7 +4151,7 @@ sub _set_job_state {
    }
 
    elsif ( $d->{state} eq 'complete'
-      && ( $job->{loops} // 0 ) > $job->{loop_count} )
+      && ( $job->{loop_count} < $job->{loops} // 0 ) )
    {
 
       my $loop_count = $job->{loop_count} || 0;
@@ -4172,7 +4172,6 @@ sub _set_job_state {
       $self->sqlite->db->update(
          'job',
          {
-            loop_count => 0,
             state_id   => $self->job_states->{complete}
          },
          { id => $job_id }
