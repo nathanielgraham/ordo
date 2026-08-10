@@ -236,6 +236,21 @@ sub get_tools {
                   type    => 'boolean',
                   default => 1,
                },
+               description => { type => 'string' },
+               cal_id      => {
+                  type        => 'integer',
+                  description =>
+                    'Calendar ID to attach (omit or null to detach)',
+               },
+               needs_ids  => {
+                  type  => 'array',
+                  items => { type => 'integer' },
+               },
+               needs_any_ids => {
+                  type  => 'array',
+                  items => { type => 'integer' },
+               },
+               loops => { type => 'integer' },
             },
             required => ['name'],
          },
@@ -350,6 +365,7 @@ sub get_tools {
                },
                on_fail_id    => { type => 'integer' },
                on_overdue_id => { type => 'integer' },
+               loops => { type => 'integer' },
             },
             required => ['id'],
          },
