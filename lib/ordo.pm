@@ -4137,6 +4137,7 @@ sub _set_job_state {
          { state => 'failed', id => $job->{cluster_id} } );
 
       if ( $d->{state} eq 'failed' ) {
+print "RETRY: $job->{retrys},  $job->{retry_count}\n";
          if ( $job->{retrys} && $job->{retrys} > $job->{retry_count} ) {
             my $retry_count = $job->{retry_count} || 0;
             $retry_count++;
@@ -4147,7 +4148,7 @@ sub _set_job_state {
             );
             $self->_set_job_state( $user,
                { state => 'retrying', id => $job_id } );
-            $self->_start_job( $user, { id => $job_id, origin => 'retry' } );
+            my $rr = $self->_start_job( $user, { id => $job_id, origin => 'retry' } );
          }
 
          #if ( $job->{on_fail_id} ) {
@@ -5097,20 +5098,22 @@ sub _start_job {
 
    my $isUserStart = ( $d->{origin} && $d->{origin} eq 'user' );
 
-   # === BLOCK START IF JOB IS ACTIVE OR IN TRANSITION ===
-   my @blocked_states = qw(starting running retrying);
+   # === BLOCK START FOR THESE STATES ===
+   my @blocked_states = qw(starting running hold);
+   push @blocked_states, 'retrying' unless ( $d->{origin} // '' ) eq 'retry';
+   push @blocked_states, 'looping' unless ( $d->{origin} // '' ) eq 'loop';
+
    if ( scalar grep { $self->job_states->{$_} == $job->{state_id} }
       @blocked_states )
    {
       return {
          success => 0,
          skipped => 1,
-         message => $isUserStart
-         ? 'Job is already active or in transition. Use cluster clone for parallel execution.'
-         : 'job is already running'
+         message => 'job cannot be started',
       };
    }
 
+=pod
    # Special case for looping state
    if ( $job->{state_id} == $self->job_states->{looping} ) {
       if ( !$d->{origin} || $d->{origin} ne 'loop' ) {
@@ -5123,6 +5126,7 @@ sub _start_job {
          };
       }
    }
+=cut
 
    # Skip ice
    if ( $job->{state_id} == $self->job_states->{ice} ) {

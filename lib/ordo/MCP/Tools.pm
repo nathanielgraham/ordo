@@ -478,7 +478,14 @@ sub get_tools {
            . 'After a successful start, report what was started and stop. '
            . 'Do **not** automatically poll for completion or status. '
            . 'Only check status or logs if the user explicitly asks '
-           . '(e.g. “did it finish?”, “show me the logs”, “what failed?”).',
+           . '(e.g. “did it finish?”, “show me the logs”, “what failed?”).'
+           . "\n\n"
+           . '**On Overdue vs manual start:**' . "\n"
+           . 'On Overdue handlers only fire when a calendar/cron tries to start '
+           . 'the cluster and it cannot run (still busy or on hold). '
+           . 'A manual start while the cluster is busy returns an error and does '
+           . '**not** trigger On Overdue. This is intentional — overdue is a '
+           . 'scheduling concept.',
          inputSchema => {
             type       => 'object',
             properties => {
