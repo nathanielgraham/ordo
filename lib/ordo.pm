@@ -1701,8 +1701,6 @@ sub _read_cluster {
 sub _set_cluster_state {
    my ( $self, $user, $d ) = @_;
 
-   # my $LOOP = 0;
-
    # id state
    my $cluster =
      $self->sqlite->db->select( 'cluster', ['*'], { id => $d->{id} } )->hash;
@@ -1753,11 +1751,9 @@ sub _set_cluster_state {
       }
    }
 
-   #elsif ( scalar( grep { $d->{state} eq $_ } (qw(complete ice_complete)) ) ) {
    elsif ( $d->{state} eq 'complete'
       && ( $cluster->{loops} // 0 ) > $cluster->{loop_count} )
    {
-
       my $loop_count = $cluster->{loop_count} || 0;
       $loop_count++;
       $self->sqlite->db->update(
@@ -1769,7 +1765,6 @@ sub _set_cluster_state {
          { id => $cluster_id }
       );
 
-      #$self->_reset_cluster( $user, { id => $cluster_id } );
       $self->_start_cluster(
          $user,
          {
@@ -4151,7 +4146,7 @@ sub _set_job_state {
    }
 
    elsif ( $d->{state} eq 'complete'
-      && ( $job->{loop_count} < $job->{loops} // 0 ) )
+      && ( $job->{loop_count} < ( $job->{loops} // 0 ) ) )
    {
 
       my $loop_count = $job->{loop_count} || 0;
@@ -4164,14 +4159,23 @@ sub _set_job_state {
          },
          { id => $job_id }
       );
+
       $self->_start_job( $user, { id => $job_id, origin => 'loop' } );
+
+      $self->sqlite->db->update( 'job', { state_id   => $self->job_states->{looping} }, { id => $job_id } );
+
+      $self->_broadcast_job( $user, [$job_id] );
+
+      return 1;
    }
+
    elsif ( scalar( grep { $d->{state} eq $_ } (qw(complete ice_complete)) ) ) {
 
       # complete job so dependencies will trigger
       $self->sqlite->db->update(
          'job',
          {
+            loop_count => 0,
             state_id   => $self->job_states->{complete}
          },
          { id => $job_id }
