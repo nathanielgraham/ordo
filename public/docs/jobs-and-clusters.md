@@ -24,6 +24,8 @@ A **Job** is the smallest unit of work in Ordo. Each job:
 ## Clusters
 
 A **Cluster** is a container that can hold jobs and other clusters, forming a hierarchical tree.
+Once started, it runs until every job and sub-cluster reaches a terminal state or is iced.
+Exception: if any job fails, the cluster itself is marked failed immediately and the On Fail handler is eligible to run, even while other jobs are still in progress.
 
 Clusters are powerful because you can:
 - Attach a **Calendar** to run the entire group on a schedule

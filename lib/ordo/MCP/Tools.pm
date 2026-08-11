@@ -194,10 +194,14 @@ sub get_tools {
                   items       => { type => 'integer' },
                   description => 'IDs where only ONE needs to succeed (OR)',
                },
-               retrys                 => { type => 'integer' },
-               loops                  => { type => 'integer' },
-               delay                  => { type => 'integer' },
-               max_runtime_seconds    => { type => 'integer' },
+               retrys              => { type => 'integer' },
+               loops               => { type => 'integer' },
+               delay               => { type => 'integer' },
+               max_runtime_seconds => {
+                  type        => 'integer',
+                  description =>
+'Exceeding max_runtime_seconds starts the configured handler cluster; it does not automatically kill the job. Kill, notify, or recover as you define in the handler'
+               },
                max_runtime_cluster_id => { type => 'integer' },
             },
             required => [ 'name', 'script', 'parent_id', 'server_id' ],
@@ -242,7 +246,7 @@ sub get_tools {
                   description =>
                     'Calendar ID to attach (omit or null to detach)',
                },
-               needs_ids  => {
+               needs_ids => {
                   type  => 'array',
                   items => { type => 'integer' },
                },
@@ -315,10 +319,14 @@ sub get_tools {
                   type  => 'array',
                   items => { type => 'integer' },
                },
-               retrys                 => { type => 'integer' },
-               loops                  => { type => 'integer' },
-               delay                  => { type => 'integer' },
-               max_runtime_seconds    => { type => 'integer' },
+               retrys              => { type => 'integer' },
+               loops               => { type => 'integer' },
+               delay               => { type => 'integer' },
+               max_runtime_seconds => {
+                  type        => 'integer',
+                  description =>
+'Exceeding max_runtime_seconds starts the configured handler cluster; it does not automatically kill the job. Kill, notify, or recover as you define in the handler'
+               },
                max_runtime_cluster_id => { type => 'integer' },
             },
             required => ['id'],
@@ -365,7 +373,7 @@ sub get_tools {
                },
                on_fail_id    => { type => 'integer' },
                on_overdue_id => { type => 'integer' },
-               loops => { type => 'integer' },
+               loops         => { type => 'integer' },
             },
             required => ['id'],
          },

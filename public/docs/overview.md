@@ -1,42 +1,42 @@
-# Welcome to Ordo
+# Overview
 
-**Job scheduling for teams done with cron spaghetti.**
+**Ordo is a hierarchical job scheduler designed for both humans and AI agents.**
 
-Ordo runs scheduled work across servers with explicit dependencies and a defined path when something fails, misses its window, or runs too long. Think of it as cron with superpowers.
+It schedules work across servers with explicit dependencies and a defined recovery path when something fails, misses its window, or runs too long. Think of it as cron with superpowers.
 
 ## Who Ordo Is For
 
 - Teams that have outgrown cron and need dependencies, recovery, and a single place to see what ran
-- DevOps and SRE teams running scheduled work across multiple servers
+- DevOps teams running scheduled work across multiple servers
 - Small teams that want reliable automation without babysitting a heavy orchestrator
 - AI enthusiasts who want their agents to take real action (MCP)
 
 ## What You Get
 
 - **Hierarchical workflows**  
-  Organize jobs into nested clusters with built-in dependency logic and failure handling. See the full chain on a dependency graph instead of reconstructing it from memory.
+  Organize jobs into nested clusters with scheduling and dependency logic built in. See the full chain on a dependency graph instead of reconstructing it from memory.
 
-- **Natural-language automation with AI**  
+- **Natural language automation with AI**  
   Describe the job, schedule, or recovery path in plain English. Grok can build it on your servers; you still get real jobs and clusters you can open, edit, and run with or without AI.
 
-- **Respond when things go wrong**  
+- **Automatically respond when things go wrong**  
   `On Fail`, `On Overdue`, and `Max Runtime` handlers can alert, clone, escalate, or recover. The next step is defined before the incident becomes a scavenger hunt.
 
 - **Cloning**  
   When the previous run is still busy at the next scheduled time, spin up an identical copy instead of skipping, colliding, or hoping.
 
 - **Advanced scheduling**  
-  Full Quartz cron plus calendars that can hold multiple cron expressions, for complex schedules that plain cron can’t express, e.g. the third Monday of February and month-end, with begin/expire windows.
+  Supports rich Quartz cron syntax plus calendars that can hold multiple cron expressions, so you can define schedules that plain cron can’t express, e.g. the third Monday of February and month-end, with begin/expire windows.
 
 - **Real-time observability**  
   Live dashboard, T+/T− timers, dependency graphs, and server metrics. See whether it ran, when, and what happened. Run history and logs live in one place, so “did it run?” isn’t a research project across hosts.
 
 - **Recovery controls**  
-  Retries, hold/ice/release, and escalation paths you own, without standing up an enterprise scheduling stack.
+  Retries, hold/ice/release, and escalation paths you own, without standing up an enterprise orchestration stack.
 
-## Natural-Language Automation (MCP)
+## Natural Language Automation (MCP)
 
-Ordo supports **Model Context Protocol**, so trusted AI agents like Grok can explore, create, schedule, monitor, debug, and repair jobs on your servers using natural language.
+Ordo supports **Model Context Protocol**, so AI agents can explore, create, schedule, monitor, debug, and repair jobs on your servers using natural language.
 
 You can say things like:
 
@@ -49,10 +49,10 @@ The agent can create scripts and schedules on **your** servers, wire dependencie
 
 ## Works With or Without AI
 
-Ordo is a full job scheduler on its own. MCP is optional power, not a requirement. The source of truth is always the jobs and clusters you can see.
+Ordo is a full job scheduler on its own. MCP is optional power, not a requirement.
 
 ## Ready to Begin?
 
 1. **Sign up for a free account** - no credit card required  
 2. Read the [Quickstart](#docs/quickstart) guide  
-3. **Start building**
+3. Optionally connect an MCP client and let an agent help from there. See [Connecting to AI](#docs/connecting-to-ai)
