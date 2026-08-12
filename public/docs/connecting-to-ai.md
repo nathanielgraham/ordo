@@ -11,54 +11,6 @@ Ordo supports **Model Context Protocol (MCP)**, so trusted models like **Grok** 
 
 Grok will remember the connection for the rest of the conversation.
 
-### Request shape
-
-Ordo speaks standard MCP over JSON-RPC. Preferred auth is a Bearer token:
-
-```
-curl -X POST https://ordoscheduler.com/mcp \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
-```
-
-Core methods:
-
-| Method        | Purpose                          |
-|---------------|----------------------------------|
-| `initialize`  | Handshake / capabilities         |
-| `tools/list`  | Discover available tools         |
-| `tools/call`  | Execute a tool                   |
-
-Example tool call:
-
-```
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/call",
-  "params": {
-    "name": "list_servers",
-    "arguments": {}
-  }
-}
-```
-
-## Agent behavior: fire-and-forget
-
-**Starting work is fire-and-forget by default.**
-
-When an agent starts a cluster or job:
-
-1. It receives a clear summary of what was started.
-2. It should report that result to the user.
-3. It should **stop** — do not automatically poll for completion.
-
-Only check status or logs when the user explicitly asks  
-(e.g. “did it finish?”, “show me the logs”, “what failed?”).
-
-This keeps API usage efficient and matches how most people use a job scheduler: launch the work, then inspect only when needed.
-
 ## What agents can do
 
 - Browse servers, clusters, jobs, and calendars
@@ -120,7 +72,24 @@ This keeps API usage efficient and matches how most people use a job scheduler: 
 | Ops      | `sync`                                                                |
 | Account  | `read_user`, `read_org`                                               |
 
-List tools:
+## Agent behavior
+
+**Starting work is fire-and-forget by default.**
+
+When an agent starts a cluster or job:
+
+1. It receives a clear summary of what was started.
+2. It should report that result to the user.
+3. It should **stop** - do not automatically poll for completion.
+
+Only check status or logs when the user explicitly asks  
+(e.g. “did it finish?”, “show me the logs”, “what failed?”).
+
+This keeps API usage efficient and matches how most people use a job scheduler: launch the work, then inspect only when needed.
+
+### Request shape
+
+Ordo speaks standard MCP over JSON-RPC. Preferred auth is a Bearer token:
 
 ```
 curl -X POST https://ordoscheduler.com/mcp \
@@ -129,8 +98,30 @@ curl -X POST https://ordoscheduler.com/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
+Core methods:
+
+| Method        | Purpose                          |
+|---------------|----------------------------------|
+| `initialize`  | Handshake / capabilities         |
+| `tools/list`  | Discover available tools         |
+| `tools/call`  | Execute a tool                   |
+
+Example tool call:
+
+```
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "list_servers",
+    "arguments": {}
+  }
+}
+```
+
 ## Next
 
-- [Quickstart](#docs/quickstart) — first server and workflow
-- [Advanced Topics](#docs/advanced-topics) — handlers, cloning, environment variables
-- [FAQ](#docs/faq) — SSH, limits, stuck jobs
+- [Quickstart](#docs/quickstart) - first server and workflow
+- [Advanced Topics](#docs/advanced-topics) - handlers, cloning, environment variables
+- [FAQ](#docs/faq) - SSH, limits, stuck jobs

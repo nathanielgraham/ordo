@@ -3,11 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Ordo is a hierarchical job scheduler for humans and AI agents" />
   <title>Ordo Scheduler</title>
-  <link rel="icon" href="/favicon.ico" type="image/x-icon" />
-  <link rel="stylesheet" href="/css/app.css?v=<%= time %>" />
 
+  <meta name="description" content="Run scheduled work across servers with explicit dependencies, calendars, and recovery paths when jobs fail, miss their window, or run too long." />
+
+  <% my $base = $c->config->{public_url} // 'https://ordoscheduler.com'; %>
+  <link rel="canonical" href="<%= $base %>/" />
+  <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="<%= $base %>/" />
+  <meta property="og:title" content="Ordo - Job scheduling without the crontab chaos" />
+  <meta property="og:description" content="Dependencies, calendars, and a defined path when something fails." />
+  <meta property="og:image" content="<%= $base %>/img/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:site_name" content="Ordo" />
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Ordo - Job scheduling without the crontab chaos" />
+  <meta name="twitter:description" content="Dependencies, calendars, and a defined path when something fails." />
+  <meta name="twitter:image" content="<%= $base %>/img/og-image.png" />
+
+  <link rel="stylesheet" href="/css/app.css?v=<%= time %>" />
   <% my $isSelfHosted = $c->is_selfhosted; %>
 
   <!-- Font Awesome -->

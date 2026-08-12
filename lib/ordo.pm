@@ -102,18 +102,6 @@ sub startup {
       }
    );
 
-   #$self->helper(
-   #   stripe => sub {
-   #     my $c = shift;
-   #     if (!$c->is_saaS) {
-   #       return { error => 'Billing not available in this deployment mode' };
-   #     }
-   #     state $stripe = ordo::Stripe->new( config => $self->config );
-   #     return $stripe;
-   #   }
-   #);
-
-   # Add this to your main app class
    has 'last_warning_cache' => sub {
       state $cache = {};
       return $cache;
@@ -320,6 +308,163 @@ sub startup {
 
    # Router
    my $r = $self->routes;
+
+   # Public docs → app hash routes
+   $r->get(
+      '/docs/:section' => sub {
+         my $c       = shift;
+         my $section = $c->param('section') // 'overview';
+
+         # only allow known docs
+         my %allowed = map { $_ => 1 } qw(
+           overview quickstart core-concepts jobs-and-clusters calendars-and-crons
+           dashboard cli rest-api connecting-to-ai advanced-topics settings
+           stats-polling deploy self-hosted private-deployments faq privacy terms
+         );
+         $section = 'overview' unless $allowed{$section};
+         $c->res->code(301);
+         $c->redirect_to("/app/#docs/$section");
+      }
+   );
+
+   $r->get(
+      '/docs' => sub {
+         my $c = shift;
+         $c->redirect_to('/app/#docs/overview');
+      }
+   );
+
+   $r->get(
+      '/robots.txt' => sub {
+         my $c    = shift;
+         my $base = $c->app->config->{public_url}
+           // 'https://ordoscheduler.com';
+         $base =~ s{/$}{};
+         $c->render(
+            text   => "User-agent: *\nAllow: /\n\nSitemap: $base/sitemap.xml\n",
+            format => 'txt'
+         );
+      }
+   );
+
+   # Sitemap
+   $r->get(
+      '/sitemap.xml' => sub {
+         my $c    = shift;
+         my $base = $c->app->config->{public_url}
+           // 'https://ordoscheduler.com';
+         $base =~ s{/$}{};
+
+         my @urls = (
+            { loc => "$base/", priority => '1.0', changefreq => 'weekly' },
+            {
+               loc        => "$base/docs/overview",
+               priority   => '0.9',
+               changefreq => 'weekly'
+            },
+            {
+               loc        => "$base/docs/quickstart",
+               priority   => '0.9',
+               changefreq => 'weekly'
+            },
+            {
+               loc        => "$base/docs/core-concepts",
+               priority   => '0.8',
+               changefreq => 'monthly'
+            },
+            {
+               loc        => "$base/docs/jobs-and-clusters",
+               priority   => '0.8',
+               changefreq => 'monthly'
+            },
+            {
+               loc        => "$base/docs/calendars-and-crons",
+               priority   => '0.8',
+               changefreq => 'monthly'
+            },
+            {
+               loc        => "$base/docs/dashboard",
+               priority   => '0.7',
+               changefreq => 'monthly'
+            },
+            {
+               loc        => "$base/docs/cli",
+               priority   => '0.7',
+               changefreq => 'monthly'
+            },
+            {
+               loc        => "$base/docs/rest-api",
+               priority   => '0.7',
+               changefreq => 'monthly'
+            },
+            {
+               loc        => "$base/docs/connecting-to-ai",
+               priority   => '0.7',
+               changefreq => 'monthly'
+            },
+            {
+               loc        => "$base/docs/advanced-topics",
+               priority   => '0.7',
+               changefreq => 'monthly'
+            },
+            {
+               loc        => "$base/docs/settings",
+               priority   => '0.6',
+               changefreq => 'monthly'
+            },
+            {
+               loc        => "$base/docs/stats-polling",
+               priority   => '0.5',
+               changefreq => 'monthly'
+            },
+            {
+               loc        => "$base/docs/deploy",
+               priority   => '0.6',
+               changefreq => 'monthly'
+            },
+            {
+               loc        => "$base/docs/self-hosted",
+               priority   => '0.6',
+               changefreq => 'monthly'
+            },
+            {
+               loc        => "$base/docs/private-deployments",
+               priority   => '0.5',
+               changefreq => 'monthly'
+            },
+            {
+               loc        => "$base/docs/faq",
+               priority   => '0.6',
+               changefreq => 'monthly'
+            },
+            {
+               loc        => "$base/docs/privacy",
+               priority   => '0.3',
+               changefreq => 'yearly'
+            },
+            {
+               loc        => "$base/docs/terms",
+               priority   => '0.3',
+               changefreq => 'yearly'
+            },
+         );
+
+         my $xml = qq{<?xml version="1.0" encoding="UTF-8"?>\n};
+         $xml .=
+           qq{<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n};
+         for my $u (@urls) {
+            $xml .= "  <url>\n";
+            $xml .= "    <loc>$u->{loc}</loc>\n";
+            $xml .= "    <changefreq>$u->{changefreq}</changefreq>\n";
+            $xml .= "    <priority>$u->{priority}</priority>\n";
+            $xml .= "  </url>\n";
+         }
+         $xml .= qq{</urlset>\n};
+
+         $c->res->headers->content_type('application/xml; charset=UTF-8');
+         $c->render( text => $xml );
+      }
+   );
 
    $r->get('/terms')->to('pages#terms');
    $r->get('/privacy')->to('pages#privacy');
@@ -2067,7 +2212,7 @@ sub _start_cluster {
                   }
                );
                $self->_start_cluster(
-                  $user, 
+                  $user,
                   {
                      id              => $handler->{id},
                      origin          => 'overdue',
@@ -4162,7 +4307,11 @@ sub _set_job_state {
 
       $self->_start_job( $user, { id => $job_id, origin => 'loop' } );
 
-      $self->sqlite->db->update( 'job', { state_id   => $self->job_states->{looping} }, { id => $job_id } );
+      $self->sqlite->db->update(
+         'job',
+         { state_id => $self->job_states->{looping} },
+         { id       => $job_id }
+      );
 
       $self->_broadcast_job( $user, [$job_id] );
 
