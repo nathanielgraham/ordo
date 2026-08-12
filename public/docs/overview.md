@@ -55,4 +55,4 @@ Ordo is a full job scheduler on its own. MCP is optional power, not a requiremen
 
 1. **Sign up for a free account** - no credit card required  
 2. Read the [Quickstart](#docs/quickstart) guide  
-3. Optionally connect an MCP client and let an agent help from there. See [Connecting to AI](#docs/connecting-to-ai)
+3. Optionally [connect an MCP client](#docs/connecting-to-ai) and let an agent help from there.
