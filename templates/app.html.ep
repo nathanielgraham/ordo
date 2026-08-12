@@ -11,6 +11,7 @@
   <link rel="canonical" href="<%= $base %>/" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
 
+  <meta name="msvalidate.01" content="5B10432B7C2937C0733DC84F0F158007" />
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:url" content="<%= $base %>/" />

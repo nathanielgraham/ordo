@@ -347,6 +347,22 @@ sub startup {
       }
    );
 
+   # Yandex Webmaster verification
+   $r->get(
+      '/yandex_64337a99d52918a0.html' => sub {
+         my $c = shift;
+         $c->res->headers->content_type('text/html; charset=UTF-8');
+         $c->render( text => <<'HTML' );
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+    <body>Verification: 64337a99d52918a0</body>
+</html>
+HTML
+      }
+   );
+
    # Sitemap
    $r->get(
       '/sitemap.xml' => sub {
@@ -3071,7 +3087,7 @@ sub _fetch_invite {
     
     <p>$inviter_name has invited you to join their organization on Ordo.</p>
     
-    <p>Ordo is a modern AI-native job scheduler for teams and power users.</p>
+    <p>Ordo is a AI-native job scheduler for teams and power users.</p>
     
     <p style="margin:35px 0;">
       <a href="$url" 
@@ -3104,7 +3120,7 @@ Youve been invited to Ordo
 
 $inviter_name has invited you to join their organization.
 
-Ordo is a modern AI-native job scheduler.
+Ordo is a AI-native job scheduler.
 
 Accept the invitation here:
 $url
