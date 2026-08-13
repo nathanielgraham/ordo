@@ -29,9 +29,11 @@ use Mojolicious::Plugin::JSONConfig;
 use ordo::License;
 use Data::Dumper;
 
-$SIG{CHLD} = sub {
-   1 while ( ( waitpid( -1, WNOHANG ) ) > 0 );
-};
+$SIG{CHLD} = 'IGNORE'
+
+#$SIG{CHLD} = sub {
+#   1 while ( ( waitpid( -1, WNOHANG ) ) > 0 );
+#};
 
 # Cache for documentation (documents change rarely)
 has 'doc_cache' => sub {
@@ -101,11 +103,6 @@ sub startup {
          return $stripe;
       }
    );
-
-   has 'last_warning_cache' => sub {
-      state $cache = {};
-      return $cache;
-   };
 
    $self->_preload_documents();
 
@@ -4657,137 +4654,6 @@ sub _resolve_cluster_ids {
         if $path_info->{success} && $path_info->{cluster_id};
    }
    return \@need_ids;
-}
-
-sub _update_job2 {
-   my ( $self, $user, $d ) = @_;
-
-   my $job = $self->_job_info( $user, $d );    #job info
-   return { success => 0, message => 'job not found' } unless $job->{id};
-
-   my ( $needs_ids, $needs_any_ids );
-
-   if ( $d->{needs_ids} ) {
-      $needs_ids = $self->_filter_job_ids( $user, $d->{needs_ids} );
-   }
-   elsif ( $d->{needs} ) {
-      $needs_ids = $self->_resolve_job_ids( $user, $d->{needs} );
-   }
-   if ( $d->{needs_any_ids} ) {
-      $needs_any_ids = $self->_filter_job_ids( $user, $d->{needs_any_ids} );
-   }
-   elsif ( $d->{needs_any} ) {
-      $needs_any_ids = $self->_resolve_job_ids( $user, $d->{needs_any} );
-   }
-
-   my @fields =
-     qw(retrys loops delay pctcpu pid start priority rss pctmem fname signal exit_code state_id description started ended server_id script);
-   push( @fields, 'ppid' ) if $d->{state} && $d->{state} eq 'running';
-
-   my $update_hash = { map { $_, $d->{$_} } grep { exists $d->{$_} } @fields };
-
-   if ( $d->{json} ) {
-      eval { my $data = decode_json( $d->{json} ); };
-      if ($@) {
-         return { success => 0, message => 'invalid json' };
-      }
-      else {
-         $update_hash->{json} = $d->{json};
-      }
-   }
-
-   $update_hash->{delay} = $d->{delay} if $d->{delay} && $d->{delay} <= 86400;
-
-   if ( $d->{state} ) {
-      my $rv = $self->_set_job_state( $user,
-         { id => $job->{id}, state => $d->{state} } );
-
-      # job log
-      if ( $d->{log_id} && $d->{ppid} ) {
-         if ( $d->{state} eq 'running' ) {
-            my $insert_hash = {
-               map  { $_ => $d->{$_} }
-               grep { defined $d->{$_} } (qw(log_id ppid pid started))
-            };
-            $insert_hash->{job_id} = $job->{id};
-            my $rows =
-              $self->sqlite->db->insert( 'job_log', $insert_hash )->rows;
-
-            # delete oldest log
-            if ($rows) {
-               my $count = $self->sqlite->db->query(
-"select count(*) as count from job_log where job_id = $d->{id}"
-               )->hash->{count};
-               if ( $count > 12 ) {
-                  my $dl = $self->sqlite->db->select(
-                     'job_log', ['*'],
-                     { job_id   => $job->{id} },
-                     { order_by => 'id', limit => 1 }
-                  )->hash;
-                  $self->sqlite->db->delete( 'job_log', { id => $dl->{id} } );
-
-                  my $ssh = $self->ssh_connection->{ $job->{server_id} };
-                  unless ( $ssh && $ssh->check_master ) {
-                     $self->_connect_ssh( $user, { id => $job->{server_id} } );
-                     $ssh = $self->ssh_connection->{ $job->{server_id} };
-                  }
-
-                  # TODO: multi-platform script
-                  $ssh->spawn(
-"rm ordo_node/logs/*\.$dl->{job_id}\.$dl->{ppid}\.$dl->{log_id}\.log"
-                  );
-               }
-            }
-         }
-         else {
-            my $update_hash = {
-               map  { $_ => $d->{$_} }
-               grep { defined $d->{$_} }
-                 (qw(log_id ppid pid exit_code signal ended))
-            };
-            $update_hash->{job_id} = $d->{id};
-            $self->sqlite->db->update(
-               'job_log',
-               $update_hash,
-               {
-                  job_id => $job->{id},
-                  log_id => $d->{log_id},
-                  ppid   => $d->{ppid}
-               }
-            );
-         }
-      }
-   }
-
-   if ( $needs_ids || $needs_any_ids ) {
-      $self->_write_job_needs(
-         $user,
-         {
-            needs_all  => $needs_ids,
-            needs_any  => $needs_any_ids,
-            id         => $job->{id},
-            cluster_id => $job->{cluster_id}
-         }
-      );
-   }
-
-   if ( $d->{server} ) {
-      my $res = $self->sqlite->db->select( 'server', ['id'],
-         { name => $d->{server}, org_id => $user->org_id } )->hash;
-      return { success => 0, message => 'server not found' }
-        unless $res->{id};
-      $update_hash->{server_id} = $res->{id};
-   }
-   $update_hash->{name}        = $d->{newname} if $d->{newname};
-   $update_hash->{last_update} = time;
-
-   $self->sqlite->db->update( 'job', $update_hash, { id => $job->{id} } );
-   $self->sqlite->db->delete( 'job_needs', { job_id => $job->{id} } )
-     if $d->{remove_needs};
-
-   $self->_broadcast_job( $user, [ $job->{id} ] );
-
-   return { success => 1 };
 }
 
 sub _read_job_needs {

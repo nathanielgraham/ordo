@@ -10,7 +10,7 @@ CREATE TABLE org (
     server_limit integer DEFAULT 1,
     member_limit integer DEFAULT 1,
     tier text DEFAULT 'free',
-    monthly_call_limit INTEGER DEFAULT 1000,
+    monthly_call_limit INTEGER DEFAULT 50000,
     rate_limit_user_per_minute INTEGER DEFAULT 100,
     rate_limit_org_per_minute INTEGER DEFAULT 500,
     creation_time integer DEFAULT (strftime('%s', 'now')),
