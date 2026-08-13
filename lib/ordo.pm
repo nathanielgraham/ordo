@@ -1405,11 +1405,6 @@ sub _preload_documents {
    $self->doc_cache->{full}      = \%full_docs;
 }
 
-sub _is_execution_command {
-   my ( $self, $command ) = @_;
-   return $command eq 'update_job_state' || $command eq 'update_sysinfo';
-}
-
 sub get_local_ip_address {
    my $socket = IO::Socket::INET->new(
       Proto    => 'udp',
@@ -4976,9 +4971,20 @@ sub update_sysinfo {
 
    my $uh = { map { $_, $d->{$_} } grep { exists $d->{$_} } @stats };
 
+   # check connection
    my $ssh = $self->ssh_connection->{ $server->{id} };
-   return { success => 0, exit => 1 }
-     unless $server->{id} && $ssh && $ssh->check_master;
+   if ( $ssh && !$ssh->check_master ) {
+      delete $self->ssh_connection->{ $server->{id} };
+      $ssh = undef;
+   }
+   unless ($ssh) {
+      $self->_connect_ssh( $user, { id => $server->{id} } );
+      $ssh = $self->ssh_connection->{ $server->{id} };
+   }
+   unless ( $server->{id} && $ssh && $ssh->check_master ) {
+      return { success => 0, exit => 1, message => 'server unreachable' };
+   }
+
    $uh->{ping}       = $self->_ping( $server->{host} ) if $server->{host};
    $uh->{updated_at} = time;
    my $running  = $self->job_states->{running};

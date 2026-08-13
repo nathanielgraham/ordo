@@ -4,6 +4,19 @@
 
 It schedules work across servers with explicit dependencies and a defined recovery path when something fails, misses its window, or runs too long. Think of it as cron with superpowers.
 
+## Natural Language Automation (MCP)
+
+Ordo supports **Model Context Protocol**, so AI agents can explore, create, schedule, monitor, and repair jobs on your servers using natural language.
+
+You can say things like:
+
+- “Create a calendar for the third Monday of every month and month-end, and attach it to the finance close cluster.”
+- “Check disk space on all servers every 15 minutes. If anything’s over 90%, email the team.”
+- “Run a daily backup with a 2-hour limit. If it’s still going, start the Backup Watchdog.”
+- “Deployment v2.3 failed last night. Look at the logs and tell me what went wrong.”
+
+The agent can create scripts and schedules on **your** servers, wire dependencies and handlers, and help debug when something breaks.
+
 ## Who Ordo Is For
 
 - Teams that have outgrown cron and need dependencies, recovery, and a single place to see what ran
@@ -33,19 +46,6 @@ It schedules work across servers with explicit dependencies and a defined recove
 
 - **Recovery controls**  
   Retries, hold/ice/release, and escalation paths you own, without standing up an enterprise orchestration stack.
-
-## Natural Language Automation (MCP)
-
-Ordo supports **Model Context Protocol**, so AI agents can explore, create, schedule, monitor, debug, and repair jobs on your servers using natural language.
-
-You can say things like:
-
-- “Create a calendar for the third Monday of every month and month-end, and attach it to the finance close cluster.”
-- “Check disk space on all servers every 15 minutes. If anything’s over 90%, email the team.”
-- “Run a daily backup with a 2-hour limit. If it’s still going, start the Backup Watchdog.”
-- “Deployment v2.3 failed last night. Look at the logs and tell me what went wrong.”
-
-The agent can create scripts and schedules on **your** servers, wire dependencies and handlers, and help debug when something breaks.
 
 ## Works With or Without AI
 
