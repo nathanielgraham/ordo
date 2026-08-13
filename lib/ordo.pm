@@ -29,7 +29,7 @@ use Mojolicious::Plugin::JSONConfig;
 use ordo::License;
 use Data::Dumper;
 
-$SIG{CHLD} = 'IGNORE'
+$SIG{CHLD} = 'IGNORE';
 
 #$SIG{CHLD} = sub {
 #   1 while ( ( waitpid( -1, WNOHANG ) ) > 0 );
