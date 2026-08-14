@@ -1180,21 +1180,13 @@ HTML
       }
    );
 
-$self->hook(before_server_start => sub {
-   my ($server, $app) = @_;
-   $SIG{CHLD} = 'IGNORE';
-   $app->log->info("SIGCHLD IGNORE pid=$$");
-});
-
-# Prefork: when each worker is born (parent side is not enough)
-if ( $self->can('server') ) {
-   # optional: set again on first request as safety net
-}
-$self->hook(around_action => sub {
-   my ($next, $c, $action, $last) = @_;
-   $SIG{CHLD} = 'IGNORE';  # cheap; defeats OpenSSH overwriting
-   return $next->();
-});
+   $self->hook(
+      before_server_start => sub {
+         my ( $server, $app ) = @_;
+         $SIG{CHLD} = 'IGNORE';
+         $app->log->info("SIGCHLD IGNORE pid=$$");
+      }
+   );
 
    # start monitors
    my $users_sql = <<~"SQL";
@@ -5244,6 +5236,7 @@ sub _start_job {
 
    $self->_set_job_state( $user, { id => $job->{id}, state => 'starting' } );
    $ssh->spawn($cmd);
+   1 while waitpid( -1, WNOHANG ) > 0;
 
    if ( $ssh->error ) {
       $self->_set_job_state( $user, { id => $job->{id}, state => 'failed' } );
@@ -5670,6 +5663,7 @@ sub _connect_ssh {
    if ( my $old = $self->ssh_connection->{ $s->{id} } ) {
       eval { $old->disconnect(0) };
       delete $self->ssh_connection->{ $s->{id} };
+      1 while waitpid( -1, WNOHANG ) > 0;
    }
 
    my $key    = $s->{key_path} || $s->{identity};    # whatever you store
@@ -5690,7 +5684,10 @@ sub _connect_ssh {
       return;    # caller treats as unreachable
    }
 
+   $SIG{CHLD} = 'IGNORE';
+   1 while waitpid( -1, WNOHANG ) > 0;
    $self->ssh_connection->{ $s->{id} } = $ssh;
+
    return 1;
 }
 
@@ -7241,7 +7238,5 @@ sub routing {
 
    return \%routing;
 }
-
-EV::run;
 
 1;
