@@ -1180,6 +1180,18 @@ HTML
       }
    );
 
+   # Near the end of startup(), after routes/plugins
+   $self->hook(
+      before_server_start => sub {
+         my ( $server, $app ) = @_;
+
+         # Re-apply in every process that will handle requests / spawn SSH
+         $SIG{CHLD} = 'IGNORE';
+
+         $app->log->info('SIGCHLD set to IGNORE in server process');
+      }
+   );
+
    # start monitors
    my $users_sql = <<~"SQL";
       select min(u.id), u.token, o.id as org_id
