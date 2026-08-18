@@ -91,8 +91,8 @@ body {
   min-height: 0;
   min-width: 0;
   overflow: hidden;
-  padding-left: 1.5rem;
-  padding-right: 1.5rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
   padding-bottom: 0.5rem;
   display: flex;
   flex-direction: column;
@@ -589,19 +589,19 @@ progress::-webkit-progress-value {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 28rem; 
+  max-width: 14rem; 
 }
 
-/* Timing columns can stay tighter */
+/*
 #tree-body td:nth-child(6),
 #tree-body td:nth-child(7),
 #tree-body td:nth-child(8) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 12rem;
+  max-width: 10rem;
 }
-
+*/
 
 .dropdown {
   position: relative;
@@ -1622,8 +1622,20 @@ progress::-webkit-progress-value {
 #monitor .table-container {
   background: #111;
   border-radius: 8px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 100%;
+  min-width: 0;
+  position: relative;
 }
+
+/* 2. Keep the table itself from shrinking below its content */
+.ordo-table--tree {
+  width: max-content;        /* or min-width: 100% */
+  min-width: 100%;
+  table-layout: auto;        /* default, but be explicit */
+}
+
 .ordo-table--tree td:first-child::after,
 .ordo-table--tree td:first-child::before {
   content: "";
@@ -2325,12 +2337,6 @@ html,
 /* Monitor tab - main table */
 #monitor .content-center {
   overflow-y: hidden !important;
-}
-
-#monitor .table-container {
-  overflow-y: auto !important;
-  max-height: 100%;
-  position: relative;
 }
 
 /* Servers & Calendars tables */
