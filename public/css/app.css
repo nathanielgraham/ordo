@@ -583,7 +583,16 @@ progress::-webkit-progress-value {
   border-color: var(--glow-cyan);
   box-shadow: 0 0 12px rgba(0, 255, 255, 0.25);
 }
-#tree-body td:first-child,
+
+/* Path column – generous but finite */
+#tree-body td:first-child {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 28rem; 
+}
+
+/* Timing columns can stay tighter */
 #tree-body td:nth-child(6),
 #tree-body td:nth-child(7),
 #tree-body td:nth-child(8) {
@@ -592,6 +601,8 @@ progress::-webkit-progress-value {
   text-overflow: ellipsis;
   max-width: 12rem;
 }
+
+
 .dropdown {
   position: relative;
   display: inline-block;
