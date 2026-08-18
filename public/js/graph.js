@@ -90,20 +90,15 @@ function buildGraphElements(rootNode) {
   const elements = [];
   const nodeMap = new Map();
 
-  const isCluster = (item) => {
-    if (!item) return false;
-    return item.cluster_id === undefined;   // reliable: clusters don't have a cluster_id
-    //return item.parent_id !== undefined;   // reliable: jobs don't have parent_id
-  };
+  const isCluster = (item) => item && item.cluster_id === undefined;
 
-  const addNode = (item, parentPrefix = null, isExternal = false) => {
+  const addNode = (item, parentPrefix = null) => {
     if (!item?.id) return null;
 
     const cl = isCluster(item);
-    const prefix = cl ? 'c' : 'j';
-    const pid = `${prefix}${item.id}`;
+    const pid = `${cl ? 'c' : 'j'}${item.id}`;
 
-    if (nodeMap.has(pid)) return pid;
+    if (nodeMap.has(pid)) return pid;   // hierarchy already recorded
 
     const nodeEl = {
       data: {
@@ -116,145 +111,41 @@ function buildGraphElements(rootNode) {
     };
 
     if (parentPrefix) nodeEl.data.parent = parentPrefix;
-    if (isExternal) nodeEl.classes.push('external-cluster');
 
     elements.push(nodeEl);
     nodeMap.set(pid, nodeEl);
     return pid;
   };
 
-  const findCluster = (id) => {
-    const numId = Number(id);
-    if (!numId) return null;
-    return appState.clustersMap?.get(numId) || findClusterById(rootNode, numId);
-  };
-
-  const findJob = (id) => {
-    const numId = Number(id);
-    if (!numId) return null;
-    return findJobById(rootNode, numId) || appState.jobsMap?.get(numId);
-  };
-
-  const traverse = (node, parentPrefix = null) => {
+  // ---------- PASS 1: hierarchy only ----------
+  const buildHierarchy = (node, parentPrefix = null) => {
     if (!node) return;
-
     const myPrefix = addNode(node, parentPrefix);
 
     if (isCluster(node)) {
-      [...(node.children || []), ...(node.jobs || [])].forEach(child => {
-        traverse(child, myPrefix);
-      });
+      [...(node.children || []), ...(node.jobs || [])]
+        .forEach(child => buildHierarchy(child, myPrefix));
     }
-
-    // Dependencies
-    ['needs_ids', 'needs_any_ids'].forEach(key => {
-      if (!Array.isArray(node[key])) return;
-      node[key].forEach(depId => {
-        let target = isCluster(node) ? findCluster(depId) : findJob(depId);
-        if (!target) return;
-
-        const targetPrefix = addNode(target, null, true);
-        elements.push({
-          data: { id: `e${myPrefix}-${targetPrefix}`, source: myPrefix, target: targetPrefix },
-          classes: [key === 'needs_ids' ? 'needs' : 'needs-any']
-        });
-      });
-    });
-
-    // Handlers (always cluster targets)
-    const handlerChecks = [
-      { prop: 'on_fail_id', className: 'on-fail' },
-      { prop: 'on_overdue_id', className: 'on-overdue' },
-      { prop: 'max_runtime_cluster_id', className: 'max-runtime' }
-    ];
-
-    handlerChecks.forEach(h => {
-      if (node[h.prop]) {
-        const target = findCluster(node[h.prop]);
-        if (target) {
-          const tPrefix = addNode(target, null, true);
-          elements.push({
-            data: { id: `h${myPrefix}-${tPrefix}`, source: myPrefix, target: tPrefix },
-            classes: [h.className]
-          });
-        }
-      }
-    });
   };
 
-  traverse(rootNode);
-  return elements;
-}
-
-function buildGraphElements2(rootNode) {
-  const elements = [];
-  const nodeMap = new Map();
-
-  const addNode = (item, parentPrefix = null, viaHandler = false) => {
-    if (!item?.id) return null;
-
-    const isCluster = !!item.is_cluster || !!item.children?.length || !!item.jobs?.length;
-    const prefix = isCluster ? 'c' : 'j';
-    const pid = `${prefix}${item.id}`;
-
-    if (nodeMap.has(pid)) {
-      if (viaHandler) {
-        const node = nodeMap.get(pid);
-        if (!node.classes.includes('handler-target')) node.classes.push('handler-target');
-      }
-      return pid;
-    }
-
-    const nodeEl = {
-      data: {
-        id: pid,
-        label: isCluster ? (item.name || 'Cluster') : (item.name || `Job ${item.id}`),
-        is_cluster: isCluster,
-        originalId: Number(item.id)
-      },
-      classes: [isCluster ? 'cluster-node' : 'job-node', viaHandler ? 'handler-target' : '']
-    };
-
-    if (parentPrefix) nodeEl.data.parent = parentPrefix;
-
-    elements.push(nodeEl);
-    nodeMap.set(pid, nodeEl);
-    return pid;
-  };
-
-  const findAny = (id) => {
-    const numId = Number(id);
-    if (!numId) return null;
-    return findJobById(rootNode, numId) || findClusterById(rootNode, numId) ||
-           appState.jobsMap?.get(numId) || appState.clustersMap?.get(numId);
-  };
-
-  const findCluster = (id) => {
-    const numId = Number(id);
-    if (!numId) return null;
-    return findClusterById(rootNode, numId) || appState.clustersMap?.get(numId);
-  };
-
-  const traverse = (node, parentPrefix = null) => {
+  // ---------- PASS 2: edges only ----------
+  const addEdges = (node) => {
     if (!node) return;
 
-    const isCluster = !!node.is_cluster || !!node.children?.length || !!node.jobs?.length;
-    const myPrefix = addNode(node, parentPrefix);
+    const myPrefix = `${isCluster(node) ? 'c' : 'j'}${node.id}`;
 
-    if (isCluster) {
-      [...(node.children || []), ...(node.jobs || [])].forEach(child => {
-        traverse(child, myPrefix);
-      });
-    }
-
-    // === DEPENDENCIES ===
+    // Needs / Needs Any
     ['needs_ids', 'needs_any_ids'].forEach(key => {
       if (!Array.isArray(node[key])) return;
       node[key].forEach(depId => {
-        let target = isCluster ? findCluster(depId) : findAny(depId);
+        const numId = Number(depId);
+        let target = isCluster(node)
+          ? (appState.clustersMap?.get(numId) || findClusterById(rootNode, numId))
+          : (findJobById(rootNode, numId) || appState.jobsMap?.get(numId));
+
         if (!target) return;
 
-        const targetPrefix = addNode(target, null);
+        const targetPrefix = addNode(target);   // reuses if inside, creates top-level if outside
         elements.push({
           data: { id: `e${myPrefix}-${targetPrefix}`, source: myPrefix, target: targetPrefix },
           classes: [key === 'needs_ids' ? 'needs' : 'needs-any']
@@ -262,28 +153,32 @@ function buildGraphElements2(rootNode) {
       });
     });
 
-    // === HANDLERS ===
-    const handlerChecks = [
-      { prop: 'on_fail_id',          className: 'on-fail' },
-      { prop: 'on_overdue_id',       className: 'on-overdue' },
-      { prop: 'max_runtime_cluster_id', className: 'max-runtime' }   // ← correct field name
-    ];
+    // Handlers (same pure-accuracy rule)
+    [
+      { prop: 'on_fail_id',            cls: 'on-fail' },
+      { prop: 'on_overdue_id',         cls: 'on-overdue' },
+      { prop: 'max_runtime_cluster_id', cls: 'max-runtime' }
+    ].forEach(h => {
+      if (!node[h.prop]) return;
+      const numId = Number(node[h.prop]);
+      const target = appState.clustersMap?.get(numId) || findClusterById(rootNode, numId);
+      if (!target) return;
 
-    handlerChecks.forEach(h => {
-      if (node[h.prop]) {
-        const target = findCluster(node[h.prop]);
-        if (target) {
-          const tPrefix = addNode(target, null, true);
-          elements.push({
-            data: { id: `h${myPrefix}-${tPrefix}`, source: myPrefix, target: tPrefix },
-            classes: [h.className]
-          });
-        }
-      }
+      const tPrefix = addNode(target);   // no forceOutside
+      elements.push({
+        data: { id: `h${myPrefix}-${tPrefix}`, source: myPrefix, target: tPrefix },
+        classes: [h.cls]
+      });
     });
+
+    if (isCluster(node)) {
+      [...(node.children || []), ...(node.jobs || [])].forEach(addEdges);
+    }
   };
 
-  traverse(rootNode);
+  buildHierarchy(rootNode);
+  addEdges(rootNode);
+
   console.log(`[Graph] Built ${elements.length} elements for ${rootNode.name}`);
   return elements;
 }
