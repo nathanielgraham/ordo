@@ -2,6 +2,8 @@
 
 Ordo supports **Model Context Protocol (MCP)**, so trusted models like **Grok** can explore, create, schedule, monitor, and debug jobs on your infrastructure using natural language.
 
+Together with a **GitHub connector** (or any git host the agent can write to), the same agent can drive a full development cycle: change code, open a PR, and after you merge, start an Ordo cluster that deploys the result. That pattern is documented in [Development cycle](#docs/dev-cycle).
+
 ## Quick start
 
 1. Open **Settings** and copy your **API token**.
@@ -40,6 +42,10 @@ Grok will remember the connection for the rest of the conversation.
 ### Overdue + clone
 
 > Walk me through overdue-and-clone, then build a minimal version. When the scheduled start can’t run because the cluster is still busy or on hold, a handler should clone it and start the clone. Show me what you created.
+
+### Deploy after merge
+
+> Open a PR for this change. After I merge, start my deploy cluster and do not poll unless I ask for logs.
 
 ## Tips for best results
 
@@ -123,5 +129,6 @@ Example tool call:
 ## Next
 
 - [Quickstart](#docs/quickstart) - first server and workflow
+- [Development cycle](#docs/dev-cycle) - GitHub PRs + Ordo deploy clusters
 - [Advanced Topics](#docs/advanced-topics) - handlers, cloning, environment variables
 - [FAQ](#docs/faq) - SSH, limits, stuck jobs
