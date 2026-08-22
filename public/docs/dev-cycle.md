@@ -1,117 +1,108 @@
-# Development cycle: Ordo + GitHub connectors
+# How agents use GitHub and Ordo together
 
-This is a **pattern**, not a special Ordo feature. An agent with a **GitHub connector** and **Ordo MCP** can own almost every step after you describe a change: write tests and code, run them on a **dev** checkout, open a PR only when green, and after you merge, start a **separate** cluster that applies **master** (or your release branch).
+Ordo does not replace GitHub. GitHub keeps the history of a change. Ordo runs that change on a machine you already have.
 
-Defaults below can be overridden in the prompt.
+If an agent can use both, it can help from the first description through tests, a review, and (only when you say so) updating the live copy. You can change any of these defaults in the chat.
 
-## Roles
+This page is also at `#docs/dev-cycle`. It may not appear in the `get_documentation` list until that catalog is updated.
 
-| Who | Does |
-|-----|------|
-| You | Describe the change, review the PR, merge, say when to **apply** |
-| Agent + GitHub | Feature branch, commits, **one PR when tests are green** |
-| Agent + Ordo MCP | Start the **test** cluster on its own; start **apply** only when you ask |
-| Ordo on a **dev** tree | Clone/checkout that branch, run the suite |
-| Ordo on an **apply** tree | Pull master only (build/recreate only if that is the real deploy) |
+## In plain terms
 
-The agent must **not** merge and must **not** start prod apply unless you ask.
+You say what you want. The agent writes tests and code on a **side branch** (not the live branch). Ordo runs those tests on a **practice copy** of the project. If the tests fail, the agent may fix the code or the tests a few times. If they still fail, it stops and shows you the log — it does **not** ask you to merge broken work.
 
-`get_documentation` may not list this page until it is added to the server catalog. Use the in-app docs hash `#docs/dev-cycle` or this file under `public/docs/`.
+When the tests pass, the agent sends you **one** review (a pull request). You read it and merge if you like it. Then you say something like `merged, deploy`. Only then does the agent ask Ordo to update the **live copy** from the main branch.
 
-## Default process
+The agent does not merge for you. It does not update production unless you ask.
 
-1. You describe the change.
-2. Agent creates a feature branch. **Strict TDD as writing default:** tests that would fail without the change, plus the implementation, in the **same push**. (No extra cluster run whose only job is to prove red.)
-3. Agent starts the **test** cluster on the **dev** checkout (reuse the cluster; set `BRANCH` and the test command). Not the apply cluster.
-4. Bounded wait / poll (see below).
-5. Red → agent may change **code and tests**. Fix code if the test still matches the request; change tests if the test is a bad spec. Never drop coverage of the requested behavior just to pass. **Max 3** failed suite runs, then stop with the log — no PR.
-6. Green → **one** PR on that SHA. Link in chat.
-7. You review and merge.
-8. You: `merged, deploy …` (name the apply cluster).
-9. Agent starts the **existing** apply cluster (master only).
+## Who does what
 
-Reuse clusters. Do not create a new test/apply tree every change.
+| You | The agent | Ordo |
+|-----|-----------|------|
+| Describe the change | Writes tests and code on a branch | Runs the test jobs on the practice copy |
+| Review and merge | Opens a review only after tests pass | After you say deploy, updates the live copy |
+| Say when to deploy | Starts test runs on its own | Does not invent git history |
 
-## Two clusters, two checkouts
+Keep one reusable **test** workflow and one reusable **apply** (live update) workflow. Do not spin up a new pair of folders for every small change.
 
-**Test** — feature branch, before a ready PR:
+## Default steps (agents)
 
-```
-clone-if-missing → checkout $BRANCH → suite
-```
+1. Create a feature branch.
+2. In the same push: tests that would fail without the change, plus the implementation. No extra run whose only purpose is to prove the tests start red.
+3. Start the **test** cluster on the practice checkout. Set the branch name and the test command. Do not start apply.
+4. Wait/poll with the budget below.
+5. On failure: change code and/or tests. Prefer fixing code if the test still matches what the user asked. Change tests when the test is the wrong spec. Do not delete the meaning of the request just to pass. **At most three** failed test runs, then stop with the log and no pull request.
+6. On success: **one** pull request at that commit. Paste the link.
+7. Wait until the user merges and names the apply cluster (`merged, deploy …`).
+8. Start that **existing** apply cluster so it pulls **main** / **master** only.
 
-**Apply** — after merge, default branch only:
+## Two copies of the code
 
-```
-clone-if-missing → pull master/main
-```
+**Practice (test)** — the feature branch, before a review:
 
-Real app deploys may add build → recreate → verify. A dummy apply can be pull-only (useful for a public example repo).
+clone if needed → check out the branch → run the tests
 
-Same droplet is fine if the trees differ (e.g. `/home/ordo/myapp-dev` vs `/home/ordo/myapp` or `/opt/ordo`). Never checkout a feature branch on the prod tree. Never point the saas compose file at a test run.
+**Live (apply)** — after merge, main branch only:
 
-Public repos can clone over **HTTPS** with no deploy key. Private repos need a deploy key (or equivalent) on that host user.
+clone if needed → pull main/master
 
-## What the dev server needs
+A real app deploy can also build images, restart containers, and check they came back. A simple apply can be pull-only (enough for a public demo repo).
 
-Ordo only runs what the **job user** already has. First-time setup is usually human.
+The same computer can host both copies if the folders are different, for example `/home/ordo/myapp-dev` and `/home/ordo/myapp`. Never check out a feature branch in the live folder. Never run production Docker Compose as a test.
 
-| Need | Typical failure | Notes |
-|------|-----------------|--------|
-| `git` + `openssh-client` | `git: command not found` (127) | Install in a real sudo session |
-| Passwordless sudo *or* a human for packages | `sudo: a password is required` | Never put a sudo password in a job |
-| `~/.ssh/known_hosts` for GitHub | `Host key verification failed` | `ssh-keyscan -t ed25519,rsa github.com >> ~/.ssh/known_hosts` |
-| Deploy key for **private** repos | `Permission denied (publickey)` | Read-only is enough to clone/pull. Print only the **public** key. |
-| Checkout path ≠ prod tree | Mixed deploys | Separate directories |
-| Suite that matches the box | `Can't locate Mojo::Base.pm` | No runtime → file/`git` checks, not `perl -c` on app modules. Python examples can use stdlib `unittest` |
+Public GitHub repos can clone with HTTPS (no special key). Private repos need a deploy key (or similar) for that user on that machine.
 
-Register the host as an Ordo **server** in the UI first (`add_server` is not an MCP tool).
+## What the practice machine needs
 
-## Apply on the same host as Docker
+Ordo can only use tools already installed for the job user. First-time setup is usually a person, not the agent.
 
-Jobs run over SSH as the host user, not inside the container you may replace.
+| If this is missing | What you will see | What to do |
+|--------------------|-------------------|------------|
+| `git` and `openssh-client` | `git: command not found` | Install in a normal admin session |
+| Sudo without a password, or a person to install packages | `sudo: a password is required` | Do not put a sudo password in a job |
+| GitHub in `~/.ssh/known_hosts` | `Host key verification failed` | `ssh-keyscan -t ed25519,rsa github.com >> ~/.ssh/known_hosts` |
+| Deploy key, for a private repo | `Permission denied (publickey)` | Read-only key is enough to clone and pull. Log only the public half |
+| A folder that is not the live tree | Tests and live mixed together | Two directories |
+| Tests the box can actually run | Missing libraries (`Mojo::Base`, and so on) | If the box has no app runtime, check files and `git` only. Python demos can use stdlib `unittest` |
 
-- `docker compose restart` does **not** pick up a newly built image with the same tag. Use `up -d --force-recreate` for app services.
-- The node **launcher already daemonizes** (`setsid`). You do not need `nohup` to survive SSH. Detaching compose is only so the job can **POST complete while the API container is still up**. Optional.
-- Leave the reverse proxy up if it did not change.
-- No calendar on prod apply.
+Add the machine as an Ordo **server** in the web UI first. That step is not an MCP tool.
 
-## Polling (until server-side events exist)
+## If apply restarts Docker on the same machine
 
-MCP start is fire-and-forget. Chat agents should **not** tight-loop.
+Jobs run as the host user over SSH, not inside the container you may replace.
 
-- Guess duration from the last log of that job, or from the command.
-- First wait ≈ expected runtime × 1.2, minimum **5s**, cap **45s** for a chat agent.
-- One `get_cluster_details`. Terminal state → `read_log`.
-- Still running → one more wait (same cap) and one more poll, then **stop** and give the cluster id.
-- Do not poll apply unless the user asked for logs. Long builds are “start and wait for the user.”
+- `docker compose restart` will not pick up a newly built image with the same name. Recreate the app services (`up -d --force-recreate`).
+- The Ordo launcher already detaches from SSH. `nohup` is optional. Use it only if you want the job to report “done” before the API container goes down.
+- Leave the web proxy running if it did not change.
+- Do not put a calendar on production apply — start it by hand (or by the agent after you ask).
 
-CLI agents may use a higher cap. Override in the prompt.
+## How long the agent should wait
 
-## Worked shapes (not the product)
+Starting a cluster does not keep a live notification channel. Chat agents should not check status in a tight loop.
 
-Test-style cluster:
+- Estimate how long the run should take from the last log or from the command.
+- Wait a little longer than that (about 1.2×), at least 5 seconds, at most **45 seconds** in a chat.
+- Check status once. If it finished, read the log.
+- If it is still going, wait once more (same cap) and check once more, then **stop** and tell the user the cluster name/id.
+- Do not keep checking a live deploy unless the user asked for the log. Long builds: start them and wait for the user.
 
-```
-ensure-clone → checkout $BRANCH → unittest or smoke
-```
+Other kinds of agents may wait longer. The user can say so.
 
-SaaS-style apply (if you deploy an app that way):
+## Examples
 
-```
-pull → build → recreate app+worker → delayed verify
-```
+Test-style jobs: clone → check out the branch → `unittest` or a small smoke check.
 
-A public example of the same split (tests on one tree, pull-only apply on another) is [nextwhen](https://github.com/nathanielgraham/nextwhen).
+App-style live update: pull → build → recreate the app and worker → check they are up.
 
-Job bodies can stay inline. An agent can recreate scripts from this page; do not treat files in git as required.
+[nextwhen](https://github.com/nathanielgraham/nextwhen) is a small public example: tests on one folder, pull-only apply on another.
 
-## Security
+Job scripts can live in the Ordo job text. They do not have to be files in git.
 
-- No GitHub or Ordo tokens in job scripts.
-- `git pull --ff-only` unless you mean to discard host edits.
-- Bind-mount data stays outside the image.
-- No feature-branch checkout on the prod tree.
+## Safety
+
+- Do not put GitHub or Ordo tokens in job scripts.
+- Pull with `--ff-only` unless you mean to throw away edits on the machine.
+- Keep databases and secrets on the host, not baked into an image, when that is how you already deploy.
+- Do not check out feature branches in the live folder.
 
 ## See also
 
