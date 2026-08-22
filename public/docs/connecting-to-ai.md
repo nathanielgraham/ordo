@@ -2,7 +2,7 @@
 
 Ordo supports **Model Context Protocol (MCP)**, so trusted models like **Grok** can explore, create, schedule, monitor, and debug jobs on your infrastructure using natural language.
 
-Together with a **GitHub connector**, the same agent can run a development cycle: tests and code on a branch, an Ordo **test** cluster on a dev checkout, a PR only when green, and an **apply** cluster after you merge. See [Development cycle](#docs/dev-cycle).
+If the same agent can also use GitHub, it can help with a change from start to finish: write the code and tests, run those tests on one of your machines with Ordo, send you a review only after the tests pass, and update the live copy only after you merge. [How that loop works](#docs/dev-cycle).
 
 ## Quick start
 
