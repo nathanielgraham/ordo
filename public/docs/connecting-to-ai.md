@@ -2,7 +2,7 @@
 
 Ordo supports **Model Context Protocol (MCP)**, so trusted models like **Grok** can explore, create, schedule, monitor, and debug jobs on your infrastructure using natural language.
 
-Together with a **GitHub connector** (or any git host the agent can write to), the same agent can drive a full development cycle: change code, open a PR, and after you merge, start an Ordo cluster that deploys the result. That pattern is documented in [Development cycle](#docs/dev-cycle).
+Together with a **GitHub connector**, the same agent can run a development cycle: tests and code on a branch, an Ordo **test** cluster on a dev checkout, a PR only when green, and an **apply** cluster after you merge. See [Development cycle](#docs/dev-cycle).
 
 ## Quick start
 
@@ -43,13 +43,13 @@ Grok will remember the connection for the rest of the conversation.
 
 > Walk me through overdue-and-clone, then build a minimal version. When the scheduled start can’t run because the cluster is still busy or on hold, a handler should clone it and start the clone. Show me what you created.
 
-### Deploy after merge
+### Test then PR then deploy
 
-> Open a PR for this change. After I merge, start my deploy cluster and do not poll unless I ask for logs.
+> Use the development-cycle defaults: tests + code on a feature branch, start the test cluster yourself, at most three repair loops, one PR when green. After I merge and say deploy, start the apply cluster only.
 
 ## Tips for best results
 
-- Tell the agent to call **`get_documentation`** at the beginning of a new session.
+- Tell the agent to call **`get_documentation`** at the beginning of a new session. The development-cycle page may live at `#docs/dev-cycle` even if that name is not in the tool enum yet.
 - When creating jobs, be specific about:
   - Purpose of the job
   - Which server it should run on
@@ -80,18 +80,15 @@ Grok will remember the connection for the rest of the conversation.
 
 ## Agent behavior
 
-**Starting work is fire-and-forget by default.**
+**Starting work is fire-and-forget by default** for long jobs and for **apply** clusters.
 
 When an agent starts a cluster or job:
 
 1. It receives a clear summary of what was started.
 2. It should report that result to the user.
-3. It should **stop** - do not automatically poll for completion.
+3. It should **not** poll apply or long builds unless you ask for logs.
 
-Only check status or logs when the user explicitly asks  
-(e.g. “did it finish?”, “show me the logs”, “what failed?”).
-
-This keeps API usage efficient and matches how most people use a job scheduler: launch the work, then inspect only when needed.
+For a **test** cluster that should finish in seconds, the development-cycle defaults allow a **short** wait and at most two status checks, then stop. See [Development cycle](#docs/dev-cycle).
 
 ### Request shape
 
@@ -129,6 +126,6 @@ Example tool call:
 ## Next
 
 - [Quickstart](#docs/quickstart) - first server and workflow
-- [Development cycle](#docs/dev-cycle) - GitHub PRs + Ordo deploy clusters
+- [Development cycle](#docs/dev-cycle) - GitHub + Ordo test/apply loop
 - [Advanced Topics](#docs/advanced-topics) - handlers, cloning, environment variables
 - [FAQ](#docs/faq) - SSH, limits, stuck jobs
