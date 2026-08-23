@@ -49,7 +49,15 @@ A real app deploy can also build images, restart containers, and check they came
 
 The same computer can host both copies if the folders are different, for example `/home/ordo/myapp-dev` and `/home/ordo/myapp`. Never check out a feature branch in the live folder. Never run production Docker Compose as a test.
 
-Public GitHub repos can clone with HTTPS (no special key). Private repos need a deploy key (or similar) for that user on that machine.
+## How the machine talks to GitHub
+
+The **agent** uses the GitHub connector (in the chat) to open branches and reviews. That is separate from how **Ordo jobs** on the server run `git clone` / `git pull`.
+
+- **Public repo:** HTTPS clone is enough. No key or token on the box.
+- **Private repo (preferred):** an SSH **deploy key** for that one repo, installed as the job user. Read-only is enough to clone and pull. Generate the key on the machine; add only the public half in GitHub → the repo → Deploy keys.
+- **Private repo (alternative):** a fine-grained GitHub token (sometimes called a deploy token) stored on the host — credential helper, `~/.config`, or a root-owned env file the job user can read. Give it the least access you can (contents: read for pull-only).
+
+Do **not** put a token in the job script, in the clone URL (`https://USER:TOKEN@github.com/...`), or in chat. Those show up in Ordo logs. The agent should never invent or paste a new token; a person puts the credential on the box once.
 
 ## What the practice machine needs
 
@@ -60,7 +68,7 @@ Ordo can only use tools already installed for the job user. First-time setup is 
 | `git` and `openssh-client` | `git: command not found` | Install in a normal admin session |
 | Sudo without a password, or a person to install packages | `sudo: a password is required` | Do not put a sudo password in a job |
 | GitHub in `~/.ssh/known_hosts` | `Host key verification failed` | `ssh-keyscan -t ed25519,rsa github.com >> ~/.ssh/known_hosts` |
-| Deploy key, for a private repo | `Permission denied (publickey)` | Read-only key is enough to clone and pull. Log only the public half |
+| Deploy key or host token, for a private repo | `Permission denied (publickey)` or HTTPS 401 | Prefer a read-only deploy key. If you use a token, keep it on the host, not in the job |
 | A folder that is not the live tree | Tests and live mixed together | Two directories |
 | Tests the box can actually run | Missing libraries (`Mojo::Base`, and so on) | If the box has no app runtime, check files and `git` only. Python demos can use stdlib `unittest` |
 
@@ -99,7 +107,7 @@ Job scripts can live in the Ordo job text. They do not have to be files in git.
 
 ## Safety
 
-- Do not put GitHub or Ordo tokens in job scripts.
+- Do not put GitHub or Ordo tokens in job scripts or clone URLs.
 - Pull with `--ff-only` unless you mean to throw away edits on the machine.
 - Keep databases and secrets on the host, not baked into an image, when that is how you already deploy.
 - Do not check out feature branches in the live folder.
