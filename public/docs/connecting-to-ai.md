@@ -13,6 +13,10 @@ If the same agent can also use GitHub, it can help with a change from start to f
 
 Grok will remember the connection for the rest of the conversation.
 
+3. For feature work, also say:
+
+> Call `get_documentation` section `dev-cycle`, then follow that process.
+
 ## What agents can do
 
 - Browse servers, clusters, jobs, and calendars
@@ -45,11 +49,11 @@ Grok will remember the connection for the rest of the conversation.
 
 ### Test then PR then deploy
 
-> Use the development-cycle defaults: tests + code on a feature branch, start the test cluster yourself, at most three repair loops, one PR when green. After I merge and say deploy, start the apply cluster only.
+> Use the development-cycle defaults (`get_documentation` section `dev-cycle`): tests + code on a feature branch, start the reusable test cluster on panthero yourself, at most three repair loops, one PR when green. After I merge and say deploy, start the apply cluster only.
 
 ## Tips for best results
 
-- Tell the agent to call **`get_documentation`** at the beginning of a new session. The development-cycle page may live at `#docs/dev-cycle` even if that name is not in the tool enum yet.
+- Tell the agent to call **`get_documentation`** at the beginning of a new session. For coding work, use section **`dev-cycle`**.
 - When creating jobs, be specific about:
   - Purpose of the job
   - Which server it should run on

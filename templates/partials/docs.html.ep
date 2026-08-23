@@ -47,6 +47,11 @@
               >
             </li>
             <li>
+              <a href="#" data-file="dev-cycle.md" class="menu-link"
+                >Development Cycle</a
+              >
+            </li>
+            <li>
               <a href="#" data-file="stats-polling.md" class="menu-link"
                 >Stats Polling</a
               >
