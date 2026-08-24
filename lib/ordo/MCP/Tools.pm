@@ -2,6 +2,21 @@
 package ordo::MCP::Tools;
 use Mojo::Base -base;
 use MIME::Base64 ();
+use Mojo::JSON qw(encode_json);
+
+# MCP `json` arg: object -> JSON string; null/empty -> '' (clear via API)
+sub _normalize_json_arg {
+   my ($payload) = @_;
+   return $payload unless exists $payload->{json};
+   my $j = $payload->{json};
+   if ( !defined $j || ( !ref($j) && $j eq '' ) ) {
+      $payload->{json} = '';
+   }
+   elsif ( ref $j ) {
+      $payload->{json} = encode_json($j);
+   }
+   return $payload;
+}
 
 sub get_tools {
    return {
@@ -197,6 +212,14 @@ sub get_tools {
                retrys              => { type => 'integer' },
                loops               => { type => 'integer' },
                delay               => { type => 'integer' },
+               json => {
+                  type        => 'object',
+                  description =>
+'Arbitrary JSON object attached to this entity. Durable across reset. '
+. 'Injected as ORDO_JOB_JSON (job) or ORDO_CLUSTER_JSON (cluster) when non-empty. '
+. 'Use for parameters (repo, branch, dirs, flags)—not for secrets. Max 64 KB. '
+. 'Pass null to clear.',
+               },
                max_runtime_seconds => {
                   type        => 'integer',
                   description =>
@@ -214,6 +237,7 @@ sub get_tools {
                  MIME::Base64::encode_base64( $payload->{script}, '' );
                delete $payload->{script};
             }
+            _normalize_json_arg($payload);
             $c->app->request( $c->stash('user'),
                { command => 'create_job', %$payload } );
          },
@@ -255,13 +279,23 @@ sub get_tools {
                   items => { type => 'integer' },
                },
                loops => { type => 'integer' },
+               json => {
+                  type        => 'object',
+                  description =>
+'Arbitrary JSON object attached to this entity. Durable across reset. '
+. 'Injected as ORDO_JOB_JSON (job) or ORDO_CLUSTER_JSON (cluster) when non-empty. '
+. 'Use for parameters (repo, branch, dirs, flags)—not for secrets. Max 64 KB. '
+. 'Pass null to clear.',
+               },
             },
             required => ['name'],
          },
          handler => sub {
             my ( $c, $args ) = @_;
+            my $payload = {%$args};
+            _normalize_json_arg($payload);
             $c->app->request( $c->stash('user'),
-               { command => 'create_cluster', %$args } );
+               { command => 'create_cluster', %$payload } );
          },
       },
 
@@ -322,6 +356,14 @@ sub get_tools {
                retrys              => { type => 'integer' },
                loops               => { type => 'integer' },
                delay               => { type => 'integer' },
+               json => {
+                  type        => 'object',
+                  description =>
+'Arbitrary JSON object attached to this entity. Durable across reset. '
+. 'Injected as ORDO_JOB_JSON (job) or ORDO_CLUSTER_JSON (cluster) when non-empty. '
+. 'Use for parameters (repo, branch, dirs, flags)—not for secrets. Max 64 KB. '
+. 'Pass null to clear.',
+               },
                max_runtime_seconds => {
                   type        => 'integer',
                   description =>
@@ -339,6 +381,7 @@ sub get_tools {
                  MIME::Base64::encode_base64( $payload->{script}, '' );
                delete $payload->{script};
             }
+            _normalize_json_arg($payload);
             $c->app->request( $c->stash('user'),
                { command => 'update_job_config', %$payload } );
          },
@@ -374,13 +417,23 @@ sub get_tools {
                on_fail_id    => { type => 'integer' },
                on_overdue_id => { type => 'integer' },
                loops         => { type => 'integer' },
+               json => {
+                  type        => 'object',
+                  description =>
+'Arbitrary JSON object attached to this entity. Durable across reset. '
+. 'Injected as ORDO_JOB_JSON (job) or ORDO_CLUSTER_JSON (cluster) when non-empty. '
+. 'Use for parameters (repo, branch, dirs, flags)—not for secrets. Max 64 KB. '
+. 'Pass null to clear.',
+               },
             },
             required => ['id'],
          },
          handler => sub {
             my ( $c, $args ) = @_;
+            my $payload = {%$args};
+            _normalize_json_arg($payload);
             $c->app->request( $c->stash('user'),
-               { command => 'update_cluster', %$args } );
+               { command => 'update_cluster', %$payload } );
          },
       },
 
