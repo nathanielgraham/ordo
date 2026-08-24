@@ -41,6 +41,20 @@ curl -X POST "$ORDO_API" \
   }'
 ```
 
+## Attached JSON and parameterization
+
+Jobs and clusters support a durable `json` object (see [Jobs & Clusters](#docs/jobs-and-clusters.md)).
+
+Typical pattern for reusable pipelines:
+
+1. Put shared defaults on the **cluster** (`repo`, `dev_dir`, …).
+2. Put step overrides on the **job** (`branch`, `test_cmd`, …).
+3. In the script, read `ORDO_CLUSTER_JSON` and `ORDO_JOB_JSON` and merge (job wins).
+
+This keeps one script body while agents change parameters via MCP `update_job` / `update_cluster` without editing code.
+
+**Limits:** top-level JSON object only; max 64 KB; not for secrets. Clear with `json: null`.
+
 ## Environment Variables
 
 All running jobs receive these `ORDO_*` variables:
@@ -53,7 +67,8 @@ All running jobs receive these `ORDO_*` variables:
 | `ORDO_EMAIL`                    | Owner email |
 | `ORDO_TOKEN`                    | Execution token |
 | `ORDO_API`                      | API base URL |
-| `ORDO_JSON`                     | Custom JSON payload |
+| `ORDO_JOB_JSON`                 | Job `json` column (if set) |
+| `ORDO_CLUSTER_JSON`             | Parent cluster `json` column (if set) |
 | `ORDO_TEAM`                     | JSON array of team members |
 | `ORDO_OVERDUE_CLUSTER_ID`       | Set when triggered by On Overdue handler |
 | `ORDO_FAILED_CLUSTER_ID`        | Set when triggered by On Fail handler |

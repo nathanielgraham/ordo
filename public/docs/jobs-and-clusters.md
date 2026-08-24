@@ -34,6 +34,54 @@ Clusters are powerful because you can:
 
 Think of clusters as **folders** and jobs as **files**, with scheduling and dependency intelligence built in.
 
+## Attached JSON (`json`)
+
+Jobs and clusters can store an optional **`json`** field — an arbitrary JSON **object** (max 64 KB) used as durable parameters.
+
+**Why use it**
+
+- Keep scripts stable while changing nouns (repo, branch, directories, flags)
+- Let agents set parameters via MCP/API without rewriting the script
+- Share pipeline defaults on the **cluster**; override per **job** when needed
+
+**Behavior**
+
+- **Durable**: survives reset and a new run cycle (not cleared when the job returns to ready/waiting)
+- **Create / update**: set `json` to an object (API may send it as a JSON string; MCP accepts an object)
+- **Clear**: send `json: null` or `json: ""` to set the DB column to NULL
+- **Omit** on update: leave the existing value unchanged
+- **Not for secrets**: tokens and passwords belong in proper secret handling, not this field
+
+**Environment variables at run time**
+
+When a job starts, non-empty values are injected as:
+
+| Variable | Source |
+|----------|--------|
+| `ORDO_JOB_JSON` | This job's `json` column |
+| `ORDO_CLUSTER_JSON` | Parent cluster's `json` column |
+
+Only set when the corresponding column is non-empty. Scripts should treat missing vars as empty.
+
+**Example (Python)**
+
+```python
+import json, os
+job = json.loads(os.environ["ORDO_JOB_JSON"]) if "ORDO_JOB_JSON" in os.environ else {}
+cluster = json.loads(os.environ["ORDO_CLUSTER_JSON"]) if "ORDO_CLUSTER_JSON" in os.environ else {}
+params = {**cluster, **job}  # job overrides cluster
+repo = params.get("repo")
+branch = params.get("branch", "master")
+```
+
+**Example (MCP)**
+
+```text
+update_cluster  id=<cluster_id>  json={"repo":"myorg/app","dev_dir":"/home/me/app"}
+update_job      id=<job_id>      json={"branch":"feature/x","test_cmd":"pytest -q"}
+manage_cluster  action=start     id=<cluster_id>
+```
+
 ## Dependencies
 
 Ordo supports two types of dependencies:
@@ -78,3 +126,4 @@ Click **View Graph** on any cluster to see a live visual diagram of all dependen
 - Group related jobs into clusters.
 - Use handlers and cloning for robust automation.
 - Keep scripts in `~/ordo_node/scripts/` for reusability.
+- Prefer `json` for parameters; keep secrets out of `json`.
