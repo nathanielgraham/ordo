@@ -74,7 +74,12 @@ $ENV{ORDO_CLUSTER_ID} = $cluster_id;
 $ENV{ORDO_TOKEN}      = $token;
 $ENV{ORDO_API}        = $api;
 $ENV{ORDO_DELAY}      = $delay;
-$ENV{ORDO_JSON} = encode_json( $job->{json} || {} ) if $job->{json};
+
+# Attached JSON bags (durable job/cluster config). Only set when truthy.
+$ENV{ORDO_JOB_JSON} = $job->{job_json}
+  if defined $job->{job_json} && length $job->{job_json};
+$ENV{ORDO_CLUSTER_JSON} = $job->{cluster_json}
+  if defined $job->{cluster_json} && length $job->{cluster_json};
 
 if ( $job->{handler_context} && ref( $job->{handler_context} ) eq 'HASH' ) {
     $ENV{ORDO_HANDLER_CONTEXT} = encode_json( $job->{handler_context} );
