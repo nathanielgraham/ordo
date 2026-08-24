@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Apply durable ORDO_JSON patches to ordo.pm and Tools.pm.
-
-Run from repo root or with REPO=/path/to/ordo-dev.
-"""
-import re
+"""Apply durable ORDO_JSON patches to ordo.pm and Tools.pm."""
 import subprocess
 import sys
 from pathlib import Path
@@ -17,71 +13,69 @@ orig_ordo_len = len(ordo)
 orig_tools_len = len(tools)
 changes = []
 
-# 1) validate_params type 'j'
-old_j = """   elsif ( $type eq 'j' ) {     # JSON object
-      eval { JSON::PP->new->decode($value) };
-      return ( 0, "invalid JSON for $key" ) if $@;
-      $clean->{$key} = $value;
-   }"""
-new_j = r"""   elsif ( $type eq 'j' ) {     # JSON object (string); null/'' clear
-      if ( !defined $value || $value eq '' ) {
-         $clean->{$key} = undef;    # clear column
-         next;
-      }
-      if ( length($value) > 65536 ) {
-         return ( 0, "$key exceeds 64 KB limit" );
-      }
-      my $decoded;
-      eval { $decoded = JSON::PP->new->decode($value) };
-      return ( 0, "invalid JSON for $key" ) if $@;
-      return ( 0, "$key must be a JSON object" )
-        unless ref($decoded) eq 'HASH';
-      $clean->{$key} = $value;
-   }"""
+# 1) validate_params type 'j' (6-space indent body uses 9 spaces)
+old_j = (
+    "      elsif ( $type eq 'j' ) {     # JSON object\n"
+    "         eval { JSON::PP->new->decode($value) };\n"
+    "         return ( 0, \"invalid JSON for $key\" ) if $@;\n"
+    "         $clean->{$key} = $value;\n"
+    "      }"
+)
+new_j = (
+    "      elsif ( $type eq 'j' ) {     # JSON object; null/'' clears; max 64KB; object only\n"
+    "         if ( !defined $value || $value eq '' ) {\n"
+    "            $clean->{$key} = undef;\n"
+    "            next;\n"
+    "         }\n"
+    "         if ( length($value) > 65536 ) {\n"
+    "            return ( 0, \"$key exceeds 64 KB limit\" );\n"
+    "         }\n"
+    "         my $decoded;\n"
+    "         eval { $decoded = JSON::PP->new->decode($value) };\n"
+    "         return ( 0, \"invalid JSON for $key\" ) if $@;\n"
+    "         return ( 0, \"$key must be a JSON object\" )\n"
+    "           unless ref($decoded) eq 'HASH';\n"
+    "         $clean->{$key} = $value;\n"
+    "      }"
+)
 if old_j not in ordo:
     sys.exit("FAIL: validate_params type j block not found")
 ordo = ordo.replace(old_j, new_j, 1)
 changes.append("validate_params type j")
 
-# 2) request() keep json key when undef
-old_req = """   my $params  = {
-      map  { $_ => $decoded->{$_} }
-      grep { defined $decoded->{$_} } keys %$decoded
-   };"""
-new_req = """   my $params  = {
-      map  { $_ => $decoded->{$_} }
-      grep {
-         defined $decoded->{$_}
-           || $_ eq 'json'    # allow null to clear attached json
-      } keys %$decoded
-   };"""
+# 2) request() keep json when undef
+old_req = (
+    "   my $params  = {\n"
+    "      map  { $_ => $decoded->{$_} }\n"
+    "      grep { defined $decoded->{$_} } keys %$decoded\n"
+    "   };"
+)
+new_req = (
+    "   my $params  = {\n"
+    "      map  { $_ => $decoded->{$_} }\n"
+    "      grep {\n"
+    "         defined $decoded->{$_}\n"
+    "           || $_ eq 'json'    # allow null to clear attached json\n"
+    "      } keys %$decoded\n"
+    "   };"
+)
 if old_req not in ordo:
     sys.exit("FAIL: request() params filter not found")
 ordo = ordo.replace(old_req, new_req, 1)
 changes.append("request() keep json key")
 
-# 3) remove job json clear on ready/waiting
-cleared = False
-for p in [
-    "      # Clear job-level json on reset (new cycle = fresh data)\n"
-    "      # Cluster-level json is left alone (shared config survives).\n"
-    "      $update_hash->{json} = undef;\n",
-    "      $update_hash->{json} = undef;\n",
-]:
-    if p in ordo:
-        ordo = ordo.replace(
-            p, "      # job json is durable — not cleared on ready/waiting\n", 1
-        )
-        cleared = True
-        changes.append("removed job json clear on reset")
-        break
-if not cleared:
-    m = re.search(r".{0,100}\$update_hash->\{json\} = undef;.{0,60}", ordo)
-    if m:
-        print("FOUND nearby:", repr(m.group(0)[:200]))
+# 3) durable: stop clearing job json on ready/waiting
+old_clear = "      $update_hash->{json}        = undef;\n"
+if old_clear not in ordo:
     sys.exit("FAIL: job json clear line not found")
+ordo = ordo.replace(
+    old_clear,
+    "      # job json is durable — not cleared on ready/waiting\n",
+    1,
+)
+changes.append("removed job json clear on reset")
 
-# 4) _start_job: select cluster json
+# 4) _start_job select cluster.json
 old_cluster_sel = (
     "   my $cluster = $self->sqlite->db->select( 'cluster', ['handler_context'],\n"
     "      { id => $job->{cluster_id} } )->hash;"
@@ -95,40 +89,25 @@ if old_cluster_sel not in ordo:
 ordo = ordo.replace(old_cluster_sel, new_cluster_sel, 1)
 changes.append("_start_job select cluster.json")
 
-if "#json => $job->{json} || undef," in ordo:
-    ordo = ordo.replace(
-        "#json => $job->{json} || undef,",
-        "job_json     => $job->{json},\n"
-        "         cluster_json => $cluster->{json},",
-        1,
-    )
+# 4b) pass job_json / cluster_json in launcher opts
+old_delay = "      delay                  => $job->{delay}                  || 0,\n"
+new_delay = (
+    "      delay                  => $job->{delay}                  || 0,\n"
+    "      job_json               => $job->{json},\n"
+    "      cluster_json           => $cluster->{json},\n"
+)
+if old_delay not in ordo:
+    sys.exit("FAIL: delay line in _start_job opts not found")
+if "job_json" not in ordo:
+    ordo = ordo.replace(old_delay, new_delay, 1)
     changes.append("_start_job pass job_json/cluster_json")
-elif "job_json" not in ordo:
-    old_tok = None
-    for cand in [
-        "token => $job->{token},",
-        "token         => $job->{token},",
-        "token   => $job->{token},",
-    ]:
-        if cand in ordo:
-            old_tok = cand
-            break
-    if not old_tok:
-        sys.exit("FAIL: token line in _start_job opts not found")
-    ordo = ordo.replace(
-        old_tok,
-        old_tok
-        + "\n         job_json     => $job->{json},\n"
-        + "         cluster_json => $cluster->{json},",
-        1,
-    )
-    changes.append("_start_job insert job_json/cluster_json after token")
+else:
+    changes.append("_start_job job_json already present")
 
 # 5) exists $d->{json}
-old_if = "if ( $d->{json} )"
-n = ordo.count(old_if)
+n = ordo.count("if ( $d->{json} )")
 if n:
-    ordo = ordo.replace(old_if, "if ( exists $d->{json} )")
+    ordo = ordo.replace("if ( $d->{json} )", "if ( exists $d->{json} )")
     changes.append(f"exists $d->{{json}} ({n} sites)")
 else:
     print("WARN: no if ( $d->{json} ) found")
@@ -154,8 +133,9 @@ sub _normalize_json_arg {
 """
 if old_use not in tools:
     sys.exit("FAIL: Tools.pm MIME::Base64 use not found")
-tools = tools.replace(old_use, new_use, 1)
-changes.append("Tools.pm helper")
+if "_normalize_json_arg" not in tools:
+    tools = tools.replace(old_use, new_use, 1)
+    changes.append("Tools.pm helper")
 
 JSON_PROP = """               json => {
                   type        => 'object',
@@ -167,7 +147,8 @@ JSON_PROP = """               json => {
                },
 """
 
-old_cj = """               delay               => { type => 'integer' },
+if "ORDO_JOB_JSON" not in tools:
+    old_cj = """               delay               => { type => 'integer' },
                max_runtime_seconds => {
                   type        => 'integer',
                   description =>
@@ -176,10 +157,10 @@ old_cj = """               delay               => { type => 'integer' },
                max_runtime_cluster_id => { type => 'integer' },
             },
             required => [ 'name', 'script', 'parent_id', 'server_id' ],"""
-new_cj = (
-    "               delay               => { type => 'integer' },\n"
-    + JSON_PROP
-    + """               max_runtime_seconds => {
+    new_cj = (
+        "               delay               => { type => 'integer' },\n"
+        + JSON_PROP
+        + """               max_runtime_seconds => {
                   type        => 'integer',
                   description =>
 'Exceeding max_runtime_seconds starts the configured handler cluster; it does not automatically kill the job. Kill, notify, or recover as you define in the handler'
@@ -187,20 +168,20 @@ new_cj = (
                max_runtime_cluster_id => { type => 'integer' },
             },
             required => [ 'name', 'script', 'parent_id', 'server_id' ],"""
-)
-if old_cj not in tools:
-    sys.exit("FAIL: create_job properties block not found")
-tools = tools.replace(old_cj, new_cj, 1)
-changes.append("Tools create_job json prop")
+    )
+    if old_cj not in tools:
+        sys.exit("FAIL: create_job properties block not found")
+    tools = tools.replace(old_cj, new_cj, 1)
+    changes.append("Tools create_job json prop")
 
-old_cjh = """            if ( $payload->{script} && !$payload->{script_b64} ) {
+    old_cjh = """            if ( $payload->{script} && !$payload->{script_b64} ) {
                $payload->{script_b64} =
                  MIME::Base64::encode_base64( $payload->{script}, '' );
                delete $payload->{script};
             }
             $c->app->request( $c->stash('user'),
                { command => 'create_job', %$payload } );"""
-new_cjh = """            if ( $payload->{script} && !$payload->{script_b64} ) {
+    new_cjh = """            if ( $payload->{script} && !$payload->{script_b64} ) {
                $payload->{script_b64} =
                  MIME::Base64::encode_base64( $payload->{script}, '' );
                delete $payload->{script};
@@ -208,12 +189,12 @@ new_cjh = """            if ( $payload->{script} && !$payload->{script_b64} ) {
             _normalize_json_arg($payload);
             $c->app->request( $c->stash('user'),
                { command => 'create_job', %$payload } );"""
-if old_cjh not in tools:
-    sys.exit("FAIL: create_job handler not found")
-tools = tools.replace(old_cjh, new_cjh, 1)
-changes.append("Tools create_job handler")
+    if old_cjh not in tools:
+        sys.exit("FAIL: create_job handler not found")
+    tools = tools.replace(old_cjh, new_cjh, 1)
+    changes.append("Tools create_job handler")
 
-old_cc = """               loops => { type => 'integer' },
+    old_cc = """               loops => { type => 'integer' },
             },
             required => ['name'],
          },
@@ -223,10 +204,10 @@ old_cc = """               loops => { type => 'integer' },
                { command => 'create_cluster', %$args } );
          },
       },"""
-new_cc = (
-    "               loops => { type => 'integer' },\n"
-    + JSON_PROP
-    + """            },
+    new_cc = (
+        "               loops => { type => 'integer' },\n"
+        + JSON_PROP
+        + """            },
             required => ['name'],
          },
          handler => sub {
@@ -237,13 +218,13 @@ new_cc = (
                { command => 'create_cluster', %$payload } );
          },
       },"""
-)
-if old_cc not in tools:
-    sys.exit("FAIL: create_cluster block not found")
-tools = tools.replace(old_cc, new_cc, 1)
-changes.append("Tools create_cluster json")
+    )
+    if old_cc not in tools:
+        sys.exit("FAIL: create_cluster block not found")
+    tools = tools.replace(old_cc, new_cc, 1)
+    changes.append("Tools create_cluster json")
 
-old_uj = """               delay               => { type => 'integer' },
+    old_uj = """               delay               => { type => 'integer' },
                max_runtime_seconds => {
                   type        => 'integer',
                   description =>
@@ -265,10 +246,10 @@ old_uj = """               delay               => { type => 'integer' },
                { command => 'update_job_config', %$payload } );
          },
       },"""
-new_uj = (
-    "               delay               => { type => 'integer' },\n"
-    + JSON_PROP
-    + """               max_runtime_seconds => {
+    new_uj = (
+        "               delay               => { type => 'integer' },\n"
+        + JSON_PROP
+        + """               max_runtime_seconds => {
                   type        => 'integer',
                   description =>
 'Exceeding max_runtime_seconds starts the configured handler cluster; it does not automatically kill the job. Kill, notify, or recover as you define in the handler'
@@ -290,13 +271,13 @@ new_uj = (
                { command => 'update_job_config', %$payload } );
          },
       },"""
-)
-if old_uj not in tools:
-    sys.exit("FAIL: update_job block not found")
-tools = tools.replace(old_uj, new_uj, 1)
-changes.append("Tools update_job json")
+    )
+    if old_uj not in tools:
+        sys.exit("FAIL: update_job block not found")
+    tools = tools.replace(old_uj, new_uj, 1)
+    changes.append("Tools update_job json")
 
-old_uc = """               on_fail_id    => { type => 'integer' },
+    old_uc = """               on_fail_id    => { type => 'integer' },
                on_overdue_id => { type => 'integer' },
                loops         => { type => 'integer' },
             },
@@ -308,12 +289,12 @@ old_uc = """               on_fail_id    => { type => 'integer' },
                { command => 'update_cluster', %$args } );
          },
       },"""
-new_uc = (
-    "               on_fail_id    => { type => 'integer' },\n"
-    "               on_overdue_id => { type => 'integer' },\n"
-    "               loops         => { type => 'integer' },\n"
-    + JSON_PROP
-    + """            },
+    new_uc = (
+        "               on_fail_id    => { type => 'integer' },\n"
+        "               on_overdue_id => { type => 'integer' },\n"
+        "               loops         => { type => 'integer' },\n"
+        + JSON_PROP
+        + """            },
             required => ['id'],
          },
          handler => sub {
@@ -324,11 +305,13 @@ new_uc = (
                { command => 'update_cluster', %$payload } );
          },
       },"""
-)
-if old_uc not in tools:
-    sys.exit("FAIL: update_cluster block not found")
-tools = tools.replace(old_uc, new_uc, 1)
-changes.append("Tools update_cluster json")
+    )
+    if old_uc not in tools:
+        sys.exit("FAIL: update_cluster block not found")
+    tools = tools.replace(old_uc, new_uc, 1)
+    changes.append("Tools update_cluster json")
+else:
+    changes.append("Tools.pm json already present")
 
 ordo_path.write_text(ordo)
 tools_path.write_text(tools)
