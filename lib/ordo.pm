@@ -2787,8 +2787,10 @@ sub create_cluster {
       $self->_write_cluster_needs(
          $user,
          {
-            needs_all => $needs_ids,
-            needs_any => $needs_any_ids,
+            needs_all => $needs_ids // [],
+            needs_any => $needs_any_ids // [],
+            touch_all => $needs_ids ? 1 : 0,
+            touch_any => $needs_any_ids ? 1 : 0,
             id        => $id,
          }
       );
@@ -3980,15 +3982,19 @@ sub _create_job {
    if ($@) {
       return { success => 0, message => 'unable to insert job' };
    }
-   $self->_write_job_needs(
-      $user,
-      {
-         needs_all  => $needs_ids,
-         needs_any  => $needs_any_ids,
-         id         => $id,
-         cluster_id => $parent_id
-      }
-   );
+   if ( $needs_ids || $needs_any_ids ) {
+      $self->_write_job_needs(
+         $user,
+         {
+            needs_all  => $needs_ids // [],
+            needs_any  => $needs_any_ids // [],
+            touch_all  => $needs_ids ? 1 : 0,
+            touch_any  => $needs_any_ids ? 1 : 0,
+            id         => $id,
+            cluster_id => $parent_id
+         }
+      );
+   }
 
    $self->_broadcast_job( $user, [$id] );
    return {
@@ -4651,11 +4657,10 @@ sub update_job_config {
    $update_hash->{name}  = $d->{newname} if $d->{newname};
    $update_hash->{last_update} = time;
 
-   $self->sqlite->db->update( 'job', $update_hash, { id => $job->{id} } );
-   $self->sqlite->db->delete( 'job_needs', { job_id => $job->{id} } )
-     if $d->{remove_needs};
+   $self->sqlite->db->update( 'job', $update_hash, { id => $job->{id} } )
+     if scalar keys %$update_hash;
 
-   $self->_broadcast_job( $user, [ $job->{id} ] ) if scalar keys %$update_hash;
+   $self->_broadcast_job( $user, [ $job->{id} ] );
 
    return { success => 1, message => 'job updated' };
 }
@@ -4739,35 +4744,49 @@ sub _read_job_needs {
 
 sub _write_job_needs {
    my ( $self, $user, $d ) = @_;
-   my $job_id    = $d->{id};
-   my $needs_all = $d->{needs_all} || [];    # AND dependencies
-   my $needs_any = $d->{needs_any} || [];    # OR dependencies
+   my $job_id = $d->{id};
+   return unless $job_id;
 
-   return unless ( $needs_all || $needs_any );
+   my $touch_all = $d->{touch_all};
+   my $touch_any = $d->{touch_any};
+   if ( !defined $touch_all && !defined $touch_any ) {
+      $touch_all = exists $d->{needs_all};
+      $touch_any = exists $d->{needs_any};
+      return 1 unless $touch_all || $touch_any;
+   }
+   return 1 unless $touch_all || $touch_any;
+
+   my $needs_all = $d->{needs_all} // [];
+   my $needs_any = $d->{needs_any} // [];
+   $needs_all = [] unless ref $needs_all eq 'ARRAY';
+   $needs_any = [] unless ref $needs_any eq 'ARRAY';
 
    my $tx = $self->sqlite->db->begin;
 
-   # Clear old dependencies
-   $self->sqlite->db->query( 'DELETE FROM job_needs WHERE job_id = ?',
-      $job_id );
-
-   # Insert AND deps (needs_any_mode = 0)
-   for my $target_id (@$needs_all) {
-      next unless $target_id =~ /^\d+$/;
-
+   if ($touch_all) {
       $self->sqlite->db->query(
+         'DELETE FROM job_needs WHERE job_id = ? AND needs_any_mode = 0',
+         $job_id );
+      for my $target_id (@$needs_all) {
+         next unless defined $target_id && $target_id =~ /^\d+$/;
+         $self->sqlite->db->query(
 'INSERT OR IGNORE INTO job_needs (job_id, needs_job_id, needs_any_mode) VALUES (?, ?, 0)',
-         $job_id, $target_id
-      );
+            $job_id, $target_id
+         );
+      }
    }
 
-   # Insert OR deps (needs_any_mode = 1)
-   for my $target_id (@$needs_any) {
-      next unless $target_id =~ /^\d+$/;
+   if ($touch_any) {
       $self->sqlite->db->query(
+         'DELETE FROM job_needs WHERE job_id = ? AND needs_any_mode = 1',
+         $job_id );
+      for my $target_id (@$needs_any) {
+         next unless defined $target_id && $target_id =~ /^\d+$/;
+         $self->sqlite->db->query(
 'INSERT OR IGNORE INTO job_needs (job_id, needs_job_id, needs_any_mode) VALUES (?, ?, 1)',
-         $job_id, $target_id
-      );
+            $job_id, $target_id
+         );
+      }
    }
 
    $tx->commit;
@@ -4777,32 +4796,48 @@ sub _write_job_needs {
 sub _write_cluster_needs {
    my ( $self, $user, $d ) = @_;
    my $cluster_id = $d->{id};
-   my $needs_all  = $d->{needs_all};
-   my $needs_any  = $d->{needs_any};
+   return unless $cluster_id;
 
-   return unless $needs_all || $needs_any;
+   my $touch_all = $d->{touch_all};
+   my $touch_any = $d->{touch_any};
+   if ( !defined $touch_all && !defined $touch_any ) {
+      $touch_all = exists $d->{needs_all};
+      $touch_any = exists $d->{needs_any};
+      return 1 unless $touch_all || $touch_any;
+   }
+   return 1 unless $touch_all || $touch_any;
+
+   my $needs_all = $d->{needs_all} // [];
+   my $needs_any = $d->{needs_any} // [];
+   $needs_all = [] unless ref $needs_all eq 'ARRAY';
+   $needs_any = [] unless ref $needs_any eq 'ARRAY';
 
    my $tx = $self->sqlite->db->begin;
 
-   $self->sqlite->db->query( 'DELETE FROM cluster_needs WHERE cluster_id = ?',
-      $cluster_id );
-
-   for my $target_id (@$needs_all) {
-      next unless $target_id =~ /^\d+$/;
+   if ($touch_all) {
       $self->sqlite->db->query(
-
-#'INSERT OR IGNORE INTO cluster_needs (cluster_id, needs_cluster_id, needs_any_mode) VALUES (?, ?, 0)',
+         'DELETE FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 0',
+         $cluster_id );
+      for my $target_id (@$needs_all) {
+         next unless defined $target_id && $target_id =~ /^\d+$/;
+         $self->sqlite->db->query(
 'INSERT INTO cluster_needs (cluster_id, needs_cluster_id, needs_any_mode) VALUES (?, ?, 0)',
-         $cluster_id, $target_id
-      );
+            $cluster_id, $target_id
+         );
+      }
    }
 
-   for my $target_id (@$needs_any) {
-      next unless $target_id =~ /^\d+$/;
+   if ($touch_any) {
       $self->sqlite->db->query(
+         'DELETE FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 1',
+         $cluster_id );
+      for my $target_id (@$needs_any) {
+         next unless defined $target_id && $target_id =~ /^\d+$/;
+         $self->sqlite->db->query(
 'INSERT INTO cluster_needs (cluster_id, needs_cluster_id, needs_any_mode) VALUES (?, ?, 1)',
-         $cluster_id, $target_id
-      );
+            $cluster_id, $target_id
+         );
+      }
    }
 
    $tx->commit;
