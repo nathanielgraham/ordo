@@ -1583,6 +1583,10 @@ sub validate_params {
       }
       elsif ( $type =~ /^a:(.+)$/ ) {  # array with subtype (e.g. a:i, a:s, a:h)
          my $sub_type = $1;
+         if ( !defined $value || $value eq '' ) {
+            $clean->{$key} = [];
+            next;
+         }
          return ( 0, "invalid array for $key" ) unless ref $value eq 'ARRAY';
          return ( 0, "array too large for $key" ) if @$value > 1000;
 
@@ -1702,11 +1706,16 @@ sub request {
    die "Decoded must be HASH ref" unless $decoded && ref $decoded eq 'HASH';
 
    my $command = delete $decoded->{command};
+   my %allow_undef = map { $_ => 1 } qw(
+      json cal_id cal on_fail_id on_fail on_overdue_id on_overdue
+      server_id server max_runtime_seconds max_runtime_cluster_id
+      needs_ids needs_any_ids needs needs_any description
+   );
    my $params  = {
       map  { $_ => $decoded->{$_} }
       grep {
          defined $decoded->{$_}
-           || $_ eq 'json'    # allow null to clear attached json
+           || $allow_undef{$_}
       } keys %$decoded
    };
 
@@ -6960,7 +6969,6 @@ sub routing {
 
                #on_fail       => 'p',
                #on_fail_id    => 'i?',
-               remove_needs => 'i',
             }
          ],
          1    # billable
@@ -7075,7 +7083,6 @@ sub routing {
                on_fail_id    => 'i?',
                on_overdue    => 'p',
                on_overdue_id => 'i?',
-               remove_needs  => 'i',
                auto_start    => 'i',
             }
          ],
