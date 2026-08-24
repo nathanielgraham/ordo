@@ -2551,15 +2551,19 @@ sub update_cluster {
 
    $update_hash->{name} = $d->{newname} if $d->{newname};
 
-   $update_hash->{on_fail_id} =
-       $on_fail_id && $on_fail_id != $cluster_id
-     ? $on_fail_id
-     : undef;
-
-   $update_hash->{on_overdue_id} =
-       $on_overdue_id && $on_overdue_id != $cluster_id
-     ? $on_overdue_id
-     : undef;
+   # Only touch handlers when client sent the key (omit = no change)
+   if ( exists $d->{on_fail_id} || exists $d->{on_fail} ) {
+      $update_hash->{on_fail_id} =
+          $on_fail_id && $on_fail_id != $cluster_id
+        ? $on_fail_id
+        : undef;
+   }
+   if ( exists $d->{on_overdue_id} || exists $d->{on_overdue} ) {
+      $update_hash->{on_overdue_id} =
+          $on_overdue_id && $on_overdue_id != $cluster_id
+        ? $on_overdue_id
+        : undef;
+   }
 
    if ( exists $d->{json} ) {
       if ( !defined $d->{json} || $d->{json} eq '' ) {
@@ -2585,21 +2589,23 @@ sub update_cluster {
          $self->sqlite->db->update( 'cluster', $update_hash,
             { id => $cluster_id } );
       }
-      if ( $needs_ids || $needs_any_ids ) {
+      if ( exists $d->{needs_ids} || exists $d->{needs}
+         || exists $d->{needs_any_ids} || exists $d->{needs_any} )
+      {
          $self->_write_cluster_needs(
             $user,
             {
-               needs_all => $needs_ids,
-               needs_any => $needs_any_ids,
-               id        => $cluster_id,
+               needs_all => $needs_ids // [],
+               needs_any => $needs_any_ids // [],
+               touch_all =>
+                 ( exists $d->{needs_ids} || exists $d->{needs} ) ? 1 : 0,
+               touch_any =>
+                 ( exists $d->{needs_any_ids} || exists $d->{needs_any} )
+                 ? 1
+                 : 0,
+               id => $cluster_id,
             }
          );
-      }
-
-      if ( $d->{remove_needs} ) {
-         $self->sqlite->db->delete( 'cluster_needs',
-            { cluster_id => $cluster_id } )
-           if $d->{remove_needs};
       }
 
       if ( exists $d->{cal_id} || exists $d->{cal} ) {
@@ -4592,19 +4598,35 @@ sub update_job_config {
    my $update_hash =
      { map { $_ => $d->{$_} } grep { exists $d->{$_} } @fields };
 
-   my $max_sec = $d->{max_runtime_seconds} || 0;
-   my $max_id  = $d->{max_runtime_cluster_id};
+   if ( exists $d->{max_runtime_seconds} || exists $d->{max_runtime_cluster_id} )
+   {
+      my $max_sec = $d->{max_runtime_seconds};
+      my $max_id  = $d->{max_runtime_cluster_id};
+      my $sec_clear =
+           !defined $max_sec
+        || $max_sec eq ''
+        || ( $max_sec =~ /^-?\d+$/ && $max_sec == 0 );
+      my $id_clear =
+           !defined $max_id
+        || $max_id eq ''
+        || ( defined $max_id && $max_id =~ /^\d+$/ && $max_id == 0 );
 
-   if ( ( $max_sec > 0 && !$max_id ) || ( $max_id && $max_sec == 0 ) ) {
-      return {
-         success => 0,
-         message =>
-           "Max Runtime requires both seconds AND a handler (or neither)"
-      };
+      if ( $sec_clear && $id_clear ) {
+         $update_hash->{max_runtime_seconds}    = undef;
+         $update_hash->{max_runtime_cluster_id} = undef;
+      }
+      elsif ( $sec_clear || $id_clear ) {
+         return {
+            success => 0,
+            message =>
+              "Max Runtime requires both seconds AND a handler (or neither)"
+         };
+      }
+      else {
+         $update_hash->{max_runtime_seconds}    = $max_sec + 0;
+         $update_hash->{max_runtime_cluster_id} = $max_id + 0;
+      }
    }
-
-   $update_hash->{max_runtime_seconds}    = $max_sec;
-   $update_hash->{max_runtime_cluster_id} = $max_id;
 
    # allow base64 encoded script
    if ( $d->{script_b64} ) {
@@ -4614,28 +4636,52 @@ sub update_job_config {
       $update_hash->{script} = $d->{script};
    }
 
-   if ( $needs_ids || $needs_any_ids ) {
+   if ( exists $d->{needs_ids} || exists $d->{needs}
+      || exists $d->{needs_any_ids} || exists $d->{needs_any} )
+   {
       $self->_write_job_needs(
          $user,
          {
-            needs_all  => $needs_ids,
-            needs_any  => $needs_any_ids,
+            needs_all  => $needs_ids // [],
+            needs_any  => $needs_any_ids // [],
+            touch_all  =>
+              ( exists $d->{needs_ids} || exists $d->{needs} ) ? 1 : 0,
+            touch_any  =>
+              ( exists $d->{needs_any_ids} || exists $d->{needs_any} )
+              ? 1
+              : 0,
             id         => $job->{id},
             cluster_id => $job->{cluster_id}
          }
       );
    }
 
-   # server update
-   if ( $d->{server_id} ) {
-      my $res = $self->sqlite->db->select( 'server', ['id'],
-         { id => $d->{server_id}, org_id => $user->org_id } )->hash;
-      $update_hash->{server_id} = $res->{id} if $res->{id};
+   # server: omit = no change; null/''/0 = unassign
+   if ( exists $d->{server_id} ) {
+      my $v = $d->{server_id};
+      if ( !defined $v || $v eq '' || ( $v =~ /^\d+$/ && $v == 0 ) ) {
+         $update_hash->{server_id} = undef;
+      }
+      else {
+         my $res = $self->sqlite->db->select( 'server', ['id'],
+            { id => $v, org_id => $user->org_id } )->hash;
+         return { success => 0, message => 'server not found' }
+           unless $res->{id};
+         $update_hash->{server_id} = $res->{id};
+      }
    }
-   elsif ( $d->{server} ) {
-      my $res = $self->sqlite->db->select( 'server', ['id'],
-         { name => $d->{server}, org_id => $user->org_id } )->hash;
-      $update_hash->{server_id} = $res->{id} if $res->{id};
+   elsif ( exists $d->{server} ) {
+      my $v = $d->{server};
+      if ( !defined $v || $v eq '' ) {
+         $update_hash->{server_id} = undef;
+      }
+      else {
+         my $res = $self->sqlite->db->select( 'server', ['id'],
+            { name => $v, org_id => $user->org_id } )->hash;
+         return { success => 0, message => 'server not found' }
+           unless $res->{id};
+         $update_hash->{server_id} = $res->{id};
+      }
    }
 
    if ( exists $d->{json} ) {
