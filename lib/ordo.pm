@@ -2552,12 +2552,17 @@ sub update_cluster {
      : undef;
 
    if ( exists $d->{json} ) {
-      eval { my $data = decode_json( $d->{json} ); };
-      if ($@) {
-         return { success => 0, message => 'invalid json' };
+      if ( !defined $d->{json} || $d->{json} eq '' ) {
+         $update_hash->{json} = undef;    # clear
       }
       else {
-         $update_hash->{json} = $d->{json};
+         eval { my $data = decode_json( $d->{json} ); };
+         if ($@) {
+            return { success => 0, message => 'invalid json' };
+         }
+         else {
+            $update_hash->{json} = $d->{json};
+         }
       }
    }
 
@@ -2747,12 +2752,17 @@ sub create_cluster {
 
    # === JSON validation ===
    if ( exists $d->{json} ) {
-      eval { my $data = decode_json( $d->{json} ); };
-      if ($@) {
-         return { success => 0, message => 'invalid json' };
+      if ( !defined $d->{json} || $d->{json} eq '' ) {
+         $insert_hash->{json} = undef;    # clear
       }
       else {
-         $insert_hash->{json} = $d->{json};
+         eval { my $data = decode_json( $d->{json} ); };
+         if ($@) {
+            return { success => 0, message => 'invalid json' };
+         }
+         else {
+            $insert_hash->{json} = $d->{json};
+         }
       }
    }
 
@@ -3915,12 +3925,17 @@ sub _create_job {
    $insert_hash->{max_runtime_cluster_id} = $max_id;
 
    if ( exists $d->{json} ) {
-      eval { my $data = decode_json( $d->{json} ); };
-      if ($@) {
-         return { success => 0, message => 'invalid json' };
+      if ( !defined $d->{json} || $d->{json} eq '' ) {
+         $insert_hash->{json} = undef;    # clear
       }
       else {
-         $insert_hash->{json} = $d->{json};
+         eval { my $data = decode_json( $d->{json} ); };
+         if ($@) {
+            return { success => 0, message => 'invalid json' };
+         }
+         else {
+            $insert_hash->{json} = $d->{json};
+         }
       }
    }
 
@@ -4609,12 +4624,17 @@ sub update_job_config {
    }
 
    if ( exists $d->{json} ) {
-      eval { my $data = decode_json( $d->{json} ); };
-      if ($@) {
-         return { success => 0, message => 'invalid json' };
+      if ( !defined $d->{json} || $d->{json} eq '' ) {
+         $update_hash->{json} = undef;    # clear
       }
       else {
-         $update_hash->{json} = $d->{json};
+         eval { my $data = decode_json( $d->{json} ); };
+         if ($@) {
+            return { success => 0, message => 'invalid json' };
+         }
+         else {
+            $update_hash->{json} = $d->{json};
+         }
       }
    }
 
