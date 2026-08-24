@@ -1248,8 +1248,8 @@ HTML
    my $cron_timers = $self->sqlite->db->query($cron_timers_sql);
    while ( my $a = $cron_timers->hash ) {
       my $count = $self->sqlite->db->query(
-         "select count(*) as count from cluster where cal_id = $a->{cal_id}")
-        ->hash->{count};
+         'select count(*) as count from cluster where cal_id = ?',
+         $a->{cal_id} )->hash->{count};
       next unless $count;
       my $user =
         ordo::Model::User->new( id => $a->{user_id}, org_id => $a->{org_id} );
@@ -1972,15 +1972,16 @@ sub _set_cluster_state {
       my $ready    = $self->job_states->{ready};
       my $ice      = $self->job_states->{ice};
 
-      my $depends_sql = <<~"SQL";
+      my $depends_sql = <<~'SQL';
          SELECT cn.cluster_id AS id
          FROM cluster_needs cn
          JOIN cluster c ON cn.cluster_id = c.id
-         WHERE cn.needs_cluster_id = $cluster_id
-           AND c.state_id IN ($ready, $waiting, $ice)
+         WHERE cn.needs_cluster_id = ?
+           AND c.state_id IN (?, ?, ?)
       SQL
 
-      my $cneed = $self->sqlite->db->query($depends_sql);
+      my $cneed = $self->sqlite->db->query(
+         $depends_sql, $cluster_id, $ready, $waiting, $ice );
       while ( my $c = $cneed->hash ) {
          if ( $self->_cluster_needs_met( $user, { id => $c->{id} } ) ) {
             $self->_start_cluster( $user,
@@ -2654,8 +2655,8 @@ sub delete_cluster {
 
       # calendar cleanup
       my $count = $self->sqlite->db->query(
-         "select count(*) as count from cluster where cal_id = $c->{cal_id}")
-        ->hash->{count};
+         'select count(*) as count from cluster where cal_id = ?',
+         $c->{cal_id} )->hash->{count};
       if ( $count == 0 ) {
 
          # stop cal if no clusters subscribed
@@ -3350,17 +3351,15 @@ sub _org_info {
      timelocal( 0, 0, 0, 1, (localtime)[4] + 1, (localtime)[5] );
    my $org_id = $user->org_id;
 
-   my $sql = <<~"SQL";
-     select max(year_month) as current_month_year, call_count from usage_counters where org_id = $org_id
-   SQL
-
-   my $usage = $self->sqlite->db->query($sql)->hash;
+   my $usage = $self->sqlite->db->query(
+     'select max(year_month) as current_month_year, call_count from usage_counters where org_id = ?',
+     $org_id )->hash;
    $org->{api_calls_this_month} = $usage->{call_count};
    $org->{current_month_year}   = $usage->{current_month_year};
 
    my $server_count = $self->sqlite->db->query(
-      "select count(*) as count from server where org_id = $org_id")
-     ->hash->{count};
+      'select count(*) as count from server where org_id = ?',
+      $org_id )->hash->{count};
    $org->{server_count} = $server_count;
    return $org;
 }
@@ -3440,18 +3439,18 @@ sub _job_info {
    }
    return unless $job_id;
 
-   my $sql = <<~"SQL";
+   my $sql = <<~'SQL';
       select j.*, c.org_id,
       s.name as server_name, js.state as jobstate
       from job j
       join cluster c on j.cluster_id = c.id
       left join server s on j.server_id = s.id
       left join job_states js on j.state_id = js.id
-      where c.org_id = $org_id 
-      and j.id = $job_id 
+      where c.org_id = ?
+      and j.id = ?
    SQL
 
-   my $job = $self->sqlite->db->query($sql)->hash;
+   my $job = $self->sqlite->db->query( $sql, $org_id, $job_id )->hash;
 
    return unless $job->{id};
 
@@ -4019,8 +4018,8 @@ sub delete_job {
 
 # if no jobs left in the cluster, set cluster state to ready and de-link it from any calendar
    my $count = $self->sqlite->db->query(
-      "select count(*) as count from job where cluster_id = $job->{cluster_id}")
-     ->hash->{count};
+      'select count(*) as count from job where cluster_id = ?',
+      $job->{cluster_id} )->hash->{count};
    unless ($count) {
       $self->_set_cluster_cal_id( $user,
          { cluster_id => $job->{cluster_id}, cal_id => undef } );
@@ -4375,15 +4374,16 @@ sub _set_job_state {
       ) if $d->{state} eq 'complete';
 
       # Trigger dependent jobs
-      my $depends_sql = <<~"SQL";
+      my $depends_sql = <<~'SQL';
          SELECT jn.job_id, j.state_id, jn.needs_any_mode
          FROM job_needs jn
          JOIN job j ON jn.job_id = j.id
-         WHERE jn.needs_job_id = $job_id
-           AND j.state_id IN ($ready, $waiting, $ice)
+         WHERE jn.needs_job_id = ?
+           AND j.state_id IN (?, ?, ?)
       SQL
 
-      my $need = $self->sqlite->db->query($depends_sql);
+      my $need = $self->sqlite->db->query(
+         $depends_sql, $job_id, $ready, $waiting, $ice );
       while ( my $j = $need->hash ) {
          if ( $self->_job_needs_met( $user, { id => $j->{job_id} } ) ) {
             $self->_start_job(
@@ -5055,28 +5055,28 @@ sub _cluster_needs_met {
    my $complete = $self->job_states->{complete};
    my $ice      = $self->job_states->{ice};
 
-   my $all_sql = <<~"SQL";
+   my $all_sql = <<~'SQL';
       select cn.needs_cluster_id, c.state_id, cn.cluster_id
       from cluster c 
       join cluster_needs cn on c.id = cn.needs_cluster_id
-      where c.state_id not in ($complete,$ice)
+      where c.state_id not in (?,?)
       and cn.needs_any_mode = 0
       and cn.cluster_id = ?;
    SQL
 
-   my $not_met = $self->sqlite->db->query( $all_sql, $d->{id} )->hash;
+   my $not_met = $self->sqlite->db->query( $all_sql, $complete, $ice, $d->{id} )->hash;
    my $all_met = scalar @{ $cluster->{needs_ids} } && $not_met ? 0 : 1;
 
-   my $any_sql = <<~"SQL";
+   my $any_sql = <<~'SQL';
       select cn.needs_cluster_id, c.state_id, cn.cluster_id
       from cluster c 
       join cluster_needs cn on c.id = cn.needs_cluster_id
-      where c.state_id in ($complete,$ice)
+      where c.state_id in (?,?)
       and cn.needs_any_mode = 1
       and cn.cluster_id = ?;
    SQL
 
-   my $met     = $self->sqlite->db->query( $any_sql, $d->{id} )->hash;
+   my $met     = $self->sqlite->db->query( $any_sql, $complete, $ice, $d->{id} )->hash;
    my $any_met = scalar @{ $cluster->{needs_any_ids} } && !$met ? 0 : 1;
 
    return $all_met && $any_met ? 1 : 0;
@@ -5093,28 +5093,28 @@ sub _job_needs_met {
    my $complete = $self->job_states->{complete};
    my $ice      = $self->job_states->{ice};
 
-   my $all_sql = <<~"SQL";
+   my $all_sql = <<~'SQL';
       select jn.needs_job_id, j.state_id, jn.job_id
       from job j
       join job_needs jn on j.id = jn.needs_job_id 
-      where j.state_id not in ($complete,$ice)
+      where j.state_id not in (?,?)
       and jn.needs_any_mode = 0
       and jn.job_id = ?;
    SQL
 
-   my $not_met = $self->sqlite->db->query( $all_sql, $d->{id} )->hash;
+   my $not_met = $self->sqlite->db->query( $all_sql, $complete, $ice, $d->{id} )->hash;
    my $all_met = scalar @{ $job->{needs_ids} } && $not_met ? 0 : 1;
 
-   my $any_sql = <<~"SQL";
+   my $any_sql = <<~'SQL';
       select jn.needs_job_id, j.state_id, jn.job_id
       from job j
       join job_needs jn on j.id = jn.needs_job_id
-      where j.state_id in ($complete,$ice)
+      where j.state_id in (?,?)
       and jn.needs_any_mode = 1 
       and jn.job_id = ?;
    SQL
 
-   my $met     = $self->sqlite->db->query( $any_sql, $d->{id} )->hash;
+   my $met     = $self->sqlite->db->query( $any_sql, $complete, $ice, $d->{id} )->hash;
    my $any_met = scalar @{ $job->{needs_any_ids} } && !$met ? 0 : 1;
 
    return $all_met && $any_met ? 1 : 0;
@@ -5838,7 +5838,8 @@ sub _sync_server {
    my $revived_count = 0;
 
    my $jobs = $self->sqlite->db->query(
-"select * from job where (pid is not null or ppid is not null) and server_id = $d->{id}"
+      'select * from job where (pid is not null or ppid is not null) and server_id = ?',
+      $d->{id}
    )->hashes->to_array;
 
    return unless scalar @$jobs;
@@ -5902,7 +5903,8 @@ sub sync {
    while ( my $server = $servers->hash ) {
 
       my $jobs = $self->sqlite->db->query(
-"select * from job where (pid is not null or ppid is not null) and server_id = $server->{id}"
+         'select * from job where (pid is not null or ppid is not null) and server_id = ?',
+         $server->{id}
       )->hashes->to_array;
 
 #my $jobs = $self->sqlite->db->select('job', ['id','pid','ppid','state_id'], { pid => { '!=', undef }, server_id => $server->{id} } )->hashes->to_array;
@@ -5978,7 +5980,8 @@ sub _log_info {
    }
    else {
       $log = $self->sqlite->db->query(
-"select * from job_log where job_id = $job->{id} order by id desc limit 1"
+         'select * from job_log where job_id = ? order by id desc limit 1',
+         $job->{id}
       )->hash;
    }
 
@@ -6260,15 +6263,15 @@ sub _delete_cron {
    # id
 
    my $org_id = $user->org_id;
-   my $sql    = <<~"SQL";
+   my $sql    = <<~'SQL';
       select cron.id as cron_id, cal.id as cal_id
       from cron
       join cal on cron.cal_id = cal.id
-      where cal.org_id = $org_id
-      and cron.id = $d->{id}
+      where cal.org_id = ?
+      and cron.id = ?
    SQL
 
-   my $cal = $self->sqlite->db->query($sql)->hash;
+   my $cal = $self->sqlite->db->query( $sql, $org_id, $d->{id} )->hash;
 
    return 0 unless $cal->{cron_id};
 
@@ -6411,8 +6414,8 @@ sub _set_cluster_cal_id {
 
    if ($old_cal_id) {
       my $count = $self->sqlite->db->query(
-         "select count(*) as count from cluster where cal_id = $old_cal_id")
-        ->hash->{count};
+         'select count(*) as count from cluster where cal_id = ?',
+         $old_cal_id )->hash->{count};
 
       if ( $count == 0 ) {
 
@@ -6432,8 +6435,8 @@ sub _set_cluster_cal_id {
 
    if ($new_cal_id) {
       my $count = $self->sqlite->db->query(
-         "select count(*) as count from cluster where cal_id = $new_cal_id")
-        ->hash->{count};
+         'select count(*) as count from cluster where cal_id = ?',
+         $new_cal_id )->hash->{count};
 
       # start new cal if subscribers went from 0 to 1
       if ( $count == 1 ) {
@@ -6450,7 +6453,8 @@ sub _cron_next_start {
    # id (cron id)
 
    my $c = $self->sqlite->db->query(
-"select cron.*, cal.tz from cron join cal on cron.cal_id = cal.id where cron.id = $d->{id}"
+      'select cron.*, cal.tz from cron join cal on cron.cal_id = cal.id where cron.id = ?',
+      $d->{id}
    )->hash;
    my $tz   = $c->{tz} || 'UTC';
    my $name = $c->{name};
@@ -6479,15 +6483,15 @@ sub _cal_next_start {
    my $cal_id = $d->{id};
    return unless $cal_id;
 
-   my $sql = <<~"SQL";
+   my $sql = <<~'SQL';
       select min(next_start) as ns
       from cron
-      where cal_id = $cal_id
+      where cal_id = ?
       and next_start is not null
       and next_start >= unixepoch('now');
    SQL
 
-   my $next_start = $self->sqlite->db->query($sql)->hash->{ns};
+   my $next_start = $self->sqlite->db->query( $sql, $cal_id )->hash->{ns};
    return $next_start;
 }
 
@@ -6596,8 +6600,8 @@ sub _add_cron {
 
    # only start when subscribers exist
    my $count = $self->sqlite->db->query(
-      "select count(*) as count from cluster where cal_id = $cal_info->{id}")
-     ->hash->{count};
+      'select count(*) as count from cluster where cal_id = ?',
+      $cal_info->{id} )->hash->{count};
    return { success => 1, message => 'cron created but not started' }
      unless $count;
 
