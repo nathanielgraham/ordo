@@ -1525,9 +1525,19 @@ sub validate_params {
            unless $value =~ /^[\d\.eE\-\+]+$/;
          $clean->{$key} = $value + 0.0;
       }
-      elsif ( $type eq 'j' ) {     # JSON object
-         eval { JSON::PP->new->decode($value) };
+      elsif ( $type eq 'j' ) {     # JSON object; null/'' clears; max 64KB; object only
+         if ( !defined $value || $value eq '' ) {
+            $clean->{$key} = undef;
+            next;
+         }
+         if ( length($value) > 65536 ) {
+            return ( 0, "$key exceeds 64 KB limit" );
+         }
+         my $decoded;
+         eval { $decoded = JSON::PP->new->decode($value) };
          return ( 0, "invalid JSON for $key" ) if $@;
+         return ( 0, "$key must be a JSON object" )
+           unless ref($decoded) eq 'HASH';
          $clean->{$key} = $value;
       }
       elsif ( $type eq 'b' ) {     # boolean
@@ -1694,7 +1704,10 @@ sub request {
    my $command = delete $decoded->{command};
    my $params  = {
       map  { $_ => $decoded->{$_} }
-      grep { defined $decoded->{$_} } keys %$decoded
+      grep {
+         defined $decoded->{$_}
+           || $_ eq 'json'    # allow null to clear attached json
+      } keys %$decoded
    };
 
    if ( exists $self->routing->{$command} ) {
@@ -2538,7 +2551,7 @@ sub update_cluster {
      ? $on_overdue_id
      : undef;
 
-   if ( $d->{json} ) {
+   if ( exists $d->{json} ) {
       eval { my $data = decode_json( $d->{json} ); };
       if ($@) {
          return { success => 0, message => 'invalid json' };
@@ -2733,7 +2746,7 @@ sub create_cluster {
    $insert_hash->{on_overdue_id} = $on_overdue_id;
 
    # === JSON validation ===
-   if ( $d->{json} ) {
+   if ( exists $d->{json} ) {
       eval { my $data = decode_json( $d->{json} ); };
       if ($@) {
          return { success => 0, message => 'invalid json' };
@@ -3901,7 +3914,7 @@ sub _create_job {
    $insert_hash->{max_runtime_seconds}    = $max_sec;
    $insert_hash->{max_runtime_cluster_id} = $max_id;
 
-   if ( $d->{json} ) {
+   if ( exists $d->{json} ) {
       eval { my $data = decode_json( $d->{json} ); };
       if ($@) {
          return { success => 0, message => 'invalid json' };
@@ -4388,7 +4401,7 @@ sub _set_job_state {
    elsif ( $d->{state} eq 'ready' || $d->{state} eq 'waiting' ) {
       $update_hash->{loop_count}  = 0;
       $update_hash->{retry_count} = 0;
-      $update_hash->{json}        = undef;
+      # job json is durable — not cleared on ready/waiting
       $update_hash->{started}     = undef;
       $update_hash->{ended}       = undef;
    }
@@ -4595,7 +4608,7 @@ sub update_job_config {
       $update_hash->{server_id} = $res->{id} if $res->{id};
    }
 
-   if ( $d->{json} ) {
+   if ( exists $d->{json} ) {
       eval { my $data = decode_json( $d->{json} ); };
       if ($@) {
          return { success => 0, message => 'invalid json' };
@@ -5171,7 +5184,7 @@ sub _start_job {
    }
 
    # === Fetch cluster for handler info ===
-   my $cluster = $self->sqlite->db->select( 'cluster', ['handler_context'],
+   my $cluster = $self->sqlite->db->select( 'cluster', [ 'handler_context', 'json' ],
       { id => $job->{cluster_id} } )->hash;
 
    # === Build unified handler_context ===
@@ -5217,6 +5230,8 @@ sub _start_job {
       max_runtime_seconds    => $job->{max_runtime_seconds}    || 0,
       max_runtime_cluster_id => $job->{max_runtime_cluster_id} || undef,
       delay                  => $job->{delay}                  || 0,
+      job_json               => $job->{json},
+      cluster_json           => $cluster->{json},
 
       # Auditing / Origin
       user_id           => $user->id,
