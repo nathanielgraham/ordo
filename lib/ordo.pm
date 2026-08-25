@@ -6946,7 +6946,7 @@ sub routing {
 
       # Docs
       'get_documentation' => [
-         'get_documentation', 1, [ { section => 'n', format => 'n' }, {} ], 1
+         'get_documentation', 1, [ { section => 'n' }, { format => 'n' } ], 1
       ],
 
       # Stats
