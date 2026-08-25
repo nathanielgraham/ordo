@@ -57,8 +57,8 @@
               >
             </li>
             <li>
-              <a href="#" data-file="rest-api.md" class="menu-link"
-                >REST API</a
+              <a href="#" data-file="api.md" class="menu-link"
+                >JSON command protocol</a
               >
             </li>
             <li>
