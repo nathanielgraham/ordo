@@ -1509,7 +1509,7 @@ sub validate_params {
       }
       elsif ( $type eq 'c' ) {    # shell command
          return ( 0, "shell command too long for $key" )
-           if length $value > 4000;
+           if length $value > 8000;
          $clean->{$key} =
            $value;    # preserve spaces — MUST be safely quoted in execution
       }
@@ -3966,6 +3966,10 @@ sub _create_job {
    }
    elsif ( $d->{script} ) {
       $insert_hash->{script} = $d->{script};
+   }
+
+   unless ( defined $insert_hash->{script} && length $insert_hash->{script} ) {
+      return { success => 0, message => 'script or script_b64 required' };
    }
 
    if ( $d->{server_id} ) {
@@ -6983,9 +6987,11 @@ sub routing {
          'create_job',
          1,
          [
-            { name => 'n', script_b64 => 'c' },
+            { name => 'n' },
             {
                parent_id              => 'i',
+               script_b64             => 'c',
+               script                 => 'c',
                needs                  => 'a:s',
                needs_ids              => 'a:i',
                json                   => 'j',
@@ -7039,6 +7045,7 @@ sub routing {
                newname                => 'n',
                description            => 'd',
                script_b64             => 'c',
+               script                 => 'c',
                server                 => 'srv',
                server_id              => 'i?',
                needs                  => 'a:s',
