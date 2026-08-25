@@ -2,7 +2,7 @@
 package ordo::MCP::Tools;
 use Mojo::Base -base;
 use MIME::Base64 ();
-use Mojo::JSON qw(encode_json);
+use Mojo::JSON   qw(encode_json);
 
 # MCP `json` arg: object -> JSON string; null/empty -> '' (clear via API)
 sub _normalize_json_arg {
@@ -39,11 +39,11 @@ sub get_tools {
                      'core-concepts',       'jobs-and-clusters',
                      'calendars-and-crons', 'advanced-topics',
                      'connecting-to-ai',    'faq',
-                     'api',                 'rest-api',
-                     'cli',                 'dashboard',
-                     'stats-polling',       'settings',
-                     'private-deployments', 'self-hosted',
-                     'all'
+                     'api',                 'cli',
+                     'dashboard',           'stats-polling',
+                     'settings',            'private-deployments',
+                     'self-hosted',         'all',
+                     'agent-protocol'
                   ],
                   default => 'overview',
                },
@@ -210,16 +210,16 @@ sub get_tools {
                   items       => { type => 'integer' },
                   description => 'IDs where only ONE needs to succeed (OR)',
                },
-               retrys              => { type => 'integer' },
-               loops               => { type => 'integer' },
-               delay               => { type => 'integer' },
-               json => {
+               retrys => { type => 'integer' },
+               loops  => { type => 'integer' },
+               delay  => { type => 'integer' },
+               json   => {
                   type        => 'object',
                   description =>
 'Arbitrary JSON object attached to this entity. Durable across reset. '
-. 'Injected as ORDO_JOB_JSON (job) or ORDO_CLUSTER_JSON (cluster) when non-empty. '
-. 'Use for parameters (repo, branch, dirs, flags)—not for secrets. Max 64 KB. '
-. 'Pass null to clear.',
+                    . 'Injected as ORDO_JOB_JSON (job) or ORDO_CLUSTER_JSON (cluster) when non-empty. '
+                    . 'Use for parameters (repo, branch, dirs, flags)—not for secrets. Max 64 KB. '
+                    . 'Pass null to clear.',
                },
                max_runtime_seconds => {
                   type        => 'integer',
@@ -280,13 +280,13 @@ sub get_tools {
                   items => { type => 'integer' },
                },
                loops => { type => 'integer' },
-               json => {
+               json  => {
                   type        => 'object',
                   description =>
 'Arbitrary JSON object attached to this entity. Durable across reset. '
-. 'Injected as ORDO_JOB_JSON (job) or ORDO_CLUSTER_JSON (cluster) when non-empty. '
-. 'Use for parameters (repo, branch, dirs, flags)—not for secrets. Max 64 KB. '
-. 'Pass null to clear.',
+                    . 'Injected as ORDO_JOB_JSON (job) or ORDO_CLUSTER_JSON (cluster) when non-empty. '
+                    . 'Use for parameters (repo, branch, dirs, flags)—not for secrets. Max 64 KB. '
+                    . 'Pass null to clear.',
                },
             },
             required => ['name'],
@@ -354,16 +354,16 @@ sub get_tools {
                   type  => 'array',
                   items => { type => 'integer' },
                },
-               retrys              => { type => 'integer' },
-               loops               => { type => 'integer' },
-               delay               => { type => 'integer' },
-               json => {
+               retrys => { type => 'integer' },
+               loops  => { type => 'integer' },
+               delay  => { type => 'integer' },
+               json   => {
                   type        => 'object',
                   description =>
 'Arbitrary JSON object attached to this entity. Durable across reset. '
-. 'Injected as ORDO_JOB_JSON (job) or ORDO_CLUSTER_JSON (cluster) when non-empty. '
-. 'Use for parameters (repo, branch, dirs, flags)—not for secrets. Max 64 KB. '
-. 'Pass null to clear.',
+                    . 'Injected as ORDO_JOB_JSON (job) or ORDO_CLUSTER_JSON (cluster) when non-empty. '
+                    . 'Use for parameters (repo, branch, dirs, flags)—not for secrets. Max 64 KB. '
+                    . 'Pass null to clear.',
                },
                max_runtime_seconds => {
                   type        => 'integer',
@@ -418,13 +418,13 @@ sub get_tools {
                on_fail_id    => { type => 'integer' },
                on_overdue_id => { type => 'integer' },
                loops         => { type => 'integer' },
-               json => {
+               json          => {
                   type        => 'object',
                   description =>
 'Arbitrary JSON object attached to this entity. Durable across reset. '
-. 'Injected as ORDO_JOB_JSON (job) or ORDO_CLUSTER_JSON (cluster) when non-empty. '
-. 'Use for parameters (repo, branch, dirs, flags)—not for secrets. Max 64 KB. '
-. 'Pass null to clear.',
+                    . 'Injected as ORDO_JOB_JSON (job) or ORDO_CLUSTER_JSON (cluster) when non-empty. '
+                    . 'Use for parameters (repo, branch, dirs, flags)—not for secrets. Max 64 KB. '
+                    . 'Pass null to clear.',
                },
             },
             required => ['id'],

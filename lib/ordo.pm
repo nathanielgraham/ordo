@@ -317,6 +317,7 @@ sub startup {
            overview quickstart core-concepts jobs-and-clusters calendars-and-crons
            dashboard cli rest-api connecting-to-ai advanced-topics settings
            stats-polling deploy self-hosted private-deployments faq privacy terms
+           agent-protocol
          );
          $section = 'overview' unless $allowed{$section};
          $c->res->code(301);
@@ -1396,9 +1397,11 @@ sub _preload_documents {
       'advanced-topics'  => 'Self-healing workflows, meta-automation...',
       'faq'              => 'Frequently asked questions about Ordo...',
       'private-deployments' => 'Deployment options...',
-      'rest-api'            => 'REST API...',
+      'api'                 => 'JSON command protocol...',
       'stats-polling'       => 'Fetch statistics about jobs and servers...',
       'cli'                 => 'Terminal CLI for ordo...',
+      'agent-protocol'      =>
+'Agent-oriented protocol: WebSocket vs MCP, start-and-wait, disconnect recovery...',
    );
 
    my %full_docs;
@@ -1530,7 +1533,8 @@ sub validate_params {
            unless $value =~ /^[\d\.eE\-\+]+$/;
          $clean->{$key} = $value + 0.0;
       }
-      elsif ( $type eq 'j' ) {     # JSON object; null/'' clears; max 64KB; object only
+      elsif ( $type eq 'j' )
+      {    # JSON object; null/'' clears; max 64KB; object only
          if ( !defined $value || $value eq '' ) {
             $clean->{$key} = undef;
             next;
@@ -1545,7 +1549,7 @@ sub validate_params {
            unless ref($decoded) eq 'HASH';
          $clean->{$key} = $value;
       }
-      elsif ( $type eq 'b' ) {     # boolean
+      elsif ( $type eq 'b' ) {    # boolean
          $clean->{$key} = !!$value;
       }
       elsif ( $type eq 'tz' ) {    # timezone
@@ -1710,18 +1714,15 @@ sub request {
    my $response = {};
    die "Decoded must be HASH ref" unless $decoded && ref $decoded eq 'HASH';
 
-   my $command = delete $decoded->{command};
+   my $command     = delete $decoded->{command};
    my %allow_undef = map { $_ => 1 } qw(
-      json cal_id cal on_fail_id on_fail on_overdue_id on_overdue
-      server_id server max_runtime_seconds max_runtime_cluster_id
-      needs_ids needs_any_ids needs needs_any description
+     json cal_id cal on_fail_id on_fail on_overdue_id on_overdue
+     server_id server max_runtime_seconds max_runtime_cluster_id
+     needs_ids needs_any_ids needs needs_any description
    );
-   my $params  = {
+   my $params = {
       map  { $_ => $decoded->{$_} }
-      grep {
-         defined $decoded->{$_}
-           || $allow_undef{$_}
-      } keys %$decoded
+      grep { defined $decoded->{$_} || $allow_undef{$_} } keys %$decoded
    };
 
    if ( exists $self->routing->{$command} ) {
@@ -1994,8 +1995,9 @@ sub _set_cluster_state {
            AND c.state_id IN (?, ?, ?)
       SQL
 
-      my $cneed = $self->sqlite->db->query(
-         $depends_sql, $cluster_id, $ready, $waiting, $ice );
+      my $cneed =
+        $self->sqlite->db->query( $depends_sql, $cluster_id, $ready, $waiting,
+         $ice );
       while ( my $c = $cneed->hash ) {
          if ( $self->_cluster_needs_met( $user, { id => $c->{id} } ) ) {
             $self->_start_cluster( $user,
@@ -2594,20 +2596,22 @@ sub update_cluster {
          $self->sqlite->db->update( 'cluster', $update_hash,
             { id => $cluster_id } );
       }
-      if ( exists $d->{needs_ids} || exists $d->{needs}
-         || exists $d->{needs_any_ids} || exists $d->{needs_any} )
+      if (  exists $d->{needs_ids}
+         || exists $d->{needs}
+         || exists $d->{needs_any_ids}
+         || exists $d->{needs_any} )
       {
          $self->_write_cluster_needs(
             $user,
             {
-               needs_all => $needs_ids // [],
+               needs_all => $needs_ids     // [],
                needs_any => $needs_any_ids // [],
-               touch_all =>
-                 ( exists $d->{needs_ids} || exists $d->{needs} ) ? 1 : 0,
+               touch_all => ( exists $d->{needs_ids} || exists $d->{needs} )
+               ? 1
+               : 0,
                touch_any =>
-                 ( exists $d->{needs_any_ids} || exists $d->{needs_any} )
-                 ? 1
-                 : 0,
+                 ( exists $d->{needs_any_ids} || exists $d->{needs_any} ) ? 1
+               : 0,
                id => $cluster_id,
             }
          );
@@ -2798,9 +2802,9 @@ sub create_cluster {
       $self->_write_cluster_needs(
          $user,
          {
-            needs_all => $needs_ids // [],
+            needs_all => $needs_ids     // [],
             needs_any => $needs_any_ids // [],
-            touch_all => $needs_ids ? 1 : 0,
+            touch_all => $needs_ids     ? 1 : 0,
             touch_any => $needs_any_ids ? 1 : 0,
             id        => $id,
          }
@@ -3374,14 +3378,15 @@ sub _org_info {
    my $org_id = $user->org_id;
 
    my $usage = $self->sqlite->db->query(
-     'select max(year_month) as current_month_year, call_count from usage_counters where org_id = ?',
-     $org_id )->hash;
+'select max(year_month) as current_month_year, call_count from usage_counters where org_id = ?',
+      $org_id
+   )->hash;
    $org->{api_calls_this_month} = $usage->{call_count};
    $org->{current_month_year}   = $usage->{current_month_year};
 
    my $server_count = $self->sqlite->db->query(
-      'select count(*) as count from server where org_id = ?',
-      $org_id )->hash->{count};
+      'select count(*) as count from server where org_id = ?', $org_id )
+     ->hash->{count};
    $org->{server_count} = $server_count;
    return $org;
 }
@@ -4001,9 +4006,9 @@ sub _create_job {
       $self->_write_job_needs(
          $user,
          {
-            needs_all  => $needs_ids // [],
+            needs_all  => $needs_ids     // [],
             needs_any  => $needs_any_ids // [],
-            touch_all  => $needs_ids ? 1 : 0,
+            touch_all  => $needs_ids     ? 1 : 0,
             touch_any  => $needs_any_ids ? 1 : 0,
             id         => $id,
             cluster_id => $parent_id
@@ -4412,8 +4417,9 @@ sub _set_job_state {
            AND j.state_id IN (?, ?, ?)
       SQL
 
-      my $need = $self->sqlite->db->query(
-         $depends_sql, $job_id, $ready, $waiting, $ice );
+      my $need =
+        $self->sqlite->db->query( $depends_sql, $job_id, $ready, $waiting,
+         $ice );
       while ( my $j = $need->hash ) {
          if ( $self->_job_needs_met( $user, { id => $j->{job_id} } ) ) {
             $self->_start_job(
@@ -4446,9 +4452,10 @@ sub _set_job_state {
    elsif ( $d->{state} eq 'ready' || $d->{state} eq 'waiting' ) {
       $update_hash->{loop_count}  = 0;
       $update_hash->{retry_count} = 0;
+
       # job json is durable — not cleared on ready/waiting
-      $update_hash->{started}     = undef;
-      $update_hash->{ended}       = undef;
+      $update_hash->{started} = undef;
+      $update_hash->{ended}   = undef;
    }
 
    # Final DB update
@@ -4607,7 +4614,8 @@ sub update_job_config {
    my $update_hash =
      { map { $_ => $d->{$_} } grep { exists $d->{$_} } @fields };
 
-   if ( exists $d->{max_runtime_seconds} || exists $d->{max_runtime_cluster_id} )
+   if (  exists $d->{max_runtime_seconds}
+      || exists $d->{max_runtime_cluster_id} )
    {
       my $max_sec = $d->{max_runtime_seconds};
       my $max_id  = $d->{max_runtime_cluster_id};
@@ -4645,20 +4653,21 @@ sub update_job_config {
       $update_hash->{script} = $d->{script};
    }
 
-   if ( exists $d->{needs_ids} || exists $d->{needs}
-      || exists $d->{needs_any_ids} || exists $d->{needs_any} )
+   if (  exists $d->{needs_ids}
+      || exists $d->{needs}
+      || exists $d->{needs_any_ids}
+      || exists $d->{needs_any} )
    {
       $self->_write_job_needs(
          $user,
          {
-            needs_all  => $needs_ids // [],
-            needs_any  => $needs_any_ids // [],
-            touch_all  =>
-              ( exists $d->{needs_ids} || exists $d->{needs} ) ? 1 : 0,
-            touch_any  =>
-              ( exists $d->{needs_any_ids} || exists $d->{needs_any} )
-              ? 1
-              : 0,
+            needs_all => $needs_ids     // [],
+            needs_any => $needs_any_ids // [],
+            touch_all => ( exists $d->{needs_ids} || exists $d->{needs} ) ? 1
+            : 0,
+            touch_any =>
+              ( exists $d->{needs_any_ids} || exists $d->{needs_any} ) ? 1
+            : 0,
             id         => $job->{id},
             cluster_id => $job->{cluster_id}
          }
@@ -4871,8 +4880,9 @@ sub _write_cluster_needs {
 
    if ($touch_all) {
       $self->sqlite->db->query(
-         'DELETE FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 0',
-         $cluster_id );
+'DELETE FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 0',
+         $cluster_id
+      );
       for my $target_id (@$needs_all) {
          next unless defined $target_id && $target_id =~ /^\d+$/;
          $self->sqlite->db->query(
@@ -4884,8 +4894,9 @@ sub _write_cluster_needs {
 
    if ($touch_any) {
       $self->sqlite->db->query(
-         'DELETE FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 1',
-         $cluster_id );
+'DELETE FROM cluster_needs WHERE cluster_id = ? AND needs_any_mode = 1',
+         $cluster_id
+      );
       for my $target_id (@$needs_any) {
          next unless defined $target_id && $target_id =~ /^\d+$/;
          $self->sqlite->db->query(
@@ -5163,7 +5174,8 @@ sub _cluster_needs_met {
       and cn.cluster_id = ?;
    SQL
 
-   my $not_met = $self->sqlite->db->query( $all_sql, $complete, $ice, $d->{id} )->hash;
+   my $not_met =
+     $self->sqlite->db->query( $all_sql, $complete, $ice, $d->{id} )->hash;
    my $all_met = scalar @{ $cluster->{needs_ids} } && $not_met ? 0 : 1;
 
    my $any_sql = <<~'SQL';
@@ -5175,7 +5187,8 @@ sub _cluster_needs_met {
       and cn.cluster_id = ?;
    SQL
 
-   my $met     = $self->sqlite->db->query( $any_sql, $complete, $ice, $d->{id} )->hash;
+   my $met =
+     $self->sqlite->db->query( $any_sql, $complete, $ice, $d->{id} )->hash;
    my $any_met = scalar @{ $cluster->{needs_any_ids} } && !$met ? 0 : 1;
 
    return $all_met && $any_met ? 1 : 0;
@@ -5201,7 +5214,8 @@ sub _job_needs_met {
       and jn.job_id = ?;
    SQL
 
-   my $not_met = $self->sqlite->db->query( $all_sql, $complete, $ice, $d->{id} )->hash;
+   my $not_met =
+     $self->sqlite->db->query( $all_sql, $complete, $ice, $d->{id} )->hash;
    my $all_met = scalar @{ $job->{needs_ids} } && $not_met ? 0 : 1;
 
    my $any_sql = <<~'SQL';
@@ -5213,7 +5227,8 @@ sub _job_needs_met {
       and jn.job_id = ?;
    SQL
 
-   my $met     = $self->sqlite->db->query( $any_sql, $complete, $ice, $d->{id} )->hash;
+   my $met =
+     $self->sqlite->db->query( $any_sql, $complete, $ice, $d->{id} )->hash;
    my $any_met = scalar @{ $job->{needs_any_ids} } && !$met ? 0 : 1;
 
    return $all_met && $any_met ? 1 : 0;
@@ -5303,8 +5318,11 @@ sub _start_job {
    }
 
    # === Fetch cluster for handler info ===
-   my $cluster = $self->sqlite->db->select( 'cluster', [ 'handler_context', 'json' ],
-      { id => $job->{cluster_id} } )->hash;
+   my $cluster = $self->sqlite->db->select(
+      'cluster',
+      [ 'handler_context', 'json' ],
+      { id => $job->{cluster_id} }
+   )->hash;
 
    # === Build unified handler_context ===
    my $handler_ctx = {};
@@ -5937,7 +5955,7 @@ sub _sync_server {
    my $revived_count = 0;
 
    my $jobs = $self->sqlite->db->query(
-      'select * from job where (pid is not null or ppid is not null) and server_id = ?',
+'select * from job where (pid is not null or ppid is not null) and server_id = ?',
       $d->{id}
    )->hashes->to_array;
 
@@ -6002,7 +6020,7 @@ sub sync {
    while ( my $server = $servers->hash ) {
 
       my $jobs = $self->sqlite->db->query(
-         'select * from job where (pid is not null or ppid is not null) and server_id = ?',
+'select * from job where (pid is not null or ppid is not null) and server_id = ?',
          $server->{id}
       )->hashes->to_array;
 
@@ -6080,8 +6098,7 @@ sub _log_info {
    else {
       $log = $self->sqlite->db->query(
          'select * from job_log where job_id = ? order by id desc limit 1',
-         $job->{id}
-      )->hash;
+         $job->{id} )->hash;
    }
 
    return
@@ -6513,8 +6530,8 @@ sub _set_cluster_cal_id {
 
    if ($old_cal_id) {
       my $count = $self->sqlite->db->query(
-         'select count(*) as count from cluster where cal_id = ?',
-         $old_cal_id )->hash->{count};
+         'select count(*) as count from cluster where cal_id = ?', $old_cal_id )
+        ->hash->{count};
 
       if ( $count == 0 ) {
 
@@ -6534,8 +6551,8 @@ sub _set_cluster_cal_id {
 
    if ($new_cal_id) {
       my $count = $self->sqlite->db->query(
-         'select count(*) as count from cluster where cal_id = ?',
-         $new_cal_id )->hash->{count};
+         'select count(*) as count from cluster where cal_id = ?', $new_cal_id )
+        ->hash->{count};
 
       # start new cal if subscribers went from 0 to 1
       if ( $count == 1 ) {
@@ -6552,7 +6569,7 @@ sub _cron_next_start {
    # id (cron id)
 
    my $c = $self->sqlite->db->query(
-      'select cron.*, cal.tz from cron join cal on cron.cal_id = cal.id where cron.id = ?',
+'select cron.*, cal.tz from cron join cal on cron.cal_id = cal.id where cron.id = ?',
       $d->{id}
    )->hash;
    my $tz   = $c->{tz} || 'UTC';
@@ -6871,6 +6888,10 @@ sub get_documentation {
 
    # Friendly aliases → canonical section names
    my %aliases = (
+      'agent'      => 'agent-protocol',
+      'agents'     => 'agent-protocol',
+      'wsagent'    => 'agent-protocol',
+      'websocket'  => 'agent-protocol',
       'calendar'   => 'calendars-and-crons',
       'calendars'  => 'calendars-and-crons',
       'cron'       => 'calendars-and-crons',
