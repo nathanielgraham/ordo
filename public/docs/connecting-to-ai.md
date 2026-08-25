@@ -1,15 +1,47 @@
 # Connecting to AI
 
-Ordo supports **Model Context Protocol (MCP)**, so trusted models like **Grok** can explore, create, schedule, monitor, and debug jobs on your infrastructure using natural language.
+Ordo supports **Model Context Protocol (MCP)** and a long-lived **WebSocket agent client**, so trusted models like **Grok** can explore, create, schedule, monitor, and debug jobs on your infrastructure using natural language.
 
-## Quick start
+## Two ways to connect
+
+### 1. MCP (request/response) – simplest
 
 1. Open **Settings** and copy your **API token**.
-2. Tell Grok in the chat:
+2. Tell the agent:
 
 > Connect to Ordo at `https://ordoscheduler.com/mcp` with token `YOUR_TOKEN_HERE`
 
-Grok will remember the connection for the rest of the conversation.
+Good for browse / create / update / one-shot start.  
+The agent will **not** see live job or cluster completion events.
+
+### 2. WebSocket client (live stream) – preferred when you need completion events
+
+Use this when the agent must start work and know when it finished.
+
+Client: [ordo-wsagent](https://github.com/nathanielgraham/ordo-wsagent)
+
+```bash
+git clone https://github.com/nathanielgraham/ordo-wsagent.git
+cd ordo-wsagent
+pip install websocket-client   # or: python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+
+export ORDO_TOKEN="YOUR_TOKEN_HERE"
+./wsagent.py --timeout 300
+```
+
+Protocol:
+
+- Send one JSON command per line on stdin  
+  e.g. `{"command":"find_cluster","name":"/root/ops"}`
+- Read NDJSON on stdout
+- Only lines with `"type":"message"` contain server data (command replies **and** live broadcasts)
+- After `login_user` success the client emits an `agent_bootstrap` info event with protocol, first steps, useful commands, and doc sections — enough for a fresh agent to start with no prior knowledge
+- First useful call is usually `{"command":"get_documentation","section":"overview"}`
+- Keep reading until you see the `command_reply` (and any `jobs_changed` / `clusters_changed` broadcasts) you care about
+- When finished, **just exit** — the agent owns the connection lifetime; there is no special quit command required
+
+If the agent has a shell tool it can run `wsagent.py` itself.  
+If not, the user can start the client and paste or pipe the NDJSON stream into the conversation.
 
 ## What agents can do
 
@@ -43,7 +75,7 @@ Grok will remember the connection for the rest of the conversation.
 
 ## Tips for best results
 
-- Tell the agent to call **`get_documentation`** at the beginning of a new session.
+- Tell the agent to call **`get_documentation`** at the beginning of a new session (section `overview` or `quickstart`).
 - When creating jobs, be specific about:
   - Purpose of the job
   - Which server it should run on
@@ -58,7 +90,7 @@ Grok will remember the connection for the rest of the conversation.
 - Use a **dedicated low-privilege account** on remote hosts; avoid root when possible.
 - **Rotate** tokens regularly. Treat them like passwords and never post them in public channels.
 
-## Available tools (summary)
+## Available MCP tools (summary)
 
 | Area     | Tools                                                                 |
 |----------|-----------------------------------------------------------------------|
@@ -74,20 +106,30 @@ Grok will remember the connection for the rest of the conversation.
 
 ## Agent behavior
 
+### MCP path (request/response)
+
 **Starting work is fire-and-forget by default.**
 
-When an agent starts a cluster or job:
+When an agent starts a cluster or job via MCP:
 
 1. It receives a clear summary of what was started.
 2. It should report that result to the user.
-3. It should **stop** - do not automatically poll for completion.
+3. It should **stop** — do not automatically poll for completion.
 
 Only check status or logs when the user explicitly asks  
 (e.g. “did it finish?”, “show me the logs”, “what failed?”).
 
-This keeps API usage efficient and matches how most people use a job scheduler: launch the work, then inspect only when needed.
+### WebSocket path (live stream)
 
-### Request shape
+When using `ordo-wsagent`:
+
+1. After login, read the `agent_bootstrap` info event.
+2. Call `get_documentation` if this is a new session.
+3. Send commands; keep reading NDJSON for `command_reply` and broadcasts (`jobs_changed`, `clusters_changed`, …).
+4. When the job or cluster reaches a terminal state, the agent is done — **just exit**.
+5. The agent owns disconnect timing; `--timeout` is only a safety net.
+
+### MCP request shape
 
 Ordo speaks standard MCP over JSON-RPC. Preferred auth is a Bearer token:
 
@@ -125,3 +167,4 @@ Example tool call:
 - [Quickstart](#docs/quickstart) - first server and workflow
 - [Advanced Topics](#docs/advanced-topics) - handlers, cloning, environment variables
 - [FAQ](#docs/faq) - SSH, limits, stuck jobs
+- [ordo-wsagent](https://github.com/nathanielgraham/ordo-wsagent) - live WebSocket agent client
