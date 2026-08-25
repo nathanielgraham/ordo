@@ -27,7 +27,7 @@ sub get_tools {
       get_documentation => {
          description =>
            'Retrieve Ordo documentation. Call this first in a new session '
-           . '(section "overview" or "quickstart") to learn concepts, cron rules, and workflows.',
+           . '(section "api", "overview", or "quickstart") to learn the command protocol, concepts, and workflows.',
          inputSchema => {
             type       => 'object',
             properties => {
@@ -39,10 +39,11 @@ sub get_tools {
                      'core-concepts',       'jobs-and-clusters',
                      'calendars-and-crons', 'advanced-topics',
                      'connecting-to-ai',    'faq',
-                     'rest-api',            'cli',
-                     'dashboard',           'stats-polling',
-                     'settings',            'private-deployments',
-                     'self-hosted',         'all'
+                     'api',                 'rest-api',
+                     'cli',                 'dashboard',
+                     'stats-polling',       'settings',
+                     'private-deployments', 'self-hosted',
+                     'all'
                   ],
                   default => 'overview',
                },
