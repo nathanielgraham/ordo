@@ -451,6 +451,11 @@ HTML
                changefreq => 'monthly'
             },
             {
+               loc        => "$base/docs/api",
+               priority   => '0.6',
+               changefreq => 'monthly'
+            },
+            {
                loc        => "$base/docs/privacy",
                priority   => '0.3',
                changefreq => 'yearly'

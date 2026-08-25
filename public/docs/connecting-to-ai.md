@@ -32,13 +32,13 @@ export ORDO_TOKEN="YOUR_TOKEN_HERE"
 Protocol:
 
 - Send one JSON command per line on stdin  
-  e.g. `{"command":"find_cluster","name":"/root/ops"}`
+  e.g. `{"command":"find_cluster","name":"/root"}`
 - Read NDJSON on stdout
 - Only lines with `"type":"message"` contain server data (command replies **and** live broadcasts)
-- After `login_user` success the client emits an `agent_bootstrap` info event with protocol, first steps, useful commands, and doc sections — enough for a fresh agent to start with no prior knowledge
+- After `login_user` success the client emits an `agent_bootstrap` info event with protocol, first steps, useful commands, and doc sections - enough for a fresh agent to start with no prior knowledge
 - First useful call is usually `{"command":"get_documentation","section":"overview"}`
 - Keep reading until you see the `command_reply` (and any `jobs_changed` / `clusters_changed` broadcasts) you care about
-- When finished, **just exit** — the agent owns the connection lifetime; there is no special quit command required
+- When finished, send quit, or close stdin / kill
 
 If the agent has a shell tool it can run `wsagent.py` itself.  
 If not, the user can start the client and paste or pipe the NDJSON stream into the conversation.
