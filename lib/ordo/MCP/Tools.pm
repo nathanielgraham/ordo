@@ -4,6 +4,7 @@ use Mojo::Base -base;
 use MIME::Base64 ();
 use Mojo::JSON   qw(encode_json);
 
+# MCP tool names match native WebSocket/HTTP command names.
 # MCP `json` arg: object -> JSON string; null/empty -> '' (clear via API)
 sub _normalize_json_arg {
    my ($payload) = @_;
@@ -21,13 +22,10 @@ sub _normalize_json_arg {
 sub get_tools {
    return {
 
-      # ------------------------------------------------------------------
-      # Documentation
-      # ------------------------------------------------------------------
       get_documentation => {
          description =>
            'Retrieve Ordo documentation. Call this first in a new session '
-           . '(section "api", "overview", or "quickstart") to learn the command protocol, concepts, and workflows.',
+           . '(section "api", "overview", or "quickstart").',
          inputSchema => {
             type       => 'object',
             properties => {
@@ -35,21 +33,15 @@ sub get_tools {
                   type        => 'string',
                   description => 'Documentation section',
                   enum        => [
-                     'overview',            'quickstart',
-                     'core-concepts',       'jobs-and-clusters',
-                     'calendars-and-crons', 'advanced-topics',
-                     'connecting-to-ai',    'faq',
-                     'api',                 'cli',
-                     'dashboard',           'stats-polling',
-                     'settings',            'private-deployments',
-                     'self-hosted',         'all',
-                     'agent-protocol'
+                     'overview', 'quickstart', 'core-concepts', 'jobs-and-clusters',
+                     'calendars-and-crons', 'advanced-topics', 'connecting-to-ai', 'faq',
+                     'api', 'agent-protocol', 'cli', 'dashboard', 'stats-polling',
+                     'settings', 'private-deployments', 'self-hosted', 'all'
                   ],
                   default => 'overview',
                },
                format => {
                   type        => 'string',
-                  description => 'Output format',
                   enum        => [ 'markdown', 'summary' ],
                   default     => 'markdown',
                },
@@ -69,25 +61,20 @@ sub get_tools {
          },
       },
 
-      # ------------------------------------------------------------------
-      # Browsing / Inspection
-      # ------------------------------------------------------------------
-      list_jobs => {
+      find_cluster => {
          description =>
-'List the hierarchical job/cluster tree. Use this to discover existing structure '
-           . 'before creating or modifying anything. Defaults to /root.',
+           'Look up the hierarchical cluster/job tree by path or name. Defaults to /root.',
          inputSchema => {
             type       => 'object',
             properties => {
-               path => {
+               name => {
                   type        => 'string',
-                  description => 'Path starting with /root',
+                  description => 'Cluster path or name (e.g. /root, Monitoring)',
                   default     => '/root',
                },
                filter => {
-                  type        => 'string',
-                  description => 'Optional state filter',
-                  enum        => [ 'all', 'running', 'failed', 'waiting' ],
+                  type => 'string',
+                  enum => [ 'all', 'running', 'failed', 'waiting' ],
                },
             },
             required => [],
@@ -95,23 +82,16 @@ sub get_tools {
          handler => sub {
             my ( $c, $args ) = @_;
             $c->app->request( $c->stash('user'),
-               { command => 'find_cluster', name => $args->{path} // '/root' }
-            );
+               { command => 'find_cluster', name => $args->{name} // '/root' } );
          },
       },
 
-      get_job_details => {
-         description =>
-'Get full details for a specific job (state, script, dependencies, limits, etc.).',
+      read_job => {
+         description => 'Full details for a job (state, script, dependencies, limits).',
          inputSchema => {
             type       => 'object',
-            properties => {
-               id => {
-                  type        => 'integer',
-                  description => 'Job ID',
-               },
-            },
-            required => ['id'],
+            properties => { id => { type => 'integer', description => 'Job ID' } },
+            required   => ['id'],
          },
          handler => sub {
             my ( $c, $args ) = @_;
@@ -120,19 +100,13 @@ sub get_tools {
          },
       },
 
-      get_cluster_details => {
+      read_cluster => {
          description =>
-'Get full details for a specific cluster, including its jobs and current state. '
-           . 'Preferred way to check progress after starting a workflow.',
+           'Full details for a cluster including jobs and state. Preferred progress check after start.',
          inputSchema => {
             type       => 'object',
-            properties => {
-               id => {
-                  type        => 'integer',
-                  description => 'Cluster ID',
-               },
-            },
-            required => ['id'],
+            properties => { id => { type => 'integer', description => 'Cluster ID' } },
+            required   => ['id'],
          },
          handler => sub {
             my ( $c, $args ) = @_;
@@ -141,91 +115,43 @@ sub get_tools {
          },
       },
 
-      list_servers => {
+      find_monitor => {
          description =>
-'List all registered servers with live metrics (CPU, memory, disk, load, uptime). '
-           . 'Always call this before create_job so you can choose a valid server_id.',
-         inputSchema => {
-            type       => 'object',
-            properties => {},
-            required   => [],
-         },
+           'List servers with live metrics. Call before create_job for a valid server_id.',
+         inputSchema => { type => 'object', properties => {}, required => [] },
          handler => sub {
             my ( $c, $args ) = @_;
-            $c->app->request( $c->stash('user'),
-               { command => 'find_monitor' } );
+            $c->app->request( $c->stash('user'), { command => 'find_monitor' } );
          },
       },
 
-      list_calendars => {
-         description =>
-'List all calendars, their cron expressions, and which clusters are attached to them.',
-         inputSchema => {
-            type       => 'object',
-            properties => {},
-            required   => [],
-         },
+      find_cal => {
+         description => 'List calendars, cron expressions, and attached clusters.',
+         inputSchema => { type => 'object', properties => {}, required => [] },
          handler => sub {
             my ( $c, $args ) = @_;
             $c->app->request( $c->stash('user'), { command => 'find_cal' } );
          },
       },
 
-      # ------------------------------------------------------------------
-      # Create
-      # ------------------------------------------------------------------
       create_job => {
-         description => 'Create a new job inside an existing cluster. '
-           . 'parent_id is the cluster ID that will own the job. '
-           . 'Prefer a shebang (#!/bin/sh, #!/usr/bin/env python3, …). '
-           . 'Dependencies: needs_ids = AND, needs_any_ids = OR.',
+         description =>
+           'Create a job in a cluster. parent_id = owning cluster. Prefer a shebang. needs_ids=AND, needs_any_ids=OR.',
          inputSchema => {
             type       => 'object',
             properties => {
-               name => {
-                  type        => 'string',
-                  description => 'Short job name',
-               },
-               script => {
-                  type        => 'string',
-                  description =>
-'Full script content (plain text). Automatically base64-encoded.',
-               },
-               parent_id => {
-                  type        => 'integer',
-                  description => 'Cluster ID that will contain this job',
-               },
-               server_id => {
-                  type        => 'integer',
-                  description => 'Server ID to run on (from list_servers)',
-               },
+               name      => { type => 'string', description => 'Short job name' },
+               script    => { type => 'string', description => 'Full script (plain text); base64-encoded for the API' },
+               parent_id => { type => 'integer', description => 'Owning cluster ID' },
+               server_id => { type => 'integer', description => 'Server ID from find_monitor' },
                description => { type => 'string' },
-               needs_ids   => {
-                  type        => 'array',
-                  items       => { type => 'integer' },
-                  description => 'IDs that must ALL succeed (AND)',
-               },
-               needs_any_ids => {
-                  type        => 'array',
-                  items       => { type => 'integer' },
-                  description => 'IDs where only ONE needs to succeed (OR)',
-               },
+               needs_ids => { type => 'array', items => { type => 'integer' } },
+               needs_any_ids => { type => 'array', items => { type => 'integer' } },
                retrys => { type => 'integer' },
                loops  => { type => 'integer' },
                delay  => { type => 'integer' },
-               json   => {
-                  type        => 'object',
-                  description =>
-'Arbitrary JSON object attached to this entity. Durable across reset. '
-                    . 'Injected as ORDO_JOB_JSON (job) or ORDO_CLUSTER_JSON (cluster) when non-empty. '
-                    . 'Use for parameters (repo, branch, dirs, flags)—not for secrets. Max 64 KB. '
-                    . 'Pass null to clear.',
-               },
-               max_runtime_seconds => {
-                  type        => 'integer',
-                  description =>
-'Exceeding max_runtime_seconds starts the configured handler cluster; it does not automatically kill the job. Kill, notify, or recover as you define in the handler'
-               },
+               json   => { type => 'object', description => 'Durable JSON object (max 64KB). null clears.' },
+               max_runtime_seconds    => { type => 'integer' },
                max_runtime_cluster_id => { type => 'integer' },
             },
             required => [ 'name', 'script', 'parent_id', 'server_id' ],
@@ -245,49 +171,21 @@ sub get_tools {
       },
 
       create_cluster => {
-         description =>
-           'Create a new cluster (container for jobs and/or nested clusters). '
-           . 'If parent_id is omitted the cluster is placed under root.',
+         description => 'Create a cluster. parent_id defaults to root if omitted.',
          inputSchema => {
             type       => 'object',
             properties => {
-               name => {
-                  type        => 'string',
-                  description => 'Cluster name',
-               },
-               parent_id => {
-                  type        => 'integer',
-                  description => 'Parent cluster ID (defaults to root)',
-               },
-               on_fail_id    => { type => 'integer' },
+               name => { type => 'string' },
+               parent_id => { type => 'integer' },
+               on_fail_id => { type => 'integer' },
                on_overdue_id => { type => 'integer' },
-               auto_start    => {
-                  type    => 'boolean',
-                  default => 1,
-               },
+               auto_start => { type => 'boolean', default => 1 },
                description => { type => 'string' },
-               cal_id      => {
-                  type        => 'integer',
-                  description =>
-                    'Calendar ID to attach (omit or null to detach)',
-               },
-               needs_ids => {
-                  type  => 'array',
-                  items => { type => 'integer' },
-               },
-               needs_any_ids => {
-                  type  => 'array',
-                  items => { type => 'integer' },
-               },
+               cal_id => { type => 'integer' },
+               needs_ids => { type => 'array', items => { type => 'integer' } },
+               needs_any_ids => { type => 'array', items => { type => 'integer' } },
                loops => { type => 'integer' },
-               json  => {
-                  type        => 'object',
-                  description =>
-'Arbitrary JSON object attached to this entity. Durable across reset. '
-                    . 'Injected as ORDO_JOB_JSON (job) or ORDO_CLUSTER_JSON (cluster) when non-empty. '
-                    . 'Use for parameters (repo, branch, dirs, flags)—not for secrets. Max 64 KB. '
-                    . 'Pass null to clear.',
-               },
+               json  => { type => 'object' },
             },
             required => ['name'],
          },
@@ -300,21 +198,14 @@ sub get_tools {
          },
       },
 
-      create_calendar => {
+      create_cal => {
          description =>
-           'Create a named calendar (collection of Quartz cron expressions). '
-           . 'After creation use add_cron, then attach the calendar to a cluster with update_cluster.',
+           'Create a calendar. Then use create_cron; attach to a cluster with update_cluster (cal_id).',
          inputSchema => {
             type       => 'object',
             properties => {
-               name => {
-                  type        => 'string',
-                  description => 'Calendar name',
-               },
-               tz => {
-                  type        => 'string',
-                  description => 'IANA timezone, e.g. America/Chicago',
-               },
+               name => { type => 'string' },
+               tz   => { type => 'string', description => 'IANA timezone e.g. America/Chicago' },
                description => { type => 'string' },
             },
             required => [ 'name', 'tz' ],
@@ -326,50 +217,23 @@ sub get_tools {
          },
       },
 
-      # ------------------------------------------------------------------
-      # Update
-      # ------------------------------------------------------------------
-      update_job => {
-         description =>
-           'Update an existing job (name, script, dependencies, limits, etc.).',
+      update_job_config => {
+         description => 'Update an existing job (native command: update_job_config).',
          inputSchema => {
             type       => 'object',
             properties => {
-               id => {
-                  type        => 'integer',
-                  description => 'Job ID',
-               },
+               id => { type => 'integer' },
                newname => { type => 'string' },
-               script  => {
-                  type        => 'string',
-                  description => 'New script content (plain text)',
-               },
+               script  => { type => 'string' },
                description => { type => 'string' },
-               server_id   => { type => 'integer' },
-               needs_ids   => {
-                  type  => 'array',
-                  items => { type => 'integer' },
-               },
-               needs_any_ids => {
-                  type  => 'array',
-                  items => { type => 'integer' },
-               },
+               server_id => { type => 'integer' },
+               needs_ids => { type => 'array', items => { type => 'integer' } },
+               needs_any_ids => { type => 'array', items => { type => 'integer' } },
                retrys => { type => 'integer' },
                loops  => { type => 'integer' },
                delay  => { type => 'integer' },
-               json   => {
-                  type        => 'object',
-                  description =>
-'Arbitrary JSON object attached to this entity. Durable across reset. '
-                    . 'Injected as ORDO_JOB_JSON (job) or ORDO_CLUSTER_JSON (cluster) when non-empty. '
-                    . 'Use for parameters (repo, branch, dirs, flags)—not for secrets. Max 64 KB. '
-                    . 'Pass null to clear.',
-               },
-               max_runtime_seconds => {
-                  type        => 'integer',
-                  description =>
-'Exceeding max_runtime_seconds starts the configured handler cluster; it does not automatically kill the job. Kill, notify, or recover as you define in the handler'
-               },
+               json   => { type => 'object' },
+               max_runtime_seconds => { type => 'integer' },
                max_runtime_cluster_id => { type => 'integer' },
             },
             required => ['id'],
@@ -389,43 +253,21 @@ sub get_tools {
       },
 
       update_cluster => {
-         description =>
-'Update an existing cluster. Use cal_id to attach or detach a calendar. '
-           . 'Also used to set on_fail_id / on_overdue_id and dependencies.',
+         description => 'Update a cluster (calendar, handlers, dependencies, etc.).',
          inputSchema => {
             type       => 'object',
             properties => {
-               id => {
-                  type        => 'integer',
-                  description => 'Cluster ID',
-               },
-               newname     => { type => 'string' },
+               id => { type => 'integer' },
+               newname => { type => 'string' },
                description => { type => 'string' },
-               cal_id      => {
-                  type        => 'integer',
-                  description =>
-                    'Calendar ID to attach (omit or null to detach)',
-               },
+               cal_id => { type => 'integer' },
                auto_start => { type => 'boolean' },
-               needs_ids  => {
-                  type  => 'array',
-                  items => { type => 'integer' },
-               },
-               needs_any_ids => {
-                  type  => 'array',
-                  items => { type => 'integer' },
-               },
-               on_fail_id    => { type => 'integer' },
+               needs_ids => { type => 'array', items => { type => 'integer' } },
+               needs_any_ids => { type => 'array', items => { type => 'integer' } },
+               on_fail_id => { type => 'integer' },
                on_overdue_id => { type => 'integer' },
-               loops         => { type => 'integer' },
-               json          => {
-                  type        => 'object',
-                  description =>
-'Arbitrary JSON object attached to this entity. Durable across reset. '
-                    . 'Injected as ORDO_JOB_JSON (job) or ORDO_CLUSTER_JSON (cluster) when non-empty. '
-                    . 'Use for parameters (repo, branch, dirs, flags)—not for secrets. Max 64 KB. '
-                    . 'Pass null to clear.',
-               },
+               loops => { type => 'integer' },
+               json  => { type => 'object' },
             },
             required => ['id'],
          },
@@ -438,36 +280,17 @@ sub get_tools {
          },
       },
 
-      # ------------------------------------------------------------------
-      # Calendars & Cron
-      # ------------------------------------------------------------------
-      add_cron => {
+      create_cron => {
          description =>
-           "Add a Quartz cron expression to an existing calendar.\n\n"
-           . "Format (6 or 7 fields): seconds minutes hours day-of-month month day-of-week [year]\n\n"
-           . "Important day-of-week convention in Ordo: Monday=1 … Sunday=7 "
-           . "(differs from classic Quartz where Sunday=1).\n\n"
-           . "Useful patterns:\n"
-           . "  0 0 0 1 1 ? *     → New Year's Day\n"
-           . "  0 0 0 ? 1 1#3 *   → 3rd Monday in January (MLK)\n"
-           . "  0 0 0 ? 5 1L *    → last Monday in May (Memorial Day)\n"
-           . "  0 0 0 ? 11 4#4 *  → 4th Thursday in November (Thanksgiving)\n"
-           . "  0 0 9 ? * 1-5 *   → 09:00 every weekday",
+           "Add a Quartz cron expression to a calendar.\n"
+           . "name = cron string (e.g. 0 0 8 * * ? *); cal_id = calendar id.\n"
+           . "Day-of-week: Monday=1 .. Sunday=7.",
          inputSchema => {
             type       => 'object',
             properties => {
-               name => {
-                  type        => 'string',
-                  description => 'The Quartz cron expression itself',
-               },
-               cal_id => {
-                  type        => 'integer',
-                  description => 'Target calendar ID',
-               },
-               description => {
-                  type        => 'string',
-                  description => 'Human-readable label, e.g. "Thanksgiving"',
-               },
+               name => { type => 'string', description => 'Quartz cron expression' },
+               cal_id => { type => 'integer', description => 'Calendar ID' },
+               description => { type => 'string' },
             },
             required => [ 'name', 'cal_id' ],
          },
@@ -479,15 +302,10 @@ sub get_tools {
       },
 
       delete_cron => {
-         description => 'Delete a single cron entry from a calendar.',
+         description => 'Delete a cron entry by id.',
          inputSchema => {
-            type       => 'object',
-            properties => {
-               id => {
-                  type        => 'integer',
-                  description => 'Cron entry ID (not the calendar ID)',
-               },
-            },
+            type => 'object',
+            properties => { id => { type => 'integer' } },
             required => ['id'],
          },
          handler => sub {
@@ -497,16 +315,11 @@ sub get_tools {
          },
       },
 
-      delete_calendar => {
-         description => 'Delete a calendar and all of its cron entries.',
+      delete_cal => {
+         description => 'Delete a calendar and its cron entries.',
          inputSchema => {
-            type       => 'object',
-            properties => {
-               id => {
-                  type        => 'integer',
-                  description => 'Calendar ID',
-               },
-            },
+            type => 'object',
+            properties => { id => { type => 'integer' } },
             required => ['id'],
          },
          handler => sub {
@@ -516,113 +329,247 @@ sub get_tools {
          },
       },
 
-      # ------------------------------------------------------------------
-      # Lifecycle
-      # ------------------------------------------------------------------
-      manage_job => {
-         description => 'Perform a lifecycle action on a single job. '
-           . 'Common actions: start, kill, hold, release, complete, delete, reset.',
+      start_job => {
+         description => 'Start a job by id. MCP is fire-and-forget unless the user asks for status/logs.',
          inputSchema => {
-            type       => 'object',
-            properties => {
-               action => {
-                  type => 'string',
-                  enum => [
-                     qw(start kill hold release ice melt complete delete reset)
-                  ],
-                  description => 'Action to perform',
-               },
-               id => {
-                  type        => 'integer',
-                  description => 'Job ID',
-               },
-            },
-            required => [ 'action', 'id' ],
-         },
-         handler => sub {
-            my ( $c, $args ) = @_;
-            my $cmd = $args->{action} . '_job';
-            $c->app->request( $c->stash('user'),
-               { command => $cmd, id => $args->{id} } );
-         },
-      },
-      manage_cluster => {
-         description =>
-           'Perform a lifecycle action on a cluster (and its jobs). '
-           . 'Most common: start (runs the whole workflow), kill, hold, reset, delete.'
-           . "\n\n"
-           . '**Important agent behavior – fire-and-forget:**' . "\n"
-           . 'When you start a cluster, treat it as fire-and-forget. '
-           . 'After a successful start, report what was started and stop. '
-           . 'Do **not** automatically poll for completion or status. '
-           . 'Only check status or logs if the user explicitly asks '
-           . '(e.g. “did it finish?”, “show me the logs”, “what failed?”).'
-           . "\n\n"
-           . '**On Overdue vs manual start:**' . "\n"
-           . 'On Overdue handlers only fire when a calendar/cron tries to start '
-           . 'the cluster and it cannot run (still busy or on hold). '
-           . 'A manual start while the cluster is busy returns an error and does '
-           . '**not** trigger On Overdue. This is intentional — overdue is a '
-           . 'scheduling concept.',
-         inputSchema => {
-            type       => 'object',
-            properties => {
-               action => {
-                  type => 'string',
-                  enum => [
-                     qw(start kill hold release ice melt complete delete reset)
-                  ],
-                  description => 'Action to perform',
-               },
-               id => {
-                  type        => 'integer',
-                  description => 'Cluster ID',
-               },
-            },
-            required => [ 'action', 'id' ],
-         },
-         handler => sub {
-            my ( $c, $args ) = @_;
-            my $cmd = $args->{action} . '_cluster';
-            $c->app->request( $c->stash('user'),
-               { command => $cmd, id => $args->{id} } );
-         },
-      },
-      clone_cluster => {
-         description =>
-'Clone a cluster (identical copy). Most often used from an On Overdue handler '
-           . 'so a late run does not block the next scheduled occurrence.',
-         inputSchema => {
-            type       => 'object',
-            properties => {
-               id => {
-                  type        => 'integer',
-                  description => 'Cluster ID to clone',
-               },
-            },
+            type => 'object',
+            properties => { id => { type => 'integer' } },
             required => ['id'],
          },
          handler => sub {
             my ( $c, $args ) = @_;
             $c->app->request( $c->stash('user'),
-               { command => 'clone_cluster', %$args } );
+               { command => 'start_job', id => $args->{id} } );
+         },
+      },
+      start_cluster => {
+         description =>
+           'Start a cluster by id. Fire-and-forget on MCP: report success and stop unless user asks for status.',
+         inputSchema => {
+            type => 'object',
+            properties => { id => { type => 'integer' } },
+            required => ['id'],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'start_cluster', id => $args->{id} } );
+         },
+      },
+      kill_job => {
+         description => 'Kill a running job by id.',
+         inputSchema => {
+            type => 'object',
+            properties => { id => { type => 'integer' } },
+            required => ['id'],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'kill_job', id => $args->{id} } );
+         },
+      },
+      kill_cluster => {
+         description => 'Kill a running cluster by id.',
+         inputSchema => {
+            type => 'object',
+            properties => { id => { type => 'integer' } },
+            required => ['id'],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'kill_cluster', id => $args->{id} } );
+         },
+      },
+      hold_job => {
+         description => 'Hold a job by id.',
+         inputSchema => {
+            type => 'object',
+            properties => { id => { type => 'integer' } },
+            required => ['id'],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'hold_job', id => $args->{id} } );
+         },
+      },
+      hold_cluster => {
+         description => 'Hold a cluster by id.',
+         inputSchema => {
+            type => 'object',
+            properties => { id => { type => 'integer' } },
+            required => ['id'],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'hold_cluster', id => $args->{id} } );
+         },
+      },
+      release_job => {
+         description => 'Release a held job by id.',
+         inputSchema => {
+            type => 'object',
+            properties => { id => { type => 'integer' } },
+            required => ['id'],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'release_job', id => $args->{id} } );
+         },
+      },
+      release_cluster => {
+         description => 'Release a held cluster by id.',
+         inputSchema => {
+            type => 'object',
+            properties => { id => { type => 'integer' } },
+            required => ['id'],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'release_cluster', id => $args->{id} } );
+         },
+      },
+      ice_job => {
+         description => 'Ice (strong hold) a job by id.',
+         inputSchema => {
+            type => 'object',
+            properties => { id => { type => 'integer' } },
+            required => ['id'],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'ice_job', id => $args->{id} } );
+         },
+      },
+      ice_cluster => {
+         description => 'Ice (strong hold) a cluster by id.',
+         inputSchema => {
+            type => 'object',
+            properties => { id => { type => 'integer' } },
+            required => ['id'],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'ice_cluster', id => $args->{id} } );
+         },
+      },
+      melt_job => {
+         description => 'Melt (un-ice) a job by id.',
+         inputSchema => {
+            type => 'object',
+            properties => { id => { type => 'integer' } },
+            required => ['id'],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'melt_job', id => $args->{id} } );
+         },
+      },
+      melt_cluster => {
+         description => 'Melt (un-ice) a cluster by id.',
+         inputSchema => {
+            type => 'object',
+            properties => { id => { type => 'integer' } },
+            required => ['id'],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'melt_cluster', id => $args->{id} } );
+         },
+      },
+      complete_job => {
+         description => 'Mark a job complete by id.',
+         inputSchema => {
+            type => 'object',
+            properties => { id => { type => 'integer' } },
+            required => ['id'],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'complete_job', id => $args->{id} } );
+         },
+      },
+      complete_cluster => {
+         description => 'Mark a cluster complete by id.',
+         inputSchema => {
+            type => 'object',
+            properties => { id => { type => 'integer' } },
+            required => ['id'],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'complete_cluster', id => $args->{id} } );
+         },
+      },
+      delete_job => {
+         description => 'Delete a job by id. Permanent.',
+         inputSchema => {
+            type => 'object',
+            properties => { id => { type => 'integer' } },
+            required => ['id'],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'delete_job', id => $args->{id} } );
+         },
+      },
+      delete_cluster => {
+         description => 'Delete a cluster by id. Permanent.',
+         inputSchema => {
+            type => 'object',
+            properties => { id => { type => 'integer' } },
+            required => ['id'],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'delete_cluster', id => $args->{id} } );
+         },
+      },
+      reset_cluster => {
+         description => 'Reset a cluster to a clean startable state.',
+         inputSchema => {
+            type => 'object',
+            properties => { id => { type => 'integer' } },
+            required => ['id'],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'reset_cluster', id => $args->{id} } );
+         },
+      },
+      clone_cluster => {
+         description => 'Clone a cluster (copy only; does not start).',
+         inputSchema => {
+            type => 'object',
+            properties => { id => { type => 'integer' } },
+            required => ['id'],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'clone_cluster', id => $args->{id} } );
          },
       },
 
-      # ------------------------------------------------------------------
-      # Logs & Utility
-      # ------------------------------------------------------------------
       read_log => {
-         description =>
-'Read the most recent log output for a job (start/end time, exit code, stdout/stderr).',
+         description => 'Most recent log output for a job (exit code, stdout/stderr).',
          inputSchema => {
-            type       => 'object',
-            properties => {
-               id => {
-                  type        => 'integer',
-                  description => 'Job ID',
-               },
-            },
+            type => 'object',
+            properties => { id => { type => 'integer', description => 'Job ID' } },
             required => ['id'],
          },
          handler => sub {
@@ -631,18 +578,11 @@ sub get_tools {
                { command => 'read_log', id => $args->{id} } );
          },
       },
-
-      find_logs => {
-         description =>
-           'Get history of past runs for a job (timestamps + exit codes).',
+      find_log => {
+         description => 'History of past runs for a job (timestamps + exit codes).',
          inputSchema => {
-            type       => 'object',
-            properties => {
-               id => {
-                  type        => 'integer',
-                  description => 'Job ID',
-               },
-            },
+            type => 'object',
+            properties => { id => { type => 'integer', description => 'Job ID' } },
             required => ['id'],
          },
          handler => sub {
@@ -651,65 +591,34 @@ sub get_tools {
                { command => 'find_log', id => $args->{id} } );
          },
       },
-
       sync => {
-         description =>
-           'Reconcile scheduler state with actual processes on remote servers. '
-           . 'Marks missing PIDs as zombie. Useful after network issues or manual kills.',
-         inputSchema => {
-            type       => 'object',
-            properties => {},
-            required   => [],
-         },
+         description => 'Reconcile scheduler state with processes on servers.',
+         inputSchema => { type => 'object', properties => {}, required => [] },
          handler => sub {
             my ( $c, $args ) = @_;
             $c->app->request( $c->stash('user'), { command => 'sync' } );
          },
       },
-
-      # ------------------------------------------------------------------
-      # User / Org
-      # ------------------------------------------------------------------
       read_user => {
-         description =>
-           'Return information about the currently authenticated user.',
-         inputSchema => {
-            type       => 'object',
-            properties => {},
-            required   => [],
-         },
+         description => 'Current authenticated user.',
+         inputSchema => { type => 'object', properties => {}, required => [] },
          handler => sub {
             my ( $c, $args ) = @_;
             $c->app->request( $c->stash('user'), { command => 'read_user' } );
          },
       },
-
       read_org => {
-         description =>
-'Return organization details (tier, rate limits, usage, member/server limits, billing status).',
-         inputSchema => {
-            type       => 'object',
-            properties => {},
-            required   => [],
-         },
+         description => 'Organization details (tier, limits, usage).',
+         inputSchema => { type => 'object', properties => {}, required => [] },
          handler => sub {
             my ( $c, $args ) = @_;
             $c->app->request( $c->stash('user'), { command => 'read_org' } );
          },
       },
-
-      # ------------------------------------------------------------------
-      # Intentional limitation
-      # ------------------------------------------------------------------
       add_server => {
          description =>
-           'Adding servers is only supported through the Web UI (Servers tab). '
-           . 'This tool exists so agents know the limitation.',
-         inputSchema => {
-            type       => 'object',
-            properties => {},
-            required   => [],
-         },
+           'Adding servers is only supported in the Web UI (Servers tab).',
+         inputSchema => { type => 'object', properties => {}, required => [] },
          handler => sub {
             return {
                success => 0,
