@@ -47,6 +47,8 @@ The MCP tools remain available and are well-schema’d.
 Use them when a full WebSocket client is impractical or when you only need simple request/response operations.  
 For anything that requires waiting on completion events, prefer `ordo-wsagent`.
 
+**Name mapping note:** some MCP tool names differ from the raw WebSocket command names (e.g. MCP `add_cron` → WebSocket `create_cron`; MCP `create_calendar` → WebSocket `create_cal`; MCP `update_job` → WebSocket `update_job_config`). Prefer the WebSocket names in this document when speaking the native protocol.
+
 ---
 
 ## Authentication
@@ -228,6 +230,14 @@ Example:
 
 ---
 
+### read_user
+
+Current authenticated user (name, email, org, level).
+
+No parameters required.
+
+---
+
 ### find_monitor
 
 Live server list with metrics (CPU, memory, disk, load, uptime).  
@@ -242,14 +252,26 @@ Example:
 
 ---
 
-### find_cal
+### find_cal / read_cal
 
-List all calendars, their cron expressions, and which clusters are attached.
+`find_cal` lists all calendars, their cron expressions, and which clusters are attached.
 
-No parameters required.
+`read_cal` returns one calendar by `id` or `name`.
 
 ```json
 {"command":"find_cal"}
+{"command":"read_cal","id":3}
+{"command":"read_cal","name":"monitoring"}
+```
+
+---
+
+### sync
+
+Reconcile scheduler state with actual processes on servers (zombie detection / revival).
+
+```json
+{"command":"sync"}
 ```
 
 ---
@@ -258,54 +280,45 @@ No parameters required.
 
 After a successful `start_*` keep the WebSocket open and wait for a `jobs_changed` / `clusters_changed` broadcast to know when the work actually finished.
 
-### start_cluster
+### start_cluster / start_job
 
 | Parameter | Type    | Required | Description |
 |-----------|---------|----------|-------------|
-| id        | integer | yes*     | Cluster ID. |
-| name      | string  | yes*     | Path (alternative to id). |
+| id        | integer | yes*     | Cluster or job ID. |
+| name      | string  | yes*     | Path (start_cluster only; alternative to id). |
 
-* One of id or name is required.
-
-Example:
 ```json
 {"command":"start_cluster","id":17}
-```
-
-### start_job
-
-| Parameter | Type    | Required | Description |
-|-----------|---------|----------|-------------|
-| id        | integer | yes      | Job ID. |
-
-Example:
-```json
 {"command":"start_job","id":42}
 ```
 
 ### kill_cluster / kill_job
 
-| Parameter | Type    | Required | Description |
-|-----------|---------|----------|-------------|
-| id        | integer | yes      | Cluster or job ID. |
-
-### reset_cluster / reset_job
-
-Reset back to a clean state (ready to be started again).
+Stop a running cluster or job.
 
 | Parameter | Type    | Required | Description |
 |-----------|---------|----------|-------------|
 | id        | integer | yes      | Cluster or job ID. |
 
-### hold / release variants
+### reset_cluster
 
-- `hold_cluster` / `hold_job`
-- `release_cluster` / `release_job`
-- `ice_cluster` / `ice_job` (stronger hold)
-- `melt_cluster` / `melt_job`
-- `complete_cluster` / `complete_job`
+Reset a cluster back to a clean state (ready to be started again).
 
-All take a single required `id` parameter.
+| Parameter | Type    | Required | Description |
+|-----------|---------|----------|-------------|
+| id        | integer | yes      | Cluster ID. |
+
+### Hold / release / ice / melt / complete
+
+All take a required `id`:
+
+| Command | Effect |
+|---------|--------|
+| `hold_cluster` / `hold_job` | Soft hold |
+| `release_cluster` / `release_job` | Release hold |
+| `ice_cluster` / `ice_job` | Stronger hold |
+| `melt_cluster` / `melt_job` | Un-ice |
+| `complete_cluster` / `complete_job` | Mark complete |
 
 ### clone_cluster
 
@@ -341,7 +354,7 @@ Create an identical copy of a cluster (does **not** start it).
 |-----------|------|----------|-------------|
 | name | string | yes | Short job name. |
 | script_b64 | string | yes* | Base64-encoded script. |
-| script | string | yes* | Plain-text script (MCP layer encodes it; raw API expects script_b64). |
+| script | string | yes* | Plain-text script (accepted on WebSocket). |
 | parent_id | integer | yes | Cluster that will own the job. |
 | server_id / server | integer/string | yes | Server to run on. |
 | description | string | no | Free-text description. |
@@ -354,7 +367,7 @@ Create an identical copy of a cluster (does **not** start it).
 | max_runtime_cluster_id | integer | no | Handler when limit exceeded. |
 | json | object | no | Durable JSON (max 64 KB). |
 
-* One of `script` or `script_b64` is required. The raw WebSocket/HTTP API currently requires `script_b64`.
+* One of `script` or `script_b64` is required.
 
 ### create_cal
 
@@ -363,6 +376,22 @@ Create an identical copy of a cluster (does **not** start it).
 | name | string | yes | Calendar name. |
 | tz | string | yes | IANA timezone, e.g. America/Chicago. |
 | description | string | no | Free-text description. |
+
+### create_cron
+
+Add a Quartz cron expression to an existing calendar.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| name | string | yes | The **cron expression string** (e.g. `0 0 8 * * ? *`). |
+| cal_id | integer | yes | Calendar id from `find_cal` / `read_cal`. |
+
+Example:
+```json
+{"command":"create_cron","name":"0 0 8 * * ? *","cal_id":3}
+```
+
+**MCP note:** the MCP tool may be named `add_cron`; the native WebSocket/HTTP command is **`create_cron`**.
 
 ---
 
@@ -386,7 +415,9 @@ All update commands obey clear-semantics: omit = no change; null / "" / [] = cle
 | loops | integer | no | |
 | json | object/null | no | |
 
-### update_job_config (also accepted as update_job)
+### update_job_config
+
+Native WebSocket command name is **`update_job_config`** (not `update_job`).
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -403,6 +434,21 @@ All update commands obey clear-semantics: omit = no change; null / "" / [] = cle
 | max_runtime_seconds | integer/null | no | Must be paired with max_runtime_cluster_id. |
 | max_runtime_cluster_id | integer/null | no | Must be paired. |
 | json | object/null | no | |
+
+### update_cal
+
+Change calendar name / timezone / description (`id` required).
+
+---
+
+## Delete commands
+
+| Command | Parameter | Notes |
+|---------|-----------|-------|
+| `delete_job` | `id` | Permanent |
+| `delete_cluster` | `id` | Permanent |
+| `delete_cron` | `id` | Cron entry id |
+| `delete_cal` | `id` | Calendar id |
 
 ---
 
@@ -437,27 +483,13 @@ Possible values of `broadcast`:
 
 ---
 
-## Advanced commands
+## Advanced commands (summary)
 
-Less commonly needed by agents. Most day-to-day work is covered above.
+| Area | Commands |
+|------|----------|
+| Calendars | `create_cal`, `create_cron`, `read_cal`, `find_cal`, `update_cal`, `delete_cal`, `delete_cron` |
+| Lifecycle extras | `hold_*`, `release_*`, `ice_*`, `melt_*`, `complete_*`, `kill_cluster`, `reset_cluster`, `clone_cluster` |
+| Ops | `sync` |
+| Account | `read_user`, `read_org` |
 
-### Calendar management
-
-- `add_cron` – add a Quartz cron expression to a calendar
-- `delete_cron` – remove a cron entry
-- `delete_cal` – delete a calendar
-- `update_cal` – change name / timezone / description
-
-### Server administration
-
-- Register / update / remove servers (normally done once at setup)
-- `sync` – reconcile scheduler state with actual processes
-
-### Other
-
-- Stronger hold/release variants (`ice_*`, `melt_*`)
-- Manual `complete_*`
-- Deeper log-search variants
-
-If you need one of these, call `get_documentation` again or inspect a related live response.  
-The core agent surface is intentionally kept small.
+If you need a parameter not listed here, call `get_documentation` section `api` again after upgrades, or probe with a minimal command and read the `message` on failure.
