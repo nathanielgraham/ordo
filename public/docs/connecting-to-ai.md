@@ -1,49 +1,66 @@
 # Connecting to AI
 
-Ordo supports **Model Context Protocol (MCP)** and a long-lived **WebSocket agent client**, so trusted models like **Grok** can explore, create, schedule, monitor, and debug jobs on your infrastructure using natural language.
+Ordo supports **Model Context Protocol (MCP)** and long-lived **WebSocket** access so trusted models can explore, create, schedule, monitor, and debug jobs on your infrastructure using natural language.
 
-**One command vocabulary:** MCP tool names are the same as the native WebSocket/HTTP `command` names (e.g. `find_cluster`, `create_cron`, `start_cluster`). See [API Reference](#docs/api).
+**One command vocabulary:** MCP tool names match the native WebSocket/HTTP `command` names (e.g. `find_cluster`, `create_cron`, `start_cluster`). See [API Reference](#docs/api).
 
-## Two ways to connect
+## Three ways to connect
 
 ### 1. MCP (request/response) – simplest
 
 1. Open **Settings** and copy your **API token**.
-2. Tell the agent:
+2. Point an MCP-capable client at Ordo:
 
 > Connect to Ordo at `https://ordoscheduler.com/mcp` with token `YOUR_TOKEN_HERE`
 
 Good for browse / create / update / one-shot start.  
-The agent will **not** see live job or cluster completion events.
+The agent will **not** see live job or cluster completion events (starts are fire-and-forget).
 
-### 2. WebSocket client (live stream) – preferred when you need completion events
+### 2. ordo-bot (recommended for a full agent + completion)
 
-Use this when the agent must start work and know when it finished.
+[ordo-bot](https://github.com/nathanielgraham/ordo-bot) is a downloadable agent that:
 
-Client: [ordo-wsagent](https://github.com/nathanielgraham/ordo-wsagent)
+- Connects to Ordo over WebSocket with **your** token
+- Uses **your** LLM (Groq, Ollama, OpenRouter, xAI, … — you pay for tokens)
+- Exposes a small frontend WebSocket API (CLI included)
+- Registers **broadcast watches** so it can notify you when a job or cluster reaches a state you care about (e.g. `complete`) without polling
+
+```bash
+git clone https://github.com/nathanielgraham/ordo-bot.git
+cd ordo-bot
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+cp config.example.toml config.toml
+# set ordo_token + llm_* in config.toml
+ordo-bot --config config.toml
+# other terminal:
+python clients/cli.py
+```
+
+Architecture and client protocol: see the [ordo-bot README](https://github.com/nathanielgraham/ordo-bot) and `docs/ARCHITECTURE.md` / `docs/PROTOCOL.md` in that repo.
+
+Prefer **ordo-bot** when you want a ready-made agent with tools, history, and completion notifications.
+
+### 3. Thin WebSocket pipe (optional) – ordo-wsagent
+
+[ordo-wsagent](https://github.com/nathanielgraham/ordo-wsagent) (`wsagent.py`) is a **minimal NDJSON stdin/stdout client** with **no LLM**. Use it if you already have an agent loop and only need a transport, or for scripting/debugging raw commands.
 
 ```bash
 git clone https://github.com/nathanielgraham/ordo-wsagent.git
 cd ordo-wsagent
-pip install websocket-client   # or: python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
-
+pip install websocket-client
 export ORDO_TOKEN="YOUR_TOKEN_HERE"
 ./wsagent.py --timeout 300
 ```
 
 Protocol:
 
-- Send one JSON command per line on stdin  
-  e.g. `{"command":"find_cluster","name":"/root"}`
-- Read NDJSON on stdout
-- Only lines with `"type":"message"` contain server data (command replies **and** live broadcasts)
-- After `login_user` success the client emits an `agent_bootstrap` info event with protocol, first steps, useful commands, and doc sections - enough for a fresh agent to start with no prior knowledge
-- First useful call is usually `{"command":"get_documentation","section":"overview"}`
-- Keep reading until you see the `command_reply` (and any `jobs_changed` / `clusters_changed` broadcasts) you care about
-- When finished, send quit, or close stdin / kill
+- One JSON command per line on stdin (e.g. `{"command":"find_cluster","name":"/root"}`)
+- NDJSON on stdout; lines with `"type":"message"` carry server data (replies **and** broadcasts)
+- After login, an `agent_bootstrap` info event summarizes first steps
+- Keep reading until you see the `command_reply` and any `jobs_changed` / `clusters_changed` you care about
 
-If the agent has a shell tool it can run `wsagent.py` itself.  
-If not, the user can start the client and paste or pipe the NDJSON stream into the conversation.
+For most “connect my model to Ordo” setups, **use ordo-bot instead**.
 
 ## What agents can do
 
@@ -67,24 +84,21 @@ If not, the user can start the client and paste or pipe the NDJSON stream into t
 
 > I want a simple morning disk check on `<SERVER>`. Put a job in a monitoring cluster (create the cluster if needed) that runs `df -h`. Schedule it for 8:00 AM America/Chicago every day, attach that schedule to the cluster, and tell me the ids you created.
 
+### Start and notify on completion (ordo-bot)
+
+> Start the concurrent-b cluster and let me know when job sleep-b completes.
+
+(The agent should start the cluster and register a watch with `jobstate=complete` on the live broadcast stream.)
+
 ### Backup + max runtime
 
 > On `<SERVER>`, set up a nightly backup workflow: a backups cluster with a daily-backup job, 3 retries, and a 2-hour max runtime. If it runs too long, I want a separate “Backup Watchdog” cluster that logs a warning. Schedule backups for 2:00 AM daily, and tell me how to test it without waiting until 2 AM.
 
-### Overdue + clone
-
-> Walk me through overdue-and-clone, then build a minimal version. When the scheduled start can’t run because the cluster is still busy or on hold, a handler should clone it and start the clone. Show me what you created.
-
 ## Tips for best results
 
-- Tell the agent to call **`get_documentation`** at the beginning of a new session (section `overview`, `api`, or `quickstart`).
-- When creating jobs, be specific about:
-  - Purpose of the job
-  - Which server it should run on
-  - Which cluster to place it in
-  - When you want it to run
-  - Dependencies (if any)
-  - Special handlers (`on_fail`, `on_overdue`, `max_runtime`)
+- Tell the agent to call **`get_documentation`** at the beginning of a new session (section `overview`, `api`, or `agent-protocol`).
+- When creating jobs, be specific about purpose, server, cluster, schedule, dependencies, and handlers.
+- For completion, prefer **ordo-bot watches** (or a custom WebSocket client that filters broadcasts). MCP cannot push completion events.
 
 ## Security
 
@@ -96,17 +110,17 @@ If not, the user can start the client and paste or pipe the NDJSON stream into t
 
 Tool names match the native API `command` field.
 
-| Area     | Tools |
-|----------|-------|
-| Docs     | `get_documentation` |
-| Browse   | `find_cluster`, `read_job`, `read_cluster`, `find_monitor`, `find_cal` |
-| Create   | `create_job`, `create_cluster`, `create_cal`, `create_cron` |
-| Update   | `update_job_config`, `update_cluster` |
-| Lifecycle | `start_job`, `start_cluster`, `kill_job`, `kill_cluster`, `hold_*`, `release_*`, `ice_*`, `melt_*`, `complete_*`, `delete_job`, `delete_cluster`, `reset_cluster` |
-| Clone    | `clone_cluster` |
-| Logs     | `find_log`, `read_log` |
-| Ops      | `sync` |
-| Account  | `read_user`, `read_org` |
+| Area | Tools |
+|------|-------|
+| Docs | `get_documentation` |
+| Browse | `find_cluster`, `read_job`, `read_cluster`, `find_monitor`, `find_cal` |
+| Create | `create_job`, `create_cluster`, `create_cal`, `create_cron` |
+| Update | `update_job_config`, `update_cluster` |
+| Lifecycle | `start_job`, `start_cluster`, `kill_*`, `hold_*`, `release_*`, `ice_*`, `melt_*`, `complete_*`, `delete_*`, `reset_cluster` |
+| Clone | `clone_cluster` |
+| Logs | `find_log`, `read_log` |
+| Ops | `sync` |
+| Account | `read_user`, `read_org` |
 
 ## Agent behavior
 
@@ -114,62 +128,41 @@ Tool names match the native API `command` field.
 
 **Starting work is fire-and-forget by default.**
 
-When an agent starts a cluster or job via MCP:
-
-1. It receives a clear summary of what was started.
-2. It should report that result to the user.
+1. Agent receives a summary of what was started.
+2. It should report that to the user.
 3. It should **stop** — do not automatically poll for completion.
 
-Only check status or logs when the user explicitly asks  
-(e.g. “did it finish?”, “show me the logs”, “what failed?”).
+Only check status or logs when the user explicitly asks.
 
-### WebSocket path (live stream)
+### ordo-bot / WebSocket path (live stream)
 
-When using `ordo-wsagent`:
-
-1. After login, read the `agent_bootstrap` info event.
+1. Connect and authenticate (ordo-bot does this with your config token).
 2. Call `get_documentation` if this is a new session.
-3. Send commands; keep reading NDJSON for `command_reply` and broadcasts (`jobs_changed`, `clusters_changed`, …).
-4. When the job or cluster reaches a terminal state, the agent is done — **just exit**.
-5. The agent owns disconnect timing; `--timeout` is only a safety net.
+3. Run tools / commands as needed.
+4. For “tell me when it finishes,” register a **watch** filtered by id and `jobstate` (e.g. `complete`) so a later broadcast notifies the user — do not busy-poll.
+5. Hold is allowed on completed (and most non-running) jobs/clusters; not while **running**.
 
 ### MCP request shape
 
-Ordo speaks standard MCP over JSON-RPC. Preferred auth is a Bearer token:
-
-```
+```bash
 curl -X POST https://ordoscheduler.com/mcp \
   -H "Authorization: Bearer YOUR_TOKEN_HERE" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
-Core methods:
-
-| Method        | Purpose                          |
-|---------------|----------------------------------|
-| `initialize`  | Handshake / capabilities         |
-| `tools/list`  | Discover available tools         |
-| `tools/call`  | Execute a tool                   |
-
-Example tool call:
-
-```
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/call",
-  "params": {
-    "name": "find_monitor",
-    "arguments": {}
-  }
-}
-```
+| Method | Purpose |
+|--------|--------|
+| `initialize` | Handshake / capabilities |
+| `tools/list` | Discover tools |
+| `tools/call` | Execute a tool |
 
 ## Next
 
-- [Quickstart](#docs/quickstart) - first server and workflow
-- [API Reference](#docs/api) - full command reference
-- [Advanced Topics](#docs/advanced-topics) - handlers, cloning, environment variables
-- [FAQ](#docs/faq) - SSH, limits, stuck jobs
-- [ordo-wsagent](https://github.com/nathanielgraham/ordo-wsagent) - live WebSocket agent client
+- [Quickstart](#docs/quickstart) — first server and workflow
+- [Agent protocol](#docs/agent-protocol) — guidance aimed at agents
+- [API Reference](#docs/api) — full command reference
+- [Advanced Topics](#docs/advanced-topics) — handlers, cloning, environment variables
+- [FAQ](#docs/faq) — SSH, limits, stuck jobs
+- [ordo-bot](https://github.com/nathanielgraham/ordo-bot) — recommended full agent
+- [ordo-wsagent](https://github.com/nathanielgraham/ordo-wsagent) — optional thin pipe
