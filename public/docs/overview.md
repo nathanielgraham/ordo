@@ -4,9 +4,9 @@
 
 It schedules work across servers with explicit dependencies and a defined recovery path when something fails, misses its window, or runs too long. Think of it as cron with superpowers.
 
-## Natural Language Automation (MCP)
+## Natural Language Automation
 
-Ordo supports **Model Context Protocol**, so AI agents can explore, create, schedule, monitor, and repair jobs on your servers using natural language.
+Ordo supports **Model Context Protocol (MCP)** and optional **agent clients** (including [ordo-bot](https://github.com/nathanielgraham/ordo-bot)), so AI agents can explore, create, schedule, monitor, and repair jobs on your servers using natural language.
 
 You can say things like:
 
@@ -14,15 +14,16 @@ You can say things like:
 - “Check disk space on all servers every 15 minutes. If anything’s over 90%, email the team.”
 - “Run a daily backup with a 2-hour limit. If it’s still going, start the Backup Watchdog.”
 - “Deployment v2.3 failed last night. Look at the logs and tell me what went wrong.”
+- “Start concurrent-b and tell me when it completes.”
 
-The agent can create scripts and schedules on **your** servers, wire dependencies and handlers, and help debug when something breaks.
+The agent can create scripts and schedules on **your** servers, wire dependencies and handlers, and help debug when something breaks. For live completion notifications, use a WebSocket agent such as **ordo-bot** (MCP starts are fire-and-forget).
 
 ## Who Ordo Is For
 
 - Teams that have outgrown cron and need dependencies, recovery, and a single place to see what ran
 - DevOps teams running scheduled work across multiple servers
 - Small teams that want reliable automation without babysitting a heavy orchestrator
-- AI enthusiasts who want their agents to take real action (MCP)
+- AI enthusiasts who want their agents to take real action (MCP or ordo-bot)
 
 ## What You Get
 
@@ -30,7 +31,7 @@ The agent can create scripts and schedules on **your** servers, wire dependencie
   Organize jobs into nested clusters with scheduling and dependency logic built in. See the full chain on a dependency graph instead of reconstructing it from memory.
 
 - **Natural language automation with AI**  
-  Describe the job, schedule, or recovery path in plain English. Grok can build it on your servers; you still get real jobs and clusters you can open, edit, and run with or without AI.
+  Describe the job, schedule, or recovery path in plain English. An agent can build it on your servers; you still get real jobs and clusters you can open, edit, and run with or without AI.
 
 - **Automatically respond when things go wrong**  
   `On Fail`, `On Overdue`, and `Max Runtime` handlers can alert, clone, escalate, or recover. The next step is defined before the incident becomes a scavenger hunt.
@@ -49,10 +50,10 @@ The agent can create scripts and schedules on **your** servers, wire dependencie
 
 ## Works With or Without AI
 
-Ordo is a full job scheduler on its own. MCP is optional power, not a requirement.
+Ordo is a full job scheduler on its own. MCP and agent clients are optional power, not a requirement.
 
 ## Ready to Begin?
 
-1. **Sign up for a free account** - no credit card required  
+1. **Sign up for a free account** — no credit card required  
 2. Read the [Quickstart](#docs/quickstart) guide  
-3. Optionally [connect an MCP client](#docs/connecting-to-ai) and let an agent help from there.
+3. Optionally [connect an AI client](#docs/connecting-to-ai) (MCP and/or [ordo-bot](https://github.com/nathanielgraham/ordo-bot)) and let an agent help from there.
