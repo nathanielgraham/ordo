@@ -2,6 +2,8 @@
 
 Ordo supports **Model Context Protocol (MCP)** and a long-lived **WebSocket agent client**, so trusted models like **Grok** can explore, create, schedule, monitor, and debug jobs on your infrastructure using natural language.
 
+**One command vocabulary:** MCP tool names are the same as the native WebSocket/HTTP `command` names (e.g. `find_cluster`, `create_cron`, `start_cluster`). See [API Reference](#docs/api).
+
 ## Two ways to connect
 
 ### 1. MCP (request/response) – simplest
@@ -75,7 +77,7 @@ If not, the user can start the client and paste or pipe the NDJSON stream into t
 
 ## Tips for best results
 
-- Tell the agent to call **`get_documentation`** at the beginning of a new session (section `overview` or `quickstart`).
+- Tell the agent to call **`get_documentation`** at the beginning of a new session (section `overview`, `api`, or `quickstart`).
 - When creating jobs, be specific about:
   - Purpose of the job
   - Which server it should run on
@@ -92,17 +94,19 @@ If not, the user can start the client and paste or pipe the NDJSON stream into t
 
 ## Available MCP tools (summary)
 
-| Area     | Tools                                                                 |
-|----------|-----------------------------------------------------------------------|
-| Docs     | `get_documentation`                                                   |
-| Browse   | `list_jobs`, `get_job_details`, `get_cluster_details`, `list_servers`, `list_calendars` |
-| Create   | `create_job`, `create_cluster`, `create_calendar`, `add_cron`         |
-| Update   | `update_job`, `update_cluster`                                        |
-| Control  | `manage_job`, `manage_cluster`                                        |
-| Clone    | `clone_cluster`                                                       |
-| Logs     | `find_logs`, `read_log`                                               |
-| Ops      | `sync`                                                                |
-| Account  | `read_user`, `read_org`                                               |
+Tool names match the native API `command` field.
+
+| Area     | Tools |
+|----------|-------|
+| Docs     | `get_documentation` |
+| Browse   | `find_cluster`, `read_job`, `read_cluster`, `find_monitor`, `find_cal` |
+| Create   | `create_job`, `create_cluster`, `create_cal`, `create_cron` |
+| Update   | `update_job_config`, `update_cluster` |
+| Lifecycle | `start_job`, `start_cluster`, `kill_job`, `kill_cluster`, `hold_*`, `release_*`, `ice_*`, `melt_*`, `complete_*`, `delete_job`, `delete_cluster`, `reset_cluster` |
+| Clone    | `clone_cluster` |
+| Logs     | `find_log`, `read_log` |
+| Ops      | `sync` |
+| Account  | `read_user`, `read_org` |
 
 ## Agent behavior
 
@@ -156,7 +160,7 @@ Example tool call:
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "list_servers",
+    "name": "find_monitor",
     "arguments": {}
   }
 }
@@ -165,6 +169,7 @@ Example tool call:
 ## Next
 
 - [Quickstart](#docs/quickstart) - first server and workflow
+- [API Reference](#docs/api) - full command reference
 - [Advanced Topics](#docs/advanced-topics) - handlers, cloning, environment variables
 - [FAQ](#docs/faq) - SSH, limits, stuck jobs
 - [ordo-wsagent](https://github.com/nathanielgraham/ordo-wsagent) - live WebSocket agent client
