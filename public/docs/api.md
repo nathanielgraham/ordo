@@ -5,8 +5,9 @@ You can speak it over:
 
 - the WebSocket at `wss://ordoscheduler.com/websocket` (preferred for agents)
 - the HTTP endpoint `https://ordoscheduler.com/api` (classic REST-style)
+- **MCP** at `https://ordoscheduler.com/mcp` (same command names as tools)
 
-Both accept the same JSON bodies and return the same shapes.
+All three use the **same command names** and the same JSON shapes. MCP tool names match the `command` field below (e.g. `find_cluster`, `create_cron`, `start_cluster`).
 
 ---
 
@@ -43,11 +44,9 @@ After you connect and log in, call:
 
 ### MCP as fallback
 
-The MCP tools remain available and are well-schema’d.  
-Use them when a full WebSocket client is impractical or when you only need simple request/response operations.  
+MCP tools use the **same names** as this reference.  
+Use MCP when a full WebSocket client is impractical or when you only need simple request/response operations.  
 For anything that requires waiting on completion events, prefer `ordo-wsagent`.
-
-**Name mapping note:** some MCP tool names differ from the raw WebSocket command names (e.g. MCP `add_cron` → WebSocket `create_cron`; MCP `create_calendar` → WebSocket `create_cal`; MCP `update_job` → WebSocket `update_job_config`). Prefer the WebSocket names in this document when speaking the native protocol.
 
 ---
 
@@ -128,7 +127,7 @@ Retrieve Ordo documentation.
 
 | Parameter | Type   | Required | Description |
 |-----------|--------|----------|-------------|
-| section   | string | no       | Documentation section. One of: overview, quickstart, core-concepts, jobs-and-clusters, calendars-and-crons, advanced-topics, connecting-to-ai, faq, api, rest-api, cli, dashboard, stats-polling, settings, private-deployments, self-hosted, all. Default: overview. |
+| section   | string | no       | Documentation section. One of: overview, quickstart, core-concepts, jobs-and-clusters, calendars-and-crons, advanced-topics, connecting-to-ai, faq, api, agent-protocol, rest-api, cli, dashboard, stats-polling, settings, private-deployments, self-hosted, all. Default: overview. |
 | format    | string | no       | markdown (default) or summary. |
 
 Example:
@@ -391,8 +390,6 @@ Example:
 {"command":"create_cron","name":"0 0 8 * * ? *","cal_id":3}
 ```
 
-**MCP note:** the MCP tool may be named `add_cron`; the native WebSocket/HTTP command is **`create_cron`**.
-
 ---
 
 ## Update commands
@@ -416,8 +413,6 @@ All update commands obey clear-semantics: omit = no change; null / "" / [] = cle
 | json | object/null | no | |
 
 ### update_job_config
-
-Native WebSocket command name is **`update_job_config`** (not `update_job`).
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -483,13 +478,14 @@ Possible values of `broadcast`:
 
 ---
 
-## Advanced commands (summary)
+## Command summary
 
 | Area | Commands |
 |------|----------|
-| Calendars | `create_cal`, `create_cron`, `read_cal`, `find_cal`, `update_cal`, `delete_cal`, `delete_cron` |
-| Lifecycle extras | `hold_*`, `release_*`, `ice_*`, `melt_*`, `complete_*`, `kill_cluster`, `reset_cluster`, `clone_cluster` |
-| Ops | `sync` |
-| Account | `read_user`, `read_org` |
+| Inspect | `get_documentation`, `find_cluster`, `read_cluster`, `read_job`, `find_monitor`, `find_cal`, `read_cal`, `find_log`, `read_log`, `read_org`, `read_user`, `sync` |
+| Create | `create_cluster`, `create_job`, `create_cal`, `create_cron` |
+| Update | `update_cluster`, `update_job_config`, `update_cal` |
+| Lifecycle | `start_*`, `kill_*`, `hold_*`, `release_*`, `ice_*`, `melt_*`, `complete_*`, `reset_cluster`, `clone_cluster` |
+| Delete | `delete_job`, `delete_cluster`, `delete_cron`, `delete_cal` |
 
 If you need a parameter not listed here, call `get_documentation` section `api` again after upgrades, or probe with a minimal command and read the `message` on failure.
