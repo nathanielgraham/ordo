@@ -2,7 +2,7 @@
 
 Ordo supports **Model Context Protocol (MCP)** and long-lived **WebSocket** access so trusted models can explore, create, schedule, monitor, and debug jobs on your infrastructure using natural language.
 
-## Three ways to connect
+## Two ways to connect
 
 ### 1. MCP (request/response) – simplest
 

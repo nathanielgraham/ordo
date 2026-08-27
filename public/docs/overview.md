@@ -2,7 +2,7 @@
 
 **Ordo is a hierarchical job scheduler for both humans and AI agents.**
 
-It schedules work across servers with explicit dependencies and clear next steps when jobs fail, miss their window, or run too long. Think of it as cron with recovery, live views, and a history of what actually ran.
+It schedules work across servers with explicit dependencies and a defined recovery path when a job fails, misses its window, or runs too long.
 
 ## How it works
 - A **Job** is the smallest unit of work. It runs a script on a chosen server.
@@ -12,7 +12,7 @@ It schedules work across servers with explicit dependencies and clear next steps
 
 ## Natural Language Automation
 
-Ordo supports Model Context Protocol and long-lived WebSocket access so agents can explore, create, schedule, monitor, and debug jobs using natural language. WebSocket agents can also **respond to events as they happen** (for example, when a job completes). See [ordo-bot](https://github.com/nathanielgraham/ordo-bot).
+Ordo supports Model Context Protocol and long-lived WebSocket access so agents can explore, create, monitor, schedule, and debug jobs using natural language. WebSocket agents can also **respond to events as they happen** (for example, when a job completes). See [ordo-bot](https://github.com/nathanielgraham/ordo-bot).
 
 You can say things like:
 
