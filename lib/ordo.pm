@@ -7394,13 +7394,14 @@ sub routing {
                root_used_disk   => 'i',
                root_total_disk  => 'i',
                root_free_disk   => 'i',
-               cores            => 'i',
-               os               => 's',
-               ip_address       => 's',
-               cwd              => 's',
-               home             => 's',
             },
-            {}
+            {
+               cores      => 'i',
+               os         => 's',
+               ip_address => 's',
+               cwd        => 's',
+               home       => 's',
+            }
          ],
          1
       ],
