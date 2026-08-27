@@ -4984,6 +4984,11 @@ sub update_sysinfo {
      free_disk
      free_swap
      root_free_disk
+     cores
+     os
+     ip_address
+     cwd
+     home
    );
 
    my $uh = { map { $_, $d->{$_} } grep { exists $d->{$_} } @stats };
@@ -7389,6 +7394,11 @@ sub routing {
                root_used_disk   => 'i',
                root_total_disk  => 'i',
                root_free_disk   => 'i',
+               cores            => 'i',
+               os               => 's',
+               ip_address       => 's',
+               cwd              => 's',
+               home             => 's',
             },
             {}
          ],
