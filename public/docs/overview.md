@@ -1,12 +1,18 @@
 # Overview
 
-**Ordo is a hierarchical job scheduler designed for both humans and AI agents.**
+**Ordo is a hierarchical job scheduler for both humans and AI agents.**
 
-It schedules work across servers with explicit dependencies and a defined recovery path when something fails, misses its window, or runs too long. Think of it as cron with superpowers.
+It schedules work across servers with explicit dependencies and clear next steps when jobs fail, miss their window, or run too long. Think of it as cron with recovery, live views, and a history of what actually ran.
+
+## How it works
+- A **Job** is the smallest unit of work. It runs a script on a chosen server.
+- **Clusters** are containers for jobs and other clusters, forming a tree.
+- **Calendars** are collections of **cron** expressions that decide when clusters start.
+- **Handlers** define what happens next when a job fails, misses its window, or runs too long.
 
 ## Natural Language Automation
 
-Ordo supports **Model Context Protocol (MCP)** and optional **agent clients** (including [ordo-bot](https://github.com/nathanielgraham/ordo-bot)), so AI agents can explore, create, schedule, monitor, and repair jobs on your servers using natural language.
+Ordo supports Model Context Protocol and long-lived WebSocket access so agents can explore, create, schedule, monitor, and debug jobs using natural language. WebSocket agents can also **respond to events as they happen** (for example, when a job completes). See [ordo-bot](https://github.com/nathanielgraham/ordo-bot).
 
 You can say things like:
 
@@ -14,16 +20,16 @@ You can say things like:
 - “Check disk space on all servers every 15 minutes. If anything’s over 90%, email the team.”
 - “Run a daily backup with a 2-hour limit. If it’s still going, start the Backup Watchdog.”
 - “Deployment v2.3 failed last night. Look at the logs and tell me what went wrong.”
-- “Start concurrent-b and tell me when it completes.”
+- “Start the saas-deploy cluster and notify me when it completes.”
 
-The agent can create scripts and schedules on **your** servers, wire dependencies and handlers, and help debug when something breaks. For live completion notifications, use a WebSocket agent such as **ordo-bot** (MCP starts are fire-and-forget).
+The agent can create scripts and schedules on **your** servers, wire dependencies and handlers, and help debug when something breaks. See [Connecting to AI](#docs/connecting-to-ai).
 
 ## Who Ordo Is For
 
 - Teams that have outgrown cron and need dependencies, recovery, and a single place to see what ran
 - DevOps teams running scheduled work across multiple servers
 - Small teams that want reliable automation without babysitting a heavy orchestrator
-- AI enthusiasts who want their agents to take real action (MCP or ordo-bot)
+- AI enthusiasts who want their agents to take real action.
 
 ## What You Get
 
@@ -34,7 +40,7 @@ The agent can create scripts and schedules on **your** servers, wire dependencie
   Describe the job, schedule, or recovery path in plain English. An agent can build it on your servers; you still get real jobs and clusters you can open, edit, and run with or without AI.
 
 - **Automatically respond when things go wrong**  
-  `On Fail`, `On Overdue`, and `Max Runtime` handlers can alert, clone, escalate, or recover. The next step is defined before the incident becomes a scavenger hunt.
+  `On Fail`, `On Overdue`, and `Max Runtime` handlers can alert, clone, escalate, or recover. The next step is defined before you have a major incident.
 
 - **Cloning**  
   When the previous run is still busy at the next scheduled time, spin up an identical copy instead of skipping, colliding, or hoping.
@@ -56,4 +62,4 @@ Ordo is a full job scheduler on its own. MCP and agent clients are optional powe
 
 1. **Sign up for a free account** — no credit card required  
 2. Read the [Quickstart](#docs/quickstart) guide  
-3. Optionally [connect an AI client](#docs/connecting-to-ai) (MCP and/or [ordo-bot](https://github.com/nathanielgraham/ordo-bot)) and let an agent help from there.
+3. Optionally [connect an AI client](#docs/connecting-to-ai)
