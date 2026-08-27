@@ -15,8 +15,9 @@ Stats polling refers to periodic calls (usually from `update_stats.pl`) that fet
 - PID, PPID, command name
 - Start time and runtime
 
-**Server-level metrics:**
-- CPU cores and load average (1/5/15 min)
+**Server-level metrics (every poll):**
+- Load average (1/5/15 min)
+- CPU utilization %
 - Memory and Swap usage
 - Disk usage (total + root filesystem)
 - Network I/O (total bytes)
@@ -24,6 +25,17 @@ Stats polling refers to periodic calls (usually from `update_stats.pl`) that fet
 - Process count and zombies
 - Uptime
 - Ping latency (from servers tab)
+
+**Server identity (once at install / upgrade, not every poll):**
+- CPU cores
+- OS
+- IP address
+- Home directory
+- Node working directory (`$HOME/ordo_node`)
+
+These identity fields are collected by `ordo_node/bin/basicinfo.pl` when a server is added (`create_monitor` → `_install_monitor`) or upgraded (`upgrade_monitor`). They live on the `server` row. The per-minute poll does not rewrite them.
+
+`launcher.pl` daemonizes with `chdir("/")`, so process cwd during a stats job would always be `/`. That is why cwd is captured at install time instead.
 
 This data primarily powers the **Stats column**, CPU/memory badges, and detailed tooltips in the **Jobs & Clusters** tab, as well as server monitoring views. The main **Dashboard** tab focuses on scheduling and job execution metrics and does **not** require stats polling.
 
@@ -71,7 +83,7 @@ To minimize unnecessary API usage when you are not actively monitoring:
 - **Important:** Putting a cluster on Hold only affects jobs in that specific cluster. All your other jobs and clusters will continue to run and schedule normally.
 - Release the monitoring job from Hold when you want to resume real-time stats.
 
-**Tip:** Many users create a dedicated "Monitoring" cluster just for stats collection and keep it on Hold by default, releasing it only when they need live visibility.
+**Tip:** Many users create a dedicated "Monitoring" cluster just for stats collection and keep it on Hold by default, releasing it only when you need live visibility.
 
 ### Best Practices
 

@@ -4,7 +4,7 @@ use warnings;
 use Exporter 'import';
 use IO::Socket::INET;
 
-our @EXPORT = qw(get_local_ip_address get_cores pid_info find_pids system_info get_loadavg);
+our @EXPORT = qw(get_local_ip_address get_cores pid_info find_pids system_info get_loadavg node_identity);
 
 my $OS = $^O =~ /MSWin32/i ? 'windows'
        : $^O =~ /darwin/i  ? 'darwin'
@@ -29,6 +29,36 @@ sub get_local_ip_address {
         Timeout  => 2,
     );
     return $socket ? $socket->sockhost : undef;
+}
+
+# Identity fields change rarely. Collected once at server install
+# (basicinfo.pl via _install_monitor), not on every stats poll.
+# launcher.pl chdir("/") before exec, so process cwd during a job is "/".
+sub node_identity {
+    my $home = $ENV{HOME};
+    if ( !$home ) {
+        my @pw = eval { getpwuid($<) };
+        $home = $pw[7] if @pw;
+    }
+    $home =~ s{/$}{} if defined $home && $home ne '/';
+
+    my $cwd;
+    if ( defined $home && -d "$home/ordo_node" ) {
+        $cwd = "$home/ordo_node";
+    }
+    else {
+        require Cwd;
+        $cwd = eval { Cwd::getcwd() };
+        $cwd = $home if !$cwd || $cwd eq '/';
+    }
+
+    return {
+        cores      => get_cores(),
+        os         => $OS,
+        ip_address => get_local_ip_address(),
+        home       => $home,
+        cwd        => $cwd,
+    };
 }
 
 # ===================================================================
@@ -231,9 +261,6 @@ sub linux_info {
     %info = (%info, get_processes());
 
     $info{cpu_percent} = get_cpu_percent() // 0;
-    $info{cores}       = get_cores();
-    $info{os}          = $OS;
-    $info{ip_address}  = get_local_ip_address();
 
     if (open my $fh, '<', '/proc/uptime') {
         ($info{uptime}) = split ' ', <$fh>;
@@ -249,6 +276,17 @@ sub linux_info {
 
 sub darwin_info { return linux_info(); }
 sub windows_info { return linux_info(); }
+
+sub get_macos_cores {
+    my $n = `sysctl -n hw.ncpu 2>/dev/null`;
+    chomp $n;
+    return $n =~ /^\d+$/ ? $n + 0 : 1;
+}
+
+sub get_windows_cores {
+    my $n = $ENV{NUMBER_OF_PROCESSORS} || 1;
+    return $n =~ /^\d+$/ ? $n + 0 : 1;
+}
 
 # ===================================================================
 # Main Entry Point
