@@ -77,24 +77,40 @@ sub get_loadavg {
 }
 
 sub get_memory_swap {
+    my %raw;
     my %mem = (
         total_memory => undef, used_memory => undef, free_memory => undef,
         total_swap   => undef, used_swap   => undef, free_swap   => undef
     );
     open my $fh, '<', '/proc/meminfo' or return %mem;
     while (<$fh>) {
-        $mem{total_memory} = $1 * 1024 if /^MemTotal:\s+(\d+)/;
-        $mem{free_memory}  = $1 * 1024 if /^MemFree:\s+(\d+)/;
-        $mem{total_swap}   = $1 * 1024 if /^SwapTotal:\s+(\d+)/;
-        $mem{free_swap}    = $1 * 1024 if /^SwapFree:\s+(\d+)/;
+        $raw{$1} = $2 if /^(MemTotal|MemFree|MemAvailable|Buffers|Cached|SReclaimable|SwapTotal|SwapFree):\s+(\d+)/;
     }
     close $fh;
 
-    $mem{used_memory} = $mem{total_memory} - $mem{free_memory}
-        if defined $mem{total_memory} && defined $mem{free_memory};
+    if (defined $raw{MemTotal}) {
+        $mem{total_memory} = $raw{MemTotal} * 1024;
 
-    $mem{used_swap} = $mem{total_swap} - $mem{free_swap}
-        if defined $mem{total_swap} && defined $mem{free_swap};
+        # MemAvailable is what free(1)/htop call "available": reclaimable
+        # cache is not treated as used. Fall back to Free+Buffers+Cached+SReclaimable.
+        my $avail_kb = defined $raw{MemAvailable}
+            ? $raw{MemAvailable}
+            : ($raw{MemFree} // 0)
+              + ($raw{Buffers} // 0)
+              + ($raw{Cached} // 0)
+              + ($raw{SReclaimable} // 0);
+
+        $mem{free_memory} = $avail_kb * 1024;
+        $mem{used_memory} = $mem{total_memory} - $mem{free_memory};
+        $mem{used_memory} = 0 if $mem{used_memory} < 0;
+    }
+
+    if (defined $raw{SwapTotal}) {
+        $mem{total_swap} = $raw{SwapTotal} * 1024;
+        $mem{free_swap}  = ($raw{SwapFree} // 0) * 1024;
+        $mem{used_swap}  = $mem{total_swap} - $mem{free_swap};
+        $mem{used_swap}  = 0 if $mem{used_swap} < 0;
+    }
 
     return %mem;
 }
@@ -183,8 +199,8 @@ sub get_cpu_percent {
 
     my $total = $diff_user + $diff_nice + $diff_system + $diff_idle + $diff_iowait;
 
-    return $total > 0 
-        ? sprintf("%.1f", 100 * ($diff_user + $diff_nice + $diff_system) / $total) 
+    return $total > 0
+        ? sprintf("%.1f", 100 * ($diff_user + $diff_nice + $diff_system) / $total)
         : 0;
 }
 
@@ -215,6 +231,9 @@ sub linux_info {
     %info = (%info, get_processes());
 
     $info{cpu_percent} = get_cpu_percent() // 0;
+    $info{cores}       = get_cores();
+    $info{os}          = $OS;
+    $info{ip_address}  = get_local_ip_address();
 
     if (open my $fh, '<', '/proc/uptime') {
         ($info{uptime}) = split ' ', <$fh>;
