@@ -26,6 +26,16 @@ export function templateScript(id) {
 
 let OrigTomSelect;
 
+function jobModalEl() {
+  return document.getElementById("job-modal");
+}
+
+function setModalDropdownOpen(open) {
+  const modal = jobModalEl();
+  if (!modal) return;
+  modal.classList.toggle("template-dropdown-open", !!open);
+}
+
 function installTomSelectHook() {
   if (typeof window === "undefined" || !window.TomSelect) return;
   if (window.TomSelect.__ordoCatalogHook) return;
@@ -88,6 +98,16 @@ export function initJobTemplateSelect(selectEl, { isEditMode, onPick } = {}) {
     options,
     lockOptgroupOrder: true,
     controlInput: "<input>",
+    dropdownClass: "ts-dropdown job-template-dropdown",
+    onInitialize() {
+      this.dropdown.classList.add("job-template-dropdown");
+    },
+    onDropdownOpen() {
+      setModalDropdownOpen(true);
+    },
+    onDropdownClose() {
+      setModalDropdownOpen(false);
+    },
     onChange(value) {
       if (!value) return;
       const script = templateScript(value);

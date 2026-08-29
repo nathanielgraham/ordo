@@ -1,0 +1,16 @@
+/* Catalog dropdown is mounted on body (dropdownParent) so it must
+   outrank the global .ts-dropdown { max-height: 10rem } cap. */
+.ts-control {
+  max-height: none;
+  overflow: visible;
+}
+
+body > .ts-dropdown.job-template-dropdown {
+  max-height: min(32rem, calc(100vh - 8rem));
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+#job-modal.template-dropdown-open .modal-body {
+  overflow: hidden;
+}
