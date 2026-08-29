@@ -29,6 +29,7 @@
   <meta name="twitter:image" content="<%= $base %>/img/og-image.png" />
 
   <link rel="stylesheet" href="/css/app.css?v=<%= time %>" />
+  <link rel="stylesheet" href="/css/job-templates.css?v=<%= time %>" />
   <% my $isSelfHosted = $c->is_selfhosted; %>
 
   <!-- Font Awesome -->
