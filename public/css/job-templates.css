@@ -1,16 +1,21 @@
-/* Catalog dropdown is mounted on body (dropdownParent) so it must
-   outrank the global .ts-dropdown { max-height: 10rem } cap. */
+/* Catalog list: do not scroll .ts-dropdown AND .ts-dropdown-content.
+   app.css caps .ts-dropdown at 10rem; TomSelect caps content at 200px. */
 .ts-control {
-  max-height: none;
-  overflow: visible;
+  max-height: none !important;
+  overflow: visible !important;
 }
 
-body > .ts-dropdown.job-template-dropdown {
-  max-height: min(32rem, calc(100vh - 8rem));
-  overflow-y: auto;
-  overflow-x: hidden;
+.ts-dropdown.job-template-dropdown {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.ts-dropdown.job-template-dropdown .ts-dropdown-content {
+  max-height: min(32rem, calc(100vh - 8rem)) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
 }
 
 #job-modal.template-dropdown-open .modal-body {
-  overflow: hidden;
+  overflow: hidden !important;
 }
