@@ -22,7 +22,7 @@ RUN cpanm --notest \
     Mojo::SQLite \
     Net::OpenSSH \
     EV \
-    Cron::Toolkit \
+    Cron::Toolkit@1.04 \
     UUID::Tiny \
     Email::Valid \
     Mojo::JWT \
