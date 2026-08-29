@@ -1,17 +1,19 @@
-/* Catalog list: do not scroll .ts-dropdown AND .ts-dropdown-content.
-   app.css caps .ts-dropdown at 10rem; TomSelect caps content at 200px. */
+/* Two scrollbars were .ts-dropdown (app.css max-height:10rem) PLUS
+   .ts-dropdown-content (TomSelect max-height:200px). Cap only content. */
 .ts-control {
   max-height: none !important;
   overflow: visible !important;
 }
 
-.ts-dropdown.job-template-dropdown {
+.ts-dropdown,
+.ts-dropdown.single {
   max-height: none !important;
   overflow: visible !important;
 }
 
-.ts-dropdown.job-template-dropdown .ts-dropdown-content {
-  max-height: min(32rem, calc(100vh - 8rem)) !important;
+.ts-dropdown .ts-dropdown-content,
+.ts-dropdown.single .ts-dropdown-content {
+  max-height: min(28rem, calc(100vh - 8rem)) !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
 }
