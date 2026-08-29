@@ -19,7 +19,21 @@ A **Job** is the smallest unit of work in Ordo. Each job:
    - **Dependencies**: Needs, Needs Any
    - **Delay**, **Retries**, **Loops**, and **Max Runtime**
 
-**Pro Tip**: Use the **Insert Template** dropdown in the job modal for common patterns (Shell, Perl, Python, Update Stats, Email Team, etc.).
+**Pro Tip**: Use the **Insert Template** dropdown in the job modal. Templates are grouped as **Languages**, **Handlers**, and **Triggers**, and live in `examples/job-templates/` (cached by the app on startup).
+
+### Event triggers
+
+A trigger job is a long-running waiter that exits 0 when an event happens. Dependents then start like any other job.
+
+```
+cluster: inbound-invoices
+  job: wait-for-file     ← trigger
+  job: load-csv          ← Needs wait-for-file
+```
+
+Parameters belong in job/cluster **`json`** (`ORDO_JOB_JSON` / `ORDO_CLUSTER_JSON`). Secrets belong on the **server environment** or a `token_file`; `json.token` is only a last-resort fallback. Set a **max runtime** on watchers so a stuck trigger can fire a handler instead of running forever.
+
+See `examples/job-templates/README.md` and the Triggers optgroup (watch path, webhook, GitHub, Slack).
 
 ## Clusters
 
