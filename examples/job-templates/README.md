@@ -23,6 +23,15 @@ Header comments (optional):
 
 If omitted, `id` is the filename without extension and `label` is that id with dashes turned into spaces.
 
+## Ship rule
+
+Anything that ships with Ordo (templates, `ordo_node/bin/*`, `ordo_node/modules/*`) should run on a stock Linux box:
+
+- POSIX `sh` + `curl` / `python3` stdlib, or
+- core Perl only (`JSON::PP`, `HTTP::Tiny`, …)
+
+No LWP, no `requests`, no CPAN in job bodies. Talk to Ordo with `OrdoAgent::ordo_post` (Perl) or `curl` (shell). `launcher.pl` prepends `~/ordo_node/modules` to `PERL5LIB` so `use OrdoAgent` works from a job tempfile. Nodes need a current `ordo_node` (`upgrade_monitor`) for that.
+
 ## Triggers
 
 A trigger job is a long-running waiter. When it exits 0, dependents start like any other job.

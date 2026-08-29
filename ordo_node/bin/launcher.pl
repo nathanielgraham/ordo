@@ -106,6 +106,7 @@ for my $key ( keys %ENV ) {
 
 add_to_path("$ENV{HOME}/ordo_node/bin");
 add_to_path("$ENV{HOME}/ordo_node/scripts");
+add_to_perl5lib("$ENV{HOME}/ordo_node/modules");
 
 if ( $delay && $delay <= 86400 ) {
     post(
@@ -255,4 +256,13 @@ sub add_to_path {
     my $new_path = shift;
     my $sep = $^O =~ /MSWin32/i ? ';' : ':';
     $ENV{PATH} = $new_path . $sep . ( $ENV{PATH} || '' );
+}
+
+# Job bodies run from /tmp; they need this to `use OrdoAgent`.
+sub add_to_perl5lib {
+    my $dir = shift;
+    return unless $dir && -d $dir;
+    my $sep = $^O =~ /MSWin32/i ? ';' : ':';
+    $ENV{PERL5LIB} =
+      $ENV{PERL5LIB} ? $dir . $sep . $ENV{PERL5LIB} : $dir;
 }
