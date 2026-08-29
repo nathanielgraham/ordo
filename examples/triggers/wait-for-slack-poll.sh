@@ -29,22 +29,12 @@ if [ -z "$TOKEN" ]; then
   exit 2
 fi
 
-OLDEST=${TRIGGER_OLDEST:-}
-if [ -z "$OLDEST" ]; then
-  OLDEST=$(date +%s)
-fi
+OLDEST=${TRIGGER_OLDEST:-$(date +%s)}
+export NEEDLE
 
 echo "watching Slack $CHANNEL for '$NEEDLE' after ts=$OLDEST"
 while true; do
   hit=$(curl -fsS -H "Authorization: Bearer $TOKEN" \
-    "https://slack.com/api/conversations.history?channel=$CHANNEL&oldest=$OLDEST&limit=20" \
-    | python3 -c "
-import json,os,sys
-needle=os.environ.get('NEEDLE','')
-# pass needle via env
-" 2>/dev/null || true)
-
-  hit=$(NEEDLE="$NEEDLE" curl -fsS -H "Authorization: Bearer $TOKEN" \
     "https://slack.com/api/conversations.history?channel=$CHANNEL&oldest=$OLDEST&limit=20" \
     | python3 -c 'import json,os,sys
 needle=os.environ["NEEDLE"].lower()
