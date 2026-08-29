@@ -1,4 +1,5 @@
 // app.js – Main entry point & orchestration
+import "./job-templates.js";
 import { appState, validateCollapsedStorage } from "./state.js";
 import { initTabSystem, activateTab } from "./tabs.js";
 import { checkLoginAndConnect } from "./websocket.js";
