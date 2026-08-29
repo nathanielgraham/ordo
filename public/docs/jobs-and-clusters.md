@@ -19,7 +19,21 @@ A **Job** is the smallest unit of work in Ordo. Each job:
    - **Dependencies**: Needs, Needs Any
    - **Delay**, **Retries**, **Loops**, and **Max Runtime**
 
-**Pro Tip**: Use the **Insert Template** dropdown in the job modal for common patterns (Shell, Perl, Python, Update Stats, Email Team, etc.).
+**Pro Tip**: Use the **Insert Template** dropdown in the job modal. Templates are grouped as **Languages**, **Handlers**, and **Triggers**, and live in `examples/job-templates/` (cached by the app on startup).
+
+### Event triggers
+
+A trigger job is a long-running waiter that exits 0 when an event happens. Dependents then start like any other job.
+
+```
+cluster: inbound-invoices
+  job: wait-for-file     ← trigger
+  job: load-csv          ← Needs wait-for-file
+```
+
+Parameters belong in job/cluster **`json`** (`ORDO_JOB_JSON` / `ORDO_CLUSTER_JSON`). Secrets belong on the **server environment** or a `token_file`; `json.token` is only a last-resort fallback. Set a **max runtime** on watchers so a stuck trigger can fire a handler instead of running forever.
+
+See `examples/job-templates/README.md` and the Triggers optgroup (watch path, webhook, GitHub, Slack).
 
 ## Clusters
 
@@ -68,10 +82,10 @@ Only set when the corresponding column is non-empty. Scripts should treat missin
 ```python
 import json, os
 job = json.loads(os.environ["ORDO_JOB_JSON"]) if "ORDO_JOB_JSON" in os.environ else {}
-cluster = json.loads(os.environ["ORDO_CLUSTER_JSON"]) if "ORDO_CLUSTER_JSON" in os.environ else {}
-params = {**cluster, **job}  # job overrides cluster
-repo = params.get("repo")
-branch = params.get("branch", "master")
+cluster = json.loads(os.environ.get("ORDO_CLUSTER_JSON") or "{}")
+# Prefer job key, else cluster (do not smash unknown keys together).
+repo = job.get("repo", cluster.get("repo"))
+branch = job.get("branch", cluster.get("branch", "master"))
 ```
 
 **Example (MCP)**
@@ -96,7 +110,7 @@ Dependencies can be set on both jobs and clusters.
 - **On Overdue Handler**: Triggered when a cluster is still not ready at its next scheduled time.
 - **Max Runtime Handler** (job-level): Triggered if a job exceeds its time limit.
 
-All handlers point to another cluster.
+All handlers point to another cluster. Shipped Perl handlers talk to Ordo with `OrdoAgent::ordo_post` (core Perl + `curl`).
 
 ## Cloning
 
@@ -127,3 +141,4 @@ Click **View Graph** on any cluster to see a live visual diagram of all dependen
 - Use handlers and cloning for robust automation.
 - Keep scripts in `~/ordo_node/scripts/` for reusability.
 - Prefer `json` for parameters; keep secrets out of `json`.
+- Shipped examples use core Perl, POSIX sh, curl, and Python stdlib only. After `upgrade_monitor`, launcher sets `PERL5LIB=~/ordo_node/modules` so jobs can `use OrdoAgent qw(ordo_post)`.

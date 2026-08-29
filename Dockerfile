@@ -54,6 +54,7 @@ COPY lib/ /app/lib/
 COPY script/ /app/script/
 COPY public/ /app/public/
 COPY templates/ /app/templates/
+COPY examples/ /app/examples/
 COPY ordo_node/ /app/ordo_node/
 COPY schemas/*.schema /app/schemas/
 COPY config/ordo.json /app/config.default/ordo.json
