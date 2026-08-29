@@ -92,6 +92,8 @@ Base URL: `https://ordoscheduler.com/api`
 
 Always check `success`.
 
+If the request JSON includes `request_id`, that same value is copied onto this command reply (HTTP, WebSocket, wsagent, and ordo-bot). It is **not** added to broadcasts (`jobs_changed`, `clusters_changed`, `cals_changed`, `servers_changed`). Omit it and the reply is unchanged.
+
 ---
 
 ## Clear semantics (important)
@@ -139,20 +141,20 @@ Example:
 
 ### find_cluster
 
-Return the hierarchical tree of clusters and jobs under a path.  
+Return clusters and jobs under a path.  
 Primary discovery command.
 
 | Parameter | Type   | Required | Description |
 |-----------|--------|----------|-------------|
 | name      | string | no       | Path starting with /root. Default: /root. |
-| filter    | string | no       | Optional state filter: all, running, failed, waiting. |
+| id        | integer | no      | Cluster ID (alternative to name). |
 
 Example:
 ```json
 {"command":"find_cluster","name":"/root/ops"}
 ```
 
-Returns a `clusters` array. Each cluster contains its nested `jobs` and child clusters.
+Returns a **flat** `clusters` array. Each cluster has `parent_id` and nested `jobs`. Child clusters are **siblings in that array**, not nested under their parent. Walk the tree with `parent_id`; do not expect nested child clusters.
 
 ---
 
@@ -195,14 +197,23 @@ Most recent log output for a job (stdout/stderr, timestamps, exit code, signal).
 
 | Parameter | Type    | Required | Description |
 |-----------|---------|----------|-------------|
-| id        | integer | yes      | Job ID. |
+| id        | integer | yes*     | **Job** ID (not the log row). |
+| name      | string  | yes*     | Job path (alternative to id). |
+| log_id    | integer | no       | Specific run’s `log_id`; omit for the latest. |
+
+* One of `id` or `name` is required.
 
 Example:
 ```json
 {"command":"read_log","id":10}
 ```
 
-Useful fields: `out`, `exit_code`, `signal`, `started`, `ended`, `job_path`, `server_name`.
+Reply fields:
+
+- `id` — **log row** primary key (not the job id; do not rename)
+- `job_id` — the job
+- `log_id` — the run’s log identifier (used with `ppid` on disk)
+- also `out`, `exit_code`, `signal`, `started`, `ended`, `job_path`, `server_name`
 
 ---
 
@@ -378,17 +389,22 @@ Create an identical copy of a cluster (does **not** start it).
 
 ### create_cron
 
-Add a Quartz cron expression to an existing calendar.
+Add a cron expression to an existing calendar. The API wants **Quartz** (`seconds minutes hours day-of-month month day-of-week [year]`, e.g. `0 0 9 * * ? *`). Classic 5-field Unix (`0 9 * * *`) is accepted and expanded by Cron::Toolkit. Use `?` in either day-of-month or day-of-week.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| name | string | yes | The **cron expression string** (e.g. `0 0 8 * * ? *`). |
+| name | string | yes | The **cron expression string** (Quartz 6–7 fields, or 5-field Unix). |
 | cal_id | integer | yes | Calendar id from `find_cal` / `read_cal`. |
+| description | string | no | Free-text label stored on the cron row. |
+| begin | integer | no | Epoch when this cron becomes active. |
+| expire | integer | no | Epoch when this cron stops. |
 
 Example:
 ```json
-{"command":"create_cron","name":"0 0 8 * * ? *","cal_id":3}
+{"command":"create_cron","name":"0 0 9 * * ? *","cal_id":3,"description":"weekdays at 9am"}
 ```
+
+Duplicate expressions in the same calendar fail with the existing cron id. Invalid / unparseable expressions fail with a distinct error (never a hardcoded id).
 
 ---
 
@@ -463,10 +479,12 @@ Shape:
 
 Possible values of `broadcast`:
 
-- `jobs_changed` – job created, updated, started, finished, or deleted. Fields match `read_job`.
+- `jobs_changed` – job created, updated, started, finished, or deleted. Fields match `read_job`. Consecutive identical updates (same job id + same state) are suppressed.
 - `clusters_changed` – cluster state or membership changed. Fields match `read_cluster`.
 - `servers_changed` – server metrics/status updated. Fields match `find_monitor`.
 - `cals_changed` – calendar created, updated, or deleted.
+
+Broadcasts never include `request_id`.
 
 **Agent waiting pattern**
 
