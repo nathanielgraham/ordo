@@ -34,6 +34,21 @@ Clusters are powerful because you can:
 
 Think of clusters as **folders** and jobs as **files**, with scheduling and dependency intelligence built in.
 
+## Event triggers (example jobs)
+
+Calendars start work on a clock. To start work on an **event** (file arrived, webhook, GitHub tag, Slack phrase), use a long-running **wait** job that exits 0 when the event is seen. Downstream jobs `Needs` that waiter.
+
+Example scripts live in the repo under [`examples/triggers/`](https://github.com/nathanielgraham/ordo/tree/master/examples/triggers):
+
+- `wait-for-file.sh` — path/glob on the job's server
+- `wait-for-webhook.sh` — one HTTP POST, then complete
+- `wait-for-github.sh` — new tag or successful workflow
+- `wait-for-slack-poll.sh` — message contains a needle
+
+Put parameters in job `json`. Put tokens in server env (`GITHUB_TOKEN`, `SLACK_BOT_TOKEN`), not in `json`. Give waiters a **max runtime** so a stuck trigger can escalate.
+
+This is a convention, not a separate object type. A first-class Trigger API can come later.
+
 ## Attached JSON (`json`)
 
 Jobs and clusters can store an optional **`json`** field — an arbitrary JSON **object** (max 64 KB) used as durable parameters.
