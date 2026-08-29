@@ -82,10 +82,10 @@ Only set when the corresponding column is non-empty. Scripts should treat missin
 ```python
 import json, os
 job = json.loads(os.environ["ORDO_JOB_JSON"]) if "ORDO_JOB_JSON" in os.environ else {}
-cluster = json.loads(os.environ["ORDO_CLUSTER_JSON"]) if "ORDO_CLUSTER_JSON" in os.environ else {}
-params = {**cluster, **job}  # job overrides cluster
-repo = params.get("repo")
-branch = params.get("branch", "master")
+cluster = json.loads(os.environ.get("ORDO_CLUSTER_JSON") or "{}")
+# Prefer job key, else cluster (do not smash unknown keys together).
+repo = job.get("repo", cluster.get("repo"))
+branch = job.get("branch", cluster.get("branch", "master"))
 ```
 
 **Example (MCP)**
@@ -110,7 +110,7 @@ Dependencies can be set on both jobs and clusters.
 - **On Overdue Handler**: Triggered when a cluster is still not ready at its next scheduled time.
 - **Max Runtime Handler** (job-level): Triggered if a job exceeds its time limit.
 
-All handlers point to another cluster.
+All handlers point to another cluster. Shipped Perl handlers talk to Ordo with `OrdoAgent::ordo_post` (core Perl + `curl`).
 
 ## Cloning
 
@@ -141,3 +141,4 @@ Click **View Graph** on any cluster to see a live visual diagram of all dependen
 - Use handlers and cloning for robust automation.
 - Keep scripts in `~/ordo_node/scripts/` for reusability.
 - Prefer `json` for parameters; keep secrets out of `json`.
+- Shipped examples use core Perl, POSIX sh, curl, and Python stdlib only. After `upgrade_monitor`, launcher sets `PERL5LIB=~/ordo_node/modules` so jobs can `use OrdoAgent qw(ordo_post)`.
