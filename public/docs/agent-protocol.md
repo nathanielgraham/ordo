@@ -61,6 +61,14 @@ python3 wsagent.py --timeout 300
 4. You read **NDJSON** on stdout (`"type":"message"` = server data including broadcasts).
 5. Filter broadcasts by `id` and `jobstate` yourself; then `quit`.
 
+## Optional request_id
+
+The client may generate an optional `request_id` on each command JSON (a short string you choose). The server copies that same value onto the **command_reply** only (HTTP, WebSocket, wsagent, ordo-bot). Broadcasts (`jobs_changed`, `clusters_changed`, …) never include `request_id`. Omit the field and the reply is unchanged — today’s protocol.
+
+```json
+{"command":"find_cluster","name":"/root","request_id":"loop-1"}
+```
+
 ## First commands
 
 ```json

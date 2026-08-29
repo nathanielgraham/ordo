@@ -56,18 +56,23 @@ has 'cron' => sub {
    state $timer = {};
 };
 
-# pre-filter
+# pre-filter: 5-field Unix (Toolkit expands) or 6–7-field Quartz
 has 'quartz_rx' => sub {
    state $quartz = qr{
   ^\s*
-  (?:[A-Z0-9,\/\-\*\?\#LW]{1,11})            # field 1 (seconds)
-  (?:\s+[A-Z0-9,\/\-\*\?\#LW]{1,11}){3,5}    # next 5 fields (minutes,hours,DOM,month,DOW)
-  (?:\s+[A-Z0-9,\/\-\*\?\#LW]{1,11})         # optional year field
+  (?:[A-Z0-9,\/\-\*\?\#LW]{1,11})            # field 1
+  (?:\s+[A-Z0-9,\/\-\*\?\#LW]{1,11}){4,6}    # remaining 4–6 fields (5–7 total)
   \s*$
   }ix
 };
 
 has 'last_warning_cache' => sub {
+   state $cache = {};
+   return $cache;
+};
+
+# last jobs_changed (org_id:job_id => jobstate) for consecutive-identical suppression
+has 'last_job_broadcast' => sub {
    state $cache = {};
    return $cache;
 };
@@ -1714,7 +1719,8 @@ sub request {
    my $response = {};
    die "Decoded must be HASH ref" unless $decoded && ref $decoded eq 'HASH';
 
-   my $command     = delete $decoded->{command};
+   my $request_id = $decoded->{request_id};
+   my $command    = delete $decoded->{command};
    my %allow_undef = map { $_ => 1 } qw(
      json cal_id cal on_fail_id on_fail on_overdue_id on_overdue
      server_id server max_runtime_seconds max_runtime_cluster_id
@@ -1748,6 +1754,9 @@ sub request {
             $response = { success => 0, message => $clean_params_or_error };
          }
          else {
+            # request_id is echoed on the reply; it is not a command argument
+            delete $clean_params_or_error->{request_id};
+
       # ==================== SPECIAL CASE: LOGIN / REGISTER ====================
             if (
                $command eq 'login_user'
@@ -1808,6 +1817,8 @@ sub request {
    }
 
    $response->{command_reply} = $command;
+   $response->{request_id} = $request_id
+     if defined $request_id && $request_id ne '';
    return $response;
 }
 
@@ -2131,13 +2142,28 @@ sub _broadcast_any {
       my $thing = $self->$method( $user, { id => $id } );
 
       #my $cluster = $self->_cluster_info( $user, { id => $cluster_id } );
-      if ( $thing->{id} ) {
+      if ( $thing && $thing->{id} ) {
+
+         # suppress consecutive identical jobs_changed (same job + same state)
+         if ( $type eq 'job' ) {
+            my $key = $user->org_id . ':' . $thing->{id};
+            my $st  = $thing->{jobstate} // $thing->{state_id} // '';
+            my $prev = $self->last_job_broadcast->{$key};
+            if ( defined $prev && $prev eq $st ) {
+               next;
+            }
+            $self->last_job_broadcast->{$key} = $st;
+         }
          push @{ $payload->{updates} }, $thing;
       }
       else {
+         delete $self->last_job_broadcast->{ $user->org_id . ':' . $id }
+           if $type eq 'job';
          push @{ $payload->{deletes} }, { id => $id };
       }
    }
+   return
+     unless @{ $payload->{updates} } || @{ $payload->{deletes} };
    $self->_broadcast( $user, $payload );
 }
 
@@ -2974,7 +3000,6 @@ sub login_user {
       id              => $user->id,
       org_id          => $user->org_id,
       remote_address  => $user->remote_address,
-      token           => $user->token,
       host            => $host,
       path            => $path,
       level           => $user->level,
@@ -6278,8 +6303,8 @@ sub _create_cron_row {
       $next        = $cron->next;
    };
 
-   return if $@;
-   return unless $next;
+   return { success => 0, message => 'invalid cron expression' } if $@;
+   return { success => 0, message => 'invalid cron expression' } unless $next;
 
    my $id;
    eval {
@@ -6292,11 +6317,31 @@ sub _create_cron_row {
             expire      => $expire,
             description => $d->{description},
             english     => $english,
-            org_id      => $user->org_id
+            org_id      => $user->org_id,
+            next_start  => $next,
          }
       )->last_insert_id;
    };
-   return $@ ? undef : $id;
+   if ($@) {
+      my $existing = $self->sqlite->db->select(
+         'cron',
+         ['id'],
+         {
+            org_id => $user->org_id,
+            cal_id => $d->{cal_id},
+            name   => $cron_string,
+         }
+      )->hash;
+      if ( $existing && $existing->{id} ) {
+         return {
+            success => 0,
+            message =>
+"Cron expression already exists in this calendar (id=$existing->{id})"
+         };
+      }
+      return { success => 0, message => 'unable to create cron' };
+   }
+   return { success => 1, id => $id };
 }
 
 sub _create_cron_object {
@@ -6693,40 +6738,29 @@ sub _add_cron {
    return { success => 0, message => 'calendar not found' }
      unless $cal_info->{id};
 
-   my $id;
-   eval {
-      $id = $self->_create_cron_row(
-         $user,
-         {
-            name        => $d->{name},
-            begin       => $d->{begin},
-            expire      => $d->{expire},
-            description => $d->{description},
-            cal_id      => $cal_info->{id},
-         }
-      );
-   };
+   my $created = $self->_create_cron_row(
+      $user,
+      {
+         name        => $d->{name},
+         begin       => $d->{begin},
+         expire      => $d->{expire},
+         description => $d->{description},
+         cal_id      => $cal_info->{id},
+      }
+   );
 
-   if ($id) {
-      $self->_broadcast_cal( $user, [ $cal_info->{id} ] );
-   }
-   else {
+   return $created unless $created->{id};
 
-      return {
-         success => 0,
-         message =>
-"Cron expression already exists in this calendar (id=14) or is syntactically invalid. Check list_calendars or try a different expression."
-      };
-   }
+   $self->_broadcast_cal( $user, [ $cal_info->{id} ] );
 
-   # only start when subscribers exist
+   # only start when subscribers exist (next_start is already persisted)
    my $count = $self->sqlite->db->query(
       'select count(*) as count from cluster where cal_id = ?',
       $cal_info->{id} )->hash->{count};
    return { success => 1, message => 'cron created but not started' }
      unless $count;
 
-   my $rv = $self->_create_cron_object( $user, { id => $id } );
+   my $rv = $self->_create_cron_object( $user, { id => $created->{id} } );
    return $rv;
 }
 

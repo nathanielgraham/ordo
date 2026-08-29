@@ -83,7 +83,7 @@ Logs are stored on the **job’s server** under `~/ordo_node/logs/`.
 
 1. Go to the **Calendars** tab.
 2. Create a calendar named `Daily Baking`.
-3. Add a cron, e.g. `0 9 * * *` (every day at 9 AM - confirm timezone on the calendar).
+3. Add a cron, e.g. `0 0 9 * * ? *` (Quartz: every day at 9:00:00 — confirm timezone on the calendar). Classic Unix `0 9 * * *` is also accepted and expanded to Quartz.
 4. Edit `Bork da Cake` -> choose that calendar in the **Calendar** field -> save.
 
 Now the Swedish Chef will bake a cake every morning at 9 AM!

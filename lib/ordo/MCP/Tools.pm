@@ -1,4 +1,3 @@
-# lib/ordo/MCP/Tools.pm
 package ordo::MCP::Tools;
 use Mojo::Base -base;
 use MIME::Base64 ();
@@ -63,7 +62,9 @@ sub get_tools {
 
       find_cluster => {
          description =>
-           'Look up the hierarchical cluster/job tree by path or name. Defaults to /root.',
+           'Look up clusters by path or name. Returns a flat clusters[] array; '
+           . 'each cluster has parent_id and nested jobs. Child clusters are '
+           . 'siblings in the array, not nested. Defaults to /root.',
          inputSchema => {
             type       => 'object',
             properties => {
@@ -282,15 +283,22 @@ sub get_tools {
 
       create_cron => {
          description =>
-           "Add a Quartz cron expression to a calendar.\n"
-           . "name = cron string (e.g. 0 0 8 * * ? *); cal_id = calendar id.\n"
+           "Add a cron expression to a calendar.\n"
+           . "name = Quartz cron (e.g. 0 0 9 * * ? *) or 5-field Unix (auto-expanded).\n"
+           . "cal_id = calendar id. Optional description is stored on the cron row.\n"
            . "Day-of-week: Monday=1 .. Sunday=7.",
          inputSchema => {
             type       => 'object',
             properties => {
-               name => { type => 'string', description => 'Quartz cron expression' },
+               name => {
+                  type        => 'string',
+                  description => 'Quartz (6–7 fields) or Unix 5-field cron expression',
+               },
                cal_id => { type => 'integer', description => 'Calendar ID' },
-               description => { type => 'string' },
+               description => {
+                  type        => 'string',
+                  description => 'Free-text label stored on the cron row',
+               },
             },
             required => [ 'name', 'cal_id' ],
          },
@@ -566,16 +574,25 @@ sub get_tools {
       },
 
       read_log => {
-         description => 'Most recent log output for a job (exit code, stdout/stderr).',
+         description =>
+           'Most recent log output for a job. Request id is the job id. '
+           . 'Reply id is the log row; reply also has job_id and log_id. '
+           . 'Optional log_id selects a specific run.',
          inputSchema => {
             type => 'object',
-            properties => { id => { type => 'integer', description => 'Job ID' } },
+            properties => {
+               id => { type => 'integer', description => 'Job ID' },
+               log_id => {
+                  type        => 'integer',
+                  description => 'Specific run log_id (omit for latest)',
+               },
+            },
             required => ['id'],
          },
          handler => sub {
             my ( $c, $args ) = @_;
             $c->app->request( $c->stash('user'),
-               { command => 'read_log', id => $args->{id} } );
+               { command => 'read_log', %$args } );
          },
       },
       find_log => {
