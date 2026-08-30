@@ -1,6 +1,6 @@
 --- a/lib/ordo.pm
 +++ b/lib/ordo.pm
-@@
+@@ -2688,7 +2688,7 @@
     elsif ( $d->{state} eq 'ready' || $d->{state} eq 'waiting' ) {
  
        #$update_hash->{json}    = undef;
@@ -9,7 +9,7 @@
 +      $update_hash->{started}       = undef;
        $update_hash->{ended}         = undef;
     }
-@@
+@@ -4473,8 +4473,10 @@
     elsif ( $d->{state} eq 'ready' || $d->{state} eq 'waiting' ) {
        $update_hash->{loop_count}  = 0;
        $update_hash->{retry_count} = 0;
