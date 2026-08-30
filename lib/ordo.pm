@@ -2064,7 +2064,7 @@ sub _set_cluster_state {
    elsif ( $d->{state} eq 'ready' || $d->{state} eq 'waiting' ) {
 
       #$update_hash->{json}    = undef;
-      #$update_hash->{started} = undef;
+      $update_hash->{started} = undef;
       $update_hash->{overdue_since} = undef;
       $update_hash->{ended}         = undef;
    }
