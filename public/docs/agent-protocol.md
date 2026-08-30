@@ -29,19 +29,51 @@ Prefer **ordo-bot** when the user wants a ready-made agent that can run work and
 
 If they already run ordo-bot:
 
-> ordo-bot is running. Follow agent-protocol. Start concurrent-b and tell me when sleep-b completes.
+> ordo-bot is running. Follow agent-protocol. Start concurrent-b and tell me when it finishes.
+
+## Completion is a broadcast, not a command_reply
+
+`start_job` / `start_cluster` replies mean **accepted**, not **finished**.
+
+- Replies may include `started_at`, ids, and a start summary.
+- Terminal state arrives later on **`jobs_changed` / `clusters_changed`** (`updates[]`).
+- Do **not** wait on `command_reply` for complete/failed. Do **not** poll.
+
+### Terminal states
+
+Treat any of these as done for a watch unless the user asked for a specific state:
+
+| Kind | Terminal `jobstate` |
+|------|---------------------|
+| Success | `complete` (`ice_complete` is a skip, not a run) |
+| Failure | `failed`, `killed`, `zombie` |
+
+Default watch filter: **any terminal state**. Only pass `jobstate=complete` when the user explicitly wants success-only.
+
+### Outcome fields on the job row
+
+- `exit_code` / `signal` are the **last run** and stay after terminal (live pid/cpu fields clear).
+- A new episode (`starting`, or reset to `ready`/`waiting`) clears last-run `exit_code`/`signal`/`ended` so siblings in the same cluster do not keep a stale outcome until they start.
+- Cluster reset to `ready`/`waiting` also clears cluster `started`/`ended`.
 
 ## ordo-bot pattern (recommended)
 
 1. User runs `ordo-bot` with `ordo_token` + LLM config; talks via `clients/cli.py` or another frontend client.
 2. You call tools with the same names as the API (`find_cluster`, `start_cluster`, …).
-3. **Start-and-notify:** after `start_cluster` / `start_job`, call `watch_job` or `watch_cluster` (or `watch_event`) with an explicit filter. If the user asked for completion, pass **`jobstate=complete`**. Watches listen to Ordo broadcasts only — do not poll.
-4. The user receives a notification message when a matching broadcast arrives.
+3. **Start-and-notify:** after `start_cluster` / `start_job`, call `watch_job` or `watch_cluster` (or `watch_event`). Default the filter to **terminal** (complete/failed/killed/zombie). Watches listen to Ordo broadcasts only — do not poll. Snapshot current state when arming so an already-terminal target notifies immediately.
+4. The user receives a notification when a matching broadcast (or snapshot) matches.
 
 Example tool intent:
 
 ```text
 start_cluster(id=20)
+watch_cluster(id=20)                 # default: any terminal state
+watch_job(id=13, label="sleep-b")    # default: any terminal state
+```
+
+Success-only when the user said so:
+
+```text
 watch_job(id=13, jobstate="complete", label="sleep-b")
 ```
 
@@ -59,11 +91,11 @@ python3 wsagent.py --timeout 300
 2. On success it may emit an `agent_bootstrap` info event.
 3. You send **one JSON object per line** on stdin.
 4. You read **NDJSON** on stdout (`"type":"message"` = server data including broadcasts).
-5. Filter broadcasts by `id` and `jobstate` yourself; then `quit`.
+5. Filter **broadcasts** (`jobs_changed` / `clusters_changed`) by `updates[].id` and terminal `jobstate`; then `quit`. Prefer the client's `watch_job` / `watch_cluster` helpers if present.
 
 ## Optional request_id
 
-The client may generate an optional `request_id` on each command JSON (a short string you choose). The server copies that same value onto the **command_reply** only (HTTP, WebSocket, wsagent, ordo-bot). Broadcasts (`jobs_changed`, `clusters_changed`, …) never include `request_id`. Omit the field and the reply is unchanged — today’s protocol.
+The client may generate an optional `request_id` on each command JSON (a short string you choose). The server copies that same value onto the **command_reply** only (HTTP, WebSocket, wsagent, ordo-bot). Broadcasts (`jobs_changed`, `clusters_changed`, …) never include `request_id`. Omit the field and the reply is unchanged — today's protocol.
 
 ```json
 {"command":"find_cluster","name":"/root","request_id":"loop-1"}
@@ -92,14 +124,14 @@ The client may generate an optional `request_id` on each command JSON (a short s
 1. Send `{"command":"start_cluster","id":CLUSTER_ID}`.
 2. Keep the connection open.
 3. Watch `jobs_changed` / `clusters_changed` for `updates[].id` and `jobstate`.
-4. Terminal examples: `complete` (success), `failed` / `killed` / `zombie` (failure).
+4. Treat **any terminal** as done: `complete` (success), `failed` / `killed` / `zombie` (failure). Do not wait only for `complete` unless the user asked for success.
 5. Then disconnect.
 
 ## Hold / release notes
 
 - You **can** hold completed (and most non-running) clusters and jobs.
 - You **cannot** hold while a job/cluster is **running**.
-- After release, state is typically `ready`, not the previous terminal state.
+- After release, state is typically `ready`, not the previous terminal state. Ready/waiting clears last-run `started`/`ended`/`exit_code`.
 
 ## Disconnect recovery
 
@@ -108,6 +140,7 @@ Connection lost ≠ job failed.
 1. Reconnect / restart the client and re-login.
 2. `read_cluster` / `find_cluster` for the ids you care about.
 3. Decide from **real** state — do not assume the previous run failed.
+4. If it is already terminal, report that; do not wait for another broadcast of the same state.
 
 ## MCP behavior
 
