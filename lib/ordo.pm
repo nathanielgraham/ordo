@@ -4485,6 +4485,7 @@ sub _set_job_state {
       # job json is durable — not cleared on ready/waiting
       $update_hash->{started} = undef;
       $update_hash->{ended}   = undef;
+      $self->_reset_job_stats( $user, { id => $job_id } );
    }
 
    # Final DB update
