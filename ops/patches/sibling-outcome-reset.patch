@@ -1,0 +1,24 @@
+--- a/lib/ordo.pm
++++ b/lib/ordo.pm
+@@ -2688,10 +2688,10 @@
+    elsif ( $d->{state} eq 'ready' || $d->{state} eq 'waiting' ) {
+ 
+       #$update_hash->{json}    = undef;
+-      #$update_hash->{started} = undef;
+       $update_hash->{overdue_since} = undef;
++      $update_hash->{started}       = undef;
+       $update_hash->{ended}         = undef;
+    }
+ 
+@@ -4478,8 +4478,11 @@
+       $update_hash->{loop_count}  = 0;
+       $update_hash->{retry_count} = 0;
+ 
+       # job json is durable — not cleared on ready/waiting
+       $update_hash->{started} = undef;
+       $update_hash->{ended}   = undef;
++      # New episode: wipe live counters AND last-run exit_code/signal.
++      # Sibling jobs that stay ready/waiting until their turn must not
++      # keep the previous run's outcome on the row / in broadcasts.
++      $self->_reset_job_stats( $user, { id => $job_id } );
+    }
