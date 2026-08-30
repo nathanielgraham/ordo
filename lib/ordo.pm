@@ -4328,11 +4328,13 @@ sub _set_job_state {
      ->hash;
 
    if ( $d->{state} eq 'starting' ) {
-      $self->sqlite->db->update( 'job', { started => time },
-         { id => $job_id } );
+      # New run: stamp started, drop previous ended, wipe live + outcome.
+      $self->sqlite->db->update(
+         'job',
+         { started => time, ended => undef },
+         { id      => $job_id }
+      );
       $self->_reset_job_stats( $user, { id => $job_id } );
-
-      #$update_hash->{started} = undef;
    }
 
    if ( scalar( grep { $d->{state} eq $_ } (qw(sleeping running)) ) ) {
@@ -4371,7 +4373,8 @@ sub _set_job_state {
          { id       => $job_id }
       );
       $update_hash->{ended} = time;
-      $self->_reset_job_stats( $user, { id => $job_id } );
+      # Keep exit_code/signal; drop live process counters only.
+      $self->_clear_live_job_stats( $user, { id => $job_id } );
 
       if (  $d->{state} eq 'failed'
          && $job->{retrys}
@@ -4460,7 +4463,8 @@ sub _set_job_state {
       }
 
       $update_hash->{ended} = time;
-      $self->_reset_job_stats( $user, { id => $job_id } );
+      # Keep exit_code/signal written by update_job_state / the node.
+      $self->_clear_live_job_stats( $user, { id => $job_id } );
    }
    elsif ( $d->{state} eq 'retrying' ) {
 
@@ -5425,7 +5429,12 @@ sub _start_job {
       return { success => 0, message => $ssh->error };
    }
    else {
-      return { success => 1, id => $job->{id}, action => 'start' };
+      return {
+         success    => 1,
+         id         => $job->{id},
+         action     => 'start',
+         started_at => time,
+      };
    }
 }
 
@@ -5539,10 +5548,27 @@ sub nice_job {
      : { success => 1 };
 }
 
+# Live process counters only. Never touches exit_code / signal.
+sub _clear_live_job_stats {
+   my ( $self, $user, $d ) = @_;
+
+   my $job = $self->_job_info( $user, $d );
+   return { success => 0, message => 'job not found' }
+     unless ref $job && $job->{id};
+
+   my %update = map { $_ => undef }
+     (qw(pid ppid pctcpu priority rss pctmem fname));
+
+   eval { $self->sqlite->db->update( 'job', \%update, { id => $job->{id} } ); };
+   my $success = $@ ? 0 : 1;
+   return { success => $success };
+}
+
+# New run / clone: wipe live counters AND last-run outcome.
 sub _reset_job_stats {
    my ( $self, $user, $d ) = @_;
 
-   my $job = $self->_job_info( $user, $d );    #job info
+   my $job = $self->_job_info( $user, $d );
    return { success => 0, message => 'job not found' }
      unless ref $job && $job->{id};
 
