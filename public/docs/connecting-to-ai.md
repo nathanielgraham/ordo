@@ -18,7 +18,7 @@ Ordo supports **Model Context Protocol (MCP)** and long-lived **WebSocket** acce
 - Connects to Ordo over WebSocket with your token
 - Uses **your** LLM (Groq, Ollama, OpenRouter, xAI, ... - you pay for tokens)
 - Exposes a small frontend WebSocket API (CLI included)
-- Registers **broadcast watches** so it can notify you when a job or cluster reaches a state you care about (e.g. `complete`) without polling
+- Registers **broadcast watches** so it can notify you when a job or cluster reaches a **terminal** state (`complete`, `failed`, `killed`, `zombie`) without polling
 
 ```bash
 git clone https://github.com/nathanielgraham/ordo-bot.git
@@ -58,9 +58,9 @@ Prefer **ordo-bot** when you want a ready-made agent with tools, history, and no
 
 ### Start and notify on completion (ordo-bot)
 
-> Start the `deploy-saas` cluster and let me know when job `verify` completes.
+> Start the `deploy-saas` cluster and let me know when it finishes.
 
-(The agent should start the cluster and register a watch with `jobstate=complete` on the live broadcast stream.)
+(The agent should start the cluster and register a watch that fires on **any terminal** broadcast — `complete` / `failed` / `killed` / `zombie` — unless you asked for success-only.)
 
 ### Backup + max runtime
 
@@ -71,6 +71,7 @@ Prefer **ordo-bot** when you want a ready-made agent with tools, history, and no
 - Tell the agent to call **`get_documentation`** at the beginning of a new session (section `overview`, `api`, or `agent-protocol`).
 - When creating jobs, be specific about purpose, server, cluster, schedule, dependencies, and handlers.
 - Optional `request_id` on a command is echoed on that command’s reply only (never on broadcasts). Omit it to keep today’s reply shape.
+- Completion lives on `jobs_changed` / `clusters_changed`, not on the start `command_reply`.
 
 ## Security
 
@@ -111,7 +112,7 @@ Only check status or logs when the user explicitly asks.
 1. Connect and authenticate (ordo-bot does this with your config token).
 2. Call `get_documentation` if this is a new session.
 3. Run tools / commands as needed.
-4. For “tell me when it finishes,” register a **watch** filtered by id and `jobstate` (e.g. `complete`) so a later broadcast notifies the user — do not busy-poll.
+4. For “tell me when it finishes,” register a **watch** on the live broadcast stream. Default filter is **any terminal state**. Pass `jobstate=complete` only when the user asked for success. Do not busy-poll. Do not treat the start reply as finished.
 
 ### MCP request shape
 
