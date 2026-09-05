@@ -386,10 +386,20 @@ export function renderServersTable() {
     let row = existingRows.get(serverId);
 
     if (row) {
-      console.log(`[DEBUG Servers] Surgical update for ${server.name}`);
-      updateServerRow(row, server, now);
-      // Re-order if necessary (move to correct position)
-      // For simplicity we can leave order as-is for now, or implement move logic
+      // Drop pre-#34 rows (extra Freshness <td>/<span.tag>) so columns stay aligned
+      const badLayout =
+        row.cells.length !== 8 || row.querySelector("td span.tag");
+      if (badLayout) {
+        console.log(
+          `[DEBUG Servers] Rebuilding row for ${server.name} (old Freshness layout)`,
+        );
+        const fresh = createServerRow(server, now);
+        row.replaceWith(fresh);
+        row = fresh;
+      } else {
+        console.log(`[DEBUG Servers] Surgical update for ${server.name}`);
+        updateServerRow(row, server, now);
+      }
     } else {
       console.log(`[DEBUG Servers] Creating new row for ${server.name}`);
       row = createServerRow(server, now);
@@ -1224,7 +1234,7 @@ export function updateServerRow(row, server, now) {
 
   if (!row || !server) return;
   const cells = row.cells;
-  if (!cells || cells.length < 8) return;
+  if (!cells || cells.length !== 8) return;
 
   if (server.updated_at != null) {
     row.dataset.updateTime = server.updated_at;
