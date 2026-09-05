@@ -2,7 +2,7 @@
 import { appState, updateCollapsedClusters } from "../state.js";
 import { toggleSubtree } from "./tree-listeners.js";
 import {
-  updateFreshnessCell,
+  updateLastUpdateCell,
   renderDashboard,
   updateDashboardLiveCards,
   updateNextScheduledClusters,
@@ -972,7 +972,7 @@ export function updateLiveTimings() {
       const server = appState.serversData.find(
         (s) => Number(s.updated_at) === updateTime,
       );
-      if (server) updateFreshnessCell(row, server, now);
+      if (server) updateLastUpdateCell(row, server, now);
     });
   }
 
