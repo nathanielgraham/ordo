@@ -1275,10 +1275,10 @@ export function updateServerRow(row, server, now) {
     cells[6].title = disk.tooltip;
   }
 
-  // 7: Net ↓↑ (— until two Monitoring ticks)
+  // 7: Net ↓↑ — cell shows rates; leave Host tooltip for the deep dive
   if (cells[7]) {
     cells[7].textContent = formatNetColumn(server);
-    cells[7].title = getHostTooltip(server);
+    cells[7].removeAttribute("title");
   }
 
   // 8: Actions — only replace if structure missing
