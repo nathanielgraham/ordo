@@ -71,7 +71,7 @@ has 'last_warning_cache' => sub {
    return $cache;
 };
 
-# last jobs_changed (org_id:job_id => jobstate) for consecutive-identical suppression
+# last jobs/clusters_changed fingerprint (org:type:id => fingerprint) for suppress
 has 'last_job_broadcast' => sub {
    state $cache = {};
    return $cache;
@@ -2144,17 +2144,23 @@ sub _broadcast_any {
       #my $cluster = $self->_cluster_info( $user, { id => $cluster_id } );
       if ( $thing && $thing->{id} ) {
 
-         # suppress consecutive identical jobs_changed (same job + same
-         # state + same needs). Config-only edits (e.g. needs_ids) must still
-         # reach the UI — fingerprint needs, not just jobstate.
-         if ( $type eq 'job' ) {
-            my $key = $user->org_id . ':' . $thing->{id};
-            my $st  = join(
-               '|',
-               $thing->{jobstate} // $thing->{state_id} // '',
-               join( ',', @{ $thing->{needs_ids}     // [] } ),
-               join( ',', @{ $thing->{needs_any_ids} // [] } ),
-            );
+         # Suppress consecutive identical broadcasts for jobs and clusters.
+         # Jobs: state + needs (config-only needs edits must still ship).
+         # Clusters: state only (no needs spam path like jobs).
+         if ( $type eq 'job' || $type eq 'cluster' ) {
+            my $key = $user->org_id . ':' . $type . ':' . $thing->{id};
+            my $st;
+            if ( $type eq 'job' ) {
+               $st = join(
+                  '|',
+                  $thing->{jobstate} // $thing->{state_id} // '',
+                  join( ',', @{ $thing->{needs_ids}     // [] } ),
+                  join( ',', @{ $thing->{needs_any_ids} // [] } ),
+               );
+            }
+            else {
+               $st = $thing->{jobstate} // $thing->{state_id} // '';
+            }
             my $prev = $self->last_job_broadcast->{$key};
             if ( defined $prev && $prev eq $st ) {
                next;
@@ -2164,8 +2170,9 @@ sub _broadcast_any {
          push @{ $payload->{updates} }, $thing;
       }
       else {
-         delete $self->last_job_broadcast->{ $user->org_id . ':' . $id }
-           if $type eq 'job';
+         delete $self->last_job_broadcast->{
+            $user->org_id . ':' . $type . ':' . $id }
+           if $type eq 'job' || $type eq 'cluster';
          push @{ $payload->{deletes} }, { id => $id };
       }
    }
@@ -4628,13 +4635,17 @@ sub update_job_state {
       $self->_update_job_log( $user, $update_log_hash );
    }
 
-   # Step 3: Call _set_job_state if state is present and valid
+   # Step 3: Call _set_job_state if state is present and valid.
+   # _set_job_state already broadcasts — do not emit a second jobs_changed
+   # for the same transition (clients would see duplicates even when suppress
+   # later collapses identical fingerprints).
    if ( defined $d->{state} && $self->job_states->{ $d->{state} } ) {
       $self->_set_job_state( $user, { id => $job_id, state => $d->{state} } );
    }
-
-   # Step 4: Broadcast state/runtime update
-   $self->_broadcast_job( $user, [$job_id] );
+   else {
+      # Runtime-only update (pctcpu/rss/…) — no state change path above.
+      $self->_broadcast_job( $user, [$job_id] );
+   }
 
    return { success => 1 };
 }

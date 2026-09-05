@@ -545,7 +545,7 @@ Shape:
 Possible values of `broadcast`:
 
 - `jobs_changed` – job created, updated, started, finished, or deleted. Fields match `read_job`. Consecutive identical updates (same job id + same state + same `needs_ids` / `needs_any_ids`) are suppressed.
-- `clusters_changed` – cluster state or membership changed. Fields match `read_cluster`.
+- `clusters_changed` – cluster state or membership changed. Fields match `read_cluster`. Consecutive identical updates (same cluster id + same state) are suppressed.
 - `servers_changed` – server metrics/status updated. Fields match `find_monitor`.
 - `cals_changed` – calendar created, updated, or deleted.
 

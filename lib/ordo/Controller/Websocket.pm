@@ -47,13 +47,19 @@ sub default {
 
          my $response = $self->app->request($user, $decoded);
 
-         # Register for broadcasts on successful login
+         # Register for broadcasts on successful login.
+         # Re-login on an already-open socket must not push the same $tx again
+         # (UI calls login_user on reconnect/token refresh) — that doubled every
+         # jobs_changed / clusters_changed delivery to the client.
          if ($cmd eq 'login_user' && $response->{success}) {
             my $org_id = $user->org_id;
             my $email = $user->email;
             if ($org_id) {
-               push @{$self->app->clients_by_org->{$org_id} //= []}, $tx;
-               $self->app->log->info("WS registered for: $email");
+               my $list = $self->app->clients_by_org->{$org_id} //= [];
+               unless (grep { $_ == $tx } @$list) {
+                  push @$list, $tx;
+                  $self->app->log->info("WS registered for: $email");
+               }
             }
             $self->inactivity_timeout(0);
          }
