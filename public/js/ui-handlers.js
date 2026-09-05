@@ -323,11 +323,9 @@ export function updateLastUpdateCell(row, server, now) {
 
   let relTime = "—";
   let ageClass = "is-never";
-  let title = "No stats yet";
 
   if (Number.isFinite(updatedAgo)) {
     relTime = formatRelativeTime(updatedAgo);
-    title = `Last stats: ${relTime}`;
     if (updatedAgo < LAST_UPDATE_FRESH_SEC) ageClass = "is-fresh";
     else if (updatedAgo < LAST_UPDATE_AGING_SEC) ageClass = "is-aging";
     else ageClass = "is-stale";
@@ -337,7 +335,7 @@ export function updateLastUpdateCell(row, server, now) {
   if (timeCell) {
     timeCell.textContent = relTime;
     timeCell.className = `time-text ${ageClass}`;
-    timeCell.title = title;
+    timeCell.removeAttribute("title");
   }
 
   if (ageClass === "is-stale") row.classList.add("stale");
