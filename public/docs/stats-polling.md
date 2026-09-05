@@ -24,7 +24,7 @@ Stats polling refers to periodic calls (usually from `update_stats.pl`) that fet
 - Open file handles
 - Process count and zombies
 - Uptime
-- Ping latency (from servers tab)
+- Net rx/tx rates (bytes/sec from tick deltas; Server tab Net column)
 
 **Server identity (once at install / upgrade, not every poll):**
 - CPU cores

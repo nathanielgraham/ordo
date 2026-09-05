@@ -20,11 +20,10 @@
               <th>Host</th>
               <th>Freshness</th>
               <th>Last Update</th>
-              <th>Load Avg</th>
               <th>CPU %</th>
               <th>Memory</th>
               <th>Disk</th>
-              <th>Uptime</th>
+              <th>Net</th>
               <th>Actions</th>
             </tr>
           </thead>

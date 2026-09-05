@@ -445,7 +445,6 @@ function createServerRow(server, now) {
     <td>—</td>
     <td>—</td>
     <td>—</td>
-    <td>—</td>
     <td>
       <div class="dropdown is-right">
         <div class="dropdown-trigger">
@@ -496,39 +495,80 @@ function formatMemory(server) {
 }
 
 function formatDisk(server) {
-  if (!server.total_disk || server.total_disk <= 0) {
+  // Prefer root filesystem % for the primary Disk column (at-a-glance health).
+  const hasRoot = server.root_total_disk && Number(server.root_total_disk) > 0;
+  const hasHome = server.total_disk && Number(server.total_disk) > 0;
+  if (!hasRoot && !hasHome) {
     return { display: "—", tooltip: "Disk data unavailable" };
   }
-  const usedGB = (Number(server.used_disk || 0) / 1024 ** 2).toFixed(1);
-  const totalGB = (Number(server.total_disk) / 1024 ** 2).toFixed(1);
-  const pct = (Number(server.used_disk || 0) / Number(server.total_disk)) * 100;
-  const display = `${pct.toFixed(1)}%`;
 
-  let tooltip = `Disk: ${pct.toFixed(1)}% (${usedGB}/${totalGB} GB)`;
-  if (server.root_total_disk) {
+  let display = "—";
+  let tooltipLines = [];
+
+  if (hasRoot) {
     const rootPct =
-      (Number(server.root_used_disk || 0) / Number(server.root_total_disk)) *
-      100;
-    tooltip += `\nRoot: ${rootPct.toFixed(1)}%`;
+      (Number(server.root_used_disk || 0) / Number(server.root_total_disk)) * 100;
+    display = `${rootPct.toFixed(1)}%`;
+    const usedGB = (Number(server.root_used_disk || 0) / 1024 ** 3).toFixed(1);
+    const totalGB = (Number(server.root_total_disk) / 1024 ** 3).toFixed(1);
+    tooltipLines.push(`Root: ${rootPct.toFixed(1)}% (${usedGB}/${totalGB} GB)`);
   }
-  return { display, tooltip };
+  if (hasHome) {
+    const pct =
+      (Number(server.used_disk || 0) / Number(server.total_disk)) * 100;
+    if (!hasRoot) display = `${pct.toFixed(1)}%`;
+    const usedGB = (Number(server.used_disk || 0) / 1024 ** 2).toFixed(1);
+    const totalGB = (Number(server.total_disk) / 1024 ** 2).toFixed(1);
+    tooltipLines.push(`Home: ${pct.toFixed(1)}% (${usedGB}/${totalGB} GB)`);
+  }
+  return { display, tooltip: tooltipLines.join("\n") };
+}
+
+function formatNetBps(bps) {
+  if (typeof bps !== "number" || isNaN(bps) || bps < 0) return null;
+  if (bps < 1000) return `${bps.toFixed(0)} B/s`;
+  if (bps < 1e6) return `${(bps / 1000).toFixed(1)} KB/s`;
+  if (bps < 1e9) return `${(bps / 1e6).toFixed(1)} MB/s`;
+  return `${(bps / 1e9).toFixed(2)} GB/s`;
+}
+
+function formatNetColumn(server) {
+  const rx = formatNetBps(server.net_rx_bps);
+  const tx = formatNetBps(server.net_tx_bps);
+  if (!rx && !tx) return "—";
+  return `↓${rx || "—"} ↑${tx || "—"}`;
+}
+
+function formatBytes(n) {
+  if (typeof n !== "number" || isNaN(n)) return "—";
+  if (n < 1000) return `${n} B`;
+  if (n < 1e6) return `${(n / 1000).toFixed(1)} KB`;
+  if (n < 1e9) return `${(n / 1e6).toFixed(1)} MB`;
+  return `${(n / 1e9).toFixed(2)} GB`;
 }
 
 function getHostTooltip(server) {
-  const pingText =
-    typeof server.ping === "number" && !isNaN(server.ping)
-      ? server.ping.toFixed(3) + "s"
-      : "—";
-  return [
+  const netCol = formatNetColumn(server);
+  const lines = [
     `Host: ${server.host || server.ip_address || "—"}`,
     `Port: ${server.port || "—"}`,
-    `Ping: ${pingText}`,
+    `Net: ${netCol}`,
+    `RX total: ${formatBytes(Number(server.net_rx_bytes))}`,
+    `TX total: ${formatBytes(Number(server.net_tx_bytes))}`,
+    `Load: ${server.load_1 != null ? server.load_1.toFixed(2) : "—"} / ${server.load_5 != null ? server.load_5.toFixed(2) : "—"} / ${server.load_15 != null ? server.load_15.toFixed(2) : "—"}`,
+    `Swap: ${
+      server.total_swap && server.total_swap > 0
+        ? ((((server.used_swap || 0) / server.total_swap) * 100).toFixed(1) + "%")
+        : "—"
+    }`,
+    `Procs: ${server.total_processes ?? "—"} (zombies ${server.zombie_processes ?? "—"})`,
+    `Open files: ${server.open_files ?? "—"}`,
+    `Uptime: ${server.uptime != null ? formatUptime(server.uptime) : "—"}`,
     `OS: ${server.os || "—"}`,
     `CWD: ${server.cwd || "—"}`,
     `Home: ${server.home || "—"}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  ];
+  return lines.filter(Boolean).join("\n");
 }
 
 // ==================== TIER LIMITS ====================
@@ -1189,12 +1229,12 @@ function ensureClusterInState(update) {
 
 export function updateServerRow(row, server, now) {
   console.log(
-    `[DEBUG Servers] updateServerRow called for ${server?.name} (actions cell: ${!!row?.cells?.[9]})`,
+    `[DEBUG Servers] updateServerRow called for ${server?.name} (actions cell: ${!!row?.cells?.[8]})`,
   );
 
   if (!row || !server) return;
   const cells = row.cells;
-  if (!cells || cells.length < 10) return;
+  if (!cells || cells.length < 9) return;
 
   if (server.updated_at != null) {
     row.dataset.updateTime = server.updated_at;
@@ -1211,48 +1251,40 @@ export function updateServerRow(row, server, now) {
   // Status + freshness (column 2 + 3)
   updateFreshnessCell(row, server, now);
 
-  // 4: Load Avg + tooltip
+  // 4: CPU
   if (cells[4]) {
-    const load1 = server.load_1 != null ? server.load_1.toFixed(2) : "—";
-    cells[4].textContent = load1;
-    cells[4].title = getLoadTooltip(server);
-  }
-
-  // 5: CPU
-  if (cells[5]) {
     const cpu =
       server.cpu_percent != null ? `${server.cpu_percent.toFixed(1)}%` : "—";
-    cells[5].textContent = cpu;
+    cells[4].textContent = cpu;
   }
 
-  // 6: Memory + tooltip
-  if (cells[6]) {
+  // 5: Memory + tooltip (includes swap)
+  if (cells[5]) {
     const { mem, tooltip } = formatMemory(server);
-    cells[6].textContent = mem;
-    cells[6].title = tooltip;
+    cells[5].textContent = mem;
+    cells[5].title = tooltip;
   }
 
-  // 7: Disk (simple for now)
-  if (cells[7]) {
+  // 6: Disk (root % preferred)
+  if (cells[6]) {
     const disk = formatDisk(server);
-    cells[7].textContent = disk.display;
-    cells[7].title = disk.tooltip;
+    cells[6].textContent = disk.display;
+    cells[6].title = disk.tooltip;
   }
 
-  // 8: Uptime
+  // 7: Net ↓↑ (— until two Monitoring ticks)
+  if (cells[7]) {
+    cells[7].textContent = formatNetColumn(server);
+    cells[7].title = getHostTooltip(server);
+  }
+
+  // 8: Actions — only replace if structure missing
   if (cells[8]) {
-    const uptime = server.uptime != null ? formatUptime(server.uptime) : "—";
-    cells[8].textContent = uptime;
-  }
-
-  // === COLUMN 9: ACTIONS — EXTREMELY CONSERVATIVE ===
-  if (cells[9]) {
-    const current = cells[9].innerHTML.trim();
+    const current = cells[8].innerHTML.trim();
     const newActions = `... your actions HTML ...`;
 
-    // Only replace if the structure is different (e.g. new server id or something structural)
     if (!current.includes(`data-id="${server.id}"`)) {
-      cells[9].innerHTML = newActions;
+      cells[8].innerHTML = newActions;
       console.log(`[DEBUG Servers] Replaced actions HTML for ${server.name}`);
     }
   }
