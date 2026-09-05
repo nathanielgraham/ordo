@@ -1186,6 +1186,17 @@ HTML
       }
    );
 
+   # Short-cache /js modules so CF/browsers don't keep stale ES imports for hours
+   $self->hook(
+      after_static => sub {
+         my $c = shift;
+         my $path = $c->req->url->path->to_string;
+         return unless $path =~ m{^/js/.*\.js$};
+         $c->res->headers->cache_control('public, max-age=60, must-revalidate');
+         $c->res->headers->header( 'CDN-Cache-Control' => 'max-age=60' );
+      }
+   );
+
    $self->hook(
       before_server_start => sub {
          my ( $server, $app ) = @_;

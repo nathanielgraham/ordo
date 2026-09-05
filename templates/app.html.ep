@@ -97,6 +97,21 @@
   <script>
     window.ORDO_JOB_TEMPLATES = <%== ordo::JobTemplates::json(app) %>;
   </script>
-  <script type="module" src="/js/app.js?v=<%= time %>"></script>
+  % # Bust ES module graph: app.js?v= alone does not version relative imports (CF max-age=14400).
+  % my $asset_v = time;
+  % my $js_root = app->home->child('public/js');
+  % my @js_mods = sort map { '/' . $_->to_rel(app->home->child('public')) }
+  %   @{ $js_root->list_tree->grep(qr/\.js$/)->to_array };
+  <script type="importmap">
+  {
+    "imports": {
+% for my $i (0 .. $#js_mods) {
+%   my $path = $js_mods[$i];
+      "<%= $path %>": "<%= $path %>?v=<%= $asset_v %>"<%= $i < $#js_mods ? ',' : '' %>
+% }
+    }
+  }
+  </script>
+  <script type="module" src="/js/app.js?v=<%= $asset_v %>"></script>
 </body>
 </html>
