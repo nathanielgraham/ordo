@@ -46,7 +46,7 @@ has 'user' => sub {
 
 has clients_by_org => sub {
    state $org = {};
-};    # org_id => [ $tx1, $tx2, ... ]
+};    # org_id => { connection_id => $tx, ... }
 
 has 'ssh_connection' => sub {
    state $ssh = {};
@@ -2084,10 +2084,10 @@ sub _set_cluster_state {
 sub _broadcast {
    my ( $self, $user, $payload ) = @_;
    my $org_id = $user->org_id;
-   return
-     unless $payload && $user->org_id && $self->app->clients_by_org->{$org_id};
+   my $map    = $org_id && $self->app->clients_by_org->{$org_id};
+   return unless $payload && $map && %$map;
 
-   for my $client_tx ( @{ $self->app->clients_by_org->{$org_id} } ) {
+   for my $client_tx ( values %$map ) {
       next if $client_tx->is_finished;
       $client_tx->send( { json => $payload } );
    }
@@ -2122,9 +2122,11 @@ sub _broadcast_org {
 
 sub _broadcast_any {
    my ( $self, $user, $ids, $type ) = @_;
+   my $clients = $self->app->clients_by_org->{ $user->org_id };
    return
         unless $type
-     && $self->app->clients_by_org->{ $user->org_id }
+     && $clients
+     && %$clients
      && scalar @{$ids};
    my $payload = {
       broadcast => $type . 's_changed',

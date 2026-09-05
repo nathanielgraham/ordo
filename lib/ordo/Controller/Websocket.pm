@@ -48,18 +48,17 @@ sub default {
          my $response = $self->app->request($user, $decoded);
 
          # Register for broadcasts on successful login.
-         # Re-login on an already-open socket must not push the same $tx again
-         # (UI calls login_user on reconnect/token refresh) — that doubled every
-         # jobs_changed / clusters_changed delivery to the client.
+         # Hash keyed by connection id — re-login overwrites the same slot, so
+         # the same $tx cannot be registered twice (UI re-auths on an open socket).
          if ($cmd eq 'login_user' && $response->{success}) {
             my $org_id = $user->org_id;
             my $email = $user->email;
             if ($org_id) {
-               my $list = $self->app->clients_by_org->{$org_id} //= [];
-               unless (grep { $_ == $tx } @$list) {
-                  push @$list, $tx;
-                  $self->app->log->info("WS registered for: $email");
-               }
+               my $cid = $tx->connection;
+               my $map = $self->app->clients_by_org->{$org_id} //= {};
+               my $was = exists $map->{$cid};
+               $map->{$cid} = $tx;
+               $self->app->log->info("WS registered for: $email") unless $was;
             }
             $self->inactivity_timeout(0);
          }
@@ -78,10 +77,11 @@ sub default {
          if ($user && $user->org_id) {
             my $org_id = $user->org_id;
             delete $self->app->last_warning_cache->{$org_id};
-            $self->app->clients_by_org->{$org_id} = [
-               grep { $_ != $tx } @{$self->app->clients_by_org->{$org_id} || []}
-            ];
-            delete $self->app->clients_by_org->{$org_id} if !@{ $self->app->clients_by_org->{$org_id} };
+            my $map = $self->app->clients_by_org->{$org_id};
+            if ($map) {
+               delete $map->{$connection_id};
+               delete $self->app->clients_by_org->{$org_id} if !%$map;
+            }
          }
 
          delete $self->app->user->{$connection_id};
