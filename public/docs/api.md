@@ -368,8 +368,8 @@ Create an identical copy of a cluster (does **not** start it).
 | parent_id | integer | yes | Cluster that will own the job. |
 | server_id / server | integer/string | yes | Server to run on. |
 | description | string | no | Free-text description. |
-| needs_ids / needs | array | no | AND dependencies. |
-| needs_any_ids / needs_any | array | no | OR dependencies. |
+| needs_ids / needs | array | no | AND deps. `needs_ids`: job ids. `needs`: sibling bare names (same cluster) or full paths. Unresolved names fail. |
+| needs_any_ids / needs_any | array | no | OR deps (same name/id rules as needs). |
 | retrys | integer | no | Retry count. |
 | loops | integer | no | Loop count. |
 | delay | integer | no | Delay in seconds. |
@@ -437,8 +437,8 @@ All update commands obey clear-semantics: omit = no change; null / "" / [] = cle
 | script / script_b64 | string | no | Replace script. |
 | description | string | no | null/"" clears. |
 | server_id / server | integer/string/null | no | Move or clear assignment. |
-| needs_ids / needs | array/null | no | |
-| needs_any_ids / needs_any | array/null | no | Independent. |
+| needs_ids / needs | array/null | no | Ids or (via `needs`) sibling bare names / paths. Empty clears. |
+| needs_any_ids / needs_any | array/null | no | Independent; same name rules. |
 | retrys | integer | no | |
 | loops | integer | no | |
 | delay | integer | no | |
@@ -479,7 +479,7 @@ Shape:
 
 Possible values of `broadcast`:
 
-- `jobs_changed` – job created, updated, started, finished, or deleted. Fields match `read_job`. Consecutive identical updates (same job id + same state) are suppressed.
+- `jobs_changed` – job created, updated, started, finished, or deleted. Fields match `read_job`. Consecutive identical updates (same job id + same state + same `needs_ids` / `needs_any_ids`) are suppressed.
 - `clusters_changed` – cluster state or membership changed. Fields match `read_cluster`.
 - `servers_changed` – server metrics/status updated. Fields match `find_monitor`.
 - `cals_changed` – calendar created, updated, or deleted.
