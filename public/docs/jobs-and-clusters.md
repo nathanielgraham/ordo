@@ -91,9 +91,9 @@ branch = job.get("branch", cluster.get("branch", "master"))
 **Example (MCP)**
 
 ```text
-update_cluster  id=<cluster_id>  json={"repo":"myorg/app","dev_dir":"/home/me/app"}
-update_job      id=<job_id>      json={"branch":"feature/x","test_cmd":"pytest -q"}
-manage_cluster  action=start     id=<cluster_id>
+update_cluster     id=<cluster_id>  json={"repo":"myorg/app","dev_dir":"/home/me/app"}
+update_job_config  id=<job_id>      json={"branch":"feature/x","test_cmd":"pytest -q"}
+start_cluster      id=<cluster_id>
 ```
 
 ## Dependencies

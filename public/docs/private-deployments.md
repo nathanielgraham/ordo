@@ -53,6 +53,8 @@ Run Ordo completely on **your own infrastructure**.
 
 **[Full Self-Hosted Setup Guide](#docs/self-hosted)**
 
+Docker bind mounts (`config` / `db` / `data` / `ssh`) need `chown -R 1000:1000` — see the self-hosted guide and `deploy/saas/README.md`.
+
 ### 3. Enterprise
 
 Fully customized deployments for the most demanding and regulated environments.

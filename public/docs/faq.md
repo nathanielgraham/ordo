@@ -31,7 +31,7 @@ chmod 600 ~/.ssh/authorized_keys
 
 Then in Ordo enter **host**, **SSH user**, and **port** only (no password).
 
-**Agents:** use WebSocket/HTTP `create_monitor` / `update_monitor` / `delete_monitor` (not `create_server`). Password field is optional 8–20 characters for one-time key install. Check `read_org` `server_count` / `server_limit` before adding; failures often return `unable to create connection`.
+**Agents:** there is no `create_server` — use `create_monitor` / `update_monitor` / `delete_monitor` (full tables: [API](#docs/api)).
 
 ### Checklist
 
@@ -143,7 +143,7 @@ See also the SSH setup question above.
 ---
 
 **Q: How do I view job logs?**  
-**A:** Job row → **⋯** → **View Log**. Via MCP/API: `find_logs` then `read_log`. Files live under `~/ordo_node/logs/` on the **job’s server**.  
+**A:** Job row → **⋯** → **View Log**. Via MCP/API: `find_log` then `read_log`. Files live under `~/ordo_node/logs/` on the **job’s server**.  
 
 ---
 

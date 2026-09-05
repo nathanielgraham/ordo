@@ -70,6 +70,7 @@ Prefer **ordo-bot** when you want a ready-made agent with tools, history, and no
 
 - Tell the agent to call **`get_documentation`** at the beginning of a new session (section `overview`, `api`, or `agent-protocol`).
 - When creating jobs, be specific about purpose, server, cluster, schedule, dependencies, and handlers.
+- MCP `create_job` / `update_job_config` accept **`needs_ids` / `needs_any_ids` only** (integer ids). Bare sibling names / paths on `needs` are HTTP/WebSocket (and ordo-bot) only.
 - Optional `request_id` on a command is echoed on that command’s reply only (never on broadcasts). Omit it to keep today’s reply shape.
 - Completion lives on `jobs_changed` / `clusters_changed`, not on the start `command_reply`.
 

@@ -51,7 +51,7 @@ Typical pattern for reusable pipelines:
 2. Put step overrides on the **job** (`branch`, `test_cmd`, …).
 3. In the script, read `ORDO_CLUSTER_JSON` and `ORDO_JOB_JSON` and merge (job wins).
 
-This keeps one script body while agents change parameters via MCP `update_job` / `update_cluster` without editing code.
+This keeps one script body while agents change parameters via MCP `update_job_config` / `update_cluster` without editing code.
 
 **Limits:** top-level JSON object only; max 64 KB; not for secrets. Clear with `json: null`.
 

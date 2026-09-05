@@ -1,117 +1,25 @@
-# REST API Reference
+# REST / HTTP API
 
-Ordo provides a REST API for scripting, automation, and meta-automation (e.g. watchdog jobs, custom handlers, etc.).
+The HTTP endpoint is the same JSON command protocol as WebSocket, posted to:
 
-**Base URL**  
 `https://ordoscheduler.com/api`
 
-**Authentication**  
-All requests require a valid user token in the body:
+Full command tables, response shape, clear-semantics, and broadcasts: **[API Reference](#docs/api)** (`get_documentation` section `api`).
 
-```
-{
-  "token": "your-user-token-from-account-tab"
-}
-```
+## Auth and curl
 
-**Content-Type**  
-`application/json`
+Every HTTP request includes your user token in the JSON body:
 
-**Response Format**
-
-Every response follows this structure:
-
-```
-{
-  "success": 1,                     // 1 = success, 0 = error
-  "command_reply": "command_name",  // echoes the command you sent
-  "message": "human-readable text"  // optional status or error message
-  // ... command-specific data ...
-}
-```
-
----
-
-## Most Useful Commands for Scripting
-
-**Note**: Many commands accept either `id` or `name` (path). Example: `"name": "/root/Bork da Cake/Prep"`.
-
-### Practical Examples
-
-**1. Clone a cluster**
-```
-curl -X POST https://your-ordo.com/api \
-  -H "Content-Type: application/json" \
-  -d '{
-    "command": "clone_cluster",
-    "id": 7,
-    "token": "your-token-here"
-  }'
-```
-
-**To start the clone**, follow up with:
-
-```
-curl -X POST https://your-ordo.com/api \
-  -H "Content-Type: application/json" \
-  -d '{
-    "command": "start_cluster",
-    "id": NEW_CLONE_ID,
-    "token": "your-token-here"
-  }'
-```
-
-**2. Get full cluster hierarchy (very useful for watchdog scripts)**
-```
-curl -X POST https://your-ordo.com/api \
+```bash
+curl -X POST https://ordoscheduler.com/api \
   -H "Content-Type: application/json" \
   -d '{
     "command": "find_cluster",
     "name": "/root",
-    "token": "your-token-here"
+    "token": "your-user-token"
   }'
 ```
 
-**3. Start a cluster immediately**
-```
-curl -X POST https://your-ordo.com/api \
-  -H "Content-Type: application/json" \
-  -d '{
-    "command": "start_cluster",
-    "id": 7,
-    "token": "your-token-here"
-  }'
-```
+Always check `success` in the reply. Many commands accept either `id` or `name` (path).
 
-**4. Read latest log of a job**
-```
-curl -X POST https://your-ordo.com/api \
-  -H "Content-Type: application/json" \
-  -d '{
-    "command": "read_log",
-    "id": 2,
-    "token": "your-token-here"
-  }'
-```
-
-### Key Commands
-
-- `find_cluster` — Get full hierarchy
-- `read_cluster` — Get details of one cluster
-- `clone_cluster` — Clone a cluster (does **not** start it)
-- `start_cluster` — Run a cluster immediately
-- `start_job` — Run a single job
-- `read_log` — Get latest log of a job
-- `find_log` — Get log history for a job
-- `update_job_config` — Update job (needs, max runtime, etc.)
-- `update_cluster` — Update cluster (handlers, dependencies, etc.)
-- `sync` — Resync servers and handle zombies
-
----
-
-**Best Practices for Scripting**
-
-- Prefer `id` when available — more reliable.
-- Use `name` (path) when you only know the hierarchy.
-- Always check `success` in responses.
-- Keep tokens secure and rotate regularly.
+For long-lived agents that wait on completion broadcasts, prefer [ordo-bot](https://github.com/nathanielgraham/ordo-bot) or WebSocket — see [Connecting to AI](#docs/connecting-to-ai) and [Agent protocol](#docs/agent-protocol).

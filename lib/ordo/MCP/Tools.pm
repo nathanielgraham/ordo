@@ -34,7 +34,7 @@ sub get_tools {
                   enum        => [
                      'overview', 'quickstart', 'core-concepts', 'jobs-and-clusters',
                      'calendars-and-crons', 'advanced-topics', 'connecting-to-ai', 'faq',
-                     'api', 'agent-protocol', 'cli', 'dashboard', 'stats-polling',
+                     'api', 'agent-protocol', 'rest-api', 'cli', 'dashboard', 'stats-polling',
                      'settings', 'private-deployments', 'self-hosted', 'all'
                   ],
                   default => 'overview',

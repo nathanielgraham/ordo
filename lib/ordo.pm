@@ -1407,6 +1407,10 @@ sub _preload_documents {
       'cli'                 => 'Terminal CLI for ordo...',
       'agent-protocol'      =>
 'Agent-oriented protocol: WebSocket vs MCP, start-and-wait, disconnect recovery...',
+      'rest-api' =>
+'HTTP /api pointer: auth, curl examples; full command tables live in api...',
+      'self-hosted' =>
+'Docker self-hosted install, SMTP, troubleshooting, bind-mount UIDs...',
    );
 
    my %full_docs;
