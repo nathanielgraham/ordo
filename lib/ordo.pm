@@ -2144,10 +2144,17 @@ sub _broadcast_any {
       #my $cluster = $self->_cluster_info( $user, { id => $cluster_id } );
       if ( $thing && $thing->{id} ) {
 
-         # suppress consecutive identical jobs_changed (same job + same state)
+         # suppress consecutive identical jobs_changed (same job + same
+         # state + same needs). Config-only edits (e.g. needs_ids) must still
+         # reach the UI — fingerprint needs, not just jobstate.
          if ( $type eq 'job' ) {
             my $key = $user->org_id . ':' . $thing->{id};
-            my $st  = $thing->{jobstate} // $thing->{state_id} // '';
+            my $st  = join(
+               '|',
+               $thing->{jobstate} // $thing->{state_id} // '',
+               join( ',', @{ $thing->{needs_ids}     // [] } ),
+               join( ',', @{ $thing->{needs_any_ids} // [] } ),
+            );
             my $prev = $self->last_job_broadcast->{$key};
             if ( defined $prev && $prev eq $st ) {
                next;
@@ -3932,15 +3939,28 @@ sub _create_job {
 
    if ( $d->{needs_ids} ) {
       $needs_ids = $self->_filter_job_ids( $user, $d->{needs_ids} );
+      return { success => 0, message => 'dependency job not found' }
+        if @{ $d->{needs_ids} } && ( !$needs_ids || !@$needs_ids );
    }
-   elsif ( $d->{needs} ) {
-      $needs_ids = $self->_resolve_job_ids( $user, $d->{needs} );
+   elsif ( exists $d->{needs} && ref $d->{needs} eq 'ARRAY' && @{ $d->{needs} } )
+   {
+      $needs_ids = $self->_resolve_job_ids( $user, $d->{needs}, $parent_id );
+      return { success => 0, message => 'dependency job not found' }
+        unless $needs_ids && @$needs_ids == @{ $d->{needs} };
    }
    if ( $d->{needs_any_ids} ) {
       $needs_any_ids = $self->_filter_job_ids( $user, $d->{needs_any_ids} );
+      return { success => 0, message => 'dependency job not found' }
+        if @{ $d->{needs_any_ids} } && ( !$needs_any_ids || !@$needs_any_ids );
    }
-   elsif ( $d->{needs_any} ) {
-      $needs_any_ids = $self->_resolve_job_ids( $user, $d->{needs_any} );
+   elsif ( exists $d->{needs_any}
+      && ref $d->{needs_any} eq 'ARRAY'
+      && @{ $d->{needs_any} } )
+   {
+      $needs_any_ids =
+        $self->_resolve_job_ids( $user, $d->{needs_any}, $parent_id );
+      return { success => 0, message => 'dependency job not found' }
+        unless $needs_any_ids && @$needs_any_ids == @{ $d->{needs_any} };
    }
 
    #if ( $d->{on_fail_id} ) {
@@ -4628,16 +4648,36 @@ sub update_job_config {
 
    if ( $d->{needs_ids} ) {
       $needs_ids = $self->_filter_job_ids( $user, $d->{needs_ids} );
+      return { success => 0, message => 'dependency job not found' }
+        if @{ $d->{needs_ids} } && ( !$needs_ids || !@$needs_ids );
    }
-   elsif ( $d->{needs} ) {
-      $needs_ids = $self->_resolve_job_ids( $user, $d->{needs} );
+   elsif ( exists $d->{needs} && ref $d->{needs} eq 'ARRAY' && @{ $d->{needs} } )
+   {
+      $needs_ids =
+        $self->_resolve_job_ids( $user, $d->{needs}, $job->{cluster_id} );
+      return { success => 0, message => 'dependency job not found' }
+        unless $needs_ids && @$needs_ids == @{ $d->{needs} };
+   }
+   elsif ( exists $d->{needs} && ref $d->{needs} eq 'ARRAY' ) {
+      $needs_ids = [];    # explicit clear
    }
 
    if ( $d->{needs_any_ids} ) {
       $needs_any_ids = $self->_filter_job_ids( $user, $d->{needs_any_ids} );
+      return { success => 0, message => 'dependency job not found' }
+        if @{ $d->{needs_any_ids} } && ( !$needs_any_ids || !@$needs_any_ids );
    }
-   elsif ( $d->{needs_any} ) {
-      $needs_any_ids = $self->_resolve_job_ids( $user, $d->{needs_any} );
+   elsif ( exists $d->{needs_any}
+      && ref $d->{needs_any} eq 'ARRAY'
+      && @{ $d->{needs_any} } )
+   {
+      $needs_any_ids =
+        $self->_resolve_job_ids( $user, $d->{needs_any}, $job->{cluster_id} );
+      return { success => 0, message => 'dependency job not found' }
+        unless $needs_any_ids && @$needs_any_ids == @{ $d->{needs_any} };
+   }
+   elsif ( exists $d->{needs_any} && ref $d->{needs_any} eq 'ARRAY' ) {
+      $needs_any_ids = [];    # explicit clear
    }
 
    my @fields = qw(retrys loops delay description);
@@ -4760,13 +4800,27 @@ sub update_job_config {
 }
 
 sub _resolve_job_ids {
-   my ( $self, $user, $needs ) = @_;
+   my ( $self, $user, $needs, $cluster_id ) = @_;
    return unless $needs && ref $needs eq 'ARRAY';
    my @need_ids;
    for my $need ( @{$needs} ) {
-      my $path_info = $self->_path_info( $user, $need );
-      push @need_ids, $path_info->{job_id}
-        if $path_info->{success} && $path_info->{job_id};
+      next unless defined $need && $need ne '';
+      my $job_id;
+
+      # Bare names (no slash): resolve as sibling jobs in the given cluster.
+      # Full paths still go through _path_info (e.g. /root/deploy-saas/pull).
+      if ( $cluster_id && $need !~ m{/} ) {
+         my $job = $self->sqlite->db->select( 'job', ['id'],
+            { cluster_id => $cluster_id, name => $need } )->hash;
+         $job_id = $job->{id} if $job && $job->{id};
+      }
+      unless ($job_id) {
+         my $path_info = $self->_path_info( $user, $need );
+         $job_id = $path_info->{job_id}
+           if $path_info->{success} && $path_info->{job_id};
+      }
+      return undef unless $job_id;    # missing dependency → caller errors
+      push @need_ids, $job_id;
    }
    return \@need_ids;
 }
