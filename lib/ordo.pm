@@ -5090,6 +5090,9 @@ sub update_sysinfo {
    }
 
    # Net rates from cumulative byte deltas since last tick (need ~2 ticks).
+   # Only WRITE bps when we can compute them — never clear prior rates on
+   # same-second ticks, missing fields, or skipped calc (that caused
+   # alternating 0 ↔ null when two Monitoring updates raced).
    my $now = time;
    $uh->{updated_at} = $now;
    if (  defined $uh->{net_rx_bytes}
@@ -5107,20 +5110,8 @@ sub update_sysinfo {
             $uh->{net_rx_bps} = $drx / $dt;
             $uh->{net_tx_bps} = $dtx / $dt;
          }
-         else {
-            # counter reset (reboot) — wait for next tick
-            $uh->{net_rx_bps} = undef;
-            $uh->{net_tx_bps} = undef;
-         }
+         # else: counter reset — leave prior bps alone until next good tick
       }
-      else {
-         $uh->{net_rx_bps} = undef;
-         $uh->{net_tx_bps} = undef;
-      }
-   }
-   else {
-      $uh->{net_rx_bps} = undef;
-      $uh->{net_tx_bps} = undef;
    }
    my $running  = $self->job_states->{running};
    my $watching = $self->job_states->{watching};
