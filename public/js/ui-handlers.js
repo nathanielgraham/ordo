@@ -445,8 +445,6 @@ function createServerRow(server, now) {
     <td>—</td>
     <td>—</td>
     <td>—</td>
-    <td>—</td>
-    <td>—</td>
     <td>
       <div class="dropdown is-right">
         <div class="dropdown-trigger">
@@ -558,7 +556,14 @@ function getHostTooltip(server) {
     `RX total: ${formatBytes(Number(server.net_rx_bytes))}`,
     `TX total: ${formatBytes(Number(server.net_tx_bytes))}`,
     `Load: ${server.load_1 != null ? server.load_1.toFixed(2) : "—"} / ${server.load_5 != null ? server.load_5.toFixed(2) : "—"} / ${server.load_15 != null ? server.load_15.toFixed(2) : "—"}`,
+    `Swap: ${
+      server.total_swap && server.total_swap > 0
+        ? ((((server.used_swap || 0) / server.total_swap) * 100).toFixed(1) + "%")
+        : "—"
+    }`,
     `Procs: ${server.total_processes ?? "—"} (zombies ${server.zombie_processes ?? "—"})`,
+    `Open files: ${server.open_files ?? "—"}`,
+    `Uptime: ${server.uptime != null ? formatUptime(server.uptime) : "—"}`,
     `OS: ${server.os || "—"}`,
     `CWD: ${server.cwd || "—"}`,
     `Home: ${server.home || "—"}`,
@@ -1224,12 +1229,12 @@ function ensureClusterInState(update) {
 
 export function updateServerRow(row, server, now) {
   console.log(
-    `[DEBUG Servers] updateServerRow called for ${server?.name} (actions cell: ${!!row?.cells?.[10]})`,
+    `[DEBUG Servers] updateServerRow called for ${server?.name} (actions cell: ${!!row?.cells?.[8]})`,
   );
 
   if (!row || !server) return;
   const cells = row.cells;
-  if (!cells || cells.length < 11) return;
+  if (!cells || cells.length < 9) return;
 
   if (server.updated_at != null) {
     row.dataset.updateTime = server.updated_at;
@@ -1246,54 +1251,40 @@ export function updateServerRow(row, server, now) {
   // Status + freshness (column 2 + 3)
   updateFreshnessCell(row, server, now);
 
-  // 4: Load Avg + tooltip
+  // 4: CPU
   if (cells[4]) {
-    const load1 = server.load_1 != null ? server.load_1.toFixed(2) : "—";
-    cells[4].textContent = load1;
-    cells[4].title = getLoadTooltip(server);
-  }
-
-  // 5: CPU
-  if (cells[5]) {
     const cpu =
       server.cpu_percent != null ? `${server.cpu_percent.toFixed(1)}%` : "—";
-    cells[5].textContent = cpu;
+    cells[4].textContent = cpu;
   }
 
-  // 6: Memory + tooltip
-  if (cells[6]) {
+  // 5: Memory + tooltip (includes swap)
+  if (cells[5]) {
     const { mem, tooltip } = formatMemory(server);
-    cells[6].textContent = mem;
-    cells[6].title = tooltip;
+    cells[5].textContent = mem;
+    cells[5].title = tooltip;
   }
 
-  // 7: Disk (root % preferred)
-  if (cells[7]) {
+  // 6: Disk (root % preferred)
+  if (cells[6]) {
     const disk = formatDisk(server);
-    cells[7].textContent = disk.display;
-    cells[7].title = disk.tooltip;
+    cells[6].textContent = disk.display;
+    cells[6].title = disk.tooltip;
   }
 
-  // 8: Net ↓↑ (— until two Monitoring ticks)
+  // 7: Net ↓↑ (— until two Monitoring ticks)
+  if (cells[7]) {
+    cells[7].textContent = formatNetColumn(server);
+    cells[7].title = getHostTooltip(server);
+  }
+
+  // 8: Actions — only replace if structure missing
   if (cells[8]) {
-    cells[8].textContent = formatNetColumn(server);
-    cells[8].title = getHostTooltip(server);
-  }
-
-  // 9: Uptime
-  if (cells[9]) {
-    const uptime = server.uptime != null ? formatUptime(server.uptime) : "—";
-    cells[9].textContent = uptime;
-  }
-
-  // === COLUMN 10: ACTIONS — EXTREMELY CONSERVATIVE ===
-  if (cells[10]) {
-    const current = cells[10].innerHTML.trim();
+    const current = cells[8].innerHTML.trim();
     const newActions = `... your actions HTML ...`;
 
-    // Only replace if the structure is different (e.g. new server id or something structural)
     if (!current.includes(`data-id="${server.id}"`)) {
-      cells[10].innerHTML = newActions;
+      cells[8].innerHTML = newActions;
       console.log(`[DEBUG Servers] Replaced actions HTML for ${server.name}`);
     }
   }
