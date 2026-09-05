@@ -29,11 +29,15 @@ services:
       MOJO_REVERSE_PROXY: "1"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    # Bind mounts must be uid/gid 1000 (image user `ordo`). See README.md.
     volumes:
       - ./config:/app/config
       - ./db:/app/db
       - ./data:/app/data
-      - ./ssh:/home/ordo/.ssh   
+      - ./ssh:/home/ordo/.ssh
+      # Optional if only mounting .ssh and HOME parent isn't writable:
+      # - ./home:/home/ordo
+      # - ./ssh:/home/ordo/.ssh
       # - ordo_ssh:/home/ordo/.ssh
     restart: unless-stopped
 
@@ -48,11 +52,13 @@ services:
       MOJO_REVERSE_PROXY: "1"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    # Same uid/gid 1000 requirement as ordo service.
     volumes:
       - ./config:/app/config
       - ./db:/app/db
       - ./data:/app/data
-      - ./ssh:/home/ordo/.ssh   
+      - ./ssh:/home/ordo/.ssh
+      # - ./home:/home/ordo
       # - ordo_ssh:/home/ordo/.ssh
     depends_on:
       - ordo
