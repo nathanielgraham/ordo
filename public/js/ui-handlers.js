@@ -525,7 +525,10 @@ function formatDisk(server) {
 }
 
 function formatNetBps(bps) {
-  if (typeof bps !== "number" || isNaN(bps) || bps < 0) return null;
+  if (bps == null || bps === "") return null;
+  const n = typeof bps === "number" ? bps : Number(bps);
+  if (!Number.isFinite(n) || n < 0) return null;
+  bps = n;
   if (bps < 1000) return `${bps.toFixed(0)} B/s`;
   if (bps < 1e6) return `${(bps / 1000).toFixed(1)} KB/s`;
   if (bps < 1e9) return `${(bps / 1e6).toFixed(1)} MB/s`;
