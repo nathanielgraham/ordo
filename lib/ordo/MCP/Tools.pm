@@ -118,11 +118,88 @@ sub get_tools {
 
       find_monitor => {
          description =>
-           'List servers with live metrics. Call before create_job for a valid server_id.',
+           'List servers with live metrics. Call before create_job for a valid server_id. '
+           . 'There is no create_server — use create_monitor to add a Server.',
          inputSchema => { type => 'object', properties => {}, required => [] },
          handler => sub {
             my ( $c, $args ) = @_;
             $c->app->request( $c->stash('user'), { command => 'find_monitor' } );
+         },
+      },
+
+      create_monitor => {
+         description =>
+           'Add a Server (naming quirk: create_monitor). Prefer key-only SSH: omit password '
+           . 'if Ordo’s key is already authorized. Optional password (8–20 chars) is one-time '
+           . 'key bootstrap — sensitive; prefer not to log it. Check read_org server_count / '
+           . 'server_limit first (vague unable to create connection often means at limit).',
+         inputSchema => {
+            type       => 'object',
+            properties => {
+               name => { type => 'string', description => 'Short server name' },
+               user => { type => 'string', description => 'SSH username' },
+               host => { type => 'string', description => 'Hostname or IP' },
+               port => {
+                  type        => 'integer',
+                  description => 'SSH port (default 22)',
+               },
+               password => {
+                  type => 'string',
+                  description =>
+'Optional one-time SSH password (8–20 chars) for key install. Omit for key-only.',
+               },
+            },
+            required => [ 'name', 'user', 'host' ],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'create_monitor', %$args } );
+         },
+      },
+
+      update_monitor => {
+         description =>
+           'Reconnect/update a Server (by id or name). Optional password re-runs key bootstrap. '
+           . 'Success message looks like connected to <name>.',
+         inputSchema => {
+            type       => 'object',
+            properties => {
+               id      => { type => 'integer', description => 'Server id' },
+               name    => { type => 'string',  description => 'Server name (lookup)' },
+               newname => { type => 'string',  description => 'Rename' },
+               user    => { type => 'string' },
+               host    => { type => 'string' },
+               port    => { type => 'integer' },
+               password => {
+                  type => 'string',
+                  description => 'Optional 8–20 char password for key reinstall',
+               },
+            },
+            required => [],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'update_monitor', %$args } );
+         },
+      },
+
+      delete_monitor => {
+         description =>
+           'Remove a Server by id or name. Bad id/name → server not found.',
+         inputSchema => {
+            type       => 'object',
+            properties => {
+               id   => { type => 'integer' },
+               name => { type => 'string' },
+            },
+            required => [],
+         },
+         handler => sub {
+            my ( $c, $args ) = @_;
+            $c->app->request( $c->stash('user'),
+               { command => 'delete_monitor', %$args } );
          },
       },
 
@@ -630,18 +707,6 @@ sub get_tools {
          handler => sub {
             my ( $c, $args ) = @_;
             $c->app->request( $c->stash('user'), { command => 'read_org' } );
-         },
-      },
-      add_server => {
-         description =>
-           'Adding servers is only supported in the Web UI (Servers tab).',
-         inputSchema => { type => 'object', properties => {}, required => [] },
-         handler => sub {
-            return {
-               success => 0,
-               message =>
-'Use the Web UI Servers tab to add servers. Agents cannot add servers via MCP.',
-            };
          },
       },
 

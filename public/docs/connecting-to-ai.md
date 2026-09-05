@@ -87,15 +87,15 @@ Tool names match the native API `command` field.
 |------|-------|
 | Docs | `get_documentation` |
 | Browse | `find_cluster`, `read_job`, `read_cluster`, `find_monitor`, `find_cal` |
-| Create | `create_job`, `create_cluster`, `create_cal`, `create_cron` |
-| Update | `update_job_config`, `update_cluster` |
+| Create | `create_job`, `create_cluster`, `create_cal`, `create_cron`, `create_monitor` |
+| Update | `update_job_config`, `update_cluster`, `update_monitor` |
 | Lifecycle | `start_job`, `start_cluster`, `kill_*`, `hold_*`, `release_*`, `ice_*`, `melt_*`, `complete_*`, `delete_*`, `reset_cluster` |
 | Clone | `clone_cluster` |
 | Logs | `find_log`, `read_log` |
 | Ops | `sync` |
 | Account | `read_user`, `read_org` |
 
-Server add/update/delete on the **WebSocket / HTTP API** (and ordo-bot) use `create_monitor`, `update_monitor`, `delete_monitor` — there is no `create_server`. MCP currently exposes `find_monitor` for browsing; use the API or ordo-bot for lifecycle. See `api` / `agent-protocol` docs.
+There is no `create_server`. MCP, HTTP `/api`, and WebSocket all use `create_monitor` / `update_monitor` / `delete_monitor` to manage Servers. Prefer key-only SSH; optional `password` is one-time bootstrap (sensitive in MCP logs). See `api` docs.
 
 ## Agent behavior
 
