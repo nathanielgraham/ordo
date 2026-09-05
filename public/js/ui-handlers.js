@@ -334,15 +334,11 @@ export function updateFreshnessCell(row, server, now) {
     }
   }
 
-  // Add zombie info to tooltip only
-  if (server.zombie_processes > 0) {
-    statusTooltip += `\nZombies detected: ${server.zombie_processes}`;
-  }
-
-  // Calculate current relative time (second-level precision)
+  // Freshness = stats age only (zombies belong on Host / procs)
   let relTime = "—";
   if (Number.isFinite(updatedAgo)) {
     relTime = formatRelativeTime(updatedAgo);
+    statusTooltip = `Last stats: ${relTime}`;
   }
 
   // Update tag
