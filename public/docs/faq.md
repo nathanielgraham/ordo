@@ -31,6 +31,8 @@ chmod 600 ~/.ssh/authorized_keys
 
 Then in Ordo enter **host**, **SSH user**, and **port** only (no password).
 
+**Agents:** use WebSocket/HTTP `create_monitor` / `update_monitor` / `delete_monitor` (not `create_server`). Password field is optional 8–20 characters for one-time key install. Check `read_org` `server_count` / `server_limit` before adding; failures often return `unable to create connection`.
+
 ### Checklist
 
 - The SSH user can write under its home directory (`~/ordo_node` is created on first use).

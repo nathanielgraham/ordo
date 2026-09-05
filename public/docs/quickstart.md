@@ -16,7 +16,9 @@ Let's get your first workflow running in minutes.
 3. Enter **hostname**, **SSH user**, and **port** (usually 22).
 4. **If password login is enabled**, you can enter the password once. Ordo installs its public key automatically, then uses key auth afterward.
 5. **If password login is disabled**, install Ordo’s public key on the remote account first, then add the server without a password. See **[FAQ](#docs/faq)** for details.
-6. Save. 
+6. Save.
+
+Agents / API: the same action is **`create_monitor`** (not `create_server`). See [API](#docs/api) and [FAQ](#docs/faq).
 
 ## 3. Create a Cluster
 

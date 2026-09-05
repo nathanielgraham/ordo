@@ -109,6 +109,16 @@ The client may generate an optional `request_id` on each command JSON (a short s
 {"command":"find_monitor"}
 ```
 
+## Servers (monitors)
+
+There is no `create_server`. **`create_monitor` adds a Server** (SSH worker). Same for `update_monitor` / `delete_monitor`. Prefer key-only; optional `password` (8–20 chars) is one-time key bootstrap. Check `read_org` → `server_count` / `server_limit` before creating (free tier is often 1). Full parameter tables: `get_documentation` section `api`.
+
+```json
+{"command":"create_monitor","name":"panthero","user":"ordo","host":"panthero.example","port":22}
+{"command":"find_monitor"}
+{"command":"delete_monitor","id":SERVER_ID}
+```
+
 ## Create (minimal)
 
 ```json
