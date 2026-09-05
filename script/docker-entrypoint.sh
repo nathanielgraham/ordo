@@ -75,15 +75,6 @@ if [ ! -f "$DB" ]; then
   echo "Database initialized successfully."
 else
   echo "Database already exists — skipping schema init."
-  # Additive column migrations (SQLite ignores duplicate ADD COLUMN)
-  for col_sql in \
-    "ALTER TABLE server ADD COLUMN net_rx_bps REAL" \
-    "ALTER TABLE server ADD COLUMN net_tx_bps REAL" \
-    "ALTER TABLE server_stats ADD COLUMN net_rx_bps REAL" \
-    "ALTER TABLE server_stats ADD COLUMN net_tx_bps REAL"
-  do
-    sqlite3 "$DB" "$col_sql;" 2>/dev/null || true
-  done
 fi
 
 exec "$@"
