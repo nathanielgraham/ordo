@@ -141,6 +141,18 @@ When adding servers in the UI:
 
 SSH key authentication is strongly recommended.
 
+
+## Docker bind-mount UIDs
+
+The container runs as **uid/gid 1000**. Host bind mounts for `config/`, `db/`, `data/`, and `ssh/` must be owned by that user, or the stack can fail (readonly SQLite, SSH key write errors). After creating the directories:
+
+```bash
+mkdir -p config db data ssh
+chown -R 1000:1000 config db data ssh
+```
+
+See `deploy/saas/README.md` in the Ordo repo for the same requirement on SaaS compose.
+
 ## Troubleshooting
 
 | Task                    | Command                              |

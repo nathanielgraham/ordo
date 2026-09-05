@@ -66,7 +66,7 @@ When in doubt, prefer day **names** (`MON`, `TUE`, `WED`...) - Ordo accepts them
 | `,`       | list (`1,3,5`) |
 | `/`       | increments (`*/15` = every 15) |
 | `L`       | last (day-of-month = last day of month) |
-| `nL`      | last *n*th weekday of the month (`1L` = last Monday) |
+| `nL`      | last *n*th weekday of the month (`1L` = last Monday; prefer `1L` over `MONL`) |
 | `LW`      | last weekday of the month |
 | `nW`      | nearest weekday to day *n* |
 | `#`       | *n*th occurrence of a weekday (`1#3` = 3rd Monday) |

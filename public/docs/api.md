@@ -3,23 +3,21 @@
 Ordo’s native API is a JSON command protocol.  
 You can speak it over:
 
-- the WebSocket at `wss://ordoscheduler.com/websocket` (preferred for agents)
-- the HTTP endpoint `https://ordoscheduler.com/api` (classic REST-style)
-- **MCP** at `https://ordoscheduler.com/mcp` (same command names as tools)
+- the WebSocket at `wss://ordoscheduler.com/websocket` (preferred for long-lived agents)
+- the HTTP endpoint `https://ordoscheduler.com/api` (one-shot / curl)
+- **MCP** at `https://ordoscheduler.com/mcp`
 
-All three use the **same command names** and the same JSON shapes. MCP tool names match the `command` field below (e.g. `find_cluster`, `create_cron`, `start_cluster`).
+HTTP `/api` and WebSocket use native `{command,…}` JSON. `/mcp` is JSON-RPC (`initialize` / `tools/list` / `tools/call`) that shares the same `request()` path and **command names** as tools. Keep both endpoints; MCP tool names match the `command` field below (e.g. `find_cluster`, `create_cron`, `start_cluster`).
 
 ---
 
 ## For AI agents (read this first)
 
-### Preferred transport
+### Preferred client: ordo-bot
 
-Use the public client **[ordo-wsagent](https://github.com/nathanielgraham/ordo-wsagent)**.
+For AI agents, prefer **[ordo-bot](https://github.com/nathanielgraham/ordo-bot)** — a ready-made agent that connects over WebSocket, exposes the same command names as tools, and can **watch** broadcasts for completion. Install, wait pattern, and CLI: [Connecting to AI](#docs/connecting-to-ai) and [Agent protocol](#docs/agent-protocol).
 
-It gives you:
-- immediate command replies, **and**
-- live broadcasts (`jobs_changed`, `clusters_changed`, …) so you can wait for real completion.
+**[ordo-wsagent](https://github.com/nathanielgraham/ordo-wsagent)** is a thin WebSocket pipe for custom agent loops or scripting (you filter `jobs_changed` / `clusters_changed` yourself).
 
 After you connect and log in, call:
 
@@ -44,9 +42,9 @@ After you connect and log in, call:
 
 ### MCP as fallback
 
-MCP tools use the **same names** as this reference.  
+MCP tools use the **same command names** as this reference, but speak JSON-RPC over `/mcp` (not native `{command,…}`).  
 Use MCP when a full WebSocket client is impractical or when you only need simple request/response operations.  
-For anything that requires waiting on completion events, prefer `ordo-wsagent`.
+For anything that requires waiting on completion events, prefer **ordo-bot** (or a custom loop via ordo-wsagent).
 
 ---
 
@@ -60,23 +58,25 @@ Authenticate **once** at the start of the connection:
 {"command":"login_user","token":"your-user-token"}
 ```
 
-After a successful `login_user` reply, every subsequent command on that same WebSocket is already authenticated. You do **not** send the token again.
+After a successful `login_user` reply, every subsequent command on that same WebSocket is already authenticated. You do **not** send the token again. The success reply does **not** echo `token` or `execution_token`.
 
-(`ordo-wsagent` does the login step for you automatically.)
+(`ordo-bot` and `ordo-wsagent` perform the login step for you automatically.)
 
-### HTTP REST endpoint
+### HTTP endpoint (`/api`)
 
-Every request must include the token:
+Same native `{command,…}` JSON as WebSocket. Every request includes the token in the body (no separate login step). Base URL: `https://ordoscheduler.com/api`.
 
-```json
-{
-  "command": "…",
-  "token": "your-user-token",
-  …
-}
+```bash
+curl -X POST https://ordoscheduler.com/api \
+  -H "Content-Type: application/json" \
+  -d '{
+    "command": "find_cluster",
+    "name": "/root",
+    "token": "your-user-token"
+  }'
 ```
 
-Base URL: `https://ordoscheduler.com/api`
+Always check `success` in the reply. Many commands accept either `id` or `name` (path). For long-lived wait-on-completion flows, prefer WebSocket / [ordo-bot](https://github.com/nathanielgraham/ordo-bot) — see [Connecting to AI](#docs/connecting-to-ai) and [Agent protocol](#docs/agent-protocol).
 
 ---
 
@@ -129,7 +129,7 @@ Retrieve Ordo documentation.
 
 | Parameter | Type   | Required | Description |
 |-----------|--------|----------|-------------|
-| section   | string | no       | Documentation section. One of: overview, quickstart, core-concepts, jobs-and-clusters, calendars-and-crons, advanced-topics, connecting-to-ai, faq, api, agent-protocol, rest-api, cli, dashboard, stats-polling, settings, private-deployments, self-hosted, all. Default: overview. |
+| section   | string | no       | Documentation section. One of: overview, quickstart, core-concepts, jobs-and-clusters, calendars-and-crons, advanced-topics, connecting-to-ai, faq, api, agent-protocol, cli, dashboard, stats-polling, settings, private-deployments, self-hosted, all. Default: overview. |
 | format    | string | no       | markdown (default) or summary. |
 
 Example:
@@ -418,8 +418,8 @@ Create an identical copy of a cluster (does **not** start it).
 | cal_id / cal | integer/string | no | Calendar to attach. |
 | on_fail_id / on_fail | integer/string | no | Failure handler. |
 | on_overdue_id / on_overdue | integer/string | no | Overdue handler. |
-| needs_ids / needs | array of integers | no | AND dependencies. |
-| needs_any_ids / needs_any | array of integers | no | OR dependencies. |
+| needs_ids / needs | array | no | AND deps on **other clusters**. `needs_ids`: cluster ids. `needs`: cluster paths/ids (not job sibling bare names — those are job-only). |
+| needs_any_ids / needs_any | array | no | OR deps (same cluster path/id rules as needs). |
 | loops | integer | no | Loop count. |
 | json | object | no | Durable JSON (max 64 KB). Pass null to clear. |
 
@@ -454,7 +454,7 @@ Create an identical copy of a cluster (does **not** start it).
 
 ### create_cron
 
-Add a cron expression to an existing calendar. The API wants **Quartz** (`seconds minutes hours day-of-month month day-of-week [year]`, e.g. `0 0 9 * * ? *`). Classic 5-field Unix (`0 9 * * *`) is accepted and expanded by Cron::Toolkit. Use `?` in either day-of-month or day-of-week.
+Add a cron expression to an existing calendar. Prefer Quartz (e.g. `0 0 9 * * ? *`); 5-field Unix is accepted and expanded. Format details: [Calendars & Crons](#docs/calendars-and-crons).
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -554,10 +554,12 @@ Broadcasts never include `request_id`.
 **Agent waiting pattern**
 
 1. Send `start_job` or `start_cluster`.
-2. Receive the immediate `command_reply`.
-3. Keep reading the stream.
+2. Receive the immediate `command_reply` (accepted, not finished).
+3. Keep reading the stream (or register a **watch** via ordo-bot).
 4. When a broadcast’s `updates` array contains the job/cluster with a terminal `jobstate` (`complete`, `failed`, …) or `state_id` 5, the work is finished.
 5. Optionally call `read_log`, then continue or disconnect.
+
+Full wait / watch guidance: [Agent protocol](#docs/agent-protocol) and [Connecting to AI](#docs/connecting-to-ai).
 
 ---
 

@@ -95,7 +95,7 @@ python3 wsagent.py --timeout 300
 
 ## Optional request_id
 
-The client may generate an optional `request_id` on each command JSON (a short string you choose). The server copies that same value onto the **command_reply** only (HTTP, WebSocket, wsagent, ordo-bot). Broadcasts (`jobs_changed`, `clusters_changed`, …) never include `request_id`. Omit the field and the reply is unchanged — today's protocol.
+Optional `request_id` on a command is echoed on that command’s reply only (never on broadcasts). Canonical detail: [API — Response shape](#docs/api).
 
 ```json
 {"command":"find_cluster","name":"/root","request_id":"loop-1"}
@@ -111,13 +111,7 @@ The client may generate an optional `request_id` on each command JSON (a short s
 
 ## Servers (monitors)
 
-There is no `create_server`. **`create_monitor` adds a Server** (SSH worker). Same for `update_monitor` / `delete_monitor`. Prefer key-only; optional `password` (8–20 chars) is one-time key bootstrap. Check `read_org` → `server_count` / `server_limit` before creating (free tier is often 1). Full parameter tables: `get_documentation` section `api`.
-
-```json
-{"command":"create_monitor","name":"panthero","user":"ordo","host":"panthero.example","port":22}
-{"command":"find_monitor"}
-{"command":"delete_monitor","id":SERVER_ID}
-```
+There is no `create_server`. Use `create_monitor` / `update_monitor` / `delete_monitor` — full parameter tables in [API](#docs/api) (`get_documentation` section `api`). Check `read_org` → `server_count` / `server_limit` before creating.
 
 ## Create (minimal)
 
