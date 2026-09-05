@@ -6,7 +6,7 @@ It schedules work across servers with explicit dependencies and a defined recove
 
 ## How it works
 
-- A **Job** is the smallest unit of work. It runs a script on a chosen server. A **trigger job** waits for an event (a file appearing, a webhook, or a Slack message) and then completes so dependents run.
+- A **Job** is the smallest unit of work. It runs a script on a chosen server. A job can also wait for something (a file, a webhook, a message) and complete so dependents run. 
 - **Clusters** are containers for jobs and other clusters, forming a tree.
 - **Calendars** are collections of **cron** expressions that decide when clusters start.
 - **Handlers** define what happens next when a job fails, misses its window, or runs too long.
