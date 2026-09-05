@@ -5033,18 +5033,6 @@ sub _read_cluster_needs {
    return \%needs;
 }
 
-sub _ping {
-   my ( $self, $host ) = @_;
-   return unless $host;
-   my $output = `ping -c 1 $host 2>&1`;
-   return unless $output;
-   if (
-      $output =~ /min\/avg\/max\/(mdev|stddev) = ([\d.]+)\/([\d.]+)\/([\d.]+)/ )
-   {
-      return $3;
-   }
-}
-
 sub update_sysinfo {
    my ( $self, $user, $d ) = @_;
    return { success => 0, exit => 1, message => 'missing server id' }
@@ -5102,7 +5090,6 @@ sub update_sysinfo {
    }
 
    # Net rates from cumulative byte deltas since last tick (need ~2 ticks).
-   # Do not write ping — Server tab uses net_*_bps instead.
    my $now = time;
    $uh->{updated_at} = $now;
    if (  defined $uh->{net_rx_bytes}
@@ -5135,7 +5122,6 @@ sub update_sysinfo {
       $uh->{net_rx_bps} = undef;
       $uh->{net_tx_bps} = undef;
    }
-   $uh->{ping} = undef;    # clear stale ICMP ping
    my $running  = $self->job_states->{running};
    my $watching = $self->job_states->{watching};
    my $starting = $self->job_states->{starting};
