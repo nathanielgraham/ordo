@@ -4,7 +4,7 @@ Ordo’s native API is a JSON command protocol.
 You can speak it over:
 
 - the WebSocket at `wss://ordoscheduler.com/websocket` (preferred for long-lived agents)
-- the HTTP endpoint `https://ordoscheduler.com/api` (classic REST-style)
+- the HTTP endpoint `https://ordoscheduler.com/api` (one-shot / curl)
 - **MCP** at `https://ordoscheduler.com/mcp`
 
 HTTP `/api` and WebSocket use native `{command,…}` JSON. `/mcp` is JSON-RPC (`initialize` / `tools/list` / `tools/call`) that shares the same `request()` path and **command names** as tools. Keep both endpoints; MCP tool names match the `command` field below (e.g. `find_cluster`, `create_cron`, `start_cluster`).
@@ -62,19 +62,21 @@ After a successful `login_user` reply, every subsequent command on that same Web
 
 (`ordo-bot` and `ordo-wsagent` perform the login step for you automatically.)
 
-### HTTP REST endpoint
+### HTTP endpoint (`/api`)
 
-Every request must include the token:
+Same native `{command,…}` JSON as WebSocket. Every request includes the token in the body (no separate login step). Base URL: `https://ordoscheduler.com/api`.
 
-```json
-{
-  "command": "…",
-  "token": "your-user-token",
-  …
-}
+```bash
+curl -X POST https://ordoscheduler.com/api \
+  -H "Content-Type: application/json" \
+  -d '{
+    "command": "find_cluster",
+    "name": "/root",
+    "token": "your-user-token"
+  }'
 ```
 
-Base URL: `https://ordoscheduler.com/api`
+Always check `success` in the reply. Many commands accept either `id` or `name` (path). For long-lived wait-on-completion flows, prefer WebSocket / [ordo-bot](https://github.com/nathanielgraham/ordo-bot) — see [Connecting to AI](#docs/connecting-to-ai) and [Agent protocol](#docs/agent-protocol).
 
 ---
 
@@ -127,7 +129,7 @@ Retrieve Ordo documentation.
 
 | Parameter | Type   | Required | Description |
 |-----------|--------|----------|-------------|
-| section   | string | no       | Documentation section. One of: overview, quickstart, core-concepts, jobs-and-clusters, calendars-and-crons, advanced-topics, connecting-to-ai, faq, api, agent-protocol, rest-api, cli, dashboard, stats-polling, settings, private-deployments, self-hosted, all. Default: overview. |
+| section   | string | no       | Documentation section. One of: overview, quickstart, core-concepts, jobs-and-clusters, calendars-and-crons, advanced-topics, connecting-to-ai, faq, api, agent-protocol, cli, dashboard, stats-polling, settings, private-deployments, self-hosted, all. Default: overview. |
 | format    | string | no       | markdown (default) or summary. |
 
 Example:

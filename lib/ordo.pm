@@ -320,7 +320,7 @@ sub startup {
          # only allow known docs
          my %allowed = map { $_ => 1 } qw(
            overview quickstart core-concepts jobs-and-clusters calendars-and-crons
-           dashboard cli rest-api connecting-to-ai advanced-topics settings
+           dashboard cli connecting-to-ai advanced-topics settings
            stats-polling deploy self-hosted private-deployments faq privacy terms
            agent-protocol
          );
@@ -408,11 +408,6 @@ HTML
             },
             {
                loc        => "$base/docs/cli",
-               priority   => '0.7',
-               changefreq => 'monthly'
-            },
-            {
-               loc        => "$base/docs/rest-api",
                priority   => '0.7',
                changefreq => 'monthly'
             },
@@ -1407,8 +1402,6 @@ sub _preload_documents {
       'cli'                 => 'Terminal CLI for ordo...',
       'agent-protocol'      =>
 'Agent-oriented protocol: WebSocket vs MCP, start-and-wait, disconnect recovery...',
-      'rest-api' =>
-'HTTP /api pointer: auth, curl examples; full command tables live in api...',
       'self-hosted' =>
 'Docker self-hosted install, SMTP, troubleshooting, bind-mount UIDs...',
    );
