@@ -253,11 +253,76 @@ No parameters required.
 Live server list with metrics (CPU, memory, disk, load, uptime).  
 Call this before creating a job so you can pick a valid `server_id`.
 
-No parameters required.
+Optional filters: `id` or `name` (same as other find/read helpers). With no parameters, returns all servers for the org.
 
 Example:
 ```json
 {"command":"find_monitor"}
+```
+
+There is **no** `create_server` command. Agents add/update/remove Servers with the `*_monitor` commands below (naming quirk: “monitor” = Server row + SSH node agent).
+
+### create_monitor
+
+**Adds a Server** (not a separate “monitor” object). Connects over SSH, optionally installs Ordo’s public key, installs/starts the node agent, then returns the new server `id`. Use that `id` as `server_id` on `create_job`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| name | string | yes | Short server name (1–25 chars; same name rules as other resources). |
+| user | string | yes | SSH username on the remote host. |
+| host | string | yes | Hostname or IP. |
+| port | integer | no | SSH port (default **22**). |
+| password | string | no | One-time SSH password (**8–20 characters** if sent). Omit for key-only. |
+
+**Key-only vs password bootstrap**
+
+- **Omit `password`:** the scheduler’s existing SSH key must already be authorized on the remote account.
+- **Include `password`:** Ordo connects once with the password, installs its public key (`ssh_copy`), then uses key auth. Prefer key-only after that; treat the password as one-time bootstrap (same trust boundary as the API token — do not log or paste it into shared chats).
+
+**Limits:** `read_org` returns `server_count` and `server_limit` (free tier defaults to 1). Check those before creating. When creation fails for connection, install, or capacity reasons, the reply is often the vague `unable to create connection` — call `read_org` and `find_monitor` to see whether you are already at `server_limit`.
+
+```json
+{"command":"create_monitor","name":"panthero","user":"ordo","host":"panthero.example","port":22}
+{"command":"create_monitor","name":"liono","user":"deploy","host":"10.0.0.8","password":"one-time-secret"}
+```
+
+Success shape includes `success` and `id` (the new server id).
+
+### update_monitor
+
+Reconnect / update an existing Server, then re-establish SSH. Success message looks like `connected to panthero`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | integer | yes* | Server id. |
+| name | string | yes* | Server name (lookup alternative to `id`). |
+| newname | string | no | Rename the server. |
+| user | string | no | Change SSH user. |
+| host | string | no | Change host. |
+| port | integer | no | Change SSH port. |
+| password | string | no | 8–20 chars; if set, re-runs key install bootstrap. |
+
+* One of `id` or `name` is required to locate the row.
+
+```json
+{"command":"update_monitor","id":4}
+{"command":"update_monitor","name":"panthero","port":22}
+```
+
+### delete_monitor
+
+Remove a Server by `id` or `name`. Bad id/name → `server not found`. Missing both → `missing name or id`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | integer | yes* | Server id. |
+| name | string | yes* | Server name. |
+
+* One of `id` or `name` is required.
+
+```json
+{"command":"delete_monitor","id":4}
+{"command":"delete_monitor","name":"panthero"}
 ```
 
 ---
@@ -501,9 +566,9 @@ Broadcasts never include `request_id`.
 | Area | Commands |
 |------|----------|
 | Inspect | `get_documentation`, `find_cluster`, `read_cluster`, `read_job`, `find_monitor`, `find_cal`, `read_cal`, `find_log`, `read_log`, `read_org`, `read_user`, `sync` |
-| Create | `create_cluster`, `create_job`, `create_cal`, `create_cron` |
-| Update | `update_cluster`, `update_job_config`, `update_cal` |
+| Create | `create_cluster`, `create_job`, `create_cal`, `create_cron`, `create_monitor` |
+| Update | `update_cluster`, `update_job_config`, `update_cal`, `update_monitor` |
 | Lifecycle | `start_*`, `kill_*`, `hold_*`, `release_*`, `ice_*`, `melt_*`, `complete_*`, `reset_cluster`, `clone_cluster` |
-| Delete | `delete_job`, `delete_cluster`, `delete_cron`, `delete_cal` |
+| Delete | `delete_job`, `delete_cluster`, `delete_cron`, `delete_cal`, `delete_monitor` |
 
 If you need a parameter not listed here, call `get_documentation` section `api` again after upgrades, or probe with a minimal command and read the `message` on failure.

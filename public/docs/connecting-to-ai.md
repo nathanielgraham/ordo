@@ -95,6 +95,8 @@ Tool names match the native API `command` field.
 | Ops | `sync` |
 | Account | `read_user`, `read_org` |
 
+Server add/update/delete on the **WebSocket / HTTP API** (and ordo-bot) use `create_monitor`, `update_monitor`, `delete_monitor` — there is no `create_server`. MCP currently exposes `find_monitor` for browsing; use the API or ordo-bot for lifecycle. See `api` / `agent-protocol` docs.
+
 ## Agent behavior
 
 ### MCP path (request/response)
