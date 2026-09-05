@@ -550,26 +550,37 @@ function formatBytes(n) {
   return `${(n / 1e9).toFixed(2)} GB`;
 }
 
+function getCpuTooltip(server) {
+  const cpu =
+    server.cpu_percent != null ? `${Number(server.cpu_percent).toFixed(1)}%` : "—";
+  const cores = server.cores != null ? ` (${server.cores} cores)` : "";
+  const load =
+    server.load_1 != null
+      ? `${server.load_1.toFixed(2)} / ${server.load_5?.toFixed(2) ?? "—"} / ${server.load_15?.toFixed(2) ?? "—"}`
+      : "—";
+  return [`CPU: ${cpu}${cores}`, `Load 1/5/15: ${load}`].join("\n");
+}
+
+function getNetTooltip(server) {
+  const rates = formatNetColumn(server);
+  return [
+    `Net: ${rates}`,
+    `RX total: ${formatBytes(Number(server.net_rx_bytes))}`,
+    `TX total: ${formatBytes(Number(server.net_tx_bytes))}`,
+  ].join("\n");
+}
+
 function getHostTooltip(server) {
-  const netCol = formatNetColumn(server);
+  // Identity / host deep dive only — stats live on their own columns.
   const lines = [
     `Host: ${server.host || server.ip_address || "—"}`,
     `Port: ${server.port || "—"}`,
-    `Net: ${netCol}`,
-    `RX total: ${formatBytes(Number(server.net_rx_bytes))}`,
-    `TX total: ${formatBytes(Number(server.net_tx_bytes))}`,
-    `Load: ${server.load_1 != null ? server.load_1.toFixed(2) : "—"} / ${server.load_5 != null ? server.load_5.toFixed(2) : "—"} / ${server.load_15 != null ? server.load_15.toFixed(2) : "—"}`,
-    `Swap: ${
-      server.total_swap && server.total_swap > 0
-        ? ((((server.used_swap || 0) / server.total_swap) * 100).toFixed(1) + "%")
-        : "—"
-    }`,
-    `Procs: ${server.total_processes ?? "—"} (zombies ${server.zombie_processes ?? "—"})`,
-    `Open files: ${server.open_files ?? "—"}`,
-    `Uptime: ${server.uptime != null ? formatUptime(server.uptime) : "—"}`,
     `OS: ${server.os || "—"}`,
     `CWD: ${server.cwd || "—"}`,
     `Home: ${server.home || "—"}`,
+    `Uptime: ${server.uptime != null ? formatUptime(server.uptime) : "—"}`,
+    `Procs: ${server.total_processes ?? "—"} (zombies ${server.zombie_processes ?? "—"})`,
+    `Open files: ${server.open_files ?? "—"}`,
   ];
   return lines.filter(Boolean).join("\n");
 }
@@ -1254,11 +1265,12 @@ export function updateServerRow(row, server, now) {
   // Status + freshness (column 2 + 3)
   updateFreshnessCell(row, server, now);
 
-  // 4: CPU
+  // 4: CPU (% + load in tooltip)
   if (cells[4]) {
     const cpu =
       server.cpu_percent != null ? `${server.cpu_percent.toFixed(1)}%` : "—";
     cells[4].textContent = cpu;
+    cells[4].title = getCpuTooltip(server);
   }
 
   // 5: Memory + tooltip (includes swap)
@@ -1275,10 +1287,10 @@ export function updateServerRow(row, server, now) {
     cells[6].title = disk.tooltip;
   }
 
-  // 7: Net ↓↑ (— until two Monitoring ticks)
+  // 7: Net ↓↑ rates in cell; tooltip = rates + cumulative totals
   if (cells[7]) {
     cells[7].textContent = formatNetColumn(server);
-    cells[7].title = getHostTooltip(server);
+    cells[7].title = getNetTooltip(server);
   }
 
   // 8: Actions — only replace if structure missing
