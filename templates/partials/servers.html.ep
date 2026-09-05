@@ -24,6 +24,7 @@
               <th>CPU %</th>
               <th>Memory</th>
               <th>Disk</th>
+              <th>Net</th>
               <th>Uptime</th>
               <th>Actions</th>
             </tr>

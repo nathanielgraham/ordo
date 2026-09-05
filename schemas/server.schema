@@ -21,7 +21,7 @@ CREATE TABLE server (
     used_disk INTEGER,
     free_disk INTEGER,
     uptime INTEGER,
-    ping REAL,
+    ping REAL,                      -- deprecated; no longer written (use net_*_bps)
     updated_at INTEGER,
     creation_time INTEGER DEFAULT (strftime('%s', 'now')),
 
@@ -39,6 +39,8 @@ CREATE TABLE server (
     zombie_processes INTEGER,        -- Number of zombie processes
     net_rx_bytes INTEGER,            -- Cumulative received bytes since boot
     net_tx_bytes INTEGER,            -- Cumulative transmitted bytes since boot
+    net_rx_bps REAL,                 -- Receive rate (bytes/sec) from last tick delta
+    net_tx_bps REAL,                 -- Transmit rate (bytes/sec) from last tick delta
     root_used_disk INTEGER,          -- Root filesystem used (bytes)
     root_total_disk INTEGER,         -- Root filesystem total (bytes)
     root_free_disk INTEGER           -- Root filesystem free (bytes)

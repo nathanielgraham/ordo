@@ -5101,8 +5101,41 @@ sub update_sysinfo {
       return { success => 0, exit => 1, message => 'server unreachable' };
    }
 
-   $uh->{ping}       = $self->_ping( $server->{host} ) if $server->{host};
-   $uh->{updated_at} = time;
+   # Net rates from cumulative byte deltas since last tick (need ~2 ticks).
+   # Do not write ping — Server tab uses net_*_bps instead.
+   my $now = time;
+   $uh->{updated_at} = $now;
+   if (  defined $uh->{net_rx_bytes}
+      && defined $uh->{net_tx_bytes}
+      && defined $server->{net_rx_bytes}
+      && defined $server->{net_tx_bytes}
+      && $server->{updated_at}
+      && $now > $server->{updated_at} )
+   {
+      my $dt = $now - $server->{updated_at};
+      if ( $dt > 0 && $dt < 3600 ) {
+         my $drx = $uh->{net_rx_bytes} - $server->{net_rx_bytes};
+         my $dtx = $uh->{net_tx_bytes} - $server->{net_tx_bytes};
+         if ( $drx >= 0 && $dtx >= 0 ) {
+            $uh->{net_rx_bps} = $drx / $dt;
+            $uh->{net_tx_bps} = $dtx / $dt;
+         }
+         else {
+            # counter reset (reboot) — wait for next tick
+            $uh->{net_rx_bps} = undef;
+            $uh->{net_tx_bps} = undef;
+         }
+      }
+      else {
+         $uh->{net_rx_bps} = undef;
+         $uh->{net_tx_bps} = undef;
+      }
+   }
+   else {
+      $uh->{net_rx_bps} = undef;
+      $uh->{net_tx_bps} = undef;
+   }
+   $uh->{ping} = undef;    # clear stale ICMP ping
    my $running  = $self->job_states->{running};
    my $watching = $self->job_states->{watching};
    my $starting = $self->job_states->{starting};
@@ -5183,6 +5216,8 @@ sub update_sysinfo {
         cpu_percent
         net_rx_bytes
         net_tx_bytes
+        net_rx_bps
+        net_tx_bps
         uptime
         load_5
         total_memory
@@ -5988,7 +6023,6 @@ sub update_monitor {
       map  { $_ => $d->{$_} }
       grep { exists $d->{$_} } (qw(port user host password))
    };
-   $update_hash->{ping} = $self->_ping( $server->{host} ) if $server->{host};
    $update_hash->{updated_at} = time;
    $update_hash->{name}       = $d->{newname} if $d->{newname};
 
