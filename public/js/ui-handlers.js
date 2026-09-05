@@ -311,60 +311,37 @@ export function showToast(message, type = "info") {
   };
 }
 
-export function updateFreshnessCell(row, server, now) {
+// Last Update freshness: green <2m, amber 2–5m, red ≥5m (~2× / ~5× of 1m Monitoring)
+const LAST_UPDATE_FRESH_SEC = 120;
+const LAST_UPDATE_AGING_SEC = 300;
+
+export function updateLastUpdateCell(row, server, now) {
   const updateTime =
     server.updated_at != null ? Number(server.updated_at) : null;
   const updatedAgo =
     updateTime != null && !isNaN(updateTime) ? now - updateTime : Infinity;
 
-  let status = "New";
-  let statusClass = "is-danger";
-  let statusTooltip = "";
-
-  if (Number.isFinite(updatedAgo)) {
-    if (updatedAgo < 30) {
-      status = "Fresh";
-      statusClass = "is-success";
-    } else if (updatedAgo < 300) {
-      status = "Stale";
-      statusClass = "is-warning";
-    } else {
-      status = "Very Stale";
-      statusClass = "is-danger";
-    }
-  }
-
-  // Add zombie info to tooltip only
-  if (server.zombie_processes > 0) {
-    statusTooltip += `\nZombies detected: ${server.zombie_processes}`;
-  }
-
-  // Calculate current relative time (second-level precision)
   let relTime = "—";
+  let ageClass = "is-never";
+  let title = "No stats yet";
+
   if (Number.isFinite(updatedAgo)) {
     relTime = formatRelativeTime(updatedAgo);
+    title = `Last stats: ${relTime}`;
+    if (updatedAgo < LAST_UPDATE_FRESH_SEC) ageClass = "is-fresh";
+    else if (updatedAgo < LAST_UPDATE_AGING_SEC) ageClass = "is-aging";
+    else ageClass = "is-stale";
   }
 
-  // Update tag
-  const tag = row.querySelector("span.tag");
-  if (tag) {
-    tag.textContent = status;
-    tag.className = `tag ${statusClass}`;
-    tag.title = statusTooltip;
+  const timeCell = row.querySelector("td.time-text");
+  if (timeCell) {
+    timeCell.textContent = relTime;
+    timeCell.className = `time-text ${ageClass}`;
+    timeCell.title = title;
   }
 
-  // Update inline time text
-  const timeSpan = row.querySelector("td.time-text");
-  if (timeSpan) {
-    timeSpan.textContent = relTime;
-  }
-
-  // Stale row hint
-  if (Number.isFinite(updatedAgo) && updatedAgo > 300) {
-    row.classList.add("stale");
-  } else {
-    row.classList.remove("stale");
-  }
+  if (ageClass === "is-stale") row.classList.add("stale");
+  else row.classList.remove("stale");
 }
 
 export function renderServersTable() {
@@ -439,8 +416,7 @@ function createServerRow(server, now) {
   tr.innerHTML = `
     <td>${escapeHtml(server.name || "—")}</td>
     <td title="${getHostTooltip(server)}">${escapeHtml(server.host || server.ip_address || "—")}</td>
-    <td><span class="tag is-danger">Never Connected</span></td>
-    <td class="time-text text-grey">—</td>
+    <td class="time-text is-never">—</td>
     <td>—</td>
     <td>—</td>
     <td>—</td>
@@ -1243,12 +1219,12 @@ function ensureClusterInState(update) {
 
 export function updateServerRow(row, server, now) {
   console.log(
-    `[DEBUG Servers] updateServerRow called for ${server?.name} (actions cell: ${!!row?.cells?.[8]})`,
+    `[DEBUG Servers] updateServerRow called for ${server?.name} (actions cell: ${!!row?.cells?.[7]})`,
   );
 
   if (!row || !server) return;
   const cells = row.cells;
-  if (!cells || cells.length < 9) return;
+  if (!cells || cells.length < 8) return;
 
   if (server.updated_at != null) {
     row.dataset.updateTime = server.updated_at;
@@ -1262,44 +1238,44 @@ export function updateServerRow(row, server, now) {
     cells[1].innerHTML = `<span title="${getHostTooltip(server)}">${escapeHtml(server.host || server.ip_address || "—")}</span>`;
   }
 
-  // Status + freshness (column 2 + 3)
-  updateFreshnessCell(row, server, now);
+  // 2: Last Update (colored by age)
+  updateLastUpdateCell(row, server, now);
 
-  // 4: CPU (% + load in tooltip)
-  if (cells[4]) {
+  // 3: CPU (% + load in tooltip)
+  if (cells[3]) {
     const cpu =
       server.cpu_percent != null ? `${server.cpu_percent.toFixed(1)}%` : "—";
-    cells[4].textContent = cpu;
-    cells[4].title = getCpuTooltip(server);
+    cells[3].textContent = cpu;
+    cells[3].title = getCpuTooltip(server);
   }
 
-  // 5: Memory + tooltip (includes swap)
-  if (cells[5]) {
+  // 4: Memory + tooltip (includes swap)
+  if (cells[4]) {
     const { mem, tooltip } = formatMemory(server);
-    cells[5].textContent = mem;
-    cells[5].title = tooltip;
+    cells[4].textContent = mem;
+    cells[4].title = tooltip;
   }
 
-  // 6: Disk (root % preferred)
-  if (cells[6]) {
+  // 5: Disk (root % preferred)
+  if (cells[5]) {
     const disk = formatDisk(server);
-    cells[6].textContent = disk.display;
-    cells[6].title = disk.tooltip;
+    cells[5].textContent = disk.display;
+    cells[5].title = disk.tooltip;
   }
 
-  // 7: Net ↓↑ rates in cell; tooltip = rates + cumulative totals
+  // 6: Net ↓↑ rates in cell; tooltip = rates + cumulative totals
+  if (cells[6]) {
+    cells[6].textContent = formatNetColumn(server);
+    cells[6].title = getNetTooltip(server);
+  }
+
+  // 7: Actions — only replace if structure missing
   if (cells[7]) {
-    cells[7].textContent = formatNetColumn(server);
-    cells[7].title = getNetTooltip(server);
-  }
-
-  // 8: Actions — only replace if structure missing
-  if (cells[8]) {
-    const current = cells[8].innerHTML.trim();
+    const current = cells[7].innerHTML.trim();
     const newActions = `... your actions HTML ...`;
 
     if (!current.includes(`data-id="${server.id}"`)) {
-      cells[8].innerHTML = newActions;
+      cells[7].innerHTML = newActions;
       console.log(`[DEBUG Servers] Replaced actions HTML for ${server.name}`);
     }
   }

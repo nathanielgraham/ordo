@@ -18,7 +18,6 @@
             <tr>
               <th>Name</th>
               <th>Host</th>
-              <th>Freshness</th>
               <th>Last Update</th>
               <th>CPU %</th>
               <th>Memory</th>
