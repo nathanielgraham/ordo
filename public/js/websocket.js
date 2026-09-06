@@ -25,16 +25,34 @@ import {
   showLimitToast,
 } from "./ui-handlers.js";
 
+let lastLoginToken = null;
+
+function readOrdoToken() {
+  return document.cookie.match(/ordo_token=([^;]+)/)?.[1];
+}
+
+function clearOrdoTokenIfStill(triedToken) {
+  // Only wipe if the cookie still matches the token we just tried — protects
+  // another tab that already wrote a newer valid token.
+  const current = readOrdoToken();
+  if (!triedToken || current !== triedToken) return false;
+  const secure = location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `ordo_token=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
+  return true;
+}
+
+
 export function checkLoginAndConnect() {
   console.log("[WS Init] checkLoginAndConnect called");
 
-  const token = document.cookie.match(/ordo_token=([^;]+)/)?.[1];
+  const token = readOrdoToken();
 
   if (token) {
     document.body.classList.add("is-logged-in");
 
     // If we already have an open connection, just re-auth it
     if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+      lastLoginToken = token;
       appState.ws.send(JSON.stringify({ command: "login_user", token }));
       //sendWS({ command: "login_user", token: token });
       //sendWS({ command: "delete_monitor", id: serverId })
@@ -87,6 +105,7 @@ export function connectWS(token) {
   appState.ws.addEventListener("open", () => {
     console.log("WS connected");
     startWsHeartbeat();
+    lastLoginToken = token;
     appState.ws.send(JSON.stringify({ command: "login_user", token }));
   });
 
@@ -114,8 +133,9 @@ export function connectWS(token) {
           }),
         );
       }
-      else if (data.command_reply === "login_user" &! data.success) {
-        document.cookie = "ordo_token=; Path=/; Max-Age=0; SameSite=Strict";
+      else if (data.command_reply === "login_user" && !data.success) {
+        // Definitive auth failure for the token we tried — don't wipe a newer cookie.
+        clearOrdoTokenIfStill(lastLoginToken);
         checkLoginAndConnect();
       }
 

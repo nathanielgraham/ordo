@@ -188,7 +188,10 @@ export function handleCommandReply(data) {
         }
 
         // Update browser cookie
-        document.cookie = `ordo_token=${data.token}; path=/; SameSite=Lax; max-age=${60 * 60 * 24 * 365 * 10}`;
+        {
+          const secure = location.protocol === "https:" ? "; Secure" : "";
+          document.cookie = `ordo_token=${data.token}; path=/; SameSite=Lax; max-age=${60 * 60 * 24 * 365 * 10}${secure}`;
+        }
 
         // Reconnect WebSocket with new token
         // if (appState.ws) {
