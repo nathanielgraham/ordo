@@ -26,21 +26,11 @@ import {
 } from "./ui-handlers.js";
 
 let lastLoginToken = null;
+let suppressWsReconnect = false;
 
 function readOrdoToken() {
   return document.cookie.match(/ordo_token=([^;]+)/)?.[1];
 }
-
-function clearOrdoTokenIfStill(triedToken) {
-  // Only wipe if the cookie still matches the token we just tried — protects
-  // another tab that already wrote a newer valid token.
-  const current = readOrdoToken();
-  if (!triedToken || current !== triedToken) return false;
-  const secure = location.protocol === "https:" ? "; Secure" : "";
-  document.cookie = `ordo_token=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
-  return true;
-}
-
 
 export function checkLoginAndConnect() {
   console.log("[WS Init] checkLoginAndConnect called");
@@ -48,6 +38,7 @@ export function checkLoginAndConnect() {
   const token = readOrdoToken();
 
   if (token) {
+    suppressWsReconnect = false;
     document.body.classList.add("is-logged-in");
 
     // If we already have an open connection, just re-auth it
@@ -117,6 +108,7 @@ export function connectWS(token) {
       // ====================== LOGIN & INITIAL LOADS ======================
       if (data.command_reply === "login_user" && data.success) {
         console.log("Login success - requesting initial loads");
+        suppressWsReconnect = false;
         appState.ws.send(JSON.stringify({ command: "read_user" }));
         appState.ws.send(JSON.stringify({ command: "read_org" }));
         appState.ws.send(
@@ -134,9 +126,16 @@ export function connectWS(token) {
         );
       }
       else if (data.command_reply === "login_user" && !data.success) {
-        // Definitive auth failure for the token we tried — don't wipe a newer cookie.
-        clearOrdoTokenIfStill(lastLoginToken);
-        checkLoginAndConnect();
+        // Auth failed for this socket — do NOT clear the shared cookie (other tabs
+        // may still be fine with the same token). Only drop this tab's logged-in UI.
+        // Cookie clears belong on explicit /logout and delete_me.
+        document.body.classList.remove("is-logged-in");
+        stopWsHeartbeat();
+        suppressWsReconnect = true;
+        try {
+          appState.ws?.close();
+        } catch (e) {}
+        appState.ws = null;
       }
 
       // ====================== CENTRAL COMMAND REPLY HANDLER ======================
@@ -195,6 +194,10 @@ export function connectWS(token) {
   appState.ws.onclose = (ev) => {
     console.log("WS closed");
     stopWsHeartbeat();
+    if (suppressWsReconnect) {
+      console.log("[WS] reconnect suppressed after auth failure");
+      return;
+    }
     showToast("Disconnected", "danger");
     setTimeout(checkLoginAndConnect, 1000);
   };
