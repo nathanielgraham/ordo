@@ -6129,12 +6129,22 @@ sub _sync_server {
    my $json_hex = unpack( 'H*', $json );
    my $cmd      = "perl ordo_node/bin/sync.pl $json_hex";
    my ( $out, $err ) = $ssh->capture2($cmd);
-   return if $err || $ssh->error;
-   my $found = decode_json($out);
-   return
-        unless ref $found eq 'HASH'
-     && exists $found->{alive}
-     && exists $found->{zombies};
+   if ( $err || $ssh->error ) {
+      warn "[_sync_server] sync.pl failed: ", ( $err || $ssh->error || '' ), "\n";
+      return;
+   }
+   my $found = eval { decode_json($out) };
+   if ( $@
+      || !(
+            ref $found eq 'HASH'
+         && exists $found->{alive}
+         && exists $found->{zombies}
+      )
+     )
+   {
+      warn "[_sync_server] bad sync.pl reply: ", ( $@ || 'invalid JSON' ), "\n";
+      return;
+   }
    my @alive   = @{ $found->{alive} }   if ref $found->{alive} eq 'ARRAY';
    my @zombies = @{ $found->{zombies} } if ref $found->{zombies} eq 'ARRAY';
 
@@ -6158,6 +6168,7 @@ sub sync {
 
    my $zombie_count  = 0;
    my $revived_count = 0;
+   my @errors;
    my $servers =
      $self->sqlite->db->select( 'server', ['*'], { org_id => $user->org_id } );
    while ( my $server = $servers->hash ) {
@@ -6178,6 +6189,8 @@ sub sync {
          $pid_map{ $j->{ppid} } = $j;
       }
 
+      my $label = $server->{name} || $server->{host} || $server->{id};
+
       # check connection
       my $ssh = $self->ssh_connection->{ $server->{id} };
       unless ( $ssh && $ssh->check_master ) {
@@ -6196,12 +6209,28 @@ sub sync {
       my $json_hex = unpack( 'H*', $json );
       my $cmd      = "perl ordo_node/bin/sync.pl $json_hex";
       my ( $out, $err ) = $ssh->capture2($cmd);
-      next if $err || $ssh->error;
-      my $found = decode_json($out);
-      next
-        unless ref $found eq 'HASH'
-        && exists $found->{alive}
-        && exists $found->{zombies};
+      if ( $err || $ssh->error ) {
+         my $detail = $err;
+         $detail = '' unless defined $detail;
+         chomp $detail;
+         $detail ||= $ssh->error || 'sync remote command failed';
+         push @errors, "$label: $detail";
+         next;
+      }
+      my $found = eval { decode_json($out) };
+      if ( $@
+         || !(
+               ref $found eq 'HASH'
+            && exists $found->{alive}
+            && exists $found->{zombies}
+         )
+        )
+      {
+         my $detail = $@ || 'invalid sync.pl JSON';
+         chomp $detail;
+         push @errors, "$label: $detail";
+         next;
+      }
       my @alive   = @{ $found->{alive} } if ref $found->{alive} eq 'ARRAY';
       my @zombies = @{ $found->{zombies} }
         if ref $found->{zombies} eq 'ARRAY';
@@ -6219,9 +6248,16 @@ sub sync {
          }
       }
    }
+   my $message = "$zombie_count zombies found $revived_count revived";
+   if (@errors) {
+      $message .= '; errors: ' . join( '; ', @errors );
+   }
    return {
-      success => 1,
-      message => "$zombie_count zombies found $revived_count revived"
+      success       => @errors ? 0 : 1,
+      message       => $message,
+      zombie_count  => $zombie_count,
+      revived_count => $revived_count,
+      ( @errors ? ( errors => \@errors ) : () ),
    };
 }
 
