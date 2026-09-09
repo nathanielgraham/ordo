@@ -1,0 +1,38 @@
+--- a/lib/ordo.pm
++++ b/lib/ordo.pm
+@@ -2156,20 +2156,32 @@
+ 
+          # Suppress consecutive identical broadcasts for jobs and clusters.
+          # Jobs: state + needs (config-only needs edits must still ship).
+-         # Clusters: state only (no needs spam path like jobs).
++         # Clusters: state + tree-visible config (cal, needs, handlers).
+          if ( $type eq 'job' || $type eq 'cluster' ) {
+             my $key = $user->org_id . ':' . $type . ':' . $thing->{id};
+             my $st;
+             if ( $type eq 'job' ) {
+                $st = join(
+                   '|',
+                   $thing->{jobstate} // $thing->{state_id} // '',
+                   join( ',', @{ $thing->{needs_ids}     // [] } ),
+                   join( ',', @{ $thing->{needs_any_ids} // [] } ),
++                  $thing->{max_runtime_seconds}    // '',
++                  $thing->{max_runtime_cluster_id} // '',
+                );
+             }
+             else {
+-               $st = $thing->{jobstate} // $thing->{state_id} // '';
++               # Tree columns (state, cal, DEPS) must not be suppressed when
++               # only config changed. update_cluster already broadcasts;
++               # this fingerprint is what used to swallow those updates.
++               $st = join(
++                  '|',
++                  $thing->{jobstate} // $thing->{state_id} // '',
++                  $thing->{cal_id}        // '',
++                  $thing->{on_fail_id}    // '',
++                  $thing->{on_overdue_id} // '',
++                  join( ',', @{ $thing->{needs_ids}     // [] } ),
++                  join( ',', @{ $thing->{needs_any_ids} // [] } ),
++               );
+             }
+             my $prev = $self->last_job_broadcast->{$key};
+             if ( defined $prev && $prev eq $st ) {
