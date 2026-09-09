@@ -2145,18 +2145,10 @@ sub _broadcast_any {
      $type eq 'cal'
      ? '_read_cal'
      : $type eq 'cluster' ? '_cluster_info'
-
-     #: $type eq 'cluster' ? '_read_cluster'
-     : ( '_' . $type . '_info' );
+     :                      ( '_' . $type . '_info' );
    for my $id ( @{$ids} ) {
       my $thing = $self->$method( $user, { id => $id } );
-
-      #my $cluster = $self->_cluster_info( $user, { id => $cluster_id } );
       if ( $thing && $thing->{id} ) {
-
-         # Suppress consecutive identical broadcasts for jobs and clusters.
-         # Jobs: state + needs (config-only needs edits must still ship).
-         # Clusters: state only (no needs spam path like jobs).
          if ( $type eq 'job' || $type eq 'cluster' ) {
             my $key = $user->org_id . ':' . $type . ':' . $thing->{id};
             my $st;
@@ -2166,15 +2158,19 @@ sub _broadcast_any {
                   $thing->{jobstate} // $thing->{state_id} // '',
                   join( ',', @{ $thing->{needs_ids}     // [] } ),
                   join( ',', @{ $thing->{needs_any_ids} // [] } ),
+                  $thing->{max_runtime_seconds}    // '',
+                  $thing->{max_runtime_cluster_id} // '',
                );
             }
             else {
-               # Include cal_id so calendar attach/detach is not suppressed
-               # when jobstate is unchanged.
                $st = join(
                   '|',
                   $thing->{jobstate} // $thing->{state_id} // '',
-                  $thing->{cal_id}   // '',
+                  $thing->{cal_id}        // '',
+                  $thing->{on_fail_id}    // '',
+                  $thing->{on_overdue_id} // '',
+                  join( ',', @{ $thing->{needs_ids}     // [] } ),
+                  join( ',', @{ $thing->{needs_any_ids} // [] } ),
                );
             }
             my $prev = $self->last_job_broadcast->{$key};
