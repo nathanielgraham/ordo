@@ -6761,9 +6761,6 @@ sub _set_cluster_cal_id {
       }
       $self->_broadcast_cal( $user, [$new_cal_id] );
    }
-
-   # Tree column is cluster.cal_name; cals_changed only updates the calendars tab.
-   $self->_broadcast_cluster( $user, [ $d->{cluster_id} ] );
    return $rows ? 1 : 0;
 }
 
