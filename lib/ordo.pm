@@ -2169,7 +2169,13 @@ sub _broadcast_any {
                );
             }
             else {
-               $st = $thing->{jobstate} // $thing->{state_id} // '';
+               # Include cal_id so calendar attach/detach is not suppressed
+               # when jobstate is unchanged.
+               $st = join(
+                  '|',
+                  $thing->{jobstate} // $thing->{state_id} // '',
+                  $thing->{cal_id}   // '',
+               );
             }
             my $prev = $self->last_job_broadcast->{$key};
             if ( defined $prev && $prev eq $st ) {
@@ -6759,6 +6765,9 @@ sub _set_cluster_cal_id {
       }
       $self->_broadcast_cal( $user, [$new_cal_id] );
    }
+
+   # Tree column is cluster.cal_name; cals_changed only updates the calendars tab.
+   $self->_broadcast_cluster( $user, [ $d->{cluster_id} ] );
    return $rows ? 1 : 0;
 }
 
@@ -6941,12 +6950,19 @@ sub _delete_cal {
 
    # id (cal id)
    my $cal = $self->_cal_info( $user, $d );
+   return 0 unless $cal && $cal->{id};
+
+   # Capture subscribers before the row (and FK) disappears so the
+   # main tree can drop cal_name without a hard refresh.
+   my $cluster_ids = $self->_cal_cluster_ids( $user, { id => $cal->{id} } );
+
    $self->_stop_cal( $user, { id => $cal->{id} } );
 
    my $rows = $self->sqlite->db->delete( 'cal', { id => $d->{id} } )->rows;
 
    if ($rows) {
       $self->_broadcast_cal( $user, [ $d->{id} ] );
+      $self->_broadcast_cluster( $user, $cluster_ids ) if @{$cluster_ids};
       return 1;
    }
    else {
