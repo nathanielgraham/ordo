@@ -1,0 +1,6 @@
+# Copy to ~/.grok/config.toml or <repo>/.grok/config.toml
+# Token stays in the environment: export ORDO_TOKEN=...
+
+[mcp_servers.ordo]
+url = "https://ordoscheduler.com/mcp"
+headers = { Authorization = "Bearer ${ORDO_TOKEN}" }
