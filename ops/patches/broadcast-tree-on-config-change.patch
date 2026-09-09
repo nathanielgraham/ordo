@@ -1,6 +1,6 @@
 --- a/lib/ordo.pm
 +++ b/lib/ordo.pm
-@@ -2156,20 +2156,32 @@
+@@ -2156,7 +2156,7 @@
  
           # Suppress consecutive identical broadcasts for jobs and clusters.
           # Jobs: state + needs (config-only needs edits must still ship).
@@ -9,9 +9,7 @@
           if ( $type eq 'job' || $type eq 'cluster' ) {
              my $key = $user->org_id . ':' . $type . ':' . $thing->{id};
              my $st;
-             if ( $type eq 'job' ) {
-                $st = join(
-                   '|',
+@@ -2166,10 +2166,20 @@
                    $thing->{jobstate} // $thing->{state_id} // '',
                    join( ',', @{ $thing->{needs_ids}     // [] } ),
                    join( ',', @{ $thing->{needs_any_ids} // [] } ),
@@ -21,9 +19,6 @@
              }
              else {
 -               $st = $thing->{jobstate} // $thing->{state_id} // '';
-+               # Tree columns (state, cal, DEPS) must not be suppressed when
-+               # only config changed. update_cluster already broadcasts;
-+               # this fingerprint is what used to swallow those updates.
 +               $st = join(
 +                  '|',
 +                  $thing->{jobstate} // $thing->{state_id} // '',
