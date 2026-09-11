@@ -18,8 +18,6 @@ Let's get your first workflow running in minutes.
 5. **If password login is disabled**, install Ordo’s public key on the remote account first, then add the server without a password. See **[FAQ](#docs/faq)** for details.
 6. Save.
 
-Agents / API: the same action is **`create_monitor`** (not `create_server`). See [API](#docs/api) and [FAQ](#docs/faq).
-
 ## 3. Create a Cluster
 
 1. Go to the **Jobs & Clusters** tab.
