@@ -1525,7 +1525,7 @@ sub validate_params {
       }
       elsif ( $type eq 'c' ) {    # shell command
          return ( 0, "shell command too long for $key" )
-           if length $value > 8000;
+           if length $value > 131072;
          $clean->{$key} =
            $value;    # preserve spaces — MUST be safely quoted in execution
       }
