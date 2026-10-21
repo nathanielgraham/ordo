@@ -1,70 +1,145 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-gray-100 dark:bg-gray-900">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ordo — Login</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: var(--bg-primary);
+      overflow: auto;
+    }
+    .login-wrap {
+      width: 100%;
+      max-width: 420px;
+      padding: 1rem;
+    }
+    .login-card {
+      background: var(--bg-secondary);
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 2.25rem 2rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .login-card h1 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      color: var(--chrome-light);
+      text-align: center;
+      margin-bottom: 0.25rem;
+      letter-spacing: -0.5px;
+    }
+    .login-card .subtitle {
+      text-align: center;
+      color: var(--chrome-mid);
+      margin-bottom: 1.75rem;
+      font-size: 0.95rem;
+    }
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--chrome-mid);
+      margin-bottom: 0.4rem;
+    }
+    .login-card .input {
+      width: 100%;
+      padding: 0.7rem 0.85rem;
+      font-size: 1rem;
+    }
+    .login-card .btn {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      font-size: 0.95rem;
+      margin-top: 0.25rem;
+    }
+    .divider {
+      display: flex;
+      align-items: center;
+      margin: 1.75rem 0;
+      color: #555;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .divider::before,
+    .divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: #333;
+    }
+    .divider span {
+      padding: 0 0.75rem;
+    }
+    .hint {
+      text-align: center;
+      font-size: 0.8rem;
+      color: #777;
+      margin-top: 0.75rem;
+    }
+    .alert {
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      margin-bottom: 1.25rem;
+      font-size: 0.9rem;
+    }
+    .alert-error {
+      background: rgba(220, 38, 38, 0.15);
+      border: 1px solid rgba(220, 38, 38, 0.4);
+      color: #fca5a5;
+    }
+    .alert-success {
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      color: #86efac;
+    }
+  </style>
 </head>
-<body class="h-full flex items-center justify-center">
-  <div class="max-w-md w-full bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-8">
-    <div class="text-center mb-8">
-      <h1 class="text-4xl font-bold text-gray-900 dark:text-white">Ordo</h1>
-      <p class="mt-2 text-gray-600 dark:text-gray-400">Job Scheduler & Monitor</p>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Ordo</h1>
+      <p class="subtitle">Job Scheduler & Monitor</p>
+
+      <% if (flash 'message') { %>
+        <div class="alert alert-success"><%= flash 'message' %></div>
+      <% } %>
+
+      <% if (stash 'error') { %>
+        <div class="alert alert-error"><%= stash 'error' %></div>
+      <% } %>
+
+      <form method="post" action="/login">
+        <div class="form-group">
+          <label for="email">Email address</label>
+          <input type="email" id="email" name="email" required autocomplete="email"
+                 class="input" placeholder="you@example.com">
+        </div>
+        <button type="submit" class="btn btn-primary">Send Login Link</button>
+        <p class="hint">We'll email you a magic link — no password required.</p>
+      </form>
+
+      <div class="divider"><span>or</span></div>
+
+      <form method="post" action="/login-token">
+        <div class="form-group">
+          <label for="token">API token</label>
+          <input type="password" id="token" name="token" required autocomplete="off"
+                 class="input" placeholder="Paste token from admin or CLI">
+        </div>
+        <button type="submit" class="btn btn-secondary">Log in with token</button>
+        <p class="hint">Self-hosted: your admin can create an account and give you a token or a one-time link.</p>
+      </form>
     </div>
-
-    <% if (flash 'message') { %>
-      <div class="mb-6 p-4 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 rounded-lg">
-        <%= flash 'message' %>
-      </div>
-    <% } %>
-
-    <% if (stash 'error') { %>
-      <div class="mb-6 p-4 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded-lg">
-        <%= stash 'error' %>
-      </div>
-    <% } %>
-
-    <form method="post" action="/login" class="space-y-6">
-      <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Email address
-        </label>
-        <input type="email" name="email" required autocomplete="email"
-               class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700">
-      </div>
-
-      <button type="submit"
-              class="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg rounded-lg shadow-md transition">
-        Send Login Link
-      </button>
-    </form>
-
-    <p class="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
-      We'll email you a magic link — no password required.
-    </p>
-
-    <hr class="my-8 border-gray-200 dark:border-gray-700">
-
-    <form method="post" action="/login-token" class="space-y-6">
-      <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Or paste your API token
-        </label>
-        <input type="password" name="token" required autocomplete="off"
-               placeholder="Paste token from admin or CLI"
-               class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700">
-      </div>
-
-      <button type="submit"
-              class="w-full py-4 px-6 bg-gray-700 hover:bg-gray-800 text-white font-bold text-lg rounded-lg shadow-md transition">
-        Log in with token
-      </button>
-    </form>
-
-    <p class="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
-      Self-hosted: your admin can create an account and give you a token or a one-time link.
-    </p>
   </div>
 </body>
 </html>
