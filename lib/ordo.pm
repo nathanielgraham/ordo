@@ -522,7 +522,15 @@ HTML
          }
 
          my $user = $c->app->_make_user( { token => $token } );
-         my $res  = $c->app->request(
+
+         unless ( $user && $user->id ) {
+            return $c->render(
+               template => 'token-login',
+               error    => 'Invalid token'
+            );
+         }
+
+         my $res = $c->app->request(
             $user,
             { command => 'login_user', token => $token }
          );
@@ -540,7 +548,7 @@ HTML
          }
 
          $c->app->set_login_cookie( $c, $token );
-         $c->redirect_to('/#dashboard');
+         $c->redirect_to('/app/#dashboard');
       }
    );
 
@@ -638,10 +646,10 @@ HTML
 
          # Smart redirect
          if ( !$user->{updated_at} || $user->{creation_time} > time - 86400 ) {
-            $c->redirect_to('/#docs/quickstart');    # New user experience
+            $c->redirect_to('/app/#docs/quickstart');    # New user experience
          }
          else {
-            $c->redirect_to('/#dashboard');
+            $c->redirect_to('/app/#dashboard');
          }
       }
    );
