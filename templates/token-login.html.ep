@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ordo — Token Login</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: var(--bg-primary);
+      overflow: auto;
+    }
+    .login-wrap {
+      width: 100%;
+      max-width: 420px;
+      padding: 1rem;
+    }
+    .login-card {
+      background: var(--bg-secondary);
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 2.25rem 2rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .login-card h1 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      color: var(--chrome-light);
+      text-align: center;
+      margin-bottom: 0.25rem;
+      letter-spacing: -0.5px;
+    }
+    .login-card .subtitle {
+      text-align: center;
+      color: var(--chrome-mid);
+      margin-bottom: 1.75rem;
+      font-size: 0.95rem;
+    }
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--chrome-mid);
+      margin-bottom: 0.4rem;
+    }
+    .login-card .input {
+      width: 100%;
+      padding: 0.7rem 0.85rem;
+      font-size: 1rem;
+    }
+    .login-card .btn {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      font-size: 0.95rem;
+      margin-top: 0.25rem;
+    }
+    .hint {
+      text-align: center;
+      font-size: 0.8rem;
+      color: #777;
+      margin-top: 0.75rem;
+    }
+    .alert {
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      margin-bottom: 1.25rem;
+      font-size: 0.9rem;
+    }
+    .alert-error {
+      background: rgba(220, 38, 38, 0.15);
+      border: 1px solid rgba(220, 38, 38, 0.4);
+      color: #fca5a5;
+    }
+    .alert-success {
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      color: #86efac;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Ordo</h1>
+      <p class="subtitle">Enter your API token</p>
+
+      <% if (flash 'message') { %>
+        <div class="alert alert-success"><%= flash 'message' %></div>
+      <% } %>
+
+      <% if (stash 'error') { %>
+        <div class="alert alert-error"><%= stash 'error' %></div>
+      <% } %>
+
+      <form method="post" action="/token-login">
+        <div class="form-group">
+          <label for="token">API token</label>
+          <input type="password" id="token" name="token" required autocomplete="off"
+                 class="input" placeholder="Paste token from admin or CLI">
+        </div>
+        <button type="submit" class="btn btn-primary">Log in</button>
+        <p class="hint">Self-hosted: your admin creates your account and gives you a token or a one-time link.</p>
+      </form>
+    </div>
+  </div>
+</body>
+</html>
