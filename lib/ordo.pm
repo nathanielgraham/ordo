@@ -505,19 +505,18 @@ HTML
    $r->get('/privacy')->to('pages#privacy');
 
 
-   # GET login page
-   $r->get( '/login' => sub { shift->render( template => 'login' ) } );
+   # Token login page (self-hosted). POST /login remains for the SaaS signup modal.
+   $r->get( '/token-login' => sub { shift->render( template => 'token-login' ) } );
 
-   # Token paste login (self-hosted / token holders)
    $r->post(
-      '/login-token' => sub {
+      '/token-login' => sub {
          my $c     = shift;
          my $token = $c->param('token') // '';
          $token =~ s/^\s+|\s+$//g;
 
          unless ($token) {
             return $c->render(
-               template => 'login',
+               template => 'token-login',
                error    => 'Please paste your API token'
             );
          }
@@ -530,15 +529,25 @@ HTML
 
          unless ( $res && $res->{success} ) {
             return $c->render(
-               template => 'login',
+               template => 'token-login',
                error    => $res->{message} || 'Invalid token'
             );
+         }
+
+         # Ensure usable level (same as /confirm)
+         if ( !$user->level || $user->level < 1 ) {
+            $c->sqlite->db->update( 'user', { level => 1 }, { id => $user->id } );
          }
 
          $c->app->set_login_cookie( $c, $token );
          $c->redirect_to('/#dashboard');
       }
    );
+
+   # Old token path
+   $r->any( '/login-token' => sub { shift->redirect_to('/token-login') } );
+   # GET /login → token page (POST /login stays for the SaaS modal)
+   $r->get( '/login' => sub { shift->redirect_to('/token-login') } );
 
    # Login / Invite Route (reused for both)
    $r->post(
@@ -586,7 +595,7 @@ HTML
       '/logout' => sub {
          my $c = shift;
          $c->cookie( ordo_token => '', { expires => 1, path => '/' } );
-         $c->redirect_to('/login');
+         $c->redirect_to('/token-login');
       }
    );
 
@@ -646,7 +655,7 @@ HTML
             "Received cookie ordo_token: " . ( $token // 'MISSING' ) );
 
          #unless ($token) {
-         #    $c->redirect_to('/login');
+         #    $c->redirect_to('/token-login');
          #    return undef;
          #}
 
@@ -660,7 +669,7 @@ HTML
             return 1;
          }
          else {
-            $c->redirect_to('/login');
+            $c->redirect_to('/token-login');
             return undef;
          }
       }
