@@ -125,6 +125,22 @@ sub startup {
       #sub { Mojo::JWT->new( secret => shift->config->{secrets}->[0] || die ) }
    );
 
+   $self->helper(
+      set_login_cookie => sub {
+         my ( $c, $token ) = @_;
+         $c->cookie(
+            ordo_token => $token,
+            {
+               secure    => $c->req->is_secure,
+               same_site => 'Lax',
+               expires   => time + 10 * 365 * 24 * 3600,
+               path      => '/',
+            }
+         );
+      }
+   );
+
+
    #$self->helper(
    #   email => sub { shift->minion->enqueue( email_task => [@_] ) } );
 
@@ -488,6 +504,42 @@ HTML
    $r->get('/terms')->to('pages#terms');
    $r->get('/privacy')->to('pages#privacy');
 
+
+   # GET login page
+   $r->get( '/login' => sub { shift->render( template => 'login' ) } );
+
+   # Token paste login (self-hosted / token holders)
+   $r->post(
+      '/login-token' => sub {
+         my $c     = shift;
+         my $token = $c->param('token') // '';
+         $token =~ s/^\s+|\s+$//g;
+
+         unless ($token) {
+            return $c->render(
+               template => 'login',
+               error    => 'Please paste your API token'
+            );
+         }
+
+         my $user = $c->app->_make_user( { token => $token } );
+         my $res  = $c->app->request(
+            $user,
+            { command => 'login_user', token => $token }
+         );
+
+         unless ( $res && $res->{success} ) {
+            return $c->render(
+               template => 'login',
+               error    => $res->{message} || 'Invalid token'
+            );
+         }
+
+         $c->app->set_login_cookie( $c, $token );
+         $c->redirect_to('/#dashboard');
+      }
+   );
+
    # Login / Invite Route (reused for both)
    $r->post(
       '/login' => sub {
@@ -573,15 +625,7 @@ HTML
          $c->sqlite->db->update( 'user', { level => 1 }, { id => $user->id } );
 
          # Set cookie
-         $c->cookie(
-            ordo_token => $token_to_use,
-            {
-               secure    => $c->req->is_secure,
-               same_site => 'Lax',
-               expires   => time + 10 * 365 * 24 * 3600,
-               path      => '/',
-            }
-         );
+         $c->app->set_login_cookie( $c, $token_to_use );
 
          # Smart redirect
          if ( !$user->{updated_at} || $user->{creation_time} > time - 86400 ) {
