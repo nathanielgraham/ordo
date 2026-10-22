@@ -694,8 +694,21 @@ HTML
    # Public SPA (anyone can load the HTML/JS)
    $r->get( '/app' => sub { shift->render( template => 'app' ); } );
 
-   # Root redirects to public SPA
-   $r->get( '/' => sub { shift->redirect_to('/app/#docs/overview'); } );
+   # Root: logged-in (level > 0) → settings; otherwise docs
+   $r->get(
+      '/' => sub {
+         my $c     = shift;
+         my $token = $c->cookie('ordo_token');
+         my $user  = $token ? $c->app->_make_user( { token => $token } ) : undef;
+
+         if ( $user && $user->id && $user->level && $user->level > 0 ) {
+            $c->redirect_to('/app/#settings');
+         }
+         else {
+            $c->redirect_to('/app/#docs/overview');
+         }
+      }
+   );
 
    # MCP Connect Page
    $r->get(
