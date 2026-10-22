@@ -717,6 +717,9 @@ HTML
          if ( $user && $user->id && $user->level && $user->level > 0 ) {
             $c->redirect_to('/app/#settings');
          }
+         elsif ( $c->is_selfhosted ) {
+            $c->redirect_to('/token-login');
+         }
          else {
             $c->redirect_to('/app/#docs/overview');
          }
