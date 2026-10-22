@@ -92,7 +92,9 @@ sub startup {
 
    my $deploy_mode = $ENV{ORDO_DEPLOY_MODE} || $self->config->{deploy_mode} || 'saas';
 
-   if ( $deploy_mode eq 'selfhosted' ) {
+   # License key is optional for open-source self-hosted.
+   # Enforced only when ORDO_REQUIRE_LICENSE=1 (commercial/private builds).
+   if ( $ENV{ORDO_REQUIRE_LICENSE} ) {
       ordo::License::require_valid_license();
    }
 
