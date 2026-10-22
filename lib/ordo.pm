@@ -547,7 +547,7 @@ HTML
             $c->sqlite->db->update( 'user', { level => 1 }, { id => $user->id } );
          }
 
-         $c->app->set_login_cookie( $c, $token );
+         $c->set_login_cookie($token);
          $c->redirect_to('/app/#dashboard');
       }
    );
@@ -642,7 +642,7 @@ HTML
          $c->sqlite->db->update( 'user', { level => 1 }, { id => $user->id } );
 
          # Set cookie
-         $c->app->set_login_cookie( $c, $token_to_use );
+         $c->set_login_cookie($token_to_use);
 
          # Smart redirect
          if ( !$user->{updated_at} || $user->{creation_time} > time - 86400 ) {
