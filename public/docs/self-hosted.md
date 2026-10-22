@@ -91,6 +91,35 @@ In `config/ordo.json`:
 
 `public_url` must match how users reach the app, or confirm links point at the wrong host.
 
+## Reachable address
+
+`localhost` only works in the browser on the machine running Ordo. Jobs on other servers call `api_url`. They cannot reach `http://localhost:3000`.
+
+Find this machine’s LAN address:
+
+```
+hostname -I
+```
+
+Set both URLs in `config/ordo.json` to that address (or a hostname the servers can resolve):
+
+```
+{
+  "public_url": "http://192.168.1.20:3000",
+  "api_url": "http://192.168.1.20:3000/api"
+}
+```
+
+Restart:
+
+```
+docker compose restart
+```
+
+From another machine, `curl http://192.168.1.20:3000/` should answer. If it does not, open port 3000 on the host firewall.
+
+`localhost` is fine only when every job runs on the same box as Ordo.
+
 Restart:
 
 ```
