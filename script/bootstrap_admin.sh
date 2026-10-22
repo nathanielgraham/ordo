@@ -21,7 +21,7 @@ INSERT INTO cluster (org_id, name, state_id)
 UPDATE org SET root_cluster_id = (SELECT id FROM cluster WHERE name = 'root' ORDER BY id DESC LIMIT 1)
   WHERE id = (SELECT MAX(id) FROM org);
 INSERT INTO user (org_id, base_cluster_id, level, token, execution_token, email, name, creation_time)
-  SELECT o.id, o.root_cluster_id, 1, '$token', '$exec_token', '$email', 'admin', $now
+  SELECT o.id, o.root_cluster_id, 3, '$token', '$exec_token', '$email', 'admin', $now
   FROM org o ORDER BY o.id DESC LIMIT 1;
 COMMIT;
 SQL
