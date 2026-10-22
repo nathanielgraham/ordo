@@ -2443,3 +2443,6 @@ html,
   line-height: 1.5;
   pointer-events: none;
 }
+
+body.selfhosted .saas-only { display: none !important; }
+body.saas .selfhosted-only { display: none !important; }

@@ -134,6 +134,10 @@ export function handleCommandReply(data) {
       updateAccount(data);
       break;
 
+    case "create_user":
+      updateAccount(data);
+      break;
+
     case "read_org":
       updateOrgAndTeam(data);
       break;
@@ -583,6 +587,22 @@ const tierLimits = {
 // ==================== RENDER FUNCTIONS ====================
 
 export function updateAccount(data) {
+  if (data.command_reply === "create_user") {
+    const out = document.getElementById("new-user-token");
+    if (data.success && data.token) {
+      if (out) {
+        out.style.display = "block";
+        out.textContent = "User created.\nAPI token (copy now, shown once):\n" + data.token;
+      }
+      showToast("User created", "success");
+      sendWS({ command: "read_org" });
+    } else if (out) {
+      out.style.display = "block";
+      out.textContent = data.message || "Failed to create user";
+    }
+    return;
+  }
+
   if (data.command_reply === "read_user") {
     appState.accountData = data;
     renderUserProfile(data);
@@ -3003,6 +3023,23 @@ function collectRecentActivity(tree, max = 12) {
 // ==================== INITIALIZE ALL ====================
 
 export function initModals() {
+  const createUserForm = document.getElementById("create-user-form");
+  if (createUserForm) {
+    createUserForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const name = document.getElementById("new-user-name").value.trim();
+      const email = document.getElementById("new-user-email").value.trim();
+      if (!name || !email) return;
+      sendWS({
+        command: "create_user",
+        name,
+        email,
+        team_member: 1,
+        level: 1,
+      });
+    });
+  }
+
   initSettingsListeners();
   initLoginModalListeners();
   //initPricingModalListeners();

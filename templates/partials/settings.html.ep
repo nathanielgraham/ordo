@@ -123,11 +123,23 @@
         <!-- Members Tab -->
         <div id="tab-team" class="internal-tab-content">
           <div class="card-simple">
-            <div class="actions-right">
+            <div class="actions-right saas-only">
               <button class="btn btn-ghost neon-ghost" id="invite-team">
                 <i class="fas fa-user-plus"></i> Invite Team Member
               </button>
             </div>
+            <form id="create-user-form" class="selfhosted-only" style="margin-bottom:1rem;">
+              <div class="form-group">
+                <label for="new-user-name">Name</label>
+                <input id="new-user-name" name="name" class="input" required placeholder="Alice">
+              </div>
+              <div class="form-group">
+                <label for="new-user-email">Email</label>
+                <input id="new-user-email" name="email" type="email" class="input" required placeholder="alice@example.com">
+              </div>
+              <button type="submit" class="btn btn-primary">Create user</button>
+              <pre id="new-user-token" class="hint" style="display:none; margin-top:0.75rem; white-space:pre-wrap;"></pre>
+            </form>
             <div class="table-container">
               <table class="ordo-table" id="team-table">
                 <thead>
