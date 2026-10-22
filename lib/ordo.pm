@@ -3523,7 +3523,7 @@ sub _org_info {
    my ( $self, $user ) = @_;
    my $org =
      $self->sqlite->db->select( 'org', ['*'], { id => $user->org_id } )->hash;
-   $org->{members} = $self->sqlite->db->select( 'user', [qw(id email level)],
+   $org->{members} = $self->sqlite->db->select( 'user', [qw(id email level creation_time)],
       { org_id => $user->org_id } )->hashes->to_array;
    $org->{api_calls_reset_date} =
      timelocal( 0, 0, 0, 1, (localtime)[4] + 1, (localtime)[5] );
