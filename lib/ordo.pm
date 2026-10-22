@@ -90,7 +90,7 @@ sub startup {
 
    $self->helper( config => sub { return $config } );
 
-   my $deploy_mode = $self->config->{deploy_mode} || 'saas';
+   my $deploy_mode = $ENV{ORDO_DEPLOY_MODE} || $self->config->{deploy_mode} || 'saas';
 
    if ( $deploy_mode eq 'selfhosted' ) {
       ordo::License::require_valid_license();
@@ -691,8 +691,20 @@ HTML
       }
    );
 
-   # Public SPA (anyone can load the HTML/JS)
-   $r->get( '/app' => sub { shift->render( template => 'app' ); } );
+   # SPA. Self-hosted requires a valid level>0 cookie; SaaS stays public.
+   $r->get(
+      '/app' => sub {
+         my $c = shift;
+         if ( $c->is_selfhosted ) {
+            my $token = $c->cookie('ordo_token');
+            my $user  = $token ? $c->app->_make_user( { token => $token } ) : undef;
+            unless ( $user && $user->id && $user->level && $user->level > 0 ) {
+               return $c->redirect_to('/token-login');
+            }
+         }
+         $c->render( template => 'app' );
+      }
+   );
 
    # Root: logged-in (level > 0) → settings; otherwise docs
    $r->get(

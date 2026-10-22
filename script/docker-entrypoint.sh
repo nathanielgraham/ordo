@@ -77,4 +77,9 @@ else
   echo "Database already exists — skipping schema init."
 fi
 
+# Self-hosted: ensure a level>0 admin exists and print the token once
+if [ -x /app/script/bootstrap_admin.sh ]; then
+  /app/script/bootstrap_admin.sh "$DB" || echo "[bootstrap] WARN: admin bootstrap failed"
+fi
+
 exec "$@"
