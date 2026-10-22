@@ -1,97 +1,98 @@
-# Quickstart Guide
+# Quickstart
 
-Let's get your first workflow running in minutes.
+## Self-hosted
 
-## 1. Create an Account
+1. Clone and start:
 
-1. Go to the Ordo homepage.
-2. Click **Sign Up**.
-3. Enter your email and click **Send Magic Link**.
-4. Check your email and click the link to log in.
+```
+git clone https://github.com/nathanielgraham/ordo.git
+cd ordo
+mkdir -p config db data
+docker compose up -d --build
+```
 
-## 2. Add a Server
+2. Get the admin token:
 
-1. Go to the **Servers** tab.
-2. Click **+ Add Server**.
-3. Enter **hostname**, **SSH user**, and **port** (usually 22).
-4. **If password login is enabled**, you can enter the password once. Ordo installs its public key automatically, then uses key auth afterward.
-5. **If password login is disabled**, install Ordo’s public key on the remote account first, then add the server without a password. See **[FAQ](#docs/faq)** for details.
-6. Save.
+```
+docker compose logs ordo | grep bootstrap
+```
 
-## 3. Create a Cluster
+3. Open `http://localhost:3000/token-login` and paste the token.
 
-1. Go to the **Jobs & Clusters** tab.
-2. Open the **Actions** menu on the root cluster.
-3. Select **New Cluster** and name it `Bork da Cake`.
+4. Add a server, then build the cake below.
 
-## 4. Create the Jobs
+See [Self-Hosted](#docs/self-hosted) for permissions, users, and reset.
 
-Create these four jobs inside `Bork da Cake`. Use short names: `prep`, `mix`, `bake`, `finish`. Assign each job to the server you added.
+## SaaS
 
-**Job 1 – Name: `prep`**
+1. Open the app and click **Sign Up**.
+2. Enter your email and send the magic link.
+3. Click the link. You are logged in.
+
+## Build a workflow
+
+### 1. Add a server
+
+1. **Servers** → add a server.
+2. Host, user, and SSH key or password.
+3. Save. Ordo installs its public key when it can.
+
+### 2. Create a cluster
+
+**Jobs & Clusters** → Actions on root → **New Cluster** → name it `Bork da Cake`.
+
+### 3. Create the jobs
+
+Inside that cluster, add `prep`, `mix`, `bake`, `finish`. Point each at the server you added.
+
+**prep**
 ```
 #!/bin/sh
 echo "Bork bork! Pre-heat da oven! Grease-a da pan! Yah!"
 sleep 1
 ```
 
-**Job 2 – Name: `mix`**
+**mix**
 ```
 #!/bin/sh
 echo "Meesh da dry ingredients! Creem da buttah! Egg-a inna bowl! Ploosh da milk! Goo goo!"
 sleep 1
 ```
 
-**Job 3 – Name: `bake`**
+**bake**
 ```
 #!/bin/sh
 echo "Pour-a da batter! Into da oven you go! Bakey bakey till da toothpick come-a clean!"
 sleep 1
 ```
 
-**Job 4 – Name: `finish`**
+**finish**
 ```
 #!/bin/sh
 echo "Let-a da cake rest! Cool-a onna rack! Now froosty and servy! Bork bork bork!"
 sleep 1
 ```
 
-Tip: use the **Insert Template** dropdown in the job modal for a quick shebang and starter script.
-
-## 5. Set Dependencies
-
-In each job modal, set **Needs** so steps run in order:
+### 4. Dependencies
 
 - `mix` needs `prep`
 - `bake` needs `mix`
 - `finish` needs `bake`
 
-## 6. Run the Cluster
+### 5. Run
 
-1. Open the actions menu on `Bork da Cake`.
-2. Select **Run** (or **Start**).
-3. Watch the Swedish Chef work! Jobs light up in order as dependencies complete.
+Actions on `Bork da Cake` → **Run**. Jobs run in order.
 
-## 7. View Logs
+### 6. Logs
 
-- Job -> Actions -> **View Log** for the latest output.
-- **Log History** for past runs (timestamps, exit codes).
+Job → Actions → **View Log**. History is under **Log History**. Logs live on the job’s server in `~/ordo_node/logs/`.
 
-Logs are stored on the **job’s server** under `~/ordo_node/logs/`.
+### 7. Schedule
 
-## 8. Schedule the Cake
+**Calendars** → create `Daily Baking` → add a cron such as `0 0 9 * * ? *` → attach it to the cluster.
 
-1. Go to the **Calendars** tab.
-2. Create a calendar named `Daily Baking`.
-3. Add a cron, e.g. `0 0 9 * * ? *` (every day at 9:00 — see [Calendars & Crons](#docs/calendars-and-crons) for Quartz vs Unix). Confirm timezone on the calendar.
-4. Edit `Bork da Cake` -> choose that calendar in the **Calendar** field -> save.
+### Next
 
-Now the Swedish Chef will bake a cake every morning at 9 AM!
-
-**Congratulations!** You built, ran, and scheduled your first workflow.
-
-### Next steps
-
-- [Core Concepts](#docs/core-concepts) - clusters, dependencies, handlers  
-- [Connecting to AI](#docs/connecting-to-ai) - optional MCP / Grok setup  
-- [Advanced Topics](#docs/advanced-topics) - on_fail, on_overdue, max runtime, env vars  
+- [Core Concepts](#docs/core-concepts)
+- [Self-Hosted](#docs/self-hosted)
+- [Connecting to AI](#docs/connecting-to-ai)

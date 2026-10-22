@@ -61,6 +61,6 @@ Ordo is a full job scheduler on its own. MCP and agent clients are optional powe
 
 ## Ready to Begin?
 
-1. **Sign up for a free account** — no credit card required  
+1. **Sign up for a free account** — no credit card required — or [run it yourself](#docs/self-hosted)  
 2. Read the [Quickstart](#docs/quickstart) guide  
 3. Optionally [connect an AI client](#docs/connecting-to-ai)
