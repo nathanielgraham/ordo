@@ -26,7 +26,6 @@ use Time::Local qw(timelocal);
 use ordo::MCP::Tools;
 use Encode 'decode';
 use Mojolicious::Plugin::JSONConfig;
-use ordo::License;
 use Data::Dumper;
 
 $SIG{CHLD} = 'IGNORE';
@@ -90,11 +89,7 @@ sub startup {
 
    $self->helper( config => sub { return $config } );
 
-   my $deploy_mode = $self->config->{deploy_mode} || 'saas';
-
-   if ( $deploy_mode eq 'selfhosted' ) {
-      ordo::License::require_valid_license();
-   }
+   my $deploy_mode = $ENV{ORDO_DEPLOY_MODE} || $self->config->{deploy_mode} || 'saas';
 
    $self->helper( deploy_mode   => sub { $deploy_mode } );
    $self->helper( is_saas       => sub { $deploy_mode eq 'saas' } );
@@ -522,7 +517,15 @@ HTML
          }
 
          my $user = $c->app->_make_user( { token => $token } );
-         my $res  = $c->app->request(
+
+         unless ( $user && $user->id ) {
+            return $c->render(
+               template => 'token-login',
+               error    => 'Invalid token'
+            );
+         }
+
+         my $res = $c->app->request(
             $user,
             { command => 'login_user', token => $token }
          );
@@ -539,8 +542,15 @@ HTML
             $c->sqlite->db->update( 'user', { level => 1 }, { id => $user->id } );
          }
 
-         $c->app->set_login_cookie( $c, $token );
-         $c->redirect_to('/#dashboard');
+         $c->set_login_cookie($token);
+
+         my $row = $c->sqlite->db->select(
+            'user', [qw(creation_time updated_at)], { id => $user->id }
+         )->hash;
+         my $is_new = !$row->{updated_at}
+           || ( $row->{creation_time} && $row->{creation_time} > time - 86400 );
+
+         $c->redirect_to( $is_new ? '/app/#settings' : '/app/#servers' );
       }
    );
 
@@ -549,10 +559,16 @@ HTML
    # GET /login → token page (POST /login stays for the SaaS modal)
    $r->get( '/login' => sub { shift->redirect_to('/token-login') } );
 
-   # Login / Invite Route (reused for both)
+   # Login / Invite Route. Public signup is closed; admins add users.
    $r->post(
       '/login' => sub {
          my $c = shift;
+         return $c->render(
+            json => {
+               success => 0,
+               message => 'Public signup is closed. Clone the repo or ask an admin for an account.'
+            }
+         );
 
          my $email       = $c->param('email') || '';
          my $team_member = $c->param('team_member') ? 1 : 0;    # ← New
@@ -634,15 +650,16 @@ HTML
          $c->sqlite->db->update( 'user', { level => 1 }, { id => $user->id } );
 
          # Set cookie
-         $c->app->set_login_cookie( $c, $token_to_use );
+         $c->set_login_cookie($token_to_use);
 
-         # Smart redirect
-         if ( !$user->{updated_at} || $user->{creation_time} > time - 86400 ) {
-            $c->redirect_to('/#docs/quickstart');    # New user experience
-         }
-         else {
-            $c->redirect_to('/#dashboard');
-         }
+         # New users → settings; returning users → servers
+         my $row = $c->sqlite->db->select(
+            'user', [qw(creation_time updated_at)], { id => $user->id }
+         )->hash;
+         my $is_new = !$row->{updated_at}
+           || ( $row->{creation_time} && $row->{creation_time} > time - 86400 );
+
+         $c->redirect_to( $is_new ? '/app/#settings' : '/app/#servers' );
       }
    );
 
@@ -675,11 +692,36 @@ HTML
       }
    );
 
-   # Public SPA (anyone can load the HTML/JS)
-   $r->get( '/app' => sub { shift->render( template => 'app' ); } );
+   # SPA. Self-hosted requires a valid level>0 cookie; SaaS stays public.
+   $r->get(
+      '/app' => sub {
+         my $c = shift;
+         if ( $c->is_selfhosted ) {
+            my $token = $c->cookie('ordo_token');
+            my $user  = $token ? $c->app->_make_user( { token => $token } ) : undef;
+            unless ( $user && $user->id && $user->level && $user->level > 0 ) {
+               return $c->redirect_to('/token-login');
+            }
+         }
+         $c->render( template => 'app' );
+      }
+   );
 
-   # Root redirects to public SPA
-   $r->get( '/' => sub { shift->redirect_to('/app/#docs/overview'); } );
+   # Root: logged-in (level > 0) → settings; otherwise docs
+   $r->get(
+      '/' => sub {
+         my $c     = shift;
+         my $token = $c->cookie('ordo_token');
+         my $user  = $token ? $c->app->_make_user( { token => $token } ) : undef;
+
+         if ( $user && $user->id && $user->level && $user->level > 0 ) {
+            $c->redirect_to('/app/#settings');
+         }
+         else {
+            $c->redirect_to('/app/#docs/overview');
+         }
+      }
+   );
 
    # MCP Connect Page
    $r->get(
@@ -3367,10 +3409,22 @@ sub create_user {
       return { message => $@, success => 0 };
    }
    else {
+      my $email = $d->{email} || '';
+      my $url;
+      if ($email) {
+         my $jwt = $self->jwt->claims({
+            email => lc($email),
+            exp   => time() + 7 * 24 * 3600,
+         })->encode;
+         $url = ( $self->config->{public_url} || '' )
+              . $self->url_for('confirm')->query( jwt => $jwt );
+      }
+
       return {
          success => 1,
          id      => $user_id,
          token   => $api_token,
+         url     => $url,
          message => "user $user_id created"
       };
    }
@@ -3475,7 +3529,7 @@ sub _org_info {
    my ( $self, $user ) = @_;
    my $org =
      $self->sqlite->db->select( 'org', ['*'], { id => $user->org_id } )->hash;
-   $org->{members} = $self->sqlite->db->select( 'user', [qw(id email level)],
+   $org->{members} = $self->sqlite->db->select( 'user', [qw(id email level creation_time)],
       { org_id => $user->org_id } )->hashes->to_array;
    $org->{api_calls_reset_date} =
      timelocal( 0, 0, 0, 1, (localtime)[4] + 1, (localtime)[5] );

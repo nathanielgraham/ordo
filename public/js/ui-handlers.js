@@ -134,6 +134,10 @@ export function handleCommandReply(data) {
       updateAccount(data);
       break;
 
+    case "create_user":
+      updateAccount(data);
+      break;
+
     case "read_org":
       updateOrgAndTeam(data);
       break;
@@ -583,9 +587,26 @@ const tierLimits = {
 // ==================== RENDER FUNCTIONS ====================
 
 export function updateAccount(data) {
+  if (data.command_reply === "create_user") {
+    const box = document.getElementById("new-user-result");
+    const tokenEl = document.getElementById("new-user-token");
+    const linkEl = document.getElementById("new-user-link");
+    if (data.success && data.token) {
+      if (box) box.style.display = "block";
+      if (tokenEl) tokenEl.value = data.token;
+      if (linkEl) linkEl.value = data.url || "";
+      showToast("User created", "success");
+      sendWS({ command: "read_org" });
+    } else {
+      showToast(data.message || "Failed to create user", "danger");
+    }
+    return;
+  }
+
   if (data.command_reply === "read_user") {
     appState.accountData = data;
     renderUserProfile(data);
+    document.body.classList.toggle("is-admin", (data.level || 0) >= 3);
   }
 }
 
@@ -709,7 +730,7 @@ function renderTeamMembers(members) {
     row.innerHTML = `
       <td>${m.email || "—"}</td>
       <td>${m.id || "—"}</td>
-      <td>${m.level === 1 ? "Admin" : "Member"}</td>
+      <td>${m.level >= 3 ? "Admin" : m.level > 0 ? "Member" : "Inactive"}</td>
       <td>${m.creation_time ? new Date(m.creation_time * 1000).toLocaleDateString() : "—"}</td>
     `;
     tbody.appendChild(row);
@@ -3003,6 +3024,32 @@ function collectRecentActivity(tree, max = 12) {
 // ==================== INITIALIZE ALL ====================
 
 export function initModals() {
+  const createUserForm = document.getElementById("create-user-form");
+  if (createUserForm) {
+    createUserForm.querySelectorAll("[data-copy]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const el = document.getElementById(btn.dataset.copy);
+        if (!el || !el.value) return;
+        navigator.clipboard.writeText(el.value);
+        showToast("Copied", "success");
+      });
+    });
+    createUserForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const name = document.getElementById("new-user-name").value.trim();
+      const email = document.getElementById("new-user-email").value.trim();
+      if (!name || !email) return;
+      const newOrg = document.getElementById("new-user-org")?.checked;
+      sendWS({
+        command: "create_user",
+        name,
+        email,
+        team_member: newOrg ? 0 : 1,
+        level: 1,
+      });
+    });
+  }
+
   initSettingsListeners();
   initLoginModalListeners();
   //initPricingModalListeners();

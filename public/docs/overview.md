@@ -59,8 +59,15 @@ The agent can create scripts and schedules on **your** servers, wire dependencie
 
 Ordo is a full job scheduler on its own. MCP and agent clients are optional power, not a requirement.
 
+## Open source
+
+Ordo is free software under the [GNU AGPL v3](https://github.com/nathanielgraham/ordo/blob/master/LICENSE).
+
+- Source: [github.com/nathanielgraham/ordo](https://github.com/nathanielgraham/ordo)
+- Run it yourself: [Self-Hosted](#docs/self-hosted)
+
 ## Ready to Begin?
 
-1. **Sign up for a free account** — no credit card required  
+1. **[Clone and run it](https://github.com/nathanielgraham/ordo)** — or sign up on the hosted service  
 2. Read the [Quickstart](#docs/quickstart) guide  
 3. Optionally [connect an AI client](#docs/connecting-to-ai)

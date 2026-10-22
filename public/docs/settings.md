@@ -41,7 +41,7 @@ Invite others to join your organization:
 3. Choose their permission level.
 4. Click **Invite**.
 
-Invited users receive a magic link to sign up or log in. The maximum number of team members depends on your subscription tier.
+On SaaS, invited users receive a magic link. On self-hosted, an admin creates the user and gets an API token plus a one-time link to hand over. The maximum number of team members depends on your plan (SaaS) or is unconstrained (self-hosted).
 
 ## Subscription & Upgrading
 
@@ -50,7 +50,7 @@ This section displays:
 - Usage limits (API calls, servers, team members)
 - Option to upgrade
 
-Click **View Plans & Upgrade** to explore available tiers and pricing.
+On SaaS, click **View Plans & Upgrade** to explore tiers and pricing. Self-hosted has no billing tab.
 
 ## Rate Limits
 

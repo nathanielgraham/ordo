@@ -22,6 +22,7 @@
         <a href="#" class="nav-tab" data-tab="dashboard">dashboard</a>
         <a href="#" class="nav-tab" data-tab="settings">settings</a>
         <a href="#" class="nav-tab" data-tab="docs">docs</a>
+        <a href="https://github.com/nathanielgraham/ordo" class="nav-tab" target="_blank" rel="noopener">source</a>
       </div>
     </div>
 
@@ -29,10 +30,7 @@
     <div class="nav-tabs public-tabs" data-group="public" hidden>
       <div class="tab-group">
         <a href="#" class="nav-tab" data-tab="docs">docs</a>
-        <% if ($c->is_saas) { %>
-        <a href="#" class="nav-tab" data-tab="pricing">pricing</a>
-        <% } %>
-        <a href="#" class="nav-tab" id="logged-out-login-tab">sign up</a>
+        <a href="https://github.com/nathanielgraham/ordo" class="nav-tab" target="_blank" rel="noopener">source</a>
       </div>
     </div>
   </div>
