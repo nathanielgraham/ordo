@@ -46,3 +46,8 @@ After login: **Docs** in the app, or the files in `public/docs/`.
 - [Quickstart](public/docs/quickstart.md)
 - [Self-hosted](public/docs/self-hosted.md)
 - [Core concepts](public/docs/core-concepts.md)
+
+## Bugs
+
+Report bugs and feature requests on [GitHub Issues](https://github.com/nathanielgraham/ordo/issues).
+
