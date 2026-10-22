@@ -548,7 +548,14 @@ HTML
          }
 
          $c->set_login_cookie($token);
-         $c->redirect_to('/app/#settings');
+
+         my $row = $c->sqlite->db->select(
+            'user', [qw(creation_time updated_at)], { id => $user->id }
+         )->hash;
+         my $is_new = !$row->{updated_at}
+           || ( $row->{creation_time} && $row->{creation_time} > time - 86400 );
+
+         $c->redirect_to( $is_new ? '/app/#settings' : '/app/#servers' );
       }
    );
 
@@ -644,13 +651,14 @@ HTML
          # Set cookie
          $c->set_login_cookie($token_to_use);
 
-         # Smart redirect
-         if ( !$user->{updated_at} || $user->{creation_time} > time - 86400 ) {
-            $c->redirect_to('/app/#docs/quickstart');    # New user experience
-         }
-         else {
-            $c->redirect_to('/app/#settings');
-         }
+         # New users → settings; returning users → servers
+         my $row = $c->sqlite->db->select(
+            'user', [qw(creation_time updated_at)], { id => $user->id }
+         )->hash;
+         my $is_new = !$row->{updated_at}
+           || ( $row->{creation_time} && $row->{creation_time} > time - 86400 );
+
+         $c->redirect_to( $is_new ? '/app/#settings' : '/app/#servers' );
       }
    );
 
