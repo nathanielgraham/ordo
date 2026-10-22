@@ -592,7 +592,9 @@ export function updateAccount(data) {
     if (data.success && data.token) {
       if (out) {
         out.style.display = "block";
-        out.textContent = "User created.\nAPI token (copy now, shown once):\n" + data.token;
+        out.textContent =
+          "User created.\n\nAPI token (paste at /token-login):\n" + data.token +
+          (data.url ? "\n\nOr send this one-time link:\n" + data.url : "");
       }
       showToast("User created", "success");
       sendWS({ command: "read_org" });

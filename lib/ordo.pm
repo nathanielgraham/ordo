@@ -3403,10 +3403,22 @@ sub create_user {
       return { message => $@, success => 0 };
    }
    else {
+      my $email = $d->{email} || '';
+      my $url;
+      if ($email) {
+         my $jwt = $self->jwt->claims({
+            email => lc($email),
+            exp   => time() + 7 * 24 * 3600,
+         })->encode;
+         $url = ( $self->config->{public_url} || '' )
+              . $self->url_for('confirm')->query( jwt => $jwt );
+      }
+
       return {
          success => 1,
          id      => $user_id,
          token   => $api_token,
+         url     => $url,
          message => "user $user_id created"
       };
    }
