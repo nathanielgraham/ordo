@@ -137,8 +137,30 @@
                 <label for="new-user-email">Email</label>
                 <input id="new-user-email" name="email" type="email" class="input" required placeholder="alice@example.com">
               </div>
+              <div class="form-group">
+                <label for="new-user-org">Organization</label>
+                <select id="new-user-org" class="input">
+                  <option value="same" selected>Add to my org (shared job tree)</option>
+                  <option value="new">New org (own job tree)</option>
+                </select>
+              </div>
               <button type="submit" class="btn btn-primary">Create user</button>
-              <pre id="new-user-token" class="hint" style="display:none; margin-top:0.75rem; white-space:pre-wrap;"></pre>
+              <div id="new-user-result" style="display:none; margin-top:1rem;">
+                <div class="form-group">
+                  <label>API token</label>
+                  <div style="display:flex; gap:0.5rem;">
+                    <input id="new-user-token" class="input" readonly>
+                    <button type="button" class="btn btn-ghost" data-copy="new-user-token">Copy</button>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>One-time login link</label>
+                  <div style="display:flex; gap:0.5rem;">
+                    <input id="new-user-link" class="input" readonly>
+                    <button type="button" class="btn btn-ghost" data-copy="new-user-link">Copy</button>
+                  </div>
+                </div>
+              </div>
             </form>
             <div class="table-container">
               <table class="ordo-table" id="team-table">

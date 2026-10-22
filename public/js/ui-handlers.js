@@ -588,19 +588,17 @@ const tierLimits = {
 
 export function updateAccount(data) {
   if (data.command_reply === "create_user") {
-    const out = document.getElementById("new-user-token");
+    const box = document.getElementById("new-user-result");
+    const tokenEl = document.getElementById("new-user-token");
+    const linkEl = document.getElementById("new-user-link");
     if (data.success && data.token) {
-      if (out) {
-        out.style.display = "block";
-        out.textContent =
-          "User created.\n\nAPI token (paste at /token-login):\n" + data.token +
-          (data.url ? "\n\nOr send this one-time link:\n" + data.url : "");
-      }
+      if (box) box.style.display = "block";
+      if (tokenEl) tokenEl.value = data.token;
+      if (linkEl) linkEl.value = data.url || "";
       showToast("User created", "success");
       sendWS({ command: "read_org" });
-    } else if (out) {
-      out.style.display = "block";
-      out.textContent = data.message || "Failed to create user";
+    } else {
+      showToast(data.message || "Failed to create user", "danger");
     }
     return;
   }
@@ -731,7 +729,7 @@ function renderTeamMembers(members) {
     row.innerHTML = `
       <td>${m.email || "—"}</td>
       <td>${m.id || "—"}</td>
-      <td>${m.level === 1 ? "Admin" : "Member"}</td>
+      <td>${m.level >= 3 ? "Admin" : m.level > 0 ? "Member" : "Inactive"}</td>
       <td>${m.creation_time ? new Date(m.creation_time * 1000).toLocaleDateString() : "—"}</td>
     `;
     tbody.appendChild(row);
@@ -3027,16 +3025,25 @@ function collectRecentActivity(tree, max = 12) {
 export function initModals() {
   const createUserForm = document.getElementById("create-user-form");
   if (createUserForm) {
+    createUserForm.querySelectorAll("[data-copy]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const el = document.getElementById(btn.dataset.copy);
+        if (!el || !el.value) return;
+        navigator.clipboard.writeText(el.value);
+        showToast("Copied", "success");
+      });
+    });
     createUserForm.addEventListener("submit", (e) => {
       e.preventDefault();
       const name = document.getElementById("new-user-name").value.trim();
       const email = document.getElementById("new-user-email").value.trim();
       if (!name || !email) return;
+      const orgChoice = document.getElementById("new-user-org")?.value || "same";
       sendWS({
         command: "create_user",
         name,
         email,
-        team_member: 1,
+        team_member: orgChoice === "same" ? 1 : 0,
         level: 1,
       });
     });
