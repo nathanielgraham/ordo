@@ -548,7 +548,7 @@ HTML
          }
 
          $c->set_login_cookie($token);
-         $c->redirect_to('/app/#dashboard');
+         $c->redirect_to('/app/#settings');
       }
    );
 
@@ -649,7 +649,7 @@ HTML
             $c->redirect_to('/app/#docs/quickstart');    # New user experience
          }
          else {
-            $c->redirect_to('/app/#dashboard');
+            $c->redirect_to('/app/#settings');
          }
       }
    );
