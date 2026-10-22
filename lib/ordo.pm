@@ -559,10 +559,16 @@ HTML
    # GET /login → token page (POST /login stays for the SaaS modal)
    $r->get( '/login' => sub { shift->redirect_to('/token-login') } );
 
-   # Login / Invite Route (reused for both)
+   # Login / Invite Route. Public signup is closed; admins add users.
    $r->post(
       '/login' => sub {
          my $c = shift;
+         return $c->render(
+            json => {
+               success => 0,
+               message => 'Public signup is closed. Clone the repo or ask an admin for an account.'
+            }
+         );
 
          my $email       = $c->param('email') || '';
          my $team_member = $c->param('team_member') ? 1 : 0;    # ← New
