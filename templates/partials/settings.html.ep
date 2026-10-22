@@ -138,11 +138,11 @@
                 <input id="new-user-email" name="email" type="email" class="input" required placeholder="alice@example.com">
               </div>
               <div class="form-group">
-                <label for="new-user-org">Organization</label>
-                <select id="new-user-org" class="input">
-                  <option value="same" selected>Add to my org (shared job tree)</option>
-                  <option value="new">New org (own job tree)</option>
-                </select>
+                <label>
+                  <input type="checkbox" id="new-user-org">
+                  New org (own job tree)
+                </label>
+                <p class="hint">Leave unchecked to add them to your org.</p>
               </div>
               <button type="submit" class="btn btn-primary">Create user</button>
               <div id="new-user-result" style="display:none; margin-top:1rem;">

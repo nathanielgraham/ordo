@@ -3038,12 +3038,12 @@ export function initModals() {
       const name = document.getElementById("new-user-name").value.trim();
       const email = document.getElementById("new-user-email").value.trim();
       if (!name || !email) return;
-      const orgChoice = document.getElementById("new-user-org")?.value || "same";
+      const newOrg = document.getElementById("new-user-org")?.checked;
       sendWS({
         command: "create_user",
         name,
         email,
-        team_member: orgChoice === "same" ? 1 : 0,
+        team_member: newOrg ? 0 : 1,
         level: 1,
       });
     });
