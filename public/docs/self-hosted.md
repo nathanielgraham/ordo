@@ -146,3 +146,28 @@ Bootstrap creates a new admin and prints a new token.
 ## Locked out
 
 If the admin user is gone, restart. Bootstrap creates one if no level > 0 user exists and prints the token.
+
+## Production with Caddy
+
+For a hostname and HTTPS, put Caddy in front of Ordo. Remote jobs and confirm links then use `https://ordo.example.com` instead of an IP and port.
+
+Point DNS at this machine, then a Caddyfile:
+
+```
+ordo.example.com {
+	reverse_proxy localhost:3000
+}
+```
+
+Run Caddy on the host (or another container) so it can reach port 3000. Open 80 and 443. Caddy gets the certificate.
+
+In `config/ordo.json`:
+
+```
+{
+  "public_url": "https://ordo.example.com",
+  "api_url": "https://ordo.example.com/api"
+}
+```
+
+Restart Ordo. Browsers and remote servers both use that URL. Do not put `localhost` in `api_url` once jobs run on other machines.
