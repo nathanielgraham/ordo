@@ -2446,3 +2446,5 @@ html,
 
 body.selfhosted .saas-only { display: none !important; }
 body.saas .selfhosted-only { display: none !important; }
+
+body:not(.is-admin) .admin-only { display: none !important; }

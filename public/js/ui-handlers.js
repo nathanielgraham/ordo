@@ -606,6 +606,7 @@ export function updateAccount(data) {
   if (data.command_reply === "read_user") {
     appState.accountData = data;
     renderUserProfile(data);
+    document.body.classList.toggle("is-admin", (data.level || 0) >= 3);
   }
 }
 

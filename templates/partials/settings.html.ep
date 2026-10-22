@@ -128,22 +128,19 @@
                 <i class="fas fa-user-plus"></i> Invite Team Member
               </button>
             </div>
-            <form id="create-user-form" class="selfhosted-only" style="margin-bottom:1rem;">
-              <div class="form-group">
+            <form id="create-user-form" class="selfhosted-only admin-only" style="margin-bottom:1.5rem; padding-bottom:1.25rem; border-bottom:1px solid #333;">
+              <div class="form-group" style="margin-bottom:0.85rem;">
                 <label for="new-user-name">Name</label>
                 <input id="new-user-name" name="name" class="input" required placeholder="Alice">
               </div>
-              <div class="form-group">
+              <div class="form-group" style="margin-bottom:0.85rem;">
                 <label for="new-user-email">Email</label>
                 <input id="new-user-email" name="email" type="email" class="input" required placeholder="alice@example.com">
               </div>
-              <div class="form-group">
-                <label>
-                  <input type="checkbox" id="new-user-org">
-                  New org (own job tree)
-                </label>
-                <p class="hint">Leave unchecked to add them to your org.</p>
-              </div>
+              <label style="display:flex; align-items:center; gap:0.5rem; margin:0.25rem 0 1rem; font-size:0.9rem; color:var(--chrome-mid);">
+                <input type="checkbox" id="new-user-org">
+                New org (own job tree)
+              </label>
               <button type="submit" class="btn btn-primary">Create user</button>
               <div id="new-user-result" style="display:none; margin-top:1rem;">
                 <div class="form-group">
