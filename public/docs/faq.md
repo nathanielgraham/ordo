@@ -164,7 +164,7 @@ See also the SSH setup question above.
 ---
 
 **Q: Is Ordo open source?**  
-**A:** Some core pieces are open source (e.g. [Cron::Toolkit](https://metacpan.org/pod/Cron::Toolkit) on CPAN). The hosted product, web UI, and advanced features are proprietary.
+**A:** Yes. The whole app is free software under the [GNU AGPL v3](https://github.com/nathanielgraham/ordo/blob/master/LICENSE). Source: [github.com/nathanielgraham/ordo](https://github.com/nathanielgraham/ordo). [Cron::Toolkit](https://metacpan.org/pod/Cron::Toolkit) (the cron parser) is also on CPAN.
 
 **Q: What happens to scheduled runs if the scheduler is offline?**  
 **A:** They are skipped. On restart Ordo arms each cron for the next future time. It does not replay missed intervals. If a fire hits while the cluster is still running, it is not started again; an On Overdue handler can run once. See [Core Concepts](core-concepts.md).
