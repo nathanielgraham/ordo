@@ -1,4 +1,4 @@
-> **Internal / ops notes** — not a public product guide. Prefer [Self-Hosted Setup](#docs/self-hosted) and [Private Deployments](#docs/private-deployments) for customer-facing deploy docs. This file is retained for historical Hetzner/migration scratch; do not surface it in `get_documentation`.
+> **Internal / ops notes** — not a public product guide. Prefer [Self-Hosted Setup](self-hosted.md) and [Private Deployments](private-deployments.md) for customer-facing deploy docs. This file is retained for historical Hetzner/migration scratch; do not surface it in `get_documentation`.
 
 # Ordo Deployment Preparation & Hetzner Migration Guide
 

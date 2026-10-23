@@ -9,7 +9,7 @@ Ordo runs as hosted SaaS or on your own machines.
 | **SaaS** | Ordo | Ordo | Sign up, magic link, billing |
 | **Self-hosted** | You | You | Docker Compose, no license key, no SMTP required |
 
-Self-hosted is the open-source install. See [Self-Hosted](#docs/self-hosted).
+Self-hosted is the open-source install. See [Self-Hosted](self-hosted.md).
 
 ## Self-hosted
 

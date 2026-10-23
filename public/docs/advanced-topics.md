@@ -43,7 +43,7 @@ curl -X POST "$ORDO_API" \
 
 ## Attached JSON and parameterization
 
-Jobs and clusters support a durable `json` object (see [Jobs & Clusters](#docs/jobs-and-clusters.md)).
+Jobs and clusters support a durable `json` object (see [Jobs & Clusters](jobs-and-clusters.md)).
 
 Typical pattern for reusable pipelines:
 
@@ -109,4 +109,4 @@ fi
 
 For production environments, we recommend a dedicated **Monitoring** cluster that runs `update_stats.pl` on a regular schedule.
 
-See [Stats Polling & Monitoring](#docs/stats-polling.md) for best practices and quota considerations.
+See [Stats Polling & Monitoring](stats-polling.md) for best practices and quota considerations.

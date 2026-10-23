@@ -95,7 +95,7 @@ python3 wsagent.py --timeout 300
 
 ## Optional request_id
 
-Optional `request_id` on a command is echoed on that command’s reply only (never on broadcasts). Canonical detail: [API — Response shape](#docs/api).
+Optional `request_id` on a command is echoed on that command’s reply only (never on broadcasts). Canonical detail: [API — Response shape](api.md).
 
 ```json
 {"command":"find_cluster","name":"/root","request_id":"loop-1"}
@@ -111,7 +111,7 @@ Optional `request_id` on a command is echoed on that command’s reply only (nev
 
 ## Servers (monitors)
 
-There is no `create_server`. Use `create_monitor` / `update_monitor` / `delete_monitor` — full parameter tables in [API](#docs/api) (`get_documentation` section `api`). Check `read_org` → `server_count` / `server_limit` before creating.
+There is no `create_server`. Use `create_monitor` / `update_monitor` / `delete_monitor` — full parameter tables in [API](api.md) (`get_documentation` section `api`). Check `read_org` → `server_count` / `server_limit` before creating.
 
 ## Create (minimal)
 

@@ -23,7 +23,7 @@ You can say things like:
 - “Deployment v2.3 failed last night. Look at the logs and tell me what went wrong.”
 - “Start the saas-deploy cluster and notify me when it completes.”
 
-The agent can create scripts and schedules on **your** servers, wire dependencies and handlers, and help debug when something breaks. See [Connecting to AI](#docs/connecting-to-ai).
+The agent can create scripts and schedules on **your** servers, wire dependencies and handlers, and help debug when something breaks. See [Connecting to AI](connecting-to-ai.md).
 
 ## Who Ordo Is For
 
@@ -64,10 +64,10 @@ Ordo is a full job scheduler on its own. MCP and agent clients are optional powe
 Ordo is free software under the [GNU AGPL v3](https://github.com/nathanielgraham/ordo/blob/master/LICENSE).
 
 - Source: [github.com/nathanielgraham/ordo](https://github.com/nathanielgraham/ordo)
-- Run it yourself: [Self-Hosted](#docs/self-hosted)
+- Run it yourself: [Self-Hosted](self-hosted.md)
 
 ## Ready to Begin?
 
 1. **[Clone and run it](https://github.com/nathanielgraham/ordo)** — or sign up on the hosted service  
-2. Read the [Quickstart](#docs/quickstart) guide  
-3. Optionally [connect an AI client](#docs/connecting-to-ai)
+2. Read the [Quickstart](quickstart.md) guide  
+3. Optionally [connect an AI client](connecting-to-ai.md)

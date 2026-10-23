@@ -31,7 +31,7 @@ chmod 600 ~/.ssh/authorized_keys
 
 Then in Ordo enter **host**, **SSH user**, and **port** only (no password).
 
-**Agents:** there is no `create_server` — use `create_monitor` / `update_monitor` / `delete_monitor` (full tables: [API](#docs/api)).
+**Agents:** there is no `create_server` — use `create_monitor` / `update_monitor` / `delete_monitor` (full tables: [API](api.md)).
 
 ### Checklist
 
@@ -57,7 +57,7 @@ ordo_node/
 ├── logs/     # Job output
 └── modules/  # Perl helper modules
 ```
-Job scripts can live in the job definition in the UI; `scripts/` is useful for shared helpers. See [Jobs & Clusters](#docs/jobs-and-clusters).  
+Job scripts can live in the job definition in the UI; `scripts/` is useful for shared helpers. See [Jobs & Clusters](jobs-and-clusters.md).  
 
 ---
 
@@ -67,12 +67,12 @@ Job scripts can live in the job definition in the UI; `scripts/` is useful for s
 ---
 
 **Q: How do I write multi-line scripts?**  
-**A:** Start with a shebang (`#!/bin/sh`, `#!/usr/bin/env perl`, etc.). Use **Insert Template** in the job modal for common patterns (shell, stats, email, handlers). See [Jobs & Clusters](#docs/jobs-and-clusters).  
+**A:** Start with a shebang (`#!/bin/sh`, `#!/usr/bin/env perl`, etc.). Use **Insert Template** in the job modal for common patterns (shell, stats, email, handlers). See [Jobs & Clusters](jobs-and-clusters.md).  
 
 ---
 
 **Q: What do the ORDO_* environment variables do?**  
-**A:** Every job run gets `ORDO_*` variables (job id, cluster id, API URL, token, server id, and handler context such as overdue/failed/max-runtime ids when applicable). Scripts can call the Ordo API or branch on context. Full list: [Advanced Topics](#docs/advanced-topics).  
+**A:** Every job run gets `ORDO_*` variables (job id, cluster id, API URL, token, server id, and handler context such as overdue/failed/max-runtime ids when applicable). Scripts can call the Ordo API or branch on context. Full list: [Advanced Topics](advanced-topics.md).  
 
 ---
 
@@ -81,7 +81,7 @@ Job scripts can live in the job definition in the UI; `scripts/` is useful for s
 - **Needs** — all listed dependencies must be satisfied (**AND**).
 - **Needs any** — at least one listed dependency must be satisfied (**OR**).
 
-Dependencies are evaluated before a job (or cluster) starts. See [Core Concepts](#docs/core-concepts).  
+Dependencies are evaluated before a job (or cluster) starts. See [Core Concepts](core-concepts.md).  
 
 ---
 
@@ -91,7 +91,7 @@ Dependencies are evaluated before a job (or cluster) starts. See [Core Concepts]
 - **On Fail** — cluster to start when this cluster **fails**.
 - **On Overdue** — cluster to start when a calendar (or start attempt) finds this cluster **not startable** (e.g. still running, unsatisfied dependencies, or on hold). Often used to **clone** and run a parallel cycle.
 
-Best practice: use separate **handler clusters** with **auto_start off**, and point `on_fail` / `on_overdue` at them. Prefer **different** handler clusters for fail vs overdue so context stays clear. See [Core Concepts](#docs/core-concepts) and [Advanced Topics](#docs/advanced-topics).  
+Best practice: use separate **handler clusters** with **auto_start off**, and point `on_fail` / `on_overdue` at them. Prefer **different** handler clusters for fail vs overdue so context stays clear. See [Core Concepts](core-concepts.md) and [Advanced Topics](advanced-topics.md).  
 
 ---
 
@@ -108,7 +108,7 @@ Best practice: use separate **handler clusters** with **auto_start off**, and po
 
 When the limit fires, Ordo can start your handler cluster (alert, kill/cleanup, etc.). Job scripts may also see related `ORDO_MAX_RUNTIME_*` environment variables.
 
-For setup patterns and examples, see [Advanced Topics](#docs/advanced-topics).
+For setup patterns and examples, see [Advanced Topics](advanced-topics.md).
 
 ---
 
@@ -118,7 +118,7 @@ For setup patterns and examples, see [Advanced Topics](#docs/advanced-topics).
 ---
 
 **Q: I cloned a cluster and it disappeared after it ran. Is that a bug?**  
-**A:** No. Clones are meant for a **single cycle** (e.g. overdue catch-up). After the clone finishes, Ordo removes it so the tree does not fill with copies. The original cluster remains. See [Advanced Topics](#docs/advanced-topics).  
+**A:** No. Clones are meant for a **single cycle** (e.g. overdue catch-up). After the clone finishes, Ordo removes it so the tree does not fill with copies. The original cluster remains. See [Advanced Topics](advanced-topics.md).  
 
 ---
 
@@ -138,7 +138,7 @@ See also the SSH setup question above.
 ---
 
 **Q: How do I schedule jobs?**  
-**A:** Create a **Calendar**, add one or more **cron** expressions, then attach the calendar to a **cluster** (calendar picker / `cal_id` on the cluster). Scheduling is at the cluster level. See [Calendars & Crons](#docs/calendars-and-crons).  
+**A:** Create a **Calendar**, add one or more **cron** expressions, then attach the calendar to a **cluster** (calendar picker / `cal_id` on the cluster). Scheduling is at the cluster level. See [Calendars & Crons](calendars-and-crons.md).  
 
 ---
 
