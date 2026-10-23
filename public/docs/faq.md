@@ -3,9 +3,10 @@
 **Q: How do I set up SSH so Ordo can reach my server?**  
 **A:** Ordo connects **from the scheduler to your host** over SSH using **key-based auth**. You can install the key **automatically** (if password login is allowed) or **manually**.
 
-**Ordo’s public key:**
+Each install has its own key. Get it from the machine running Ordo:
+
 ```
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFteavF5RjZ19R2m/el3nXhsBK7q8sQTxUxye5bNUY2l ordo@ordoscheduler.com
+docker compose exec ordo cat /home/ordo/.ssh/id_ed25519.pub
 ```
 
 ### Option 1 - Automatic (password enabled)
@@ -25,7 +26,7 @@ If password login is disabled, or you prefer to provision keys yourself, install
 ```
 mkdir -p ~/.ssh
 chmod 700 ~/.ssh
-echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFteavF5RjZ19R2m/el3nXhsBK7q8sQTxUxye5bNUY2l ordo@ordoscheduler.com' >> ~/.ssh/authorized_keys
+echo 'PASTE_THE_PUBKEY' >> ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 ```
 
@@ -163,4 +164,8 @@ See also the SSH setup question above.
 ---
 
 **Q: Is Ordo open source?**  
-**A:** Some core pieces are open source (e.g. [Cron::Toolkit](https://metacpan.org/pod/Cron::Toolkit) on CPAN). The hosted product, web UI, and advanced features are proprietary.  
+**A:** Some core pieces are open source (e.g. [Cron::Toolkit](https://metacpan.org/pod/Cron::Toolkit) on CPAN). The hosted product, web UI, and advanced features are proprietary.
+
+**Q: What happens to scheduled runs if the scheduler is offline?**  
+**A:** They are skipped. On restart Ordo arms each cron for the next future time. It does not replay missed intervals. If a fire hits while the cluster is still running, it is not started again; an On Overdue handler can run once. See [Core Concepts](core-concepts.md).
+

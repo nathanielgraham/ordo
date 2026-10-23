@@ -60,3 +60,13 @@ Every running job receives special `ORDO_*` variables that allow scripts to inte
 Real-time monitoring of CPU, memory, disk, etc. is **optional**. Core scheduling works without it.
 
 For recommended intervals, API impact, best practices, and how to minimize quota usage, see [Stats Polling & Monitoring](stats-polling.md).
+
+## Missed runs and overlap
+
+Ordo does not catch up.
+
+If the machine running the scheduler is offline, those fires are skipped. On restart, each cron is armed for the **next future** time. A week of downtime does not produce a week of backlogged runs.
+
+If the next fire arrives while that cluster is still running (or on hold), it is not started again. An **On Overdue** handler, if set, fires once for that episode. The usual pattern is a handler that clones the cluster so a parallel cycle can run. See [Advanced Topics](advanced-topics.md).
+
+There is no per-job skip / run-latest / catch-up setting.
