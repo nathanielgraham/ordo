@@ -32,16 +32,17 @@ You can rotate this token at any time from this page.
 
 **Best Practice**: Use the **Execution Token** for server communication and the **API Token** for external scripts or tools.
 
-## Team Management
+## Members
 
-Invite others to join your organization:
+Admins (level 3) create users from **Settings → Members**.
 
-1. Go to the **Team** section.
-2. Enter the email address of the person you wish to invite.
-3. Choose their permission level.
-4. Click **Invite**.
+1. Enter a name and email.
+2. Leave **New org** unchecked to share your job tree. Check it to give them their own org.
+3. Click **Create user**.
 
-On SaaS, invited users receive a magic link. On self-hosted, an admin creates the user and gets an API token plus a one-time link to hand over. The maximum number of team members depends on your plan (SaaS) or is unconstrained (self-hosted).
+You get an API token and a one-time `/confirm` link. Hand either to the new user. They paste the token at `/token-login`, or open the link. No email is sent.
+
+The new user is a Member (level 1). Only level 3 can create users.
 
 ## Subscription & Upgrading
 
