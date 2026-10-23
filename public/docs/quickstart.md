@@ -21,7 +21,7 @@ docker compose logs ordo | grep bootstrap
 
 4. Add a server, then build the cake below.
 
-See [Self-Hosted](#docs/self-hosted) for permissions, users, and reset.
+See [Self-Hosted](self-hosted.md) for permissions, users, and reset.
 
 ## SaaS
 
@@ -93,6 +93,6 @@ Job → Actions → **View Log**. History is under **Log History**. Logs live on
 
 ### Next
 
-- [Core Concepts](#docs/core-concepts)
-- [Self-Hosted](#docs/self-hosted)
-- [Connecting to AI](#docs/connecting-to-ai)
+- [Core Concepts](core-concepts.md)
+- [Self-Hosted](self-hosted.md)
+- [Connecting to AI](connecting-to-ai.md)

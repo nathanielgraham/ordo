@@ -134,10 +134,10 @@ curl -X POST https://ordoscheduler.com/mcp \
 
 ## Next
 
-- [Quickstart](#docs/quickstart) — first server and workflow
-- [Agent protocol](#docs/agent-protocol) — guidance aimed at agents
-- [API Reference](#docs/api) — full command reference
-- [Advanced Topics](#docs/advanced-topics) — handlers, cloning, environment variables
-- [FAQ](#docs/faq) — SSH, limits, stuck jobs
+- [Quickstart](quickstart.md) — first server and workflow
+- [Agent protocol](agent-protocol.md) — guidance aimed at agents
+- [API Reference](api.md) — full command reference
+- [Advanced Topics](advanced-topics.md) — handlers, cloning, environment variables
+- [FAQ](faq.md) — SSH, limits, stuck jobs
 - [ordo-bot](https://github.com/nathanielgraham/ordo-bot) — recommended full agent
 - [ordo-wsagent](https://github.com/nathanielgraham/ordo-wsagent) — optional thin pipe

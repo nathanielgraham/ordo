@@ -1792,6 +1792,16 @@ export function loadDoc(file) {
       const html = marked.parse(md);
       document.getElementById("docs-content").innerHTML = html;
 
+      document.querySelectorAll("#docs-content a[href$='.md']").forEach((a) => {
+        const href = a.getAttribute("href");
+        if (!href || href.includes("://")) return;
+        a.addEventListener("click", (e) => {
+          e.preventDefault();
+          const slug = href.replace(/\.md$/, "").split("/").pop();
+          window.location.hash = `docs/${slug}`;
+        });
+      });
+
       if (typeof hljs !== "undefined") {
         hljs.highlightAll();
       }

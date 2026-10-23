@@ -15,7 +15,7 @@ HTTP `/api` and WebSocket use native `{command,…}` JSON. `/mcp` is JSON-RPC (`
 
 ### Preferred client: ordo-bot
 
-For AI agents, prefer **[ordo-bot](https://github.com/nathanielgraham/ordo-bot)** — a ready-made agent that connects over WebSocket, exposes the same command names as tools, and can **watch** broadcasts for completion. Install, wait pattern, and CLI: [Connecting to AI](#docs/connecting-to-ai) and [Agent protocol](#docs/agent-protocol).
+For AI agents, prefer **[ordo-bot](https://github.com/nathanielgraham/ordo-bot)** — a ready-made agent that connects over WebSocket, exposes the same command names as tools, and can **watch** broadcasts for completion. Install, wait pattern, and CLI: [Connecting to AI](connecting-to-ai.md) and [Agent protocol](agent-protocol.md).
 
 **[ordo-wsagent](https://github.com/nathanielgraham/ordo-wsagent)** is a thin WebSocket pipe for custom agent loops or scripting (you filter `jobs_changed` / `clusters_changed` yourself).
 
@@ -76,7 +76,7 @@ curl -X POST https://ordoscheduler.com/api \
   }'
 ```
 
-Always check `success` in the reply. Many commands accept either `id` or `name` (path). For long-lived wait-on-completion flows, prefer WebSocket / [ordo-bot](https://github.com/nathanielgraham/ordo-bot) — see [Connecting to AI](#docs/connecting-to-ai) and [Agent protocol](#docs/agent-protocol).
+Always check `success` in the reply. Many commands accept either `id` or `name` (path). For long-lived wait-on-completion flows, prefer WebSocket / [ordo-bot](https://github.com/nathanielgraham/ordo-bot) — see [Connecting to AI](connecting-to-ai.md) and [Agent protocol](agent-protocol.md).
 
 ---
 
@@ -454,7 +454,7 @@ Create an identical copy of a cluster (does **not** start it).
 
 ### create_cron
 
-Add a cron expression to an existing calendar. Prefer Quartz (e.g. `0 0 9 * * ? *`); 5-field Unix is accepted and expanded. Format details: [Calendars & Crons](#docs/calendars-and-crons).
+Add a cron expression to an existing calendar. Prefer Quartz (e.g. `0 0 9 * * ? *`); 5-field Unix is accepted and expanded. Format details: [Calendars & Crons](calendars-and-crons.md).
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -559,7 +559,7 @@ Broadcasts never include `request_id`.
 4. When a broadcast’s `updates` array contains the job/cluster with a terminal `jobstate` (`complete`, `failed`, …) or `state_id` 5, the work is finished.
 5. Optionally call `read_log`, then continue or disconnect.
 
-Full wait / watch guidance: [Agent protocol](#docs/agent-protocol) and [Connecting to AI](#docs/connecting-to-ai).
+Full wait / watch guidance: [Agent protocol](agent-protocol.md) and [Connecting to AI](connecting-to-ai.md).
 
 ---
 

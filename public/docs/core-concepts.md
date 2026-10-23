@@ -53,10 +53,10 @@ The entire cluster follows the attached calendar's schedule.
 
 ## 7. Environment Variables
 
-Every running job receives special `ORDO_*` variables that allow scripts to interact with Ordo itself. See the [Advanced Topics](#docs/advanced-topics.md) guide for the full list and examples.
+Every running job receives special `ORDO_*` variables that allow scripts to interact with Ordo itself. See the [Advanced Topics](advanced-topics.md) guide for the full list and examples.
 
 ## 8. Stats Polling (Optional)
 
 Real-time monitoring of CPU, memory, disk, etc. is **optional**. Core scheduling works without it.
 
-For recommended intervals, API impact, best practices, and how to minimize quota usage, see [Stats Polling & Monitoring](#docs/stats-polling).
+For recommended intervals, API impact, best practices, and how to minimize quota usage, see [Stats Polling & Monitoring](stats-polling.md).
