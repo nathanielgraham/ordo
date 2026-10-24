@@ -1756,6 +1756,9 @@ sub validate_params {
 sub throttle_exceeded {
    my ( $self, $user ) = @_;
 
+   my $mode = $ENV{ORDO_DEPLOY_MODE} || $self->config->{deploy_mode} || 'saas';
+   return 0 if $mode eq 'selfhosted';
+
    my $minute = strftime( '%Y-%m-%d %H:%M', localtime );
 
    if ( exists $user->request_count->{$minute} ) {
@@ -1772,6 +1775,9 @@ sub throttle_exceeded {
 
 sub increment_usage {
    my ( $self, $user ) = @_;
+
+   my $mode = $ENV{ORDO_DEPLOY_MODE} || $self->config->{deploy_mode} || 'saas';
+   return 1 if $mode eq 'selfhosted';
 
    my $org_id = $user->org_id;
    return 0 unless $org_id;
