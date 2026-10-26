@@ -1,6 +1,5 @@
 {
-  "deploy_mode": "saas",  
+  "deploy_mode": "selfhosted",
   "public_url": "http://localhost:3000",
-  "api_url": "http://localhost:3000/api",
-  "stripe_url": "https://api.stripe.com/v1"
+  "api_url": "http://localhost:3000/api"
 }
