@@ -12,7 +12,7 @@ cd ordo
 ./install.sh
 ```
 
-Run it as your user, not with `sudo`. If you are not in the `docker` group, it adds you and asks you to log out and back in, then run `./install.sh` again.
+Run it as your user, not with `sudo`. You need `sudo` once, or to already be in the `docker` group. If you are not, it adds you and continues.
 
 It starts Ordo, installs the container SSH key for your user, and prints the admin token and the LAN address to add as a server. Open `http://localhost:3000/token-login` and paste the token.
 

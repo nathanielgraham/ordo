@@ -16,7 +16,7 @@ cd ordo
 ./install.sh
 ```
 
-Run it as your user, not with `sudo`. If you cannot talk to Docker yet, it adds you to the `docker` group and stops. Log out, back in, and run `./install.sh` again.
+Run it as your user, not with `sudo`. You need `sudo` once, or to already be in the `docker` group. If you are not, it adds you and continues.
 
 The script starts the stack, installs Ordo's SSH public key in your `~/.ssh/authorized_keys`, and prints the admin token and the LAN address to add as a server.
 
