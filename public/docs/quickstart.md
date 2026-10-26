@@ -10,19 +10,13 @@ cd ordo
 ./install.sh
 ```
 
-Run it as your user, not with `sudo`. You need `sudo` once, or to already be in the `docker` group. If you are not, it adds you and continues.
+Run it as your user, not with `sudo`. Any account with `sudo` or already in the `docker` group is fine. If you are not in `docker`, the script adds you and continues.
 
 2. Open `http://localhost:3000/token-login` and paste the admin token it printed.
 
-3. Add this machine as a server (it printed the LAN address), then build the cake.
+3. Enable SSH (`sudo systemctl enable --now ssh`), add this machine as a server using the LAN address it printed, then build the cake.
 
 See [Self-Hosted](self-hosted.md) for permissions, users, and reset.
-
-## SaaS
-
-1. Open the app and click **Sign Up**.
-2. Enter your email and send the magic link.
-3. Click the link. You are logged in.
 
 ## Build a workflow
 
