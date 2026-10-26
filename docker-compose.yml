@@ -1,7 +1,21 @@
 services:
+  prepare:
+    build: .
+    image: ordo-selfhosted:latest
+    user: root
+    entrypoint: ["chown", "-R", "1000:1000", "/app/config", "/app/db", "/app/data"]
+    volumes:
+      - ./config:/app/config
+      - ./db:/app/db
+      - ./data:/app/data
+    restart: "no"
+
   ordo:
     build: .
     image: ordo-selfhosted:latest
+    depends_on:
+      prepare:
+        condition: service_completed_successfully
     ports:
       - "3000:3000"
     environment:

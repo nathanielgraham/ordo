@@ -20,12 +20,10 @@ cd ordo
 Run this from the `ordo` directory. `sudo` is used so it works before your user can talk to the Docker socket.
 
 ```
-mkdir -p config db data
-sudo chown -R 1000:1000 config db data
 sudo docker compose up -d --build
 ```
 
-`db/` must be owned by uid 1000 (the user inside the container). Do the `chown` before `up`.
+Compose creates `config/`, `db/`, and `data/` and a one-shot container chowns them to uid 1000 before Ordo starts.
 
 To run Docker without `sudo` later:
 

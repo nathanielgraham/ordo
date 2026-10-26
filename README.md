@@ -9,8 +9,6 @@ Licensed under the [GNU AGPL v3](LICENSE).
 ```bash
 git clone https://github.com/nathanielgraham/ordo.git
 cd ordo
-mkdir -p config db data
-sudo chown -R 1000:1000 config db data
 sudo docker compose up -d --build
 sudo docker compose logs ordo | grep bootstrap
 ```
