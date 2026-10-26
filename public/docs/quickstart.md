@@ -7,8 +7,6 @@
 ```
 git clone https://github.com/nathanielgraham/ordo.git
 cd ordo
-mkdir -p config db data
-sudo chown -R 1000:1000 config db data
 sudo docker compose up -d --build
 ```
 
