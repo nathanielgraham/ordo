@@ -10,22 +10,20 @@ Licensed under the [GNU AGPL v3](LICENSE).
 git clone https://github.com/nathanielgraham/ordo.git
 cd ordo
 mkdir -p config db data
-docker compose up -d --build
-```
-
-On a fresh database the first admin is created and the API token is printed:
-
-```bash
-docker compose logs ordo | grep bootstrap
-```
-
-Open `http://localhost:3000/token-login` and paste that token.
-
-`db/` must be writable by uid 1000:
-
-```bash
 sudo chown -R 1000:1000 config db data
+sudo docker compose up -d --build
+sudo docker compose logs ordo | grep bootstrap
 ```
+
+Open `http://localhost:3000/token-login` and paste the token from the logs.
+
+`sudo` is there so this works before your user is in the `docker` group. To drop it later:
+
+```bash
+sudo usermod -aG docker $USER
+```
+
+Log out and back in, then `groups` should include `docker`.
 
 Full guide: [public/docs/self-hosted.md](public/docs/self-hosted.md).
 
