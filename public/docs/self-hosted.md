@@ -17,23 +17,30 @@ cd ordo
 
 ## 2. Start
 
+Run this from the `ordo` directory. `sudo` is used so it works before your user can talk to the Docker socket.
+
 ```
 mkdir -p config db data
-docker compose up -d --build
-```
-
-`db/` must be writable by uid 1000 (the user inside the container):
-
-```
 sudo chown -R 1000:1000 config db data
+sudo docker compose up -d --build
 ```
+
+`db/` must be owned by uid 1000 (the user inside the container). Do the `chown` before `up`.
+
+To run Docker without `sudo` later:
+
+```
+sudo usermod -aG docker $USER
+```
+
+Log out and back in. `groups` should then include `docker`.
 
 ## 3. First admin
 
 On a fresh database the entrypoint creates an admin (level 3) and prints the API token:
 
 ```
-docker compose logs ordo | grep bootstrap
+sudo docker compose logs ordo | grep bootstrap
 ```
 
 ```
