@@ -115,7 +115,18 @@ sub startup {
    # Helpers
 
    $self->helper(
-      jwt => sub { Mojo::JWT->new( secret => $ENV{ORDO_SECRET} || die ) }
+      jwt => sub {
+         my $secret = $ENV{ORDO_SECRET};
+         unless ($secret) {
+            my $path = $self->home->child('config/jwt.secret');
+            if ( -s $path ) {
+               $secret = $path->slurp;
+               chomp $secret;
+            }
+         }
+         die "ORDO_SECRET is not set\n" unless $secret;
+         Mojo::JWT->new( secret => $secret );
+      }
 
       #sub { Mojo::JWT->new( secret => shift->config->{secrets}->[0] || die ) }
    );

@@ -79,6 +79,17 @@ else
   echo "Database already exists — skipping schema init."
 fi
 
+# JWT secret for confirm links. Persist so links survive restarts.
+if [ -z "${ORDO_SECRET:-}" ]; then
+  secret_file="/app/config/jwt.secret"
+  if [ ! -s "$secret_file" ]; then
+    openssl rand -hex 32 > "$secret_file"
+    chmod 600 "$secret_file" 2>/dev/null || true
+    echo "[entrypoint] Generated JWT secret at $secret_file"
+  fi
+  export ORDO_SECRET="$(cat "$secret_file")"
+fi
+
 # Self-hosted: ensure a level>0 admin exists and print the token once
 if [ -x /app/script/bootstrap_admin.sh ]; then
   /app/script/bootstrap_admin.sh "$DB" || echo "[bootstrap] WARN: admin bootstrap failed"
