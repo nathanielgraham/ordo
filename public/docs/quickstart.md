@@ -8,14 +8,25 @@
 git clone https://github.com/nathanielgraham/ordo.git
 cd ordo
 docker compose up -d --build
-docker compose logs ordo | grep bootstrap
 ```
 
 You need to be in the `docker` group, or use `sudo`.
 
-2. Open `http://localhost:3000/token-login` and paste the admin token.
+2. Get the admin token and open the app:
 
-3. Add this machine as a server (below), then build the cake.
+```
+docker compose logs ordo | grep bootstrap
+```
+
+Open `http://localhost:3000/token-login` and paste the token.
+
+3. Get this machine's LAN address:
+
+```
+hostname -I
+```
+
+Add that address as a server (below), then build the cake. Do not use `localhost`.
 
 See [Self-Hosted](self-hosted.md) for permissions, users, and reset.
 

@@ -16,10 +16,18 @@ cd ordo
 docker compose up -d --build
 ```
 
-You need to be in the `docker` group, or use `sudo`. On a fresh database the admin token is in the logs:
+You need to be in the `docker` group, or use `sudo`.
+
+Admin token:
 
 ```
 docker compose logs ordo | grep bootstrap
+```
+
+LAN address (use this when adding this machine as a server, not `localhost`):
+
+```
+hostname -I
 ```
 
 Optional overrides before you start:
