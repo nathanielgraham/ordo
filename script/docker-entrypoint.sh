@@ -29,11 +29,13 @@ fi
 
 if [ -f "$SSH_DIR/id_ed25519" ]; then
   echo "[entrypoint] Using existing SSH key at $SSH_DIR/id_ed25519"
+  echo "[entrypoint] Public key: $(cat "$SSH_DIR/id_ed25519.pub")"
 elif [ -d "$SSH_DIR" ] && [ -w "$SSH_DIR" ]; then
   ssh-keygen -t ed25519 -N "" -f "$SSH_DIR/id_ed25519" -C "ordo@container"
   chmod 600 "$SSH_DIR/id_ed25519" 2>/dev/null || true
   chmod 644 "$SSH_DIR/id_ed25519.pub" 2>/dev/null || true
   echo "[entrypoint] Generated SSH keypair"
+  echo "[entrypoint] Public key: $(cat "$SSH_DIR/id_ed25519.pub")"
 else
   echo "[entrypoint] WARN: no SSH key and $SSH_DIR is not writable; server SSH features may fail until the mount is owned by uid 1000"
 fi

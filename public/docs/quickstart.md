@@ -2,23 +2,19 @@
 
 ## Self-hosted
 
-1. Clone and start:
+1. Clone and install:
 
 ```
 git clone https://github.com/nathanielgraham/ordo.git
 cd ordo
-sudo docker compose up -d --build
+./install.sh
 ```
 
-2. Get the admin token:
+Run it as your user, not with `sudo`. If you are not in the `docker` group, it adds you and tells you to log out, back in, and run `./install.sh` again.
 
-```
-sudo docker compose logs ordo | grep bootstrap
-```
+2. Open `http://localhost:3000/token-login` and paste the admin token it printed.
 
-3. Open `http://localhost:3000/token-login` and paste the token.
-
-4. Add this machine as a server (below), then build the cake.
+3. Add this machine as a server (it printed the LAN address), then build the cake.
 
 See [Self-Hosted](self-hosted.md) for permissions, users, and reset.
 
