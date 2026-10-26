@@ -13,14 +13,16 @@ Run Ordo on your own machine with Docker. No license key and no SMTP required.
 ```
 git clone https://github.com/nathanielgraham/ordo.git
 cd ordo
-./install.sh
+docker compose up -d --build
 ```
 
-Run it as your user, not with `sudo`. Any account with `sudo` or already in the `docker` group is fine. If you are not in `docker`, the script adds you and continues.
+You need to be in the `docker` group, or use `sudo`. On a fresh database the admin token is in the logs:
 
-The script starts the stack, installs Ordo's SSH public key in your `~/.ssh/authorized_keys`, and prints the admin token and the LAN address.
+```
+docker compose logs ordo | grep bootstrap
+```
 
-Optional overrides before you run it:
+Optional overrides before you start:
 
 - `ORDO_ADMIN_EMAIL`
 - `ORDO_ADMIN_TOKEN`
@@ -107,10 +109,13 @@ docker compose restart
 
 ## Use this machine as a server
 
-You can run jobs on the same box that runs Ordo. `./install.sh` already installed the public key for your user. Enable SSH first:
+You can run jobs on the same box that runs Ordo. Enable SSH, then install the container key:
 
 ```
 sudo systemctl enable --now ssh
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+docker compose exec ordo cat /home/ordo/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
 ```
 
 Do not add it as `localhost`. From inside the container that is the container itself. Use the LAN address the script printed.

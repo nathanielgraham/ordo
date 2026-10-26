@@ -2,19 +2,20 @@
 
 ## Self-hosted
 
-1. Clone and install:
+1. Clone and start:
 
 ```
 git clone https://github.com/nathanielgraham/ordo.git
 cd ordo
-./install.sh
+docker compose up -d --build
+docker compose logs ordo | grep bootstrap
 ```
 
-Run it as your user, not with `sudo`. Any account with `sudo` or already in the `docker` group is fine. If you are not in `docker`, the script adds you and continues.
+You need to be in the `docker` group, or use `sudo`.
 
-2. Open `http://localhost:3000/token-login` and paste the admin token it printed.
+2. Open `http://localhost:3000/token-login` and paste the admin token.
 
-3. Enable SSH (`sudo systemctl enable --now ssh`), add this machine as a server using the LAN address it printed, then build the cake.
+3. Add this machine as a server (below), then build the cake.
 
 See [Self-Hosted](self-hosted.md) for permissions, users, and reset.
 
@@ -22,9 +23,17 @@ See [Self-Hosted](self-hosted.md) for permissions, users, and reset.
 
 ### 1. Add this machine as a server
 
-`./install.sh` already put Ordo's public key in your `~/.ssh/authorized_keys`. SSH must be running (`sudo systemctl enable --now ssh`).
+Enable SSH and install the container key:
 
-Do not use `localhost` as the host. That is the container. Use the LAN address `install.sh` printed.
+```
+sudo systemctl enable --now ssh
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+docker compose exec ordo cat /home/ordo/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+hostname -I
+```
+
+Do not use `localhost` as the host. That is the container. Use the LAN address from `hostname -I`.
 
 In Ordo: **Servers** → add a server.
 
