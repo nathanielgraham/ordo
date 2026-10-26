@@ -25,3 +25,9 @@ volumes:
 ```
 
 and `chown -R 1000:1000 home ssh`.
+
+## Required .env
+
+`docker-compose.yml` in this directory sets `env_file: .env`. Create `deploy/saas/.env` before `docker compose up`. It holds SaaS secrets (Stripe, SMTP, `ORDO_SECRET`, and so on).
+
+The root `docker-compose.yml` (self-hosted) does not require a `.env`. This one does.
