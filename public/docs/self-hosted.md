@@ -16,30 +16,16 @@ cd ordo
 ./install.sh
 ```
 
-Run it as your user, not with `sudo`. You need `sudo` once, or to already be in the `docker` group. If you are not, it adds you and continues.
+Run it as your user, not with `sudo`. Any account with `sudo` or already in the `docker` group is fine. If you are not in `docker`, the script adds you and continues.
 
-The script starts the stack, installs Ordo's SSH public key in your `~/.ssh/authorized_keys`, and prints the admin token and the LAN address to add as a server.
+The script starts the stack, installs Ordo's SSH public key in your `~/.ssh/authorized_keys`, and prints the admin token and the LAN address.
 
-## 3. First admin
-
-On a fresh database the entrypoint creates an admin (level 3) and prints the API token:
-
-```
-sudo docker compose logs ordo | grep bootstrap
-```
-
-```
-[bootstrap] Created admin admin@localhost
-[bootstrap] API token: <40-char token>
-[bootstrap] Paste this token at /token-login
-```
-
-Optional overrides:
+Optional overrides before you run it:
 
 - `ORDO_ADMIN_EMAIL`
 - `ORDO_ADMIN_TOKEN`
 
-## 4. Log in
+## 2. Log in
 
 Open:
 
@@ -51,7 +37,7 @@ Paste the token from the logs. You land in the app. There is no public signup.
 
 Without a valid token, self-hosted redirects to `/token-login`. Docs and the rest of the app are available after login.
 
-## 5. Add users
+## 3. Add users
 
 Settings → Members (admins only):
 
@@ -66,7 +52,7 @@ You get:
 
 Hand either to the new user. No email is sent.
 
-## 6. Email (optional)
+## 4. Email (optional)
 
 SMTP is not required. Set it only if you want magic-link mail or notifications.
 
@@ -121,7 +107,11 @@ docker compose restart
 
 ## Use this machine as a server
 
-You can run jobs on the same box that runs Ordo. `./install.sh` already installed the public key for your user. SSH must be running (`sudo systemctl enable --now ssh`).
+You can run jobs on the same box that runs Ordo. `./install.sh` already installed the public key for your user. Enable SSH first:
+
+```
+sudo systemctl enable --now ssh
+```
 
 Do not add it as `localhost`. From inside the container that is the container itself. Use the LAN address the script printed.
 
@@ -129,14 +119,14 @@ In **Servers**, add that address, your username, and port 22. No password.
 
 `api_url` may stay `http://127.0.0.1:3000/api` while jobs run on this host. Other machines need a reachable address. See [Reachable address](#reachable-address).
 
-## 7. Services
+## 5. Services
 
 | Service | Purpose        |
 |---------|----------------|
 | `ordo`  | Web app        |
 | `minion`| Background jobs|
 
-## 8. Reset
+## 6. Reset
 
 ```
 docker compose down

@@ -12,9 +12,9 @@ cd ordo
 ./install.sh
 ```
 
-Run it as your user, not with `sudo`. You need `sudo` once, or to already be in the `docker` group. If you are not, it adds you and continues.
+Run it as your user, not with `sudo`. Any account with `sudo` or already in the `docker` group is fine. If you are not in `docker`, the script adds you and continues.
 
-It starts Ordo, installs the container SSH key for your user, and prints the admin token and the LAN address to add as a server. Open `http://localhost:3000/token-login` and paste the token.
+It starts Ordo, installs the container SSH key, and prints the admin token and the LAN address. Open `http://localhost:3000/token-login` and paste the token. Enable SSH (`sudo systemctl enable --now ssh`) before adding that address as a server. Do not use `localhost`.
 
 Full guide: [public/docs/self-hosted.md](public/docs/self-hosted.md).
 
