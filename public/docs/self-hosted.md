@@ -133,6 +133,29 @@ Restart:
 docker compose restart
 ```
 
+
+## Use this machine as a server
+
+You can run jobs on the same box that runs Ordo. Do not add it as `localhost`. From inside the container that is the container itself.
+
+```
+sudo systemctl enable --now ssh
+hostname -I
+sudo docker compose exec ordo cat /home/ordo/.ssh/id_ed25519.pub
+```
+
+Install that key for your user:
+
+```
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+echo 'PASTE_THE_PUBKEY' >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+In **Servers**, add the LAN address from `hostname -I`, your username, and port 22. No password.
+
+`api_url` may stay `http://127.0.0.1:3000/api` while jobs run on this host. Other machines need a reachable address. See [Reachable address](#reachable-address).
+
 ## 7. Services
 
 | Service | Purpose        |

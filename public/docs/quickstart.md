@@ -8,18 +8,19 @@
 git clone https://github.com/nathanielgraham/ordo.git
 cd ordo
 mkdir -p config db data
-docker compose up -d --build
+sudo chown -R 1000:1000 config db data
+sudo docker compose up -d --build
 ```
 
 2. Get the admin token:
 
 ```
-docker compose logs ordo | grep bootstrap
+sudo docker compose logs ordo | grep bootstrap
 ```
 
 3. Open `http://localhost:3000/token-login` and paste the token.
 
-4. Add a server, then build the cake below.
+4. Add this machine as a server (below), then build the cake.
 
 See [Self-Hosted](self-hosted.md) for permissions, users, and reset.
 
@@ -31,11 +32,34 @@ See [Self-Hosted](self-hosted.md) for permissions, users, and reset.
 
 ## Build a workflow
 
-### 1. Add a server
+### 1. Add this machine as a server
 
-1. **Servers** → add a server.
-2. Host, user, and SSH key or password.
-3. Save. Ordo installs its public key when it can.
+Ordo runs in Docker, so do not use `localhost` as the SSH host. That is the container. Use the host's LAN address.
+
+On the host:
+
+```
+sudo systemctl enable --now ssh
+hostname -I
+sudo docker compose exec ordo cat /home/ordo/.ssh/id_ed25519.pub
+```
+
+Put the public key in your account's `~/.ssh/authorized_keys`:
+
+```
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+echo 'PASTE_THE_PUBKEY' >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+In Ordo: **Servers** → add a server.
+
+- Host: the address from `hostname -I` (for example `192.168.1.20`)
+- User: your account on this machine
+- Port: 22
+- No password
+
+`api_url` can stay `http://127.0.0.1:3000/api`. The job runs on the host, which can reach the published port.
 
 ### 2. Create a cluster
 

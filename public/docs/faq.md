@@ -169,3 +169,6 @@ See also the SSH setup question above.
 **Q: What happens to scheduled runs if the scheduler is offline?**  
 **A:** They are skipped. On restart Ordo arms each cron for the next future time. It does not replay missed intervals. If a fire hits while the cluster is still running, it is not started again; an On Overdue handler can run once. See [Core Concepts](core-concepts.md).
 
+**Q: Can I use the machine running Ordo as a server?**  
+**A:** Yes. Do not use `localhost` as the SSH host. Use the host LAN address from `hostname -I`, and install the container's public key. See [Quickstart](quickstart.md).
+
