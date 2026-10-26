@@ -3,6 +3,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+if [ "$(id -u)" -eq 0 ]; then
+  echo "Do not run ./install.sh with sudo. Run it as your user."
+  exit 1
+fi
+
 if ! command -v docker >/dev/null 2>&1; then
   echo "Docker is not installed. Install Docker and Docker Compose, then run ./install.sh again."
   exit 1
@@ -16,6 +21,7 @@ if ! docker info >/dev/null 2>&1; then
   exit 0
 fi
 
+mkdir -p config db data
 docker compose up -d --build
 
 mkdir -p "$HOME/.ssh"
