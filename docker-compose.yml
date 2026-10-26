@@ -4,8 +4,6 @@ services:
     image: ordo-selfhosted:latest
     ports:
       - "3000:3000"
-    env_file:
-      - .env
     environment:
       ORDO_DEPLOY_MODE: ${ORDO_DEPLOY_MODE:-selfhosted}
       ORDO_LICENSE_KEY: ${ORDO_LICENSE_KEY:-}
@@ -25,8 +23,6 @@ services:
   minion:
     image: ordo-selfhosted:latest
     command: ["perl", "script/minion_worker.pl"]
-    env_file:
-      - .env
     environment:
       ORDO_DEPLOY_MODE: ${ORDO_DEPLOY_MODE:-selfhosted}
       ORDO_LICENSE_KEY: ${ORDO_LICENSE_KEY:-}
