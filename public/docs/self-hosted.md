@@ -8,30 +8,17 @@ Run Ordo on your own machine with Docker. No license key and no SMTP required.
 - Docker and Docker Compose
 - About 2 GB of RAM
 
-## 1. Get the code
+## 1. Install
 
 ```
 git clone https://github.com/nathanielgraham/ordo.git
 cd ordo
+./install.sh
 ```
 
-## 2. Start
+Run it as your user, not with `sudo`. If you cannot talk to Docker yet, it adds you to the `docker` group and stops. Log out, back in, and run `./install.sh` again.
 
-Run this from the `ordo` directory. `sudo` is used so it works before your user can talk to the Docker socket.
-
-```
-sudo docker compose up -d --build
-```
-
-Compose creates `config/`, `db/`, and `data/` and a one-shot container chowns them to uid 1000 before Ordo starts.
-
-To run Docker without `sudo` later:
-
-```
-sudo usermod -aG docker $USER
-```
-
-Log out and back in. `groups` should then include `docker`.
+The script starts the stack, installs Ordo's SSH public key in your `~/.ssh/authorized_keys`, and prints the admin token and the LAN address to add as a server.
 
 ## 3. First admin
 

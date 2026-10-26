@@ -9,19 +9,12 @@ Licensed under the [GNU AGPL v3](LICENSE).
 ```bash
 git clone https://github.com/nathanielgraham/ordo.git
 cd ordo
-sudo docker compose up -d --build
-sudo docker compose logs ordo | grep bootstrap
+./install.sh
 ```
 
-Open `http://localhost:3000/token-login` and paste the token from the logs.
+Run it as your user, not with `sudo`. If you are not in the `docker` group, it adds you and asks you to log out and back in, then run `./install.sh` again.
 
-`sudo` is there so this works before your user is in the `docker` group. To drop it later:
-
-```bash
-sudo usermod -aG docker $USER
-```
-
-Log out and back in, then `groups` should include `docker`.
+It starts Ordo, installs the container SSH key for your user, and prints the admin token and the LAN address to add as a server. Open `http://localhost:3000/token-login` and paste the token.
 
 Full guide: [public/docs/self-hosted.md](public/docs/self-hosted.md).
 
