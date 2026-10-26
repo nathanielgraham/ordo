@@ -28,27 +28,13 @@ See [Self-Hosted](self-hosted.md) for permissions, users, and reset.
 
 ### 1. Add this machine as a server
 
-Ordo runs in Docker, so do not use `localhost` as the SSH host. That is the container. Use the host's LAN address.
+`./install.sh` already put Ordo's public key in your `~/.ssh/authorized_keys`. SSH must be running (`sudo systemctl enable --now ssh`).
 
-On the host:
-
-```
-sudo systemctl enable --now ssh
-hostname -I
-sudo docker compose exec ordo cat /home/ordo/.ssh/id_ed25519.pub
-```
-
-Put the public key in your account's `~/.ssh/authorized_keys`:
-
-```
-mkdir -p ~/.ssh && chmod 700 ~/.ssh
-echo 'PASTE_THE_PUBKEY' >> ~/.ssh/authorized_keys
-chmod 600 ~/.ssh/authorized_keys
-```
+Do not use `localhost` as the host. That is the container. Use the LAN address `install.sh` printed.
 
 In Ordo: **Servers** → add a server.
 
-- Host: the address from `hostname -I` (for example `192.168.1.20`)
+- Host: that LAN address (for example `192.168.1.20`)
 - User: your account on this machine
 - Port: 22
 - No password
