@@ -17,6 +17,10 @@ if ! docker info >/dev/null 2>&1; then
   echo "This user cannot talk to Docker yet."
   sudo usermod -aG docker "$USER"
   echo "Added $USER to the docker group."
+  if command -v sg >/dev/null 2>&1; then
+    echo "Continuing with the docker group..."
+    exec sg docker -c "exec \"$0\""
+  fi
   echo "Log out, back in, and run ./install.sh again."
   exit 0
 fi
