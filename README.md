@@ -10,19 +10,30 @@ Licensed under the [GNU AGPL v3](LICENSE).
 git clone https://github.com/nathanielgraham/ordo.git
 cd ordo
 docker compose up -d --build
+```
+
+You need to be in the `docker` group, or use `sudo`.
+
+Admin token:
+
+```bash
 docker compose logs ordo | grep bootstrap
 ```
 
-Open `http://localhost:3000/token-login` and paste the token. You need to be in the `docker` group (or use `sudo`).
+Open `http://localhost:3000/token-login` and paste that token.
 
-To run a job on this machine, enable SSH and install the container key:
+LAN address, for adding this machine as a server:
+
+```bash
+hostname -I
+```
+
+Do not use `localhost`. Enable SSH and install the container key first:
 
 ```bash
 sudo systemctl enable --now ssh
 docker compose exec ordo cat /home/ordo/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
 ```
-
-Add the LAN address from `hostname -I` as a server. Do not use `localhost`.
 
 Full guide: [public/docs/self-hosted.md](public/docs/self-hosted.md).
 
